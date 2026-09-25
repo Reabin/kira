@@ -497,19 +497,6 @@ class _DiscoverTabState extends State<_DiscoverTab>
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          // 展开时只渲染下面的题材网格，不再重复一条横向 chip 行。
-          if (_tags.isNotEmpty && !_tagsExpanded) ...[
-            _FilterChipRow(
-              options: _tagOptions(l10n),
-              onTap: (o) => _selectTag(o.value.isEmpty ? null : o.value),
-              trailing: _filterRowButton(
-                onPressed: _toggleTagsExpanded,
-                icon: Icons.expand_more,
-                label: l10n.tagsExpandAll,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ],
           _FilterChipRow(
             options: _orderingOptions(l10n),
             onTap: (o) => _setOrdering(o.value),
@@ -531,6 +518,19 @@ class _DiscoverTabState extends State<_DiscoverTab>
               ],
             ),
           ),
+          // 展开时只渲染下面的题材网格，不再重复一条横向 chip 行。
+          if (_tags.isNotEmpty && !_tagsExpanded) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _FilterChipRow(
+              options: _tagOptions(l10n),
+              onTap: (o) => _selectTag(o.value.isEmpty ? null : o.value),
+              trailing: _filterRowButton(
+                onPressed: _toggleTagsExpanded,
+                icon: Icons.expand_more,
+                label: l10n.tagsExpandAll,
+              ),
+            ),
+          ],
           if (_tagsExpanded && _tags.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
             SectionHeader(
