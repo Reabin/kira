@@ -914,6 +914,7 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
               cover: latest.cover,
               entryIndex: latest.entryIndex,
               resume: true,
+              noDetailBelow: true,
             ),
           );
         }

@@ -3838,6 +3838,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderContents => '目录';
 
   @override
+  String get novelReaderCatalog => '总目录';
+
+  @override
   String get novelReaderVolume => '卷册';
 
   @override
@@ -7880,6 +7883,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderContents => '目錄';
+
+  @override
+  String get novelReaderCatalog => '總目錄';
 
   @override
   String get novelReaderVolume => '卷冊';

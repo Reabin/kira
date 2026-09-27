@@ -2360,6 +2360,7 @@
   "novelReaderHideToolbar": "收起工具列",
   "novelReaderShowToolbar": "展開工具列",
   "novelReaderContents": "目錄",
+  "novelReaderCatalog": "總目錄",
   "novelReaderVolume": "卷冊",
   "novelReaderVolumesRetry": "卷冊載入失敗，重試",
   "novelReaderPrevious": "上一章節",

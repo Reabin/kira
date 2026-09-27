@@ -12,6 +12,14 @@ import '../../utils/novel_chapter_display.dart';
 import '../../widgets/error_retry_view.dart';
 import 'novel_reader_illustrations.dart';
 
+/// 目录抽屉「总目录」按钮的返回哨兵：阅读页收到后退出阅读、回到小说详情。
+/// 选章则照旧返回 (volumeId, entryIndex)。
+class NovelReaderCatalogExit {
+  const NovelReaderCatalogExit();
+}
+
+const novelReaderCatalogExit = NovelReaderCatalogExit();
+
 class NovelReaderContentsSheet extends StatefulWidget {
   const NovelReaderContentsSheet({
     super.key,
@@ -164,10 +172,12 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
             ),
           const SizedBox(height: AppSpacing.sm),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _detailFailed
-                ? Center(
+            child: Stack(
+              children: [
+                if (_loading)
+                  const Center(child: CircularProgressIndicator())
+                else if (_detailFailed)
+                  Center(
                     child: SingleChildScrollView(
                       child: ErrorRetryView(
                         message: _source.localOnly
@@ -177,9 +187,11 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
                       ),
                     ),
                   )
-                : entries.isEmpty
-                ? Center(child: Text(l10n.novelReaderEmptyVolume))
-                : ListView.builder(
+                else if (entries.isEmpty)
+                  Center(child: Text(l10n.novelReaderEmptyVolume))
+                else
+                  ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 72),
                     itemCount: chapters.length + illustrationCount,
                     itemBuilder: (context, row) {
                       if (row == chapters.length) {
@@ -229,14 +241,26 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
                               ? l10n.novelReaderUnnamedChapter(index + 1)
                               : stripVolumePrefix(entry.name, volumeName),
                         ),
-                        trailing: selected
-                            ? const Icon(Icons.bookmark_outline)
-                            : null,
                         onTap: () =>
                             Navigator.of(context).pop((_selected, index)),
                       );
                     },
                   ),
+                Positioned(
+                  right: 0,
+                  bottom: AppSpacing.sm,
+                  child: FloatingActionButton.extended(
+                    key: const ValueKey('novel-toc-catalog'),
+                    heroTag: 'novel-toc-catalog',
+                    tooltip: l10n.novelReaderCatalog,
+                    icon: const Icon(Icons.library_books_outlined),
+                    label: Text(l10n.novelReaderCatalog),
+                    onPressed: () =>
+                        Navigator.of(context).pop(novelReaderCatalogExit),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

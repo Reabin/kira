@@ -7085,6 +7085,12 @@ abstract class AppLocalizations {
   /// **'目录'**
   String get novelReaderContents;
 
+  /// No description provided for @novelReaderCatalog.
+  ///
+  /// In zh, this message translates to:
+  /// **'总目录'**
+  String get novelReaderCatalog;
+
   /// No description provided for @novelReaderVolume.
   ///
   /// In zh, this message translates to:

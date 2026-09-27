@@ -174,6 +174,7 @@ class _LocalNovelDetailPageState extends ConsumerState<LocalNovelDetailPage> {
         name: _downloads.localInfo(widget.pathWord)?.name ?? '',
         cover: _downloads.localInfo(widget.pathWord)?.book.cover ?? '',
         localOnly: true,
+        noDetailBelow: true,
       ),
     );
     if (mounted) await _loadProgress();

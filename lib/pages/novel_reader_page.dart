@@ -43,6 +43,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
     this.initialParagraphAlignment = 0,
     this.resume = false,
     this.localOnly = false,
+    this.noDetailBelow = false,
     this.source,
   });
 
@@ -55,6 +56,11 @@ class NovelReaderPage extends ConsumerStatefulWidget {
   final double initialParagraphAlignment;
   final bool resume;
   final bool localOnly;
+
+  /// 栈底是否没有小说详情页（书架/历史/书签/继续阅读等直达入口）。
+  /// 「总目录」退出时据此决定 pop 还是原地替换成详情页。
+  final bool noDetailBelow;
+
   final NovelReaderSource? source;
 
   @override
@@ -543,7 +549,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Future<void> _showContents() async {
     final session = _session;
-    final selection = await showAppSheet<(String, int)>(
+    final selection = await showAppSheet<Object?>(
       context,
       heightFactor: 0.85,
       child: NovelReaderContentsSheet(
@@ -556,12 +562,38 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ),
     );
     if (!_active(session) || selection == null) return;
-    final (volume, entry) = selection;
-    if (volume == _volumeId && _document != null) {
-      _jumpTo(NovelReaderAnchor(entryIndex: entry));
-    } else {
-      await _loadVolume(volume, anchor: NovelReaderAnchor(entryIndex: entry));
+    if (selection is NovelReaderCatalogExit) {
+      await _exitToDetail();
+      return;
     }
+    if (selection case (final String volume, final int entry)) {
+      if (volume == _volumeId && _document != null) {
+        _jumpTo(NovelReaderAnchor(entryIndex: entry));
+      } else {
+        await _loadVolume(
+          volume,
+          anchor: NovelReaderAnchor(entryIndex: entry),
+        );
+      }
+    }
+  }
+
+  /// 「总目录」出口：目录抽屉的悬浮按钮统一收口到这里。
+  /// 正常入口下详情页在栈底，pop 即可；无详情页直入时 pop 只会落回来源
+  /// 列表页，不符「总目录」语义，改为原地替换成详情页（与漫画阅读器的
+  /// _exitToCatalog 同一套规则）。
+  Future<void> _exitToDetail() async {
+    await _flush();
+    if (!mounted) return;
+    if (!widget.noDetailBelow) {
+      await Navigator.of(context).maybePop();
+      return;
+    }
+    // pushReplacementNamed 返回 void：路由替换同步生效，无需 await。
+    context.pushReplacementNamed(
+      AppRoutes.novelDetail,
+      pathParameters: {'pathWord': _pathWord},
+    );
   }
 
   void _changeSettings(NovelReaderSettings settings) {

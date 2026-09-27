@@ -220,6 +220,7 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
           entryIndex: bookmark.entryIndex,
           initialParagraphIndex: bookmark.paragraphIndex,
           initialParagraphAlignment: bookmark.paragraphAlignment,
+          noDetailBelow: true,
         ),
       );
     }

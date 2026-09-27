@@ -134,6 +134,10 @@ class NovelReaderExtra {
   final bool resume;
   final bool localOnly;
 
+  /// 栈底没有小说详情页（书架/历史/书签/继续阅读等直达入口）时置 true，
+  /// 阅读页「总目录」退出会原地替换成详情页。
+  final bool noDetailBelow;
+
   const NovelReaderExtra({
     this.name = '',
     this.cover = '',
@@ -142,6 +146,7 @@ class NovelReaderExtra {
     this.initialParagraphAlignment = 0,
     this.resume = false,
     this.localOnly = false,
+    this.noDetailBelow = false,
   });
 }
 
@@ -332,6 +337,7 @@ GoRouter createAppRouter() {
             initialParagraphAlignment: options.initialParagraphAlignment,
             resume: options.resume,
             localOnly: options.localOnly,
+            noDetailBelow: options.noDetailBelow,
           );
         },
       ),

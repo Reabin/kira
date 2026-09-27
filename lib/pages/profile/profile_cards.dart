@@ -117,6 +117,7 @@ extension _ProfileCards on _ProfilePageState {
         cover: progress.cover,
         entryIndex: progress.entryIndex,
         resume: true,
+        noDetailBelow: true,
       ),
     );
     if (!mounted) return;
