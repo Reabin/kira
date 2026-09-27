@@ -20,11 +20,13 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
+import '../utils/download_manager.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/comic_info_chips.dart';
 import '../widgets/cover_placeholder.dart';
+import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/novel_comments_sheet.dart';
 import '../widgets/novel_widgets.dart';
@@ -551,6 +553,15 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     }
   }
 
+  /// 与漫画详情一致：选择工具栏上的设置按钮，打开统一的下载设置面板。
+  Future<void> _showDownloadSettings() async {
+    await showDownloadSettingsSheet(
+      context,
+      downloads: DownloadManager(),
+      novelDownloads: _downloads,
+    );
+  }
+
   Future<void> _showComments() async {
     final book = _detail?.book;
     if (book == null || book.uuid.isEmpty) return;
@@ -936,6 +947,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                         : _downloadSelectedVolumes,
                     icon: const Icon(Icons.download_outlined, size: 18),
                     label: Text(l10n.downloadActionButton),
+                  ),
+                  OutlinedButton(
+                    onPressed: _showDownloadSettings,
+                    child: Text(l10n.downloadSettingsTitle),
                   ),
                 ],
               ),

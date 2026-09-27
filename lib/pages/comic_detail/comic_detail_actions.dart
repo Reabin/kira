@@ -191,7 +191,11 @@ extension _ComicDetailActions on _ComicDetailPageState {
   }
 
   Future<void> _showDownloadSettings() async {
-    await showDownloadSettingsSheet(context, downloads: _downloads);
+    await showDownloadSettingsSheet(
+      context,
+      downloads: _downloads,
+      novelDownloads: NovelDownloadManager(),
+    );
   }
 
   void _openReader(Chapter chapter) {

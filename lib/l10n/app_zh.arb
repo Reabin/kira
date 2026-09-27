@@ -1709,13 +1709,11 @@
     }
   },
   "downloadSettingsTitle": "设置",
-  "downloadImageConcurrency": "并发下载数量",
-  "downloadImageConcurrencyDesc": "数值过大可能导致 IP 被限流，后果自负",
+  "downloadImageConcurrency": "并发线程数",
+  "downloadImageConcurrencyDesc": "并发设置过大有 IP 被限流或封禁的风险，后果自负",
   "downloadChapterComments": "下载章节评论",
-  "downloadChapterCommentsDesc": "下载章节时一并保存评论",
-  "downloadVolumeConcurrency": "卷下载并发数量",
-  "downloadVolumeConcurrencyDesc": "同时下载的轻小说分卷数量，数值越大占用带宽越多",
-  "novelDownloadSection": "轻小说下载",
+  "comicDownloadSection": "漫画下载设置",
+  "novelDownloadSection": "轻小说下载设置",
   "novelDownloadDirectoryOverlap": "轻小说与漫画下载目录不能相同或互相包含",
   "novelDownloadMigrateConfirmContent": "将把已下载的 {count} 部轻小说移动到新目录，迁移期间请勿退出应用。",
   "@novelDownloadMigrateConfirmContent": {

@@ -4875,13 +4875,13 @@ abstract class AppLocalizations {
   /// No description provided for @downloadImageConcurrency.
   ///
   /// In zh, this message translates to:
-  /// **'并发下载数量'**
+  /// **'并发线程数'**
   String get downloadImageConcurrency;
 
   /// No description provided for @downloadImageConcurrencyDesc.
   ///
   /// In zh, this message translates to:
-  /// **'数值过大可能导致 IP 被限流，后果自负'**
+  /// **'并发设置过大有 IP 被限流或封禁的风险，后果自负'**
   String get downloadImageConcurrencyDesc;
 
   /// No description provided for @downloadChapterComments.
@@ -4890,28 +4890,16 @@ abstract class AppLocalizations {
   /// **'下载章节评论'**
   String get downloadChapterComments;
 
-  /// No description provided for @downloadChapterCommentsDesc.
+  /// No description provided for @comicDownloadSection.
   ///
   /// In zh, this message translates to:
-  /// **'下载章节时一并保存评论'**
-  String get downloadChapterCommentsDesc;
-
-  /// No description provided for @downloadVolumeConcurrency.
-  ///
-  /// In zh, this message translates to:
-  /// **'卷下载并发数量'**
-  String get downloadVolumeConcurrency;
-
-  /// No description provided for @downloadVolumeConcurrencyDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'同时下载的轻小说分卷数量，数值越大占用带宽越多'**
-  String get downloadVolumeConcurrencyDesc;
+  /// **'漫画下载设置'**
+  String get comicDownloadSection;
 
   /// No description provided for @novelDownloadSection.
   ///
   /// In zh, this message translates to:
-  /// **'轻小说下载'**
+  /// **'轻小说下载设置'**
   String get novelDownloadSection;
 
   /// No description provided for @novelDownloadDirectoryOverlap.

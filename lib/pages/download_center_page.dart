@@ -101,7 +101,10 @@ class _DownloadCenterPageState extends State<DownloadCenterPage>
             embedded: true,
             trailingAction: _settingsFab('download_settings_comic'),
           ),
-          const LocalNovelsPage(embedded: true),
+          LocalNovelsPage(
+            embedded: true,
+            trailingAction: _settingsFab('download_settings_novel'),
+          ),
           _buildQueueTab(),
         ],
       ),
@@ -140,6 +143,7 @@ class _DownloadCenterPageState extends State<DownloadCenterPage>
     );
   }
 
+  /// 统一打开同一个下载设置面板（同时包含漫画与轻小说配置）。
   Widget _settingsFab(String heroTag) {
     return FloatingActionButton(
       heroTag: heroTag,

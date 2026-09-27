@@ -2648,25 +2648,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadSettingsTitle => '设置';
 
   @override
-  String get downloadImageConcurrency => '并发下载数量';
+  String get downloadImageConcurrency => '并发线程数';
 
   @override
-  String get downloadImageConcurrencyDesc => '数值过大可能导致 IP 被限流，后果自负';
+  String get downloadImageConcurrencyDesc => '并发设置过大有 IP 被限流或封禁的风险，后果自负';
 
   @override
   String get downloadChapterComments => '下载章节评论';
 
   @override
-  String get downloadChapterCommentsDesc => '下载章节时一并保存评论';
+  String get comicDownloadSection => '漫画下载设置';
 
   @override
-  String get downloadVolumeConcurrency => '卷下载并发数量';
-
-  @override
-  String get downloadVolumeConcurrencyDesc => '同时下载的轻小说分卷数量，数值越大占用带宽越多';
-
-  @override
-  String get novelDownloadSection => '轻小说下载';
+  String get novelDownloadSection => '轻小说下载设置';
 
   @override
   String get novelDownloadDirectoryOverlap => '轻小说与漫画下载目录不能相同或互相包含';
@@ -6704,25 +6698,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get downloadSettingsTitle => '設定';
 
   @override
-  String get downloadImageConcurrency => '並行下載數量';
+  String get downloadImageConcurrency => '並行執行緒數';
 
   @override
-  String get downloadImageConcurrencyDesc => '數值過大可能導致 IP 被限流，後果自負';
+  String get downloadImageConcurrencyDesc => '並行設定過大有 IP 被限流或封禁的風險，後果自負';
 
   @override
   String get downloadChapterComments => '下載章節評論';
 
   @override
-  String get downloadChapterCommentsDesc => '下載章節時一併儲存評論';
+  String get comicDownloadSection => '漫畫下載設定';
 
   @override
-  String get downloadVolumeConcurrency => '卷下載並行數量';
-
-  @override
-  String get downloadVolumeConcurrencyDesc => '同時下載的輕小說分卷數量，數值越大佔用頻寬越多';
-
-  @override
-  String get novelDownloadSection => '輕小說下載';
+  String get novelDownloadSection => '輕小說下載設定';
 
   @override
   String get novelDownloadDirectoryOverlap => '輕小說與漫畫下載目錄不能相同或互相包含';

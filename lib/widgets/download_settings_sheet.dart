@@ -3,17 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../theme/app_icon_sizes.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_status_colors.dart';
 import '../utils/download_directory.dart';
 import '../utils/download_manager.dart';
 import '../utils/novel_download_manager.dart';
 import '../utils/toast.dart';
+import 'section_header.dart';
 
-/// 弹出漫画下载设置面板（并发数量、章节评论、保存位置等），
-/// 供漫画详情页与下载中心共用。
+/// 弹出下载设置面板（并发数量、章节评论、保存位置等），
+/// 供漫画详情页、轻小说详情页与下载中心共用。
 ///
-/// 传入 [novelDownloads] 时追加轻小说下载设置（正文并发与独立保存目录）；
-/// 小说没有章节评论概念，因此该开关只在漫画侧显示。
+/// 传入 [downloads] 显示漫画下载设置，传入 [novelDownloads] 显示轻小说下载设置，
+/// 两者至少传一个；小说没有章节评论概念，因此该开关只在漫画侧显示。
 Future<void> showDownloadSettingsSheet(
   BuildContext context, {
   DownloadManager? downloads,
@@ -24,7 +28,7 @@ Future<void> showDownloadSettingsSheet(
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => DownloadSettingsSheet(
-      downloads: downloads ?? DownloadManager(),
+      downloads: downloads,
       novelDownloads: novelDownloads,
     ),
   );
@@ -32,11 +36,11 @@ Future<void> showDownloadSettingsSheet(
 
 /// 漫画下载设置抽屉，从底部出现，用于配置图片并发下载数量等。
 class DownloadSettingsSheet extends StatefulWidget {
-  final DownloadManager downloads;
+  final DownloadManager? downloads;
   final NovelDownloadManager? novelDownloads;
   const DownloadSettingsSheet({
     super.key,
-    required this.downloads,
+    this.downloads,
     this.novelDownloads,
   });
 
@@ -52,8 +56,8 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
   @override
   void initState() {
     super.initState();
-    _concurrency = widget.downloads.imageDownloadConcurrency;
-    _downloadComments = widget.downloads.downloadCommentsEnabled;
+    _concurrency = widget.downloads?.imageDownloadConcurrency ?? 8;
+    _downloadComments = widget.downloads?.downloadCommentsEnabled ?? false;
     _novelConcurrency = widget.novelDownloads?.concurrency ?? 2;
   }
 
@@ -75,102 +79,122 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-              child: Text(
-                l10n.downloadSettingsTitle,
-                style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            // 并发警告只提示一次：两区的并发滑杆共用这条风险说明。
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppStatusColors.warning(cs).withValues(alpha: 0.12),
+                borderRadius: AppRadius.mdR,
               ),
-            ),
-            Text(l10n.downloadImageConcurrency, style: tt.titleSmall),
-            Text(
-              l10n.downloadImageConcurrencyDesc,
-              style: tt.bodySmall?.copyWith(color: cs.error),
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    min: 1,
-                    max: 32,
-                    divisions: 31,
-                    value: _concurrency.toDouble(),
-                    label: '$_concurrency',
-                    onChanged: (v) => setState(() => _concurrency = v.round()),
-                    onChangeEnd: (v) => unawaited(
-                      widget.downloads.setImageDownloadConcurrency(v.round()),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_outlined,
+                    size: AppIconSize.lg,
+                    color: AppStatusColors.warning(cs),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      l10n.downloadImageConcurrencyDesc,
+                      style: tt.bodySmall?.copyWith(
+                        color: AppStatusColors.warning(cs),
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    '$_concurrency',
-                    style: tt.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: AppSpacing.xl),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l10n.downloadChapterComments),
-              subtitle: Text(
-                l10n.downloadChapterCommentsDesc,
-                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                ],
               ),
-              value: _downloadComments,
-              onChanged: (v) {
-                setState(() => _downloadComments = v);
-                unawaited(widget.downloads.setDownloadCommentsEnabled(v));
-              },
             ),
-            const Divider(height: AppSpacing.xl),
-            Text(l10n.downloadSaveLocation, style: tt.titleSmall),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              leading: const Icon(Icons.folder_open_outlined),
-              title: Text(
-                widget.downloads.customSaveDirectory ??
-                    l10n.downloadSaveLocationDefault,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            if (widget.downloads case final downloads?) ...[
+              SectionHeader(
+                title: l10n.comicDownloadSection,
+                icon: Icons.menu_book_outlined,
               ),
-              trailing: widget.downloads.customSaveDirectory == null
-                  ? const Icon(Icons.chevron_right)
-                  : PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'reset') {
-                          unawaited(_resetSaveLocation(l10n));
-                        }
-                      },
-                      itemBuilder: (ctx) => [
-                        PopupMenuItem(
-                          value: 'reset',
-                          child: Text(l10n.downloadSaveLocationReset),
-                        ),
-                      ],
-                    ),
-              onTap: _changeSaveLocation,
-            ),
-            if (widget.novelDownloads case final novels?) ...[
-              const Divider(height: AppSpacing.xl),
-              Text(l10n.novelDownloadSection, style: tt.titleSmall),
               const SizedBox(height: AppSpacing.xs),
-              Text(l10n.downloadVolumeConcurrency, style: tt.bodyMedium),
-              Text(
-                l10n.downloadVolumeConcurrencyDesc,
-                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
+              Text(l10n.downloadImageConcurrency, style: tt.bodyMedium),
               Row(
                 children: [
                   Expanded(
                     child: Slider(
                       min: 1,
-                      max: 4,
-                      divisions: 3,
+                      max: 32,
+                      divisions: 31,
+                      value: _concurrency.toDouble(),
+                      label: '$_concurrency',
+                      onChanged: (v) =>
+                          setState(() => _concurrency = v.round()),
+                      onChangeEnd: (v) => unawaited(
+                        downloads.setImageDownloadConcurrency(v.round()),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '$_concurrency',
+                      style: tt.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: AppSpacing.xl),
+              Text(l10n.downloadSaveLocation, style: tt.titleSmall),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.folder_open_outlined),
+                title: Text(
+                  downloads.customSaveDirectory ??
+                      l10n.downloadSaveLocationDefault,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: downloads.customSaveDirectory == null
+                    ? const Icon(Icons.chevron_right)
+                    : PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'reset') {
+                            unawaited(_resetSaveLocation(l10n));
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'reset',
+                            child: Text(l10n.downloadSaveLocationReset),
+                          ),
+                        ],
+                      ),
+                onTap: _changeSaveLocation,
+              ),
+              const Divider(height: AppSpacing.xl),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.downloadChapterComments),
+                value: _downloadComments,
+                onChanged: (v) {
+                  setState(() => _downloadComments = v);
+                  unawaited(downloads.setDownloadCommentsEnabled(v));
+                },
+              ),
+            ],
+            if (widget.novelDownloads case final novels?) ...[
+              if (widget.downloads != null) const Divider(height: AppSpacing.xl),
+              SectionHeader(
+                title: l10n.novelDownloadSection,
+                icon: Icons.auto_stories_outlined,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(l10n.downloadImageConcurrency, style: tt.bodyMedium),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      min: 1,
+                      max: 32,
+                      divisions: 31,
                       value: _novelConcurrency.toDouble(),
                       label: '$_novelConcurrency',
                       onChanged: (v) =>
@@ -189,6 +213,8 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.xs),
+              Text(l10n.downloadSaveLocation, style: tt.titleSmall),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 dense: true,
@@ -401,6 +427,7 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
   /// 切换保存目录的共用流程：（有下载时）确认迁移 → 进度弹窗 → 结果提示。
   Future<void> _applySaveDirectory(String? path, AppLocalizations l10n) async {
     final downloads = widget.downloads;
+    if (downloads == null) return;
     await downloads.init();
     final existingCount = downloads.localComics().length;
     if (existingCount > 0 && mounted) {

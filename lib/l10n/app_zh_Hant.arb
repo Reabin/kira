@@ -1678,13 +1678,11 @@
     }
   },
   "downloadSettingsTitle": "設定",
-  "downloadImageConcurrency": "並行下載數量",
-  "downloadImageConcurrencyDesc": "數值過大可能導致 IP 被限流，後果自負",
+  "downloadImageConcurrency": "並行執行緒數",
+  "downloadImageConcurrencyDesc": "並行設定過大有 IP 被限流或封禁的風險，後果自負",
   "downloadChapterComments": "下載章節評論",
-  "downloadChapterCommentsDesc": "下載章節時一併儲存評論",
-  "downloadVolumeConcurrency": "卷下載並行數量",
-  "downloadVolumeConcurrencyDesc": "同時下載的輕小說分卷數量，數值越大佔用頻寬越多",
-  "novelDownloadSection": "輕小說下載",
+  "comicDownloadSection": "漫畫下載設定",
+  "novelDownloadSection": "輕小說下載設定",
   "novelDownloadDirectoryOverlap": "輕小說與漫畫下載目錄不能相同或互相包含",
   "novelDownloadMigrateConfirmContent": "將把已下載的 {count} 部輕小說移動到新目錄，遷移期間請勿退出應用。",
   "@novelDownloadMigrateConfirmContent": {

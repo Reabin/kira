@@ -20,6 +20,7 @@ import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/kira_links.dart';
+import '../utils/novel_download_manager.dart';
 import '../utils/reading_history.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';

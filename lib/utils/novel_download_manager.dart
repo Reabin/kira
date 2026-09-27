@@ -220,7 +220,7 @@ class NovelDownloadManager extends ChangeNotifier {
   Future<void> _initialize() async {
     if (maxAttempts < 1) throw ArgumentError.value(maxAttempts, 'maxAttempts');
     _prefs = await _preferences();
-    _concurrency = (_prefs!.getInt(concurrencyKey) ?? 2).clamp(1, 4);
+    _concurrency = (_prefs!.getInt(concurrencyKey) ?? 2).clamp(1, 32);
     _customSaveDirectory = _prefs!
         .getString(saveDirectoryKey)
         ?.trim()
@@ -792,14 +792,14 @@ class NovelDownloadManager extends ChangeNotifier {
 
   Future<void> reloadScalarSettings() async {
     final prefs = await _preferences();
-    _concurrency = (prefs.getInt(concurrencyKey) ?? 2).clamp(1, 4);
+    _concurrency = (prefs.getInt(concurrencyKey) ?? 2).clamp(1, 32);
     _notify();
     _pump();
   }
 
   Future<int> setConcurrency(int value) async {
     await init();
-    final next = value.clamp(1, 4);
+    final next = value.clamp(1, 32);
     if (!await _prefs!.setInt(concurrencyKey, next)) {
       throw StateError('小说下载设置保存失败');
     }
