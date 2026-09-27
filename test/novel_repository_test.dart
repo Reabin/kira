@@ -169,7 +169,10 @@ void main() {
       final second = await restarted.loadVolumeContent('book', '7');
       expect(second.entries.first.paragraphs, first.entries.first.paragraphs);
       expect(apiAdapter.requests.length, 1);
-      expect(textAdapter.requests.length, 1);
+      // 缓存命中仍会后台重放 txt 上报浏览记录；离线只让上报失败，不影响阅读。
+      await pumpEventQueue();
+      expect(apiAdapter.requests.length, 1);
+      expect(textAdapter.requests.length, 2);
     },
   );
 
@@ -238,6 +241,34 @@ void main() {
   );
 
   test(
+    'cache hit reports a background read once per identity for browse history',
+    () async {
+      user.copyToken = 'COPY_A';
+      await repository.loadVolumeContent('book', '7');
+      expect(textAdapter.requests.length, 1);
+      await repository.loadVolumeContent('book', '7');
+      await pumpEventQueue();
+      // 上报复用 detail 缓存，只重放 txt 请求。
+      expect(apiAdapter.requests.length, 1);
+      expect(textAdapter.requests.length, 2);
+      expect(textAdapter.requests.last.uri.host, 'cdn.invalid');
+      // 同一身份再次打开同一卷不再重复上报。
+      await repository.loadVolumeContent('book', '7');
+      await pumpEventQueue();
+      expect(textAdapter.requests.length, 2);
+
+      // 换账号后需要为该身份单独上报浏览记录。
+      user.copyToken = 'COPY_B';
+      await repository.loadVolumeContent('book', '7');
+      await pumpEventQueue();
+      expect(textAdapter.requests.length, 3);
+      await repository.loadVolumeContent('book', '7');
+      await pumpEventQueue();
+      expect(textAdapter.requests.length, 4);
+    },
+  );
+
+  test(
     'account ABA while reading text cache aborts before any new request',
     () async {
       user.copyToken = 'COPY_A';
@@ -263,7 +294,9 @@ void main() {
       await repository.loadVolumeContent('book', '7');
       await repository.loadVolumeContent('book', '7');
       expect(apiAdapter.requests.length, 1);
-      expect(textAdapter.requests.length, 1);
+      // 第二次命中缓存，后台重放 txt 上报浏览记录。
+      await pumpEventQueue();
+      expect(textAdapter.requests.length, 2);
     },
   );
 
@@ -388,7 +421,9 @@ void main() {
       expect(snapshot.detail.volume.txtEncoding, encoding);
       final restored = await repo.loadVolumeSnapshot('book', '7');
       expect(restored.text, text);
-      expect(contentAdapter.requests, hasLength(1));
+      // 缓存命中后后台重放 txt 上报；detail 复用自身缓存。
+      await pumpEventQueue();
+      expect(contentAdapter.requests, hasLength(2));
     });
   }
 
@@ -418,7 +453,9 @@ void main() {
     expect((await old).text, '旧版本\n');
     expect((await fresh).text, '新版本\n');
     expect((await repo.loadVolumeSnapshot('book', '7')).text, '新版本\n');
-    expect(requests, 2);
+    // 最后一次命中缓存，后台重放 txt 上报。
+    await pumpEventQueue();
+    expect(requests, 3);
   });
 
   test('cancelling task-owned snapshot does not cancel shared reader fetch', () async {
