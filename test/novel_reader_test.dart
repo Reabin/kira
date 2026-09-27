@@ -1324,13 +1324,25 @@ void main() {
       await _seed(tester, store, _progress());
       const padding = EdgeInsets.fromLTRB(32, 24, 28, 30);
       await _mount(tester, repository, store, resume: true, padding: padding);
+      // viewport 铺满全屏（纸张延伸到屏幕顶/底），安全区由列表内容层承担。
       final surface = tester.getRect(
         find.byKey(const ValueKey('novel-reader-surface')),
       );
-      expect(surface.left, 32);
-      expect(surface.right, 772);
-      expect(surface.top, greaterThanOrEqualTo(24));
-      expect(surface.bottom, lessThanOrEqualTo(570));
+      expect(surface.left, 0);
+      expect(surface.top, 0);
+      expect(surface.right, 800);
+      final location = _location(tester);
+      final paragraph = tester.getRect(
+        find.byKey(
+          ValueKey(
+            'novel-paragraph-${location.anchor.entryIndex}-'
+            '${location.anchor.paragraphIndex}',
+          ),
+        ),
+      );
+      // 左右 = 安全区(32/28) + 限宽居中(740 宽下 720 限宽余量 10 → 取 24)。
+      expect(paragraph.left, 56);
+      expect(paragraph.right, 748);
       await _mount(
         tester,
         repository,

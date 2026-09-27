@@ -98,8 +98,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   bool _toolbarVisible = true;
 
   /// 进入页面时的系统栏内边距快照。工具栏显隐会切换沉浸模式，
-  /// MediaQuery.padding 随之变化；正文 viewport 尺寸必须恒定，
-  /// 否则会触发 anchor restoration（见 NovelReaderViewport 注释）。
+  /// MediaQuery.padding 随之变化；正文用它作列表内容层的固定 inset
+  /// （viewport 本身全屏恒定），避免触发 anchor restoration。
   EdgeInsets? _systemPadding;
 
   bool _disposed = false;
@@ -116,6 +116,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ..addListener(_onBookmarksChanged);
     unawaited(_loadBookmarks());
     WidgetsBinding.instance.addObserver(this);
+    // 与漫画阅读器一致：阅读期间窗口允许延伸进刘海/挖孔区（SHORT_EDGES）。
+    // 否则沉浸模式下挖孔区域不随窗口扩展，露出一条纯黑的窗口背景。
+    const MethodChannel(
+      'io.github.caolib.kira/volume',
+    ).invokeMethod('enableImmersive').catchError((_) {});
     _beginSession();
   }
 
@@ -658,6 +663,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
     );
+    // 恢复默认的刘海区避让模式。
+    const MethodChannel(
+      'io.github.caolib.kira/volume',
+    ).invokeMethod('disableImmersive').catchError((_) {});
     super.dispose();
   }
 
@@ -695,14 +704,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                 ? Stack(
                     fit: StackFit.expand,
                     children: [
-                      // 正文 viewport 尺寸必须恒定：内边距固定用进入页面
-                      // 时的系统栏快照，不随沉浸切换变化，否则会触发
-                      // anchor restoration。工具栏（黑色）延伸到状态栏 /
-                      // 导航栏底下，状态栏透明时与其同色衔接。
-                      Padding(
-                        padding: _systemPadding ?? EdgeInsets.zero,
-                        child: body,
-                      ),
+                      // 正文 viewport 铺满全屏（纸张延伸到屏幕顶/底，与漫画
+                      // 一致）：安全区 inset 经 contentPadding 交给列表内容
+                      // 层，viewport 尺寸恒定，不会触发 anchor restoration。
+                      body,
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
                       if (_toolbarVisible) ...[
                         Positioned(top: 0, left: 0, right: 0, child: header),
@@ -850,6 +855,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       key: _viewportKey,
       document: document,
       settings: _settings,
+      contentPadding: _systemPadding ?? EdgeInsets.zero,
       palette: NovelReaderPalette.resolve(
         _settings,
         MediaQuery.platformBrightnessOf(context),

@@ -26,6 +26,7 @@ class NovelReaderViewport extends StatefulWidget {
     required this.onPosition,
     required this.onTap,
     this.onScroll,
+    this.contentPadding = EdgeInsets.zero,
   });
 
   final NovelReaderDocument document;
@@ -36,6 +37,11 @@ class NovelReaderViewport extends StatefulWidget {
   final ValueChanged<NovelReaderLocation> onPosition;
   final VoidCallback onTap;
   final VoidCallback? onScroll;
+
+  /// 进入页面时快照的系统栏安全区 inset。viewport 本身铺满全屏（纸张延伸
+  /// 到屏幕顶/底），这份 inset 作为列表内容的固定 padding，保证首段不被
+  /// 状态栏遮挡、滚动途中不触发 viewport 尺寸变化。
+  final EdgeInsets contentPadding;
 
   @override
   State<NovelReaderViewport> createState() => NovelReaderViewportState();
@@ -269,12 +275,24 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
                       ? _desired.alignment.clamp(0.0, 0.99)
                       : 0,
                   addAutomaticKeepAlives: false,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: math.max(
+                  // 横向：安全区 inset 之上再做 720dp 限宽居中；纵向直接
+                  // 用快照 inset（首段避开状态栏、末段避开导航栏）。
+                  padding: () {
+                    final contentWidth = math.max(
+                      0,
+                      size.width - widget.contentPadding.horizontal,
+                    );
+                    final side = math.max(
                       AppSpacing.xxl,
-                      (size.width - 720) / 2,
-                    ),
-                  ),
+                      (contentWidth - 720) / 2,
+                    );
+                    return EdgeInsets.fromLTRB(
+                      widget.contentPadding.left + side,
+                      widget.contentPadding.top,
+                      widget.contentPadding.right + side,
+                      widget.contentPadding.bottom,
+                    );
+                  }(),
                   itemBuilder: _buildParagraph,
                 ),
               ),
