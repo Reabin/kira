@@ -79,7 +79,7 @@ extension _BookshelfGrids on _BookshelfPageState {
                 heroTagBase: heroTagBase,
                 onTap: () => _openComicDetail(item, heroTagBase),
               ),
-              if (item.hasUpdate) const _UpdateBadge(),
+              if (item.hasUpdate) const UpdateBadge(),
             ],
           );
         }, childCount: totalCount),

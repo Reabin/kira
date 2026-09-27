@@ -14,7 +14,6 @@ import '../models/user_manager.dart';
 import '../repositories/search_init_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_icon_sizes.dart';
-import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/screen_layout.dart';
@@ -23,6 +22,7 @@ import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/error_retry_view.dart';
+import '../widgets/filter_chip_row.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/result_scroll_listener.dart';
 import '../widgets/section_header.dart';
@@ -41,6 +41,8 @@ part 'search/search_widgets.dart';
 ///
 /// 这个接口差异是硬约束——`/api/v3/search/comic` 不认 `theme` / `top`，
 /// 而 `/api/v3/comics` 不认关键字，所以两者无法合并成一个界面。
+/// 轻小说的关键字搜索与题材筛选则完全留在轻小说界面（见 NovelSearchTab），
+/// 因为小说题材与漫画题材是两套数据，重复搬到这里只会出现两份相同列表。
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key, this.api, this.initRepository});
 

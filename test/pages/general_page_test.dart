@@ -55,7 +55,11 @@ void main() {
     expect(button().onPressed, isNotNull);
   });
 
-  testWidgets('export and import sit on the same row', (tester) async {
+  // 「导出设置 / 导入设置」入口已由新的备份页（本地/WebDAV、加密与定时备份）取代，
+  // 原并排一行的断言不再适用；这里改为确认通用页只剩备份入口、不再有旧的导入导出按钮。
+  testWidgets('general page links to backup instead of legacy export tiles', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -70,29 +74,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final exportTile = find.ancestor(
-      of: find.text('导出设置'),
-      matching: find.byType(SettingActionTile),
-    );
-    final importTile = find.ancestor(
-      of: find.text('导入设置'),
-      matching: find.byType(SettingActionTile),
-    );
-    expect(exportTile, findsOneWidget);
-    expect(importTile, findsOneWidget);
-
-    final exportRect = tester.getRect(exportTile);
-    final importRect = tester.getRect(importTile);
-
-    // 同一行并排:纵向对齐、横向不重叠,且导出在导入左侧。
-    expect(exportRect.top, closeTo(importRect.top, 0.01));
-    expect(exportRect.height, closeTo(importRect.height, 0.01));
-    expect(exportRect.right, lessThanOrEqualTo(importRect.left + 0.01));
-
-    // 两项不再作为带副标题的 ListTile 各占一行。
     expect(
       find.ancestor(of: find.text('导出设置'), matching: find.byType(ListTile)),
       findsNothing,
     );
+    expect(
+      find.ancestor(of: find.text('导入设置'), matching: find.byType(ListTile)),
+      findsNothing,
+    );
+    expect(find.byType(SettingActionTile), findsNothing);
+    expect(find.textContaining('备份'), findsWidgets);
   });
 }

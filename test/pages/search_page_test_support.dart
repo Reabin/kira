@@ -293,6 +293,16 @@ GoRouter searchShellRouter(SearchTestRig rig) => GoRouter(
             ),
           ],
         ),
+        // 与 app_router 的 _navKeyToBranchIndex 保持一致（novel 4）。
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/novels',
+              builder: (_, _) =>
+                  const Scaffold(body: Center(child: Text('主导航-轻小说'))),
+            ),
+          ],
+        ),
       ],
     ),
   ],

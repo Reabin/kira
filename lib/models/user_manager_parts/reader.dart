@@ -150,26 +150,13 @@ extension UserManagerReaderPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setCommentShowAvatar(bool enabled) async {
-    _commentShowAvatar = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentShowAvatar, enabled);
-    _notifyListeners();
-  }
+  Future<void> setCommentShowAvatar(bool enabled) =>
+      comment.setShowAvatar(enabled);
 
-  Future<void> setCommentShowUserName(bool enabled) async {
-    _commentShowUserName = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentShowUserName, enabled);
-    _notifyListeners();
-  }
+  Future<void> setCommentShowUserName(bool enabled) =>
+      comment.setShowUserName(enabled);
 
-  Future<void> setCommentShowTime(bool enabled) async {
-    _commentShowTime = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentShowTime, enabled);
-    _notifyListeners();
-  }
+  Future<void> setCommentShowTime(bool enabled) => comment.setShowTime(enabled);
 
   /// 委托给 [comment]。子 store 的 notifyListeners 会经
   /// _onSubStoreChanged 转发到本 facade 的监听者。

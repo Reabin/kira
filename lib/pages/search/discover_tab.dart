@@ -428,44 +428,44 @@ class _DiscoverTabState extends State<_DiscoverTab>
     setState(() => _tagsExpanded = !_tagsExpanded);
   }
 
-  List<_ChipOption> _topOptions(AppLocalizations l10n) => [
-    _ChipOption(
+  List<FilterChipOption> _topOptions(AppLocalizations l10n) => [
+    FilterChipOption(
       label: l10n.searchFilterAll,
       value: '',
       icon: Icons.public,
       selected: _selectedTop == null,
     ),
     for (final t in _copyFilters.tops)
-      _ChipOption(
+      FilterChipOption(
         label: t.name,
         value: t.pathWord,
         selected: _selectedTop == t.pathWord,
       ),
   ];
 
-  List<_ChipOption> _tagOptions(AppLocalizations l10n) => [
-    _ChipOption(
+  List<FilterChipOption> _tagOptions(AppLocalizations l10n) => [
+    FilterChipOption(
       label: l10n.searchFilterAll,
       value: '',
       icon: Icons.local_offer_outlined,
       selected: _selectedTag == null,
     ),
     for (final t in _tags)
-      _ChipOption(
+      FilterChipOption(
         label: t.name,
         value: t.pathWord,
         selected: _selectedTag == t.pathWord,
       ),
   ];
 
-  List<_ChipOption> _orderingOptions(AppLocalizations l10n) => [
-    _ChipOption(
+  List<FilterChipOption> _orderingOptions(AppLocalizations l10n) => [
+    FilterChipOption(
       label: l10n.popularOrder,
       value: ApiOrdering.popular,
       icon: Icons.whatshot,
       selected: _ordering == ApiOrdering.popular,
     ),
-    _ChipOption(
+    FilterChipOption(
       label: l10n.updateOrder,
       value: ApiOrdering.datetimeUpdated,
       icon: Icons.schedule,
@@ -486,18 +486,18 @@ class _DiscoverTabState extends State<_DiscoverTab>
             const SizedBox(height: AppSpacing.sm),
           ],
           if (_metadataFailed)
-            _DiscoverRetryNotice(
+            InlineRetryNotice(
               message: l10n.discoverFiltersFailed,
               onRetry: () => unawaited(_loadMetadata(forceRefresh: true)),
             ),
           if (_isCopySource && _copyFilters.tops.isNotEmpty) ...[
-            _FilterChipRow(
+            FilterChipRow(
               options: _topOptions(l10n),
               onTap: (o) => _selectTop(o.value.isEmpty ? null : o.value),
             ),
             const SizedBox(height: AppSpacing.sm),
           ],
-          _FilterChipRow(
+          FilterChipRow(
             options: _orderingOptions(l10n),
             onTap: (o) => _setOrdering(o.value),
             // 行尾固定：数据源切换在左，重置在右（重置只在有筛选时出现）。
@@ -510,7 +510,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                       unawaited(_selectSource(_isCopySource ? 'hot' : 'copy')),
                 ),
                 if (_canResetFilters)
-                  _filterRowButton(
+                  filterRowButton(
                     onPressed: _resetFilters,
                     icon: Icons.restart_alt,
                     label: l10n.resetButton,
@@ -521,10 +521,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           // 展开时只渲染下面的题材网格，不再重复一条横向 chip 行。
           if (_tags.isNotEmpty && !_tagsExpanded) ...[
             const SizedBox(height: AppSpacing.sm),
-            _FilterChipRow(
+            FilterChipRow(
               options: _tagOptions(l10n),
               onTap: (o) => _selectTag(o.value.isEmpty ? null : o.value),
-              trailing: _filterRowButton(
+              trailing: filterRowButton(
                 onPressed: _toggleTagsExpanded,
                 icon: Icons.expand_more,
                 label: l10n.tagsExpandAll,
@@ -535,15 +535,22 @@ class _DiscoverTabState extends State<_DiscoverTab>
             const SizedBox(height: AppSpacing.sm),
             SectionHeader(
               title: l10n.allTagsTitle,
-              trailing: _filterRowButton(
+              trailing: filterRowButton(
                 onPressed: _toggleTagsExpanded,
                 icon: Icons.expand_less,
                 label: l10n.tagsCollapseAll,
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
-            _AllTagsGrid(
-              tags: _tags,
+            AllTagsGrid(
+              tags: [
+                for (final t in _tags)
+                  FilterTagOption(
+                    name: t.name,
+                    pathWord: t.pathWord,
+                    count: t.count,
+                  ),
+              ],
               selectedTag: _selectedTag,
               onSelected: _selectTag,
             ),
@@ -633,7 +640,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
-                      child: _DiscoverRetryNotice(
+                      child: InlineRetryNotice(
                         message: l10n.discoverRequestFailed,
                         onRetry: () =>
                             unawaited(_loadComics(keepResults: true)),
@@ -644,7 +651,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
-                      child: _DiscoverRetryNotice(
+                      child: InlineRetryNotice(
                         message: l10n.searchLoadMoreFailed,
                         onRetry: () => unawaited(_loadMore(retry: true)),
                       ),
@@ -674,36 +681,6 @@ class _DiscoverTabState extends State<_DiscoverTab>
             ),
           ),
       ],
-    );
-  }
-}
-
-/// 非阻断错误：保留已有筛选/漫画，且只有显式点击才会重试。
-class _DiscoverRetryNotice extends StatelessWidget {
-  const _DiscoverRetryNotice({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Semantics(
-        liveRegion: true,
-        child: Row(
-          children: [
-            Expanded(child: Text(message)),
-            const SizedBox(width: AppSpacing.sm),
-            TextButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: AppIconSize.lg),
-              label: Text(l10n.retryButton),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -16,8 +16,6 @@ import '../providers/repository_providers.dart';
 import '../repositories/bookshelf_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_status_colors.dart';
-import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
@@ -28,20 +26,113 @@ import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
+import '../widgets/ordering_tile.dart';
+import '../widgets/update_badge.dart';
 import 'home_page.dart';
+import 'novel_bookshelf_page.dart';
 
 part 'bookshelf/bookshelf_grids.dart';
 part 'bookshelf/bookshelf_toolbar.dart';
-part 'bookshelf/bookshelf_widgets.dart';
+
+enum BookshelfTab { comic, novel }
 
 class BookshelfPage extends ConsumerStatefulWidget {
-  const BookshelfPage({super.key});
+  final BookshelfTab initialTab;
+
+  const BookshelfPage({super.key, this.initialTab = BookshelfTab.comic});
 
   @override
-  ConsumerState<BookshelfPage> createState() => _BookshelfPageState();
+  ConsumerState<BookshelfPage> createState() => _BookshelfTabsState();
 }
 
-class _BookshelfPageState extends ConsumerState<BookshelfPage> {
+class _BookshelfTabsState extends ConsumerState<BookshelfPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+  late int _selected;
+  final _visited = [false, false];
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialTab.index;
+    _visited[_selected] = true;
+    _tabs = TabController(length: 2, vsync: this, initialIndex: _selected);
+  }
+
+  @override
+  void didUpdateWidget(covariant BookshelfPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      _tabs.index = widget.initialTab.index;
+      _select(_tabs.index);
+    }
+  }
+
+  void _select(int index) {
+    setState(() {
+      _selected = index;
+      _visited[index] = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Scaffold(
+      // 顶部不放「书架」大标题，TabBar 直接顶到状态栏下方。
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        toolbarHeight: 0,
+        bottom: TabBar(
+          controller: _tabs,
+          onTap: _select,
+          tabs: [
+            Tab(text: l10n.comicTabLabel),
+            Tab(text: l10n.novelTitle),
+          ],
+        ),
+      ),
+      // Only load a shelf after it is selected, then preserve its scroll state.
+      body: IndexedStack(
+        index: _selected,
+        children: [
+          _visited[0]
+              ? TickerMode(
+                  enabled: _selected == 0,
+                  child: _ComicBookshelfPage(active: _selected == 0),
+                )
+              : const SizedBox.shrink(),
+          _visited[1]
+              ? TickerMode(
+                  enabled: _selected == 1,
+                  child: NovelBookshelfPage(active: _selected == 1),
+                )
+              : const SizedBox.shrink(),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComicBookshelfPage extends ConsumerStatefulWidget {
+  const _ComicBookshelfPage({required this.active});
+
+  /// 共享 Tab 是否处于前台：重新激活时按缓存年龄决定是否静默刷新。
+  final bool active;
+
+  @override
+  ConsumerState<_ComicBookshelfPage> createState() => _BookshelfPageState();
+}
+
+class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
+    with WidgetsBindingObserver {
+  static const _cacheTtl = Duration(minutes: 30);
   ApiClient get _api => ref.read(apiClientProvider);
   ComicBookshelfRepository get _comicRepo =>
       ref.read(comicBookshelfRepoProvider);
@@ -80,6 +171,7 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _user.addListener(_onUserChanged);
     _startCacheTimeTimer();
     _loadShowUpdateOnly();
@@ -94,10 +186,33 @@ class _BookshelfPageState extends ConsumerState<BookshelfPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cacheTimeTimer?.cancel();
     _scrollController.dispose();
     _user.removeListener(_onUserChanged);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _ensureFresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ComicBookshelfPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.active && widget.active) _ensureFresh();
+  }
+
+  /// 缓存过期（或缺失）时静默重拉；新鲜则什么都不做。
+  void _ensureFresh() {
+    if (!_user.isLoggedIn || _refreshing || _loading) return;
+    final cacheTime = _comicCacheTime;
+    if (cacheTime != null &&
+        DateTime.now().difference(cacheTime) < _cacheTtl) {
+      return;
+    }
+    unawaited(_load(silent: true));
   }
 
   Future<void> _scrollToTop() async {

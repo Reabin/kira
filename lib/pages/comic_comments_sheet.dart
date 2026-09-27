@@ -18,6 +18,7 @@ import '../utils/network_error.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/comment_skeleton.dart';
 import '../widgets/text_controller_scope.dart';
 import 'chapter_comments/comment_paging.dart';
 import 'chapter_comments/comment_scroll_behavior.dart';
@@ -298,7 +299,7 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
         padding: const EdgeInsets.fromLTRB(16, 12, 16, _listBottomPadding),
         itemCount: 6,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
-        itemBuilder: (_, _) => const _ComicCommentSkeleton(),
+        itemBuilder: (_, _) => const CommentSkeleton(),
       );
     }
 

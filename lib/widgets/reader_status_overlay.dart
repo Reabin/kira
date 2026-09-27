@@ -25,10 +25,16 @@ class ReaderStatusOverlay extends StatefulWidget {
   final int currentPage;
   final int totalPages;
 
+  /// 小说等非分页阅读器传入进度文本，替换漫画页码段。
+  final String? progressLabel;
+  final int? position;
+
   const ReaderStatusOverlay({
     super.key,
     this.currentPage = 0,
     this.totalPages = 0,
+    this.progressLabel,
+    this.position,
   });
 
   @override
@@ -54,6 +60,8 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
   bool get _hasBattery => _batteryLevel != null && _batteryLevel! >= 0;
   List<ConnectivityResult> _connectivity = const [];
 
+  bool _tickerEnabled = true;
+
   @override
   void initState() {
     super.initState();
@@ -61,15 +69,34 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
       final now = TimeOfDay.now();
       if (now != _time && mounted) setState(() => _time = now);
     });
-    _startFps();
+    ReaderSettings().addListener(_onSettingsChanged);
     _initBattery();
     _initConnectivity();
   }
 
-  /// 帧率统计：Ticker 驱动连续渲染并每秒结算一次帧数。
-  /// 空闲时显示刷新率上限，滚动/翻页卡顿时数值随之下降。
-  void _startFps() {
-    _fpsTicker = createTicker((_) => _frameCount++);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _tickerEnabled = TickerMode.valuesOf(context).enabled;
+    _syncFps();
+  }
+
+  void _onSettingsChanged() {
+    _syncFps();
+    if (mounted) setState(() {});
+  }
+
+  /// 仅在帧率段可见时驱动连续渲染，隐藏后不再空转。
+  void _syncFps() {
+    if (!_tickerEnabled || !ReaderSettings().statusOverlayFps) {
+      _fpsTicker?.stop();
+      _fpsTimer?.cancel();
+      _fpsTimer = null;
+      _frameCount = 0;
+      return;
+    }
+    _fpsTicker ??= createTicker((_) => _frameCount++);
+    if (_fpsTicker!.isActive) return;
     _fpsTicker!.start();
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
@@ -92,9 +119,20 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
     try {
       final level = await _battery.batteryLevel;
       final state = await _battery.batteryState;
+      if (!mounted) return;
       _applyBatteryState(state, level);
       _batteryStateSub = _battery.onBatteryStateChanged.listen((state) async {
-        _applyBatteryState(state, await _battery.batteryLevel);
+        try {
+          _applyBatteryState(state, await _battery.batteryLevel);
+        } catch (e, stack) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              e,
+              stackTrace: stack,
+              source: 'reader_status_overlay.battery',
+            ),
+          );
+        }
       });
     } catch (e, stack) {
       unawaited(
@@ -110,7 +148,8 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
   Future<void> _initConnectivity() async {
     try {
       _connectivity = await Connectivity().checkConnectivity();
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
       _connectivitySub = Connectivity().onConnectivityChanged.listen((result) {
         if (!mounted) return;
         setState(() => _connectivity = result);
@@ -128,6 +167,7 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
 
   @override
   void dispose() {
+    ReaderSettings().removeListener(_onSettingsChanged);
     _clockTimer?.cancel();
     _batteryStateSub?.cancel();
     _connectivitySub?.cancel();
@@ -205,13 +245,18 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
           }
           break;
         case 'page':
-          if (settings.statusOverlayPage && widget.totalPages > 0) {
-            add(
-              Text(
-                '${widget.currentPage}/${widget.totalPages}',
-                style: textStyle,
-              ),
-            );
+          // 小说百分比与漫画页码共用同一段位开关：关掉页码段时两者都不显示。
+          if (settings.statusOverlayPage) {
+            if (widget.progressLabel case final label?) {
+              add(Text(label, style: textStyle));
+            } else if (widget.totalPages > 0) {
+              add(
+                Text(
+                  '${widget.currentPage}/${widget.totalPages}',
+                  style: textStyle,
+                ),
+              );
+            }
           }
           break;
         case 'fps':
@@ -225,7 +270,7 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
     // 真机上打孔/刘海状态栏高度可达 48+，组件用固定内边距保持轻薄，
     // 不随系统状态栏高度膨胀。
     // 圆角朝向屏幕中心：依位置选择对应角，其余三角保持直角。
-    final pos = settings.statusOverlayPosition;
+    final pos = widget.position ?? settings.statusOverlayPosition;
     final corner = switch (pos) {
       0 => const BorderRadius.only(
         bottomRight: Radius.circular(AppRadius.md),

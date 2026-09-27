@@ -793,7 +793,8 @@ void main() {
         await pumpSearchFrames(tester, count: 30);
         expect(find.byType(GNav), findsOneWidget);
         expect(find.byType(NavigationRail), findsNothing);
-        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 1);
+        // 默认可见序 comic(0) → novel(1) → search(2) → bookshelf(3) → profile(4)。
+        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 2);
 
         // 从结果卡片区域拖动，而非 TabBar、横向筛选行或底部导航。
         await tester.timedDrag(
@@ -802,10 +803,10 @@ void main() {
           const Duration(milliseconds: 300),
         );
         await pumpSearchFrames(tester);
-        expect(find.text('主导航-我的'), findsOneWidget);
-        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 2);
+        expect(find.text('主导航-书架'), findsOneWidget);
+        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 3);
         await tester.timedDrag(
-          find.text('主导航-我的'),
+          find.text('主导航-书架'),
           const Offset(320, 0),
           const Duration(milliseconds: 300),
         );
@@ -818,10 +819,10 @@ void main() {
           const Duration(milliseconds: 300),
         );
         await pumpSearchFrames(tester);
-        expect(find.text('主导航-漫画'), findsOneWidget);
-        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 0);
+        expect(find.text('主导航-轻小说'), findsOneWidget);
+        expect(tester.widget<GNav>(find.byType(GNav)).selectedIndex, 1);
         await tester.timedDrag(
-          find.text('主导航-漫画'),
+          find.text('主导航-轻小说'),
           const Offset(-320, 0),
           const Duration(milliseconds: 300),
         );

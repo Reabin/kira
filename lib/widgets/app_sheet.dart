@@ -113,19 +113,30 @@ class AppSheetHandle extends StatelessWidget {
 
 /// Show a modal bottom sheet in the unified [AppSheet] chrome.
 ///
-/// Full-width like the app's existing sheets: pass [heightFactor] for
-/// scrollable sheets (comments, settings), leave it null for compact menus.
+/// Full-width like the app's existing sheets: pass [heightFactor] for a fixed
+/// height, or [maxHeightFactor] to cap a content-sized sheet (including its
+/// handle and safe area). Leave both null for compact menus.
 Future<T?> showAppSheet<T>(
   BuildContext context, {
   double? heightFactor,
+  double? maxHeightFactor,
   bool showHandle = true,
   EdgeInsets padding = EdgeInsets.zero,
   required Widget child,
 }) {
+  assert(
+    maxHeightFactor == null || (maxHeightFactor > 0 && maxHeightFactor <= 1),
+  );
+  final size = MediaQuery.sizeOf(context);
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
-    constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width),
+    constraints: BoxConstraints(
+      maxWidth: size.width,
+      maxHeight: maxHeightFactor == null
+          ? double.infinity
+          : size.height * maxHeightFactor,
+    ),
     backgroundColor: Colors.transparent,
     builder: (_) => AppSheet(
       heightFactor: heightFactor,

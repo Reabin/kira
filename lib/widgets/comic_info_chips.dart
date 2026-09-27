@@ -11,34 +11,51 @@ class InfoChip extends StatelessWidget {
   final String label;
   final Color color;
   final Color textColor;
+  final VoidCallback? onTap;
+
   const InfoChip({
     super.key,
     required this.icon,
     required this.label,
     required this.color,
     required this.textColor,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color, borderRadius: AppRadius.lgR),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: textColor),
           const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: textColor,
-              fontWeight: FontWeight.w500,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: textColor,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
       ),
+    );
+    if (onTap == null) {
+      return DecoratedBox(
+        decoration: BoxDecoration(color: color, borderRadius: AppRadius.lgR),
+        child: content,
+      );
+    }
+    return Material(
+      color: color,
+      borderRadius: AppRadius.lgR,
+      child: InkWell(onTap: onTap, borderRadius: AppRadius.lgR, child: content),
     );
   }
 }

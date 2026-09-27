@@ -29,7 +29,7 @@ extension _ComicReplyBuild on _ComicCommentsSheetState {
               child: Column(
                 children: List.generate(skeletonCount * 2 - 1, (index) {
                   if (index.isOdd) return const SizedBox(height: AppSpacing.md);
-                  return const _ComicReplySkeleton();
+                  return const CommentReplySkeleton();
                 }),
               ),
             ),

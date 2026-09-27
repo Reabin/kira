@@ -84,9 +84,14 @@ void main() {
     await tester.pumpWidget(_buildTestApp(const ProfilePage()));
     await tester.pumpAndSettle();
 
+    // 账号卡已迁到账号中心，本页卡片组统一为 SettingTileGroup（自带阴影）；
+    // 页面上若还有 Card（如继续阅读等）仍继承全局阴影。
     final cards = tester.widgetList<Card>(find.byType(Card)).toList();
-    expect(cards, isNotEmpty);
     expect(cards.every((card) => card.elevation == null), isTrue);
+    expect(
+      tester.widgetList<SettingTileGroup>(find.byType(SettingTileGroup)),
+      isNotEmpty,
+    );
   });
 
   testWidgets('active about page cards inherit the global card shadow', (

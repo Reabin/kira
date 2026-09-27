@@ -66,21 +66,21 @@ extension _BookshelfToolbar on _BookshelfPageState {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(l10n.sortMethod, style: tt.titleMedium),
             ),
-            _OrderingTile(
+            OrderingTile(
               icon: Icons.update,
               title: l10n.sortByUpdateTime,
               subtitle: l10n.sortByUpdateTimeDesc(l10n.comicLabel),
               selected: _ordering == ApiOrdering.datetimeUpdated,
               onTap: () => _setOrdering(context, ApiOrdering.datetimeUpdated),
             ),
-            _OrderingTile(
+            OrderingTile(
               icon: Icons.bookmark_added,
               title: l10n.sortByFavoriteTime,
               subtitle: l10n.sortByFavoriteTimeDesc,
               selected: _ordering == ApiOrdering.datetimeModifier,
               onTap: () => _setOrdering(context, ApiOrdering.datetimeModifier),
             ),
-            _OrderingTile(
+            OrderingTile(
               icon: Icons.history,
               title: l10n.sortByBrowseTime,
               subtitle: l10n.sortByBrowseTimeDesc,

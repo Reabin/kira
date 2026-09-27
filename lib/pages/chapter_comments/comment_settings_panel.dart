@@ -12,6 +12,9 @@ class CommentSettingsPanel extends StatefulWidget {
   /// Chapter-comment-only sections are shown only when true.
   /// Comic comments reuse this panel with false.
   final bool isChapterComments;
+
+  /// Hide filtering controls for comment sources that only share appearance.
+  final bool showFilteringSettings;
   final ValueChanged<bool> onLayoutChanged;
   final ValueChanged<bool> onShowAvatarChanged;
   final ValueChanged<bool> onShowUserNameChanged;
@@ -30,6 +33,7 @@ class CommentSettingsPanel extends StatefulWidget {
     required this.commentPreload,
     required this.commentAutoLoadAll,
     this.isChapterComments = true,
+    this.showFilteringSettings = true,
     required this.onLayoutChanged,
     required this.onShowAvatarChanged,
     required this.onShowUserNameChanged,
@@ -676,12 +680,14 @@ class _CommentSettingsPanelState extends State<CommentSettingsPanel> {
                   );
                 },
               ),
-            const SizedBox(height: AppSpacing.sm),
-            _buildBlockwordsSection(cs, tt),
-            const SizedBox(height: AppSpacing.sm),
-            _buildBlockPresetsSection(cs, tt),
-            const SizedBox(height: AppSpacing.sm),
-            _buildBlockedUsersSection(cs, tt),
+            if (widget.showFilteringSettings) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _buildBlockwordsSection(cs, tt),
+              const SizedBox(height: AppSpacing.sm),
+              _buildBlockPresetsSection(cs, tt),
+              const SizedBox(height: AppSpacing.sm),
+              _buildBlockedUsersSection(cs, tt),
+            ],
             const SizedBox(height: AppSpacing.sm),
           ],
         ),
