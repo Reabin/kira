@@ -349,7 +349,7 @@ extension _NetworkNodesSection on _NetworkPageState {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // 其他固定 host（COPY API / 拷贝登录 / 热辣登录 / 固定接口）
+  // 其他固定 host（COPY API / 拷贝登录）
   // ─────────────────────────────────────────────────────────────────────
 
   Widget _buildExtraGroup(AppLocalizations l10n, TextTheme tt, ColorScheme cs) {

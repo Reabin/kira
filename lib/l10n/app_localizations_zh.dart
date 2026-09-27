@@ -940,13 +940,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkCopyLoginHost => '拷贝登录';
 
   @override
-  String get networkHotLoginHost => '热辣登录';
-
-  @override
-  String get loginNodeUnreachable => '超时，无法连接';
-
-  @override
-  String get networkFixedApiHost => '固定接口';
+  String get networkCopyApiHost => '拷贝节点';
 
   @override
   String get networkSystemProxyNotDetected => '系统代理：未检测到';
@@ -1566,20 +1560,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。';
 
   @override
-  String get profileCurrentSelectedCredential => '当前已选';
-
-  @override
-  String get profileRemoveAccountTooltip => '移除账号';
-
-  @override
-  String profileAccountRemovedToast(String username) {
-    return '已移除 $username';
-  }
-
-  @override
-  String get profileRegisterSuccessLoginToast => '注册成功，请登录';
-
-  @override
   String get profileUsernamePasswordRequired => '请输入用户名和密码';
 
   @override
@@ -1655,43 +1635,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileRememberAccountLabel => '记住账号';
 
   @override
-  String get profileRegisterHotMangaAccountButton => '注册热辣漫画账号';
-
-  @override
   String get profileLoginButton => '登录';
 
   @override
-  String get profileRegisterInfoRequired => '请填写完整注册信息';
-
-  @override
-  String get profilePasswordMismatch => '两次输入的密码不一致';
-
-  @override
-  String get profileSecurityQuestionRequired => '请选择安全问题';
-
-  @override
-  String get profileRegisterFailed => '注册失败';
-
-  @override
   String get profileOpenOfficialRegisterFailed => '无法打开官网注册页';
-
-  @override
-  String get profileConfirmPasswordLabel => '确认密码';
-
-  @override
-  String get profileSecurityQuestionLabel => '账号安全问题';
-
-  @override
-  String get profileSecurityAnswerLabel => '安全问题答案';
-
-  @override
-  String get profileReloadSecurityQuestionsButton => '重新加载安全问题';
-
-  @override
-  String get profileRegisterButton => '注册';
-
-  @override
-  String get profileOfficialRegisterPrompt => '去官网注册';
 
   @override
   String get profileHotMangaLabel => '热辣漫画';
@@ -3011,18 +2958,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commentSettingsBlockGroupSpamDesc => '同时包含「群」和 8~12 位数字的评论将被自动过滤';
-
-  @override
-  String get profileFallbackQuestionWife => '我的老婆叫什麼？';
-
-  @override
-  String get profileFallbackQuestionFriend => '我的基友叫啥？';
-
-  @override
-  String get profileFallbackQuestionBestFriendCount => '我的好麻吉有幾個？';
-
-  @override
-  String get profileFallbackQuestionParentName => '我的父親(母親)叫什麽？';
 
   @override
   String get readerImageLinksRefreshed => '图片链接已刷新';
@@ -5067,13 +5002,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get networkCopyLoginHost => '拷貝登入';
 
   @override
-  String get networkHotLoginHost => '熱辣登入';
-
-  @override
-  String get loginNodeUnreachable => '逾時，無法連線';
-
-  @override
-  String get networkFixedApiHost => '固定接口';
+  String get networkCopyApiHost => '拷貝節點';
 
   @override
   String get networkSystemProxyNotDetected => '系統代理：未檢測到';
@@ -5693,20 +5622,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '繼續使用本軟體，即表示您已仔細閱讀、充分理解並同意接受上述全部條款的約束。如您不同意任一條款，請立即停止使用並解除安裝本軟體。';
 
   @override
-  String get profileCurrentSelectedCredential => '目前已選';
-
-  @override
-  String get profileRemoveAccountTooltip => '移除帳號';
-
-  @override
-  String profileAccountRemovedToast(String username) {
-    return '已移除 $username';
-  }
-
-  @override
-  String get profileRegisterSuccessLoginToast => '註冊成功，請登入';
-
-  @override
   String get profileUsernamePasswordRequired => '請輸入使用者名稱和密碼';
 
   @override
@@ -5761,12 +5676,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileWebLoginFailed => '官網登入失敗';
 
   @override
-  String get profileSavedAccountsTitle => '已儲存帳號';
-
-  @override
-  String get profileSavedAccountsHint => '點按快速填入帳號密碼，右側可移除';
-
-  @override
   String get profileUsernameLabel => '使用者名稱';
 
   @override
@@ -5782,43 +5691,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileRememberAccountLabel => '記住帳號';
 
   @override
-  String get profileRegisterHotMangaAccountButton => '註冊熱辣漫畫帳號';
-
-  @override
   String get profileLoginButton => '登入';
 
   @override
-  String get profileRegisterInfoRequired => '請填寫完整註冊資訊';
-
-  @override
-  String get profilePasswordMismatch => '兩次輸入的密碼不一致';
-
-  @override
-  String get profileSecurityQuestionRequired => '請選擇安全問題';
-
-  @override
-  String get profileRegisterFailed => '註冊失敗';
-
-  @override
   String get profileOpenOfficialRegisterFailed => '無法開啟官網註冊頁';
-
-  @override
-  String get profileConfirmPasswordLabel => '確認密碼';
-
-  @override
-  String get profileSecurityQuestionLabel => '帳號安全問題';
-
-  @override
-  String get profileSecurityAnswerLabel => '安全問題答案';
-
-  @override
-  String get profileReloadSecurityQuestionsButton => '重新載入安全問題';
-
-  @override
-  String get profileRegisterButton => '註冊';
-
-  @override
-  String get profileOfficialRegisterPrompt => '去官網註冊';
 
   @override
   String get profileHotMangaLabel => '熱辣漫畫';
@@ -7138,18 +7014,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get commentSettingsBlockGroupSpamDesc => '同時包含「群」和 8~12 位數字的評論將被自動過濾';
-
-  @override
-  String get profileFallbackQuestionWife => '我的老婆叫什麼？';
-
-  @override
-  String get profileFallbackQuestionFriend => '我的基友叫啥？';
-
-  @override
-  String get profileFallbackQuestionBestFriendCount => '我的好麻吉有幾個？';
-
-  @override
-  String get profileFallbackQuestionParentName => '我的父親(母親)叫什麽？';
 
   @override
   String get readerImageLinksRefreshed => '圖片連結已重新整理';

@@ -596,9 +596,7 @@
     }
   },
   "networkCopyLoginHost": "拷贝登录",
-  "networkHotLoginHost": "热辣登录",
-  "loginNodeUnreachable": "超时，无法连接",
-  "networkFixedApiHost": "固定接口",
+  "networkCopyApiHost": "拷贝节点",
   "networkSystemProxyNotDetected": "系统代理：未检测到",
   "networkManualProxyNotConfigured": "手动代理：未配置",
   "networkOtherRouteGroup": "其他",
@@ -942,17 +940,6 @@
   "appDisclaimerItem5": "如任何第三方内容涉嫌侵犯他人合法权益或违反法律法规，权利人可通过本软件提供的联系方式向开发者发送有效通知，开发者将在合理期限内核实并采取必要措施。",
   "appDisclaimerItem6": "本软件按\"现状\"提供，开发者不对其功能性、可用性、准确性或可靠性作出任何明示或默示的保证。在任何情况下，开发者均不对因使用或无法使用本软件而产生的任何直接、间接、附带、特殊或后果性损害承担责任。",
   "appDisclaimerFooter": "继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。",
-  "profileCurrentSelectedCredential": "当前已选",
-  "profileRemoveAccountTooltip": "移除账号",
-  "profileAccountRemovedToast": "已移除 {username}",
-  "@profileAccountRemovedToast": {
-    "placeholders": {
-      "username": {
-        "type": "String"
-      }
-    }
-  },
-  "profileRegisterSuccessLoginToast": "注册成功，请登录",
   "profileUsernamePasswordRequired": "请输入用户名和密码",
   "profileLoginFailedProxyHint": "登录失败，建议开启代理后重试",
   "profileLoginIpBlockedHint": "当前 IP 被封禁，请更换网络环境或开启代理后重试",
@@ -978,19 +965,8 @@
   "profileTokenLabel": "令牌 (Token)",
   "profileTokenHint": "粘贴你的登录令牌",
   "profileRememberAccountLabel": "记住账号",
-  "profileRegisterHotMangaAccountButton": "注册热辣漫画账号",
   "profileLoginButton": "登录",
-  "profileRegisterInfoRequired": "请填写完整注册信息",
-  "profilePasswordMismatch": "两次输入的密码不一致",
-  "profileSecurityQuestionRequired": "请选择安全问题",
-  "profileRegisterFailed": "注册失败",
   "profileOpenOfficialRegisterFailed": "无法打开官网注册页",
-  "profileConfirmPasswordLabel": "确认密码",
-  "profileSecurityQuestionLabel": "账号安全问题",
-  "profileSecurityAnswerLabel": "安全问题答案",
-  "profileReloadSecurityQuestionsButton": "重新加载安全问题",
-  "profileRegisterButton": "注册",
-  "profileOfficialRegisterPrompt": "去官网注册",
   "profileHotMangaLabel": "热辣漫画",
   "profileCopyMangaLabel": "拷贝漫画",
   "loginGoOfficialRegisterHot": "前往官网注册账号",
@@ -1967,10 +1943,6 @@
   "commentSettingsClearBlockwords": "清空屏蔽词",
   "commentSettingsBlockGroupSpam": "屏蔽群号广告",
   "commentSettingsBlockGroupSpamDesc": "同时包含「群」和 8~12 位数字的评论将被自动过滤",
-  "profileFallbackQuestionWife": "我的老婆叫什麼？",
-  "profileFallbackQuestionFriend": "我的基友叫啥？",
-  "profileFallbackQuestionBestFriendCount": "我的好麻吉有幾個？",
-  "profileFallbackQuestionParentName": "我的父親(母親)叫什麽？",
   "readerImageLinksRefreshed": "图片链接已刷新",
   "refreshFailedWithError": "刷新失败：{error}",
   "@refreshFailedWithError": {

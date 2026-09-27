@@ -30,7 +30,9 @@ void main() {
     LoginNodeStatusCard.probeOverride = null;
   });
 
-  testWidgets('hot source shows only the hot login host', (tester) async {
+  testWidgets('hot source shows one route node without copy row', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({});
     await UserManager().init();
 
@@ -39,7 +41,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('热辣登录'), findsOneWidget);
     expect(find.text('拷贝登录'), findsNothing);
     expect(find.text('120 ms'), findsOneWidget);
     expect(find.text('超时'), findsNothing);
@@ -56,7 +57,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('拷贝登录'), findsOneWidget);
-    expect(find.text('热辣登录'), findsNothing);
     expect(find.text('120 ms'), findsOneWidget);
   });
 

@@ -33,7 +33,6 @@ import '../pages/profile_page.dart';
 import '../pages/ranking_page.dart';
 import '../pages/reader_page.dart';
 import '../pages/recommend_page.dart';
-import '../pages/register_page.dart' show RegisterPage;
 import '../pages/search_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/webview_login_page.dart';
@@ -68,7 +67,6 @@ final class AppRoutes {
   static const localNovels = 'local_novels';
   static const localNovelDetail = 'local_novel_detail';
   static const login = 'login';
-  static const register = 'register';
   static const webviewLogin = 'webview_login';
   static const accountCenter = 'account_center';
   static const general = 'general';
@@ -395,11 +393,6 @@ GoRouter createAppRouter() {
         builder: (_, state) => LoginPage(
           copyOnly: state.uri.queryParameters['copyOnly'] == 'true',
         ),
-      ),
-      GoRoute(
-        path: '/register',
-        name: AppRoutes.register,
-        builder: (_, _) => const RegisterPage(),
       ),
       GoRoute(
         path: '/login/webview',

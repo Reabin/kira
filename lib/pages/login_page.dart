@@ -9,13 +9,9 @@ import '../models/copy_account_store.dart';
 import '../models/user_manager.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
-import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
 import '../utils/toast.dart';
 import '../widgets/login_node_status.dart';
-import 'register_page.dart' show RegisterPrefill;
-
-List<BoxShadow> _profileCardShadow(ColorScheme cs) => AppShadows.md(cs);
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.copyOnly = false, this.userApi});
@@ -91,32 +87,10 @@ class _LoginPageState extends State<LoginPage> {
     return false;
   }
 
-  String _credentialTypeLabel(
-    BuildContext context,
-    SavedCredential credential,
-  ) {
-    final l10n = AppLocalizations.of(context)!;
-    return _isCopyCredential(credential)
-        ? l10n.profileCopyCredentialLabel
-        : l10n.profileHotCredentialLabel;
-  }
-
-  IconData _credentialTypeIcon(SavedCredential credential) {
-    return _isCopyCredential(credential) ? Icons.language : Icons.phone_android;
-  }
-
-  bool _isCredentialSelected(SavedCredential credential) {
-    return _usernameCtrl.text.trim() == credential.username &&
-        _useCopyLogin == _isCopyCredential(credential);
-  }
-
   List<SavedCredential> _savedCredentialsForSource(bool useCopyLogin) => _user
       .savedCredentials
       .where((credential) => _isCopyCredential(credential) == useCopyLogin)
       .toList();
-
-  List<SavedCredential> get _visibleSavedCredentials =>
-      widget.copyOnly ? const [] : _savedCredentialsForSource(_useCopyLogin);
 
   void _selectLoginSource(bool useCopyLogin) {
     if (widget.copyOnly || _loading) return;
@@ -131,217 +105,11 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  Widget _buildCredentialBadge({
-    required BuildContext context,
-    required IconData icon,
-    required String label,
-    required Color backgroundColor,
-    required Color foregroundColor,
-  }) {
-    final tt = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: AppRadius.fullR,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: foregroundColor),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            style: tt.labelSmall?.copyWith(
-              color: foregroundColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSavedCredentialCard(
-    BuildContext context,
-    SavedCredential credential,
-  ) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final isCopy = _isCopyCredential(credential);
-    final isSelected = _isCredentialSelected(credential);
-    final nickname = credential.nickname?.trim();
-    final typeBackgroundColor = isCopy
-        ? cs.tertiaryContainer
-        : cs.secondaryContainer;
-    final typeForegroundColor = isCopy
-        ? cs.onTertiaryContainer
-        : cs.onSecondaryContainer;
-    final initial = credential.username.isNotEmpty
-        ? credential.username.substring(0, 1).toUpperCase()
-        : '?';
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        color: isSelected
-            ? cs.primaryContainer.withValues(alpha: 0.45)
-            : cs.surfaceBright,
-        borderRadius: AppRadius.lgR,
-        border: Border.all(color: isSelected ? cs.primary : cs.outlineVariant),
-        boxShadow: _profileCardShadow(cs),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: AppRadius.lgR,
-          onTap: _loading ? null : () => _applySavedCredential(credential),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: isSelected
-                      ? cs.primary
-                      : cs.surfaceContainerHighest,
-                  child: Text(
-                    initial,
-                    style: tt.titleMedium?.copyWith(
-                      color: isSelected ? cs.onPrimary : cs.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        credential.username,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tt.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (nickname != null &&
-                          nickname.isNotEmpty &&
-                          nickname != credential.username) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          nickname,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: tt.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildCredentialBadge(
-                            context: context,
-                            icon: _credentialTypeIcon(credential),
-                            label: _credentialTypeLabel(context, credential),
-                            backgroundColor: typeBackgroundColor,
-                            foregroundColor: typeForegroundColor,
-                          ),
-                          if (isSelected)
-                            _buildCredentialBadge(
-                              context: context,
-                              icon: Icons.check_circle,
-                              label: AppLocalizations.of(
-                                context,
-                              )!.profileCurrentSelectedCredential,
-                              backgroundColor: cs.primary,
-                              foregroundColor: cs.onPrimary,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  tooltip: AppLocalizations.of(
-                    context,
-                  )!.profileRemoveAccountTooltip,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _removeSavedCredential(credential),
-                  icon: Icon(Icons.close, size: 18, color: cs.onSurfaceVariant),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _applySavedCredential(SavedCredential credential) {
-    if (_loading) return;
-    setState(() {
-      _useCopyLogin = _isCopyCredential(credential);
-      _rememberMe = true;
-      _error = null;
-      _usernameCtrl.text = credential.username;
-      _passwordCtrl.text = credential.password;
-    });
-  }
-
-  Future<void> _removeSavedCredential(SavedCredential credential) async {
-    await _user.removeSavedCredential(
-      credential.username,
-      loginSource: credential.source,
-    );
-    if (!mounted) return;
-    if (_usernameCtrl.text.trim() == credential.username) {
-      setState(() {
-        final remaining = _savedCredentialsForSource(_useCopyLogin);
-        final next = remaining.isNotEmpty ? remaining.first : null;
-        _usernameCtrl.text = next?.username ?? '';
-        _passwordCtrl.text = next?.password ?? '';
-        _rememberMe = next != null;
-      });
-    }
-    showToast(
-      context,
-      AppLocalizations.of(
-        context,
-      )!.profileAccountRemovedToast(credential.username),
-    );
-  }
-
   Future<void> _goWebLogin() async {
     final result = await context.pushNamed<bool>(AppRoutes.webviewLogin);
     if (result == true && mounted) {
       Navigator.pop(context, true);
     }
-  }
-
-  // 应用内注册入口暂时隐藏，但功能保留（路由未删），恢复时重新引用本方法。
-  // ignore: unused_element
-  Future<void> _goRegister() async {
-    final result = await context.pushNamed<RegisterPrefill>(AppRoutes.register);
-    if (result == null || !mounted) return;
-
-    await UserManager().saveCredentials(result.username, result.password);
-    if (!mounted) return;
-    setState(() {
-      _rememberMe = true;
-      _error = null;
-      _usernameCtrl.text = result.username;
-      _passwordCtrl.text = result.password;
-    });
-    showToast(
-      context,
-      AppLocalizations.of(context)!.profileRegisterSuccessLoginToast,
-    );
   }
 
   Future<void> _openOfficialRegister() async {
@@ -623,8 +391,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 应用内注册入口暂时隐藏（功能保留，路由与 RegisterPage 未删），
-              // 只保留官网注册跳转。
               TextButton.icon(
                 key: ValueKey(
                   _useCopyLogin
@@ -648,7 +414,6 @@ class _LoginPageState extends State<LoginPage> {
 
   List<Widget> _buildAccountPasswordForm(BuildContext context, ColorScheme cs) {
     final l10n = AppLocalizations.of(context)!;
-    final visibleSavedCredentials = _visibleSavedCredentials;
     return [
       if (widget.copyOnly) ...[
         Text(
@@ -675,18 +440,6 @@ class _LoginPageState extends State<LoginPage> {
           onSelectionChanged: (v) => _selectLoginSource(v.first),
         ),
       const SizedBox(height: AppSpacing.lg),
-      if (visibleSavedCredentials.isNotEmpty) ...[
-        Column(
-          children: [
-            for (var i = 0; i < visibleSavedCredentials.length; i++) ...[
-              _buildSavedCredentialCard(context, visibleSavedCredentials[i]),
-              if (i != visibleSavedCredentials.length - 1)
-                const SizedBox(height: 10),
-            ],
-          ],
-        ),
-        const SizedBox(height: AppSpacing.lg),
-      ],
       if (_useCopyLogin) ...[
         OutlinedButton.icon(
           onPressed: _loading ? null : _goWebLogin,

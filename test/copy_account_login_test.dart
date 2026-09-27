@@ -140,6 +140,7 @@ void main() {
       }
       return {for (final host in hosts) host: 1};
     };
+    LoginNodeStatusCard.hotHostOverride = () => 'mapi.hotmangasg.com';
     response = (_) => _jsonResponse({
       'code': 200,
       'results': {'list': <Object>[], 'total': 0},
@@ -181,6 +182,7 @@ void main() {
     primaryDio.close();
     commentDio.close();
     LoginNodeStatusCard.probeOverride = null;
+    LoginNodeStatusCard.hotHostOverride = null;
     ApiClient.setTestInstance(originalApi);
     SecureCredentialStore.resetInstance();
   });
@@ -574,7 +576,8 @@ void main() {
       await pumpLogin(tester, copyOnly: false);
       expect(find.byType(SegmentedButton<bool>), findsOneWidget);
       expect(find.byType(CheckboxListTile), findsOneWidget);
-      expect(find.text('same-username'), findsNWidgets(2));
+      // 已保存账号卡列表已移除，仅表单预填主账号。
+      expect(find.text('same-username'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('official-register-hotmanga')),
         findsOneWidget,

@@ -18,27 +18,8 @@ const defaultCopyLoginHost = 'copy4000.com';
 /// 可选的拷贝登录域名列表，用于高级设置中的切换。
 const copyLoginHostOptions = [defaultCopyLoginHost, 'copy3000.com'];
 
-const _hostComment = defaultCopyApiHost;
-const _hostWeb = 'www.manga2026.xyz';
-
 /// 默认 COPY App 版本号，用于 copy 接口请求头（User-Agent / version）。
 const copyAppVersion = defaultCopyAppVersion;
-
-/// 线路以外的固定 host。拷贝登录域名不在此列——
-/// 测速展示以当前设置的登录域名（UserManager.copyLoginHost）为准。
-const extraApiHosts = [_hostWeb];
-
-enum ExtraApiHostKind { copyApi, copyLogin, hotLogin, fixed }
-
-const extraApiHostKinds = {
-  _hostComment: ExtraApiHostKind.copyApi,
-  defaultCopyLoginHost: ExtraApiHostKind.copyLogin,
-  _hostWeb: ExtraApiHostKind.hotLogin,
-};
-
-/// 热辣漫画网页登录/注册域名（网络页「热辣登录」节点；登录页状态卡探测用）。
-/// 热辣账号登录走 [routes] 线路节点，但注册（/api/v2/register）固定使用该域名。
-const hotLoginHost = _hostWeb;
 
 const routes = [
   ['mapi.hotmangasg.com', 'mapi.hotmangasd.com', 'mapi.hotmangasf.com'],
@@ -230,7 +211,13 @@ class ApiTransport {
     handler.next(response);
   }
 
-  String nextHost() {
+  String nextHost() => _pickRouteHost(advance: true);
+
+  /// 预览下一次请求将使用的节点：与 [nextHost] 选择逻辑一致
+  /// （固定节点优先，其次按测速权重随机），但不推进轮询序号。
+  String previewNextHost() => _pickRouteHost(advance: false);
+
+  String _pickRouteHost({required bool advance}) {
     if (user.networkSelectionMode == NetworkSelectionMode.fixedNode) {
       final fixed = user.fixedNodeHost;
       if (fixed != null && routes.expand((route) => route).contains(fixed)) {
@@ -252,7 +239,7 @@ class ApiTransport {
     if (totalWeight <= 0) {
       // 如果所有节点都超时（权重为0），或者未测试，退回到轮询
       final host = route[_hostIndex % route.length];
-      _hostIndex++;
+      if (advance) _hostIndex++;
       return host;
     }
 
@@ -263,7 +250,7 @@ class ApiTransport {
     }
 
     final host = route[_hostIndex % route.length];
-    _hostIndex++;
+    if (advance) _hostIndex++;
     return host;
   }
 
@@ -285,17 +272,6 @@ class ApiTransport {
         ...?headers,
       },
     );
-  }
-
-  String buildRegisterCookie() {
-    final random = Random();
-
-    String segment(int length) => List.generate(
-      length,
-      (_) => random.nextInt(16).toRadixString(16),
-    ).join();
-
-    return 'uncer=${segment(8)}-${segment(4)}-${segment(4)}-${segment(4)}-${segment(12)}; age=18; webp=1';
   }
 
   Future<Map<String, dynamic>> get(

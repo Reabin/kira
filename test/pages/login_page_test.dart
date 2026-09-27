@@ -38,7 +38,7 @@ void main() {
     teardownSecureCredentialStoreForTest();
   });
 
-  testWidgets('saved accounts are filtered by the selected login source', (
+  testWidgets('switching login source prefills the first saved account', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -63,7 +63,7 @@ void main() {
     await tester.pumpWidget(_buildTestApp(const LoginPage()));
     await tester.pumpAndSettle();
 
-    expect(find.text('hot_user'), findsNWidgets(2));
+    expect(find.text('hot_user'), findsOneWidget);
     expect(find.text('copy_user'), findsNothing);
     expect(
       find.byKey(const ValueKey('official-register-hotmanga')),
@@ -75,7 +75,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('hot_user'), findsNothing);
-    expect(find.text('copy_user'), findsNWidgets(2));
+    expect(find.text('copy_user'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('official-register-hotmanga')),
       findsNothing,
@@ -88,7 +88,7 @@ void main() {
     await tester.tap(find.text('热辣漫画'));
     await tester.pumpAndSettle();
 
-    expect(find.text('hot_user'), findsNWidgets(2));
+    expect(find.text('hot_user'), findsOneWidget);
     expect(find.text('copy_user'), findsNothing);
     expect(
       find.byKey(const ValueKey('official-register-hotmanga')),

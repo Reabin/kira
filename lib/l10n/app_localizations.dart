@@ -1789,23 +1789,11 @@ abstract class AppLocalizations {
   /// **'拷贝登录'**
   String get networkCopyLoginHost;
 
-  /// No description provided for @networkHotLoginHost.
+  /// No description provided for @networkCopyApiHost.
   ///
   /// In zh, this message translates to:
-  /// **'热辣登录'**
-  String get networkHotLoginHost;
-
-  /// No description provided for @loginNodeUnreachable.
-  ///
-  /// In zh, this message translates to:
-  /// **'超时，无法连接'**
-  String get loginNodeUnreachable;
-
-  /// No description provided for @networkFixedApiHost.
-  ///
-  /// In zh, this message translates to:
-  /// **'固定接口'**
-  String get networkFixedApiHost;
+  /// **'拷贝节点'**
+  String get networkCopyApiHost;
 
   /// No description provided for @networkSystemProxyNotDetected.
   ///
@@ -2935,30 +2923,6 @@ abstract class AppLocalizations {
   /// **'继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。'**
   String get appDisclaimerFooter;
 
-  /// No description provided for @profileCurrentSelectedCredential.
-  ///
-  /// In zh, this message translates to:
-  /// **'当前已选'**
-  String get profileCurrentSelectedCredential;
-
-  /// No description provided for @profileRemoveAccountTooltip.
-  ///
-  /// In zh, this message translates to:
-  /// **'移除账号'**
-  String get profileRemoveAccountTooltip;
-
-  /// No description provided for @profileAccountRemovedToast.
-  ///
-  /// In zh, this message translates to:
-  /// **'已移除 {username}'**
-  String profileAccountRemovedToast(String username);
-
-  /// No description provided for @profileRegisterSuccessLoginToast.
-  ///
-  /// In zh, this message translates to:
-  /// **'注册成功，请登录'**
-  String get profileRegisterSuccessLoginToast;
-
   /// No description provided for @profileUsernamePasswordRequired.
   ///
   /// In zh, this message translates to:
@@ -3109,83 +3073,17 @@ abstract class AppLocalizations {
   /// **'记住账号'**
   String get profileRememberAccountLabel;
 
-  /// No description provided for @profileRegisterHotMangaAccountButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'注册热辣漫画账号'**
-  String get profileRegisterHotMangaAccountButton;
-
   /// No description provided for @profileLoginButton.
   ///
   /// In zh, this message translates to:
   /// **'登录'**
   String get profileLoginButton;
 
-  /// No description provided for @profileRegisterInfoRequired.
-  ///
-  /// In zh, this message translates to:
-  /// **'请填写完整注册信息'**
-  String get profileRegisterInfoRequired;
-
-  /// No description provided for @profilePasswordMismatch.
-  ///
-  /// In zh, this message translates to:
-  /// **'两次输入的密码不一致'**
-  String get profilePasswordMismatch;
-
-  /// No description provided for @profileSecurityQuestionRequired.
-  ///
-  /// In zh, this message translates to:
-  /// **'请选择安全问题'**
-  String get profileSecurityQuestionRequired;
-
-  /// No description provided for @profileRegisterFailed.
-  ///
-  /// In zh, this message translates to:
-  /// **'注册失败'**
-  String get profileRegisterFailed;
-
   /// No description provided for @profileOpenOfficialRegisterFailed.
   ///
   /// In zh, this message translates to:
   /// **'无法打开官网注册页'**
   String get profileOpenOfficialRegisterFailed;
-
-  /// No description provided for @profileConfirmPasswordLabel.
-  ///
-  /// In zh, this message translates to:
-  /// **'确认密码'**
-  String get profileConfirmPasswordLabel;
-
-  /// No description provided for @profileSecurityQuestionLabel.
-  ///
-  /// In zh, this message translates to:
-  /// **'账号安全问题'**
-  String get profileSecurityQuestionLabel;
-
-  /// No description provided for @profileSecurityAnswerLabel.
-  ///
-  /// In zh, this message translates to:
-  /// **'安全问题答案'**
-  String get profileSecurityAnswerLabel;
-
-  /// No description provided for @profileReloadSecurityQuestionsButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'重新加载安全问题'**
-  String get profileReloadSecurityQuestionsButton;
-
-  /// No description provided for @profileRegisterButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'注册'**
-  String get profileRegisterButton;
-
-  /// No description provided for @profileOfficialRegisterPrompt.
-  ///
-  /// In zh, this message translates to:
-  /// **'去官网注册'**
-  String get profileOfficialRegisterPrompt;
 
   /// No description provided for @profileHotMangaLabel.
   ///
@@ -5524,30 +5422,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'同时包含「群」和 8~12 位数字的评论将被自动过滤'**
   String get commentSettingsBlockGroupSpamDesc;
-
-  /// No description provided for @profileFallbackQuestionWife.
-  ///
-  /// In zh, this message translates to:
-  /// **'我的老婆叫什麼？'**
-  String get profileFallbackQuestionWife;
-
-  /// No description provided for @profileFallbackQuestionFriend.
-  ///
-  /// In zh, this message translates to:
-  /// **'我的基友叫啥？'**
-  String get profileFallbackQuestionFriend;
-
-  /// No description provided for @profileFallbackQuestionBestFriendCount.
-  ///
-  /// In zh, this message translates to:
-  /// **'我的好麻吉有幾個？'**
-  String get profileFallbackQuestionBestFriendCount;
-
-  /// No description provided for @profileFallbackQuestionParentName.
-  ///
-  /// In zh, this message translates to:
-  /// **'我的父親(母親)叫什麽？'**
-  String get profileFallbackQuestionParentName;
 
   /// No description provided for @readerImageLinksRefreshed.
   ///

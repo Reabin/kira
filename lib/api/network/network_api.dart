@@ -19,33 +19,26 @@ class NetworkApi {
   /// 获取指定线路的所有 host
   List<String> getRouteHosts(int routeIndex) => routes[routeIndex];
 
-  /// 获取线路以外的固定 API / Web host，去重后用于延迟测试展示。
+  /// 预览下一次请求将使用的热辣 API 节点（与实际请求同一选择逻辑，
+  /// 但不推进轮询序号），登录页状态卡展示用。
+  String previewRouteHost() => _t.previewNextHost();
+
+  /// 获取线路以外的固定 host（COPY API / 当前拷贝登录域名），去重后用于
+  /// 延迟测试展示。
   List<String> getExtraApiHosts() {
     final hosts = <String>[];
-    for (final host in <String>[
-      _t.user.copyApiHost,
-      _t.user.copyLoginHost,
-      ...extraApiHosts,
-    ]) {
+    for (final host in <String>[_t.user.copyApiHost, _t.user.copyLoginHost]) {
       if (!hosts.contains(host)) hosts.add(host);
     }
     return hosts;
   }
 
-  /// 获取固定 API / Web host 在诊断结果中的展示名称。
+  /// 获取固定 host 在诊断结果中的展示名称。
   String getExtraApiHostLabel(String host, AppLocalizations l10n) {
     if (host == _t.user.copyApiHost || host == defaultCopyApiHost) {
-      return 'COPY API';
+      return l10n.networkCopyApiHost;
     }
-    if (host == _t.user.copyLoginHost) {
-      return l10n.networkCopyLoginHost;
-    }
-    return switch (extraApiHostKinds[host] ?? ExtraApiHostKind.fixed) {
-      ExtraApiHostKind.copyApi => 'COPY API',
-      ExtraApiHostKind.copyLogin => l10n.networkCopyLoginHost,
-      ExtraApiHostKind.hotLogin => l10n.networkHotLoginHost,
-      ExtraApiHostKind.fixed => l10n.networkFixedApiHost,
-    };
+    return l10n.networkCopyLoginHost;
   }
 
   /// 测试指定线路所有 host 的延迟，返回 {host: 毫秒数，超时为 null}
