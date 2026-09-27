@@ -15,11 +15,13 @@ class AppStorage {
   static final cache = AppPersistentCache();
   static final preferences = AppPreferences();
 
-  static Future<SharedPreferences>? _prefsFuture;
-
-  static Future<SharedPreferences> sharedPreferences() {
-    return _prefsFuture ??= SharedPreferences.getInstance();
-  }
+  /// Delegates to the plugin's own memoized instance.
+  ///
+  /// Holding our own copy would break tests: `setMockInitialValues` replaces the
+  /// platform store and clears the plugin's completer, so a future captured
+  /// before that swap resolves to a stale store (or never completes).
+  static Future<SharedPreferences> sharedPreferences() =>
+      SharedPreferences.getInstance();
 }
 
 class AppMemoryCache {
