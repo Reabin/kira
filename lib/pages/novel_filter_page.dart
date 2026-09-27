@@ -160,13 +160,13 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                         child: FilterChipRow(
                           options: [
                             FilterChipOption(
-                              label: l10n.novelPopularSort,
+                              label: l10n.popularOrder,
                               value: ApiOrdering.popular,
                               icon: Icons.whatshot,
                               selected: _ordering == ApiOrdering.popular,
                             ),
                             FilterChipOption(
-                              label: l10n.novelUpdatedSort,
+                              label: l10n.updateOrder,
                               value: ApiOrdering.datetimeUpdated,
                               icon: Icons.schedule,
                               selected: _ordering == ApiOrdering.datetimeUpdated,

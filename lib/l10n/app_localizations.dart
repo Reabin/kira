@@ -754,7 +754,7 @@ abstract class AppLocalizations {
   /// No description provided for @tagsExpandAll.
   ///
   /// In zh, this message translates to:
-  /// **'展开全部'**
+  /// **'展开'**
   String get tagsExpandAll;
 
   /// No description provided for @tagsCollapseAll.
@@ -6692,7 +6692,7 @@ abstract class AppLocalizations {
   /// No description provided for @novelAllThemes.
   ///
   /// In zh, this message translates to:
-  /// **'全部题材'**
+  /// **'全部'**
   String get novelAllThemes;
 
   /// No description provided for @novelThemes.
@@ -6701,17 +6701,11 @@ abstract class AppLocalizations {
   /// **'题材'**
   String get novelThemes;
 
-  /// No description provided for @novelPopularSort.
+  /// No description provided for @novelTagsExpandAll.
   ///
   /// In zh, this message translates to:
-  /// **'热门'**
-  String get novelPopularSort;
-
-  /// No description provided for @novelUpdatedSort.
-  ///
-  /// In zh, this message translates to:
-  /// **'最近更新'**
-  String get novelUpdatedSort;
+  /// **'展开'**
+  String get novelTagsExpandAll;
 
   /// No description provided for @novelEmptyBooks.
   ///

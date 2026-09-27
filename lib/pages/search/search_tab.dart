@@ -169,7 +169,7 @@ class _SearchTabState extends State<_SearchTab>
 
   bool _isCurrentResult(int epoch) => mounted && epoch == _resultsEpoch;
 
-  Future<void> _doSearch(String query, {bool recordHistory = true}) async {
+  Future<void> _doSearch(String query) async {
     final keyword = query.trim();
     if (keyword.isEmpty) return;
     // 即使同词再次提交，也是一轮新搜索；旧分页和旧首屏不能回写。
@@ -188,7 +188,6 @@ class _SearchTabState extends State<_SearchTab>
       _canScrollUp = false;
     });
     _resetScroll();
-    if (recordHistory) unawaited(_updateHistory(_history.add(keyword)));
 
     try {
       final result = await widget.api.manga.searchComics(keyword);
@@ -274,7 +273,7 @@ class _SearchTabState extends State<_SearchTab>
   Future<void> _refresh() async {
     final query = _searchQuery;
     if (query != null) {
-      await _doSearch(query, recordHistory: false);
+      await _doSearch(query);
     } else {
       await Future.wait([_loadKeywords(forceRefresh: true), _loadHistory()]);
     }
@@ -407,7 +406,7 @@ class _SearchTabState extends State<_SearchTab>
                 hp,
                 AppSpacing.md,
                 hp,
-                AppSpacing.lg,
+                AppSpacing.sm,
               ),
               child: SearchBar(
                 controller: _searchController,
@@ -468,8 +467,7 @@ class _SearchTabState extends State<_SearchTab>
                       if (!_idle && !_searching && _searchFailed)
                         SliverErrorRetryView(
                           message: l10n.searchRequestFailed,
-                          onRetry: () =>
-                              _doSearch(_searchQuery!, recordHistory: false),
+                          onRetry: () => _doSearch(_searchQuery!),
                         ),
                       if (!_idle &&
                           !_searching &&

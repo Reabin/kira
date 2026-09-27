@@ -25,17 +25,16 @@ import '../widgets/section_header.dart';
 import '../widgets/shimmer_skeleton.dart';
 
 enum _NovelOrdering {
-  popular('-popular', 'novelPopularSort'),
-  updated('-datetime_updated', 'novelUpdatedSort');
+  popular('-popular'),
+  updated('-datetime_updated');
 
-  const _NovelOrdering(this.value, this.labelKey);
+  const _NovelOrdering(this.value);
 
   final String value;
-  final String labelKey;
 
   String label(AppLocalizations l10n) => switch (this) {
-    _NovelOrdering.popular => l10n.novelPopularSort,
-    _NovelOrdering.updated => l10n.novelUpdatedSort,
+    _NovelOrdering.popular => l10n.popularOrder,
+    _NovelOrdering.updated => l10n.updateOrder,
   };
 }
 
@@ -228,7 +227,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     unawaited(_persistBodyState());
   }
 
-  Future<void> _doSearch(String query, {bool recordHistory = true}) async {
+  Future<void> _doSearch(String query) async {
     final keyword = query.trim();
     if (keyword.isEmpty) return;
     _searchFocus.unfocus();
@@ -236,7 +235,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
       _query = keyword;
       _tagListExpanded = false;
     });
-    if (recordHistory) unawaited(_updateHistory(_history.add(keyword)));
     await _results.refresh();
     if (mounted) unawaited(_scrollToTop());
   }
@@ -250,6 +248,11 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   }
 
   Future<void> _selectTheme(String theme) async {
+    // 展开的题材网格中选中后收起，让结果列表直接可见。
+    if (_tagListExpanded) {
+      setState(() => _tagListExpanded = false);
+      unawaited(_persistBodyState());
+    }
     if (_theme == theme) return;
     setState(() => _theme = theme);
     await _books.refresh();
@@ -359,7 +362,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
             // 行尾固定：重置只在有筛选时出现。
             trailing: _theme.isEmpty && _ordering == _NovelOrdering.popular
                 ? null
-                : filterRowButton(
+                : FilterRowResetButton(
                     onPressed: _resetFilters,
                     icon: Icons.restart_alt,
                     label: l10n.resetButton,
@@ -374,7 +377,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
               trailing: filterRowButton(
                 onPressed: _toggleTagList,
                 icon: Icons.expand_more,
-                label: l10n.tagsExpandAll,
+                label: l10n.novelTagsExpandAll,
               ),
             ),
           ],
@@ -468,7 +471,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                 hp,
                 AppSpacing.md,
                 hp,
-                AppSpacing.lg,
+                AppSpacing.sm,
               ),
               child: SearchBar(
                 controller: _searchController,

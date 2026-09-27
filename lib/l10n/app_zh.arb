@@ -199,7 +199,7 @@
   "hotSearchTitle": "热门搜索",
   "allTagsTitle": "全部标签",
   "expandAllButton": "展开",
-  "tagsExpandAll": "展开全部",
+  "tagsExpandAll": "展开",
   "tagsCollapseAll": "收起",
   "tagCount": "{count} 个",
   "@tagCount": {
@@ -2278,10 +2278,9 @@
     }
   },
   "novelBrowseBooks": "浏览书籍",
-  "novelAllThemes": "全部题材",
+  "novelAllThemes": "全部",
   "novelThemes": "题材",
-  "novelPopularSort": "热门",
-  "novelUpdatedSort": "最近更新",
+  "novelTagsExpandAll": "展开",
   "novelEmptyBooks": "暂无书籍，试试其他题材",
   "novelLoadMore": "加载更多",
   "novelLoadMoreFailed": "加载失败，点击重试",

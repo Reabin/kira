@@ -105,6 +105,39 @@ TextButton filterRowButton({
   ),
 );
 
+/// 行尾「重置」按钮：与未选中筛选 chip 同款（边框 + 透明底 + onSurfaceVariant），
+/// 视觉上融入 chip 行，而非无边框的文字按钮。
+class FilterRowResetButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const FilterRowResetButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    // 与 FilterChipRow 行内 chips 相同的尺寸压制，保证与同行 chip 等高。
+    return FilterChip(
+      avatar: Icon(icon, size: AppIconSize.sm, color: cs.onSurfaceVariant),
+      label: Text(
+        label,
+        style: tt.labelLarge?.copyWith(color: cs.onSurfaceVariant),
+      ),
+      showCheckmark: false,
+      onSelected: (_) => onPressed(),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
 /// 展开后的全部标签网格（内联，非弹层），与横向标签行互斥显示。
 ///
 /// 漫画题材（`comic.Theme`）与小说题材（`NovelTag`）都只用到名字/slug/数量，

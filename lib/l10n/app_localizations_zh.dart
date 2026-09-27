@@ -362,7 +362,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get expandAllButton => '展开';
 
   @override
-  String get tagsExpandAll => '展开全部';
+  String get tagsExpandAll => '展开';
 
   @override
   String get tagsCollapseAll => '收起';
@@ -3624,16 +3624,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelBrowseBooks => '浏览书籍';
 
   @override
-  String get novelAllThemes => '全部题材';
+  String get novelAllThemes => '全部';
 
   @override
   String get novelThemes => '题材';
 
   @override
-  String get novelPopularSort => '热门';
-
-  @override
-  String get novelUpdatedSort => '最近更新';
+  String get novelTagsExpandAll => '展开';
 
   @override
   String get novelEmptyBooks => '暂无书籍，试试其他题材';
@@ -4415,7 +4412,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get expandAllButton => '展開';
 
   @override
-  String get tagsExpandAll => '展開全部';
+  String get tagsExpandAll => '展開';
 
   @override
   String get tagsCollapseAll => '收起';
@@ -7671,16 +7668,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelBrowseBooks => '瀏覽書籍';
 
   @override
-  String get novelAllThemes => '全部題材';
+  String get novelAllThemes => '全部';
 
   @override
   String get novelThemes => '題材';
 
   @override
-  String get novelPopularSort => '熱門';
-
-  @override
-  String get novelUpdatedSort => '最近更新';
+  String get novelTagsExpandAll => '展開';
 
   @override
   String get novelEmptyBooks => '暫無書籍，試試其他題材';

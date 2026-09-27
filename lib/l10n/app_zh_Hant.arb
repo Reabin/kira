@@ -199,7 +199,7 @@
   "hotSearchTitle": "熱門搜尋",
   "allTagsTitle": "全部標籤",
   "expandAllButton": "展開",
-  "tagsExpandAll": "展開全部",
+  "tagsExpandAll": "展開",
   "tagsCollapseAll": "收起",
   "tagCount": "{count} 個",
   "@tagCount": {
@@ -2245,10 +2245,9 @@
     }
   },
   "novelBrowseBooks": "瀏覽書籍",
-  "novelAllThemes": "全部題材",
+  "novelAllThemes": "全部",
   "novelThemes": "題材",
-  "novelPopularSort": "熱門",
-  "novelUpdatedSort": "最近更新",
+  "novelTagsExpandAll": "展開",
   "novelEmptyBooks": "暫無書籍，試試其他題材",
   "novelLoadMore": "載入更多",
   "novelLoadMoreFailed": "載入失敗，點擊重試",
