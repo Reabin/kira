@@ -62,17 +62,22 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
 
     final entries = sections.expand((section) => section.entries).toList();
     final keys = entries.map((entry) => entry.key).toSet();
-    final imageCacheBytes = imageSections.fold<int>(
+    final imageOnly = imageSections
+        .where((section) => !section.isNovelText)
+        .toList();
+    final imageCacheBytes = imageOnly.fold<int>(
       0,
       (sum, section) => sum + section.sizeBytes,
     );
     final deleteTargets = <String>[
       if (keys.isNotEmpty) l10n.cacheLocalDataTarget(keys.length),
-      if (imageSections.isNotEmpty)
+      if (imageOnly.isNotEmpty)
         l10n.cacheImageDataTarget(
-          imageSections.length,
+          imageOnly.length,
           _formatBytes(imageCacheBytes),
         ),
+      if (imageSections.any((section) => section.isNovelText))
+        l10n.cacheNovelTextLabel,
       if (font != null)
         l10n.cacheFontDataTarget(
           font.fonts.length,
@@ -144,13 +149,19 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(l10n.cacheClearImageCacheTitle),
+        title: Text(
+          section.isNovelText
+              ? l10n.cacheNovelTextLabel
+              : l10n.cacheClearImageCacheTitle,
+        ),
         content: Text(
-          l10n.cacheClearImageCacheContent(
-            section.label,
-            section.fileCount,
-            _formatBytes(section.sizeBytes),
-          ),
+          section.isNovelText
+              ? l10n.cacheNovelTextClearConfirm
+              : l10n.cacheClearImageCacheContent(
+                  section.label,
+                  section.fileCount,
+                  _formatBytes(section.sizeBytes),
+                ),
         ),
         actions: [
           TextButton(
@@ -169,7 +180,12 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     try {
       await _clearImageCacheSection(section);
       if (mounted) {
-        showToast(context, l10n.cacheImageCacheClearedToast(section.label));
+        showToast(
+          context,
+          section.isNovelText
+              ? l10n.cacheNovelTextCleared
+              : l10n.cacheImageCacheClearedToast(section.label),
+        );
       }
       await _loadEntries();
     } catch (e) {

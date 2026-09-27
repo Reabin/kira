@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import '../api/api_client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
+import '../repositories/novel_repository.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/app_storage.dart';

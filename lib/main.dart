@@ -17,6 +17,7 @@ import 'l10n/app_localizations.dart';
 import 'models/theme_settings.dart';
 import 'models/user_manager.dart';
 import 'providers/backup_providers.dart';
+import 'repositories/novel_bookshelf_repository.dart';
 import 'routing/app_router.dart';
 import 'theme/app_radius.dart';
 import 'theme/app_typography.dart';
@@ -28,6 +29,7 @@ import 'utils/download_manager.dart';
 import 'utils/font_manager.dart';
 import 'utils/kira_links.dart';
 import 'utils/network_proxy.dart';
+import 'utils/novel_download_manager.dart';
 import 'utils/settings_backup.dart';
 import 'widgets/backup_recovery_app.dart';
 
@@ -101,10 +103,37 @@ void main() {
 
       await UserManager().init();
       await NetworkProxy.init();
-      // 恢复持久化的下载队列并自动续传（队列空时无操作）。
-      await DownloadManager().init();
-      // 下载期间拉起前台服务，保证退到后台后下载不中断（仅 Android）。
-      DownloadForegroundController().attach();
+      // 恢复漫画与轻小说持久化下载队列并自动续传。
+      final comicDownloads = DownloadManager();
+      await comicDownloads.init();
+      try {
+        // 旧版本书架缓存曾把 COPY token 放入固定 cache key，启动时只删除
+        // 旧 envelope；新的按 scope/排序分区由仓库按需加载。
+        await NovelBookshelfRepository.migrateLegacyCache();
+      } catch (error, stack) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            error,
+            stackTrace: stack,
+            source: 'novel_bookshelf.migrate_cache',
+          ),
+        );
+      }
+      final novelDownloads = NovelDownloadManager();
+      await novelDownloads.init();
+      // 两种下载共用一个前台服务，避免各自启停互相覆盖通知状态。
+      final downloadListenable = Listenable.merge([
+        comicDownloads,
+        novelDownloads,
+      ]);
+      DownloadForegroundController(
+        listenable: downloadListenable,
+        activity: () =>
+            DownloadForegroundController.comicActivity(comicDownloads.tasks) +
+            novelDownloads.activity,
+        title: (l10n) => l10n.downloadForegroundGenericTitle,
+        channelName: (l10n) => l10n.downloadForegroundGenericChannel,
+      ).attach();
       // 启动时若 COPY 高级设置过时（>1天），后台自动更新；失败静默。
       CopySettingsAutoUpdater.maybeUpdateOnStartup();
       unawaited(_clearExpiredCacheInBackground());

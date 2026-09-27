@@ -120,7 +120,10 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
                         )!.comicDetailSequentialDownloading(pendingCount),
                       ),
                       onPressed: () => context
-                          .pushNamed(AppRoutes.downloadCenter)
+                          .pushNamed(
+                            AppRoutes.downloadCenter,
+                            queryParameters: {'tab': '2'},
+                          )
                           .then((_) => _handleDownloadChanged()),
                     ),
                 ],

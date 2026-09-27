@@ -3,44 +3,44 @@ import 'dart:io' show Platform;
 
 import 'package:clock/clock.dart' show clock;
 import 'package:flutter/widgets.dart';
-
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/download_activity_snapshot.dart';
 import '../models/user_manager.dart';
 import 'app_logger.dart';
 import 'download_manager.dart';
 
-/// 漫画下载的前台服务保活。
-///
-/// 下载任务跑在主 isolate 里（见 [DownloadManager]）。应用退到后台后进程会被
-/// 系统冻结或回收，导致下载立即停止。本控制器在队列存在可运行任务时拉起
-/// `dataSync` 类型前台服务持有进程，通知栏展示聚合进度；队列排空或全部暂停
-/// 时停止服务，避免常驻通知空跑。
-///
-/// 保障范围：按 Home / 切应用 / 熄屏期间下载不中断。划掉任务卡片、进程被系统
-/// 杀死不在范围内——队列状态已持久化，下次启动会自动续传。
+/// 漫画与轻小说下载共享同一个 Android 前台服务。
 class DownloadForegroundController {
   DownloadForegroundController({
     Listenable? listenable,
     List<ComicDownloadTaskInfo> Function()? tasks,
+    DownloadActivitySnapshot Function()? activity,
+    String Function(AppLocalizations)? title,
+    String Function(AppLocalizations)? channelName,
     DownloadForegroundGateway? gateway,
     bool? supported,
   }) : _listenable = listenable ?? DownloadManager(),
-       _tasksOf = tasks ?? _defaultTasks,
+       _activityOf =
+           activity ?? (() => comicActivity((tasks ?? _defaultTasks)())),
+       _genericActivity = activity != null,
+       _titleOf = title ?? ((l10n) => l10n.downloadForegroundTitle),
+       _channelNameOf =
+           channelName ?? ((l10n) => l10n.downloadForegroundChannel),
        _gateway = gateway ?? FlutterForegroundTaskGateway(),
        _supported = supported ?? Platform.isAndroid;
 
   static List<ComicDownloadTaskInfo> _defaultTasks() => DownloadManager().tasks;
-
-  /// 通知刷新的最小间隔；进度事件远密于系统允许的通知更新频率。
   static const Duration _minUpdateInterval = Duration(milliseconds: 800);
 
   final Listenable _listenable;
-  final List<ComicDownloadTaskInfo> Function() _tasksOf;
+  final DownloadActivitySnapshot Function() _activityOf;
+  final bool _genericActivity;
+  final String Function(AppLocalizations) _titleOf;
+  final String Function(AppLocalizations) _channelNameOf;
   final DownloadForegroundGateway _gateway;
   final bool _supported;
-
   bool _attached = false;
   bool _alignChecked = false;
   bool _serviceWanted = false;
@@ -51,26 +51,22 @@ class DownloadForegroundController {
   Timer? _trailing;
   Future<void> _tail = Future<void>.value();
 
-  /// 队列中是否存在可运行任务（全局或单独暂停的任务不算）。
   @visibleForTesting
   static bool serviceShouldRun(List<ComicDownloadTaskInfo> tasks) =>
-      tasks.any((t) => t.status != ComicDownloadTaskStatus.paused);
+      comicActivity(tasks).hasRunnableWork;
 
-  /// 由队列快照聚合出通知正文：在飞章节数、待下载数、在飞章节的图片进度。
-  @visibleForTesting
-  static String composeText(
-    AppLocalizations l10n,
+  static DownloadActivitySnapshot comicActivity(
     List<ComicDownloadTaskInfo> tasks,
   ) {
     var active = 0, pending = 0, done = 0, total = 0;
-    for (final t in tasks) {
-      switch (t.status) {
+    for (final task in tasks) {
+      switch (task.status) {
         case ComicDownloadTaskStatus.downloading:
           active++;
-          final p = t.progress;
-          if (p != null) {
-            done += p.completed;
-            total += p.total;
+          final progress = task.progress;
+          if (progress != null) {
+            done += progress.completed;
+            total += progress.total;
           }
         case ComicDownloadTaskStatus.pending:
           pending++;
@@ -78,13 +74,55 @@ class DownloadForegroundController {
           break;
       }
     }
-    final body = l10n.downloadForegroundBody(active, pending);
-    return total > 0
-        ? '$body · ${l10n.downloadForegroundImages(done, total)}'
-        : body;
+    return DownloadActivitySnapshot(
+      active: active,
+      pending: pending,
+      completed: done,
+      total: total,
+    );
   }
 
-  /// 订阅下载队列并立即对齐一次服务状态。非 Android 平台为空操作。
+  @visibleForTesting
+  static String composeText(
+    AppLocalizations l10n,
+    List<ComicDownloadTaskInfo> tasks,
+  ) => _composeComicText(l10n, comicActivity(tasks));
+
+  static String _composeComicText(
+    AppLocalizations l10n,
+    DownloadActivitySnapshot activity,
+  ) {
+    final body = l10n.downloadForegroundBody(activity.active, activity.pending);
+    final files = l10n.downloadForegroundImages(
+      activity.completed,
+      activity.total,
+    );
+    return activity.total > 0 ? '$body · $files' : body;
+  }
+
+  /// 中立快照用于合并漫画与轻小说；保留 [composeText] 的旧漫画文案兼容性。
+  static String composeActivityText(
+    AppLocalizations l10n,
+    DownloadActivitySnapshot activity,
+  ) {
+    final body = l10n.downloadForegroundGenericBody(
+      activity.active,
+      activity.pending,
+    );
+    final files = l10n.downloadForegroundFiles(
+      activity.completed,
+      activity.total,
+    );
+    return activity.total > 0 ? '$body · $files' : body;
+  }
+
+  String _composeActivityText(
+    AppLocalizations l10n,
+    DownloadActivitySnapshot activity,
+  ) => _genericActivity
+      ? composeActivityText(l10n, activity)
+      : _composeComicText(l10n, activity);
+
   void attach() {
     if (_attached || !_supported) return;
     _attached = true;
@@ -92,7 +130,6 @@ class DownloadForegroundController {
     unawaited(sync());
   }
 
-  /// 仅用于测试：解除订阅并取消待发计时器。
   @visibleForTesting
   void detach() {
     if (!_attached) return;
@@ -102,36 +139,31 @@ class DownloadForegroundController {
     _listenable.removeListener(_onChanged);
   }
 
-  /// 等待挂起的服务操作完成；仅用于测试。
   @visibleForTesting
   Future<void> flush() => _tail;
-
   void _onChanged() => unawaited(sync());
 
-  /// 根据当前队列状态对齐前台服务：该启则启、该刷则刷、该停则停。
   @visibleForTesting
   Future<void> sync() async {
     if (!_supported) return;
-    final tasks = _tasksOf();
+    final activity = _activityOf();
     final l10n = _resolveL10n();
-    final want = serviceShouldRun(tasks);
-
-    if (want) {
-      final text = composeText(l10n, tasks);
+    final title = _titleOf(l10n);
+    final channel = _channelNameOf(l10n);
+    if (activity.hasRunnableWork) {
+      final text = _composeActivityText(l10n, activity);
       if (!_serviceWanted) {
         _serviceWanted = true;
         _pendingText = null;
         _trailing?.cancel();
         _trailing = null;
-        _enqueue(() => _start(l10n, text));
-        return;
+        _enqueue(() => _start(title, channel, text));
+      } else {
+        _pendingText = text;
+        _scheduleUpdate();
       }
-      _pendingText = text;
-      _scheduleUpdate();
       return;
     }
-
-    // 队列无可运行任务。
     if (_serviceWanted) {
       _serviceWanted = false;
       _pendingText = null;
@@ -139,41 +171,29 @@ class DownloadForegroundController {
       _trailing = null;
       _enqueue(_stop);
     } else if (!_alignChecked) {
-      // 冷启动对齐：上次退出/被系统重建的服务可能仍在空跑，停掉它。
       _alignChecked = true;
       _enqueue(_stopZombie);
     }
   }
 
-  Future<void> _start(AppLocalizations l10n, String text) async {
+  Future<void> _start(String title, String channel, String text) async {
     if (!_serviceWanted) return;
     try {
       if (await _gateway.isRunning()) {
         _serviceRunning = true;
         _lastText = text;
-        await _gateway.update(title: l10n.downloadForegroundTitle, text: text);
-        _lastUpdateAt = clock.now();
-        return;
+        await _gateway.update(title: title, text: text);
+      } else {
+        await _gateway.ensureNotificationPermission();
+        if (!_serviceWanted) return;
+        await _gateway.start(title: title, text: text, channelName: channel);
+        _serviceRunning = true;
+        _lastText = text;
       }
-      await _gateway.ensureNotificationPermission();
-      if (!_serviceWanted) return;
-      await _gateway.start(
-        title: l10n.downloadForegroundTitle,
-        text: text,
-        channelName: l10n.downloadForegroundChannel,
-      );
-      _serviceRunning = true;
-      _lastText = text;
       _lastUpdateAt = clock.now();
-    } catch (e, st) {
+    } catch (error, stack) {
       _serviceRunning = false;
-      unawaited(
-        AppLogger.instance.recordWarning(
-          '下载前台服务启动失败: $e',
-          stackTrace: st,
-          source: 'download_foreground',
-        ),
-      );
+      _log('启动失败', error, stack);
     }
   }
 
@@ -192,14 +212,19 @@ class DownloadForegroundController {
   void _flushUpdate() {
     final text = _pendingText;
     _pendingText = null;
-    if (text == null || !_serviceWanted || !_serviceRunning) return;
-    if (text == _lastText) return;
+    if (text == null ||
+        !_serviceWanted ||
+        !_serviceRunning ||
+        text == _lastText) {
+      return;
+    }
     _lastText = text;
     _lastUpdateAt = clock.now();
-    final l10n = _resolveL10n();
+    final title = _titleOf(_resolveL10n());
     _enqueue(() async {
-      if (!_serviceWanted || !_serviceRunning) return;
-      await _gateway.update(title: l10n.downloadForegroundTitle, text: text);
+      if (_serviceWanted && _serviceRunning) {
+        await _gateway.update(title: title, text: text);
+      }
     });
   }
 
@@ -207,45 +232,37 @@ class DownloadForegroundController {
     _serviceRunning = false;
     try {
       if (await _gateway.isRunning()) await _gateway.stop();
-    } catch (e, st) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          '下载前台服务停止失败: $e',
-          stackTrace: st,
-          source: 'download_foreground',
-        ),
-      );
+    } catch (error, stack) {
+      _log('停止失败', error, stack);
     }
   }
 
   Future<void> _stopZombie() async {
     try {
       if (await _gateway.isRunning()) await _gateway.stop();
-    } catch (e, st) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          '下载前台服务清理失败: $e',
-          stackTrace: st,
-          source: 'download_foreground',
-        ),
-      );
+    } catch (error, stack) {
+      _log('清理残留服务失败', error, stack);
     }
   }
 
-  void _enqueue(Future<void> Function() op) {
+  void _enqueue(Future<void> Function() operation) {
     _tail = _tail.then((_) async {
       try {
-        await op();
-      } catch (e, st) {
-        unawaited(
-          AppLogger.instance.recordWarning(
-            '下载前台服务操作异常: $e',
-            stackTrace: st,
-            source: 'download_foreground',
-          ),
-        );
+        await operation();
+      } catch (error, stack) {
+        _log('服务操作失败', error, stack);
       }
     });
+  }
+
+  void _log(String operation, Object error, StackTrace stack) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        '下载前台服务$operation: $error',
+        stackTrace: stack,
+        source: 'download_foreground',
+      ),
+    );
   }
 
   AppLocalizations _resolveL10n() {
@@ -261,13 +278,11 @@ class DownloadForegroundController {
     return lookupAppLocalizations(locale);
   }
 
-  // 仅支持简繁两种语言；系统其它语言按简体中文兜底。
   static Locale _systemLocale() {
-    final sys = WidgetsBinding.instance.platformDispatcher.locale;
-    if (sys.languageCode == 'zh') {
-      final script = sys.scriptCode;
-      final country = sys.countryCode?.toUpperCase();
-      if (script == 'Hant' ||
+    final system = WidgetsBinding.instance.platformDispatcher.locale;
+    if (system.languageCode == 'zh') {
+      final country = system.countryCode?.toUpperCase();
+      if (system.scriptCode == 'Hant' ||
           country == 'TW' ||
           country == 'HK' ||
           country == 'MO') {
@@ -278,20 +293,15 @@ class DownloadForegroundController {
   }
 }
 
-/// 与前台服务插件的交互面；真实实现基于 flutter_foreground_task。
 abstract interface class DownloadForegroundGateway {
   Future<bool> isRunning();
-
   Future<void> ensureNotificationPermission();
-
   Future<void> start({
     required String title,
     required String text,
     required String channelName,
   });
-
   Future<void> update({required String title, required String text});
-
   Future<void> stop();
 }
 
@@ -311,9 +321,6 @@ class FlutterForegroundTaskGateway implements DownloadForegroundGateway {
       foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.nothing(),
         allowWifiLock: true,
-        // 默认 allowWakeLock/allowAutoRestart 为 true：dataSync 超时或服务被回收后
-        // 自动重启保住长时任务；进程死亡时重启的服务为无主状态，通知点击回到
-        // 应用后由控制器自动对齐。
       ),
     );
     _optionsReady = true;

@@ -6,27 +6,39 @@ import '../l10n/app_localizations.dart';
 import '../theme/app_spacing.dart';
 import '../utils/download_directory.dart';
 import '../utils/download_manager.dart';
+import '../utils/novel_download_manager.dart';
 import '../utils/toast.dart';
 
 /// 弹出漫画下载设置面板（并发数量、章节评论、保存位置等），
 /// 供漫画详情页与下载中心共用。
+///
+/// 传入 [novelDownloads] 时追加轻小说下载设置（正文并发与独立保存目录）；
+/// 小说没有章节评论概念，因此该开关只在漫画侧显示。
 Future<void> showDownloadSettingsSheet(
   BuildContext context, {
   DownloadManager? downloads,
+  NovelDownloadManager? novelDownloads,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (ctx) =>
-        DownloadSettingsSheet(downloads: downloads ?? DownloadManager()),
+    builder: (ctx) => DownloadSettingsSheet(
+      downloads: downloads ?? DownloadManager(),
+      novelDownloads: novelDownloads,
+    ),
   );
 }
 
 /// 漫画下载设置抽屉，从底部出现，用于配置图片并发下载数量等。
 class DownloadSettingsSheet extends StatefulWidget {
   final DownloadManager downloads;
-  const DownloadSettingsSheet({super.key, required this.downloads});
+  final NovelDownloadManager? novelDownloads;
+  const DownloadSettingsSheet({
+    super.key,
+    required this.downloads,
+    this.novelDownloads,
+  });
 
   @override
   State<DownloadSettingsSheet> createState() => _DownloadSettingsSheetState();
@@ -35,12 +47,14 @@ class DownloadSettingsSheet extends StatefulWidget {
 class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
   late int _concurrency;
   late bool _downloadComments;
+  late int _novelConcurrency;
 
   @override
   void initState() {
     super.initState();
     _concurrency = widget.downloads.imageDownloadConcurrency;
     _downloadComments = widget.downloads.downloadCommentsEnabled;
+    _novelConcurrency = widget.novelDownloads?.concurrency ?? 2;
   }
 
   @override
@@ -141,10 +155,200 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
                     ),
               onTap: _changeSaveLocation,
             ),
+            if (widget.novelDownloads case final novels?) ...[
+              const Divider(height: AppSpacing.xl),
+              Text(l10n.novelDownloadSection, style: tt.titleSmall),
+              const SizedBox(height: AppSpacing.xs),
+              Text(l10n.downloadVolumeConcurrency, style: tt.bodyMedium),
+              Text(
+                l10n.downloadVolumeConcurrencyDesc,
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Slider(
+                      min: 1,
+                      max: 4,
+                      divisions: 3,
+                      value: _novelConcurrency.toDouble(),
+                      label: '$_novelConcurrency',
+                      onChanged: (v) =>
+                          setState(() => _novelConcurrency = v.round()),
+                      onChangeEnd: (v) =>
+                          unawaited(novels.setConcurrency(v.round())),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '$_novelConcurrency',
+                      style: tt.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                leading: const Icon(Icons.folder_open_outlined),
+                title: Text(
+                  novels.customSaveDirectory ??
+                      l10n.downloadSaveLocationDefault,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: novels.customSaveDirectory == null
+                    ? const Icon(Icons.chevron_right)
+                    : PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'reset') {
+                            unawaited(_resetNovelSaveLocation(l10n, novels));
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          PopupMenuItem(
+                            value: 'reset',
+                            child: Text(l10n.downloadSaveLocationReset),
+                          ),
+                        ],
+                      ),
+                onTap: () => _changeNovelSaveLocation(novels),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// 小说保存位置：与漫画同款确认迁移流程，但检查小说队列空闲。
+  Future<void> _changeNovelSaveLocation(NovelDownloadManager novels) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final path = await pickDownloadDirectory(
+        dialogTitle: l10n.downloadSaveLocationPickerTitle,
+      );
+      if (path == null || !mounted) return;
+      await _applyNovelSaveDirectory(novels, path, l10n);
+    } on DownloadDirectoryException catch (e) {
+      if (!mounted) return;
+      showToast(context, switch (e.reason) {
+        DownloadDirectoryError.permissionDenied =>
+          l10n.downloadSaveLocationPermissionDenied,
+        DownloadDirectoryError.notWritable =>
+          l10n.downloadSaveLocationNotWritable,
+      }, isError: true);
+    } on ArgumentError {
+      // 小说目录与漫画目录相同或互相包含时由管理器拒绝。
+      if (!mounted) return;
+      showToast(context, l10n.novelDownloadDirectoryOverlap, isError: true);
+    } on StateError {
+      if (!mounted) return;
+      showToast(context, l10n.downloadQueueBusy, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      showToast(
+        context,
+        l10n.downloadSaveLocationFailed(e.toString()),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _resetNovelSaveLocation(
+    AppLocalizations l10n,
+    NovelDownloadManager novels,
+  ) async {
+    try {
+      await _applyNovelSaveDirectory(novels, null, l10n);
+    } on StateError {
+      if (!mounted) return;
+      showToast(context, l10n.downloadQueueBusy, isError: true);
+    } catch (e) {
+      if (!mounted) return;
+      showToast(
+        context,
+        l10n.downloadSaveLocationFailed(e.toString()),
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _applyNovelSaveDirectory(
+    NovelDownloadManager novels,
+    String? path,
+    AppLocalizations l10n,
+  ) async {
+    await novels.init();
+    final existingCount = novels.localNovels.length;
+    if (existingCount > 0 && mounted) {
+      final migrate = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(l10n.downloadMigrateConfirmTitle),
+          content: Text(l10n.novelDownloadMigrateConfirmContent(existingCount)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: Text(l10n.confirmButton),
+            ),
+          ],
+        ),
+      );
+      if (migrate != true) return;
+    }
+    if (!mounted) return;
+
+    final progress = ValueNotifier<NovelDownloadMigrationProgress?>(null);
+    var dialogPopped = false;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) =>
+            ValueListenableBuilder<NovelDownloadMigrationProgress?>(
+              valueListenable: progress,
+              builder: (dialogContext, value, _) {
+                final total = value?.total ?? 0;
+                final current = value?.completed ?? 0;
+                return AlertDialog(
+                  title: Text(l10n.downloadMigratingTitle),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LinearProgressIndicator(
+                        value: total > 0 ? current / total : null,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(l10n.downloadMigratingProgress(current, total)),
+                    ],
+                  ),
+                );
+              },
+            ),
+      ).then((_) => dialogPopped = true),
+    );
+    try {
+      await novels.setSaveDirectory(
+        path,
+        onProgress: (value) => progress.value = value,
+      );
+    } finally {
+      progress.dispose();
+      if (!dialogPopped && mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
+    if (!mounted) return;
+    setState(() {});
+    showToast(context, l10n.downloadSaveLocationChanged);
   }
 
   /// 保存位置条目点击：选目录 →（有下载时）确认迁移 → 进度弹窗 → 结果提示。

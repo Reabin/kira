@@ -74,6 +74,7 @@ class _ImageCacheSection {
   final IconData icon;
 
   bool get isEmpty => fileCount == 0 && sizeBytes == 0;
+  bool get isNovelText => cacheKey == FileNovelCacheStore.directoryName;
 }
 
 class _DirectoryStats {
@@ -119,6 +120,7 @@ enum _CacheCategory {
   appSettings(2, Icons.tune_rounded),
   mangaHistory(3, Icons.history_edu_rounded),
   searchHistory(4, Icons.manage_search_rounded),
+  novelHistory(5, Icons.auto_stories_outlined),
   aiSummaryCache(6, Icons.summarize_outlined),
   other(99, Icons.more_horiz_rounded);
 
@@ -132,6 +134,7 @@ enum _CacheCategory {
     _CacheCategory.account => l10n.cacheCategoryAccount,
     _CacheCategory.appSettings => l10n.cacheCategoryAppSettings,
     _CacheCategory.mangaHistory => l10n.cacheCategoryMangaHistory,
+    _CacheCategory.novelHistory => l10n.cacheCategoryNovelHistory,
     _CacheCategory.searchHistory => l10n.cacheCategorySearchHistory,
     _CacheCategory.aiSummaryCache => l10n.cacheCategoryAiSummaryCache,
     _CacheCategory.other => l10n.cacheCategoryOther,

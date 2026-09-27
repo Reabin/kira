@@ -14,6 +14,14 @@ extension _CacheSectionLoad on _CacheManagementPageState {
         icon: Icons.menu_book_outlined,
       ),
       await _buildImageCacheSection(
+        tempDir: await getApplicationSupportDirectory(),
+        id: 'text:novel',
+        cacheKey: FileNovelCacheStore.directoryName,
+        label: l10n.cacheNovelTextLabel,
+        description: l10n.cacheNovelTextDesc,
+        icon: Icons.auto_stories_outlined,
+      ),
+      await _buildImageCacheSection(
         tempDir: tempDir,
         id: 'image:default',
         cacheKey: DefaultCacheManager.key,
@@ -113,17 +121,21 @@ extension _CacheSectionLoad on _CacheManagementPageState {
   }
 
   Future<void> _clearImageCacheSection(_ImageCacheSection section) async {
-    if (section.cacheKey == DefaultCacheManager.key) {
-      await DefaultCacheManager().emptyCache();
-    } else {
-      await CacheManager(Config(section.cacheKey)).emptyCache();
+    if (!section.isNovelText) {
+      if (section.cacheKey == DefaultCacheManager.key) {
+        await DefaultCacheManager().emptyCache();
+      } else {
+        await CacheManager(Config(section.cacheKey)).emptyCache();
+      }
     }
 
     final directory = Directory(section.directoryPath);
     if (await directory.exists()) {
       await directory.delete(recursive: true);
     }
-    PaintingBinding.instance.imageCache.clear();
-    PaintingBinding.instance.imageCache.clearLiveImages();
+    if (!section.isNovelText) {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    }
   }
 }
