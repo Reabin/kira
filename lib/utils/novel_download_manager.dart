@@ -541,6 +541,17 @@ class NovelDownloadManager extends ChangeNotifier {
       await store.waitForWrites();
       await store.deleteVolume(pathWord, volumeId);
       await _persist();
+      // 删掉最后一卷后书条目会变成"0 卷空壳"：下载中心仍显示卡片，
+      // 点进本地详情会永远转圈——没有本地卷且没有任务时移除书条目。
+      // 重新下载时 saveSnapshot 会 putIfAbsent 重建条目。
+      final hasLocalVolumes =
+          store.getLocalNovelInfo(pathWord)?.downloaded.isNotEmpty ?? false;
+      final hasBookTasks = _tasks.values.any(
+        (task) => task.pathWord == pathWord,
+      );
+      if (!hasLocalVolumes && !hasBookTasks) {
+        await store.deleteNovel(pathWord);
+      }
     } finally {
       _deleting.remove(key);
       _notify();
