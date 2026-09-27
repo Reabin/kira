@@ -3862,7 +3862,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderParagraphSpacing => '段距';
 
   @override
-  String get novelReaderTheme => '阅读背景';
+  String get novelReaderTheme => '阅读主题';
 
   @override
   String get novelReaderThemeSystem => '跟随系统';
@@ -3883,9 +3883,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderThemeCustom => '自定义';
 
   @override
-  String get novelReaderThemeFollowSystem => '背景跟随系统亮暗，深浅模式可分别选择方案';
-
-  @override
   String get novelReaderThemeLightMode => '浅色模式';
 
   @override
@@ -3896,9 +3893,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelReaderThemeNameTitle => '方案名称';
-
-  @override
-  String get novelReaderThemeNameHint => '给这个配色方案起个名字';
 
   @override
   String novelReaderThemeEditTitle(String name) {
@@ -7912,7 +7906,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderParagraphSpacing => '段距';
 
   @override
-  String get novelReaderTheme => '閱讀背景';
+  String get novelReaderTheme => '閱讀主題';
 
   @override
   String get novelReaderThemeSystem => '跟隨系統';
@@ -7933,9 +7927,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderThemeCustom => '自訂';
 
   @override
-  String get novelReaderThemeFollowSystem => '背景跟隨系統亮暗，深淺模式可分別選擇方案';
-
-  @override
   String get novelReaderThemeLightMode => '淺色模式';
 
   @override
@@ -7946,9 +7937,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderThemeNameTitle => '方案名稱';
-
-  @override
-  String get novelReaderThemeNameHint => '為這個配色方案取個名字';
 
   @override
   String novelReaderThemeEditTitle(String name) {

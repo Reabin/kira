@@ -152,57 +152,124 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('add a named custom theme with colors and bind it to dark mode', (
+  testWidgets(
+    'add dialog edits name and colors together, then binds to dark mode',
+    (tester) async {
+      var latest = const NovelReaderSettings();
+      await _mount(tester, onChanged: (value) => latest = value);
+      await _tapVisible(tester, 'novel-theme-add');
+      // 新建直接弹出编辑对话框，名称为空时确认按钮禁用。
+      FilledButton confirmButton() => tester.widget<FilledButton>(
+        find.byKey(const ValueKey('novel-theme-edit-confirm')),
+      );
+      expect(confirmButton().onPressed, isNull);
+      await tester.enterText(
+        find.byKey(const ValueKey('novel-theme-name-field')),
+        '夜航',
+      );
+      await tester.pumpAndSettle();
+      expect(confirmButton().onPressed, isNotNull);
+      // 背景与文字两个颜色字段分别打开色轮并确认，色块/HEX 同步刷新。
+      for (final (key, color) in [
+        ('novel-theme-edit-background', const Color(0xFF152337)),
+        ('novel-theme-edit-text', const Color(0xFFE8DDBA)),
+      ]) {
+        await tester.tap(find.byKey(ValueKey(key)));
+        await tester.pumpAndSettle();
+        expect(find.byType(ColorPicker), findsOneWidget);
+        tester
+            .widget<ColorPicker>(find.byType(ColorPicker))
+            .onColorChanged(color);
+        final context = tester.element(find.byType(ColorPicker));
+        final okLabel = MaterialLocalizations.of(context).okButtonLabel;
+        await tester.tap(find.text(okLabel).first);
+        await tester.pumpAndSettle();
+        final hex =
+            '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}';
+        expect(find.text(hex), findsOneWidget);
+      }
+      // 预览实时反映当前颜色。
+      final preview = tester.widget<Container>(
+        find.byKey(const ValueKey('novel-theme-edit-preview')),
+      );
+      expect(
+        (preview.decoration! as BoxDecoration).color,
+        const Color(0xFF152337),
+      );
+      final previewText = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('novel-theme-edit-preview')),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(previewText.style?.color, const Color(0xFFE8DDBA));
+      await tester.tap(find.byKey(const ValueKey('novel-theme-edit-confirm')));
+      await tester.pumpAndSettle();
+      expect(latest.customThemes, hasLength(1));
+      expect(latest.customThemes.single.name, '夜航');
+      expect(latest.customThemes.single.backgroundColor, 0xFF152337);
+      expect(latest.customThemes.single.textColor, 0xFFE8DDBA);
+      final darkTile = find.byKey(const ValueKey('novel-dark-theme'));
+      await tester.ensureVisible(darkTile);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: darkTile,
+          matching: find.byType(SelectTile<String>),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('夜航').last);
+      await tester.pumpAndSettle();
+      expect(latest.darkThemeId, latest.customThemes.single.id);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('edit dialog renames an existing theme and updates its colors', (
     tester,
   ) async {
-    var latest = const NovelReaderSettings();
-    await _mount(tester, onChanged: (value) => latest = value);
-    await _tapVisible(tester, 'novel-theme-add');
+    const theme = NovelReaderCustomTheme(
+      id: 'c1',
+      name: '米黄',
+      backgroundColor: 0xFF182839,
+      textColor: 0xFFEFDFC1,
+    );
+    var latest = const NovelReaderSettings().upsertCustomTheme(theme);
+    await _mount(
+      tester,
+      settings: latest,
+      onChanged: (value) => latest = value,
+    );
+    await _tapVisible(tester, 'novel-custom-theme-edit-c1');
     await tester.enterText(
       find.byKey(const ValueKey('novel-theme-name-field')),
-      '夜航',
+      '暮色',
     );
-    await tester.tap(find.byKey(const ValueKey('novel-theme-name-confirm')));
     await tester.pumpAndSettle();
-    // 编辑对话框：背景与文字两个颜色字段分别打开色轮并确认。
-    for (final (key, color) in [
-      ('novel-theme-edit-background', const Color(0xFF152337)),
-      ('novel-theme-edit-text', const Color(0xFFE8DDBA)),
-    ]) {
-      await tester.tap(find.byKey(ValueKey(key)));
-      await tester.pumpAndSettle();
-      expect(find.byType(ColorPicker), findsOneWidget);
-      tester
-          .widget<ColorPicker>(find.byType(ColorPicker))
-          .onColorChanged(color);
-      final context = tester.element(find.byType(ColorPicker));
-      final okLabel = MaterialLocalizations.of(context).okButtonLabel;
-      await tester.tap(find.text(okLabel).first);
-      await tester.pumpAndSettle();
-    }
-    await tester.tap(find.byType(FilledButton).last);
+    await tester.tap(find.byKey(const ValueKey('novel-theme-edit-background')));
     await tester.pumpAndSettle();
-    expect(latest.customThemes, hasLength(1));
-    expect(latest.customThemes.single.name, '夜航');
-    expect(latest.customThemes.single.backgroundColor, 0xFF152337);
-    expect(latest.customThemes.single.textColor, 0xFFE8DDBA);
-    final darkTile = find.byKey(const ValueKey('novel-dark-theme'));
-    await tester.ensureVisible(darkTile);
-    await tester.pumpAndSettle();
+    tester
+        .widget<ColorPicker>(find.byType(ColorPicker))
+        .onColorChanged(const Color(0xFF223344));
+    final context = tester.element(find.byType(ColorPicker));
     await tester.tap(
-      find.descendant(of: darkTile, matching: find.byType(SelectTile<String>)),
+      find.text(MaterialLocalizations.of(context).okButtonLabel).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('夜航').last);
+    await tester.tap(find.byKey(const ValueKey('novel-theme-edit-confirm')));
     await tester.pumpAndSettle();
-    expect(latest.darkThemeId, latest.customThemes.single.id);
+    expect(latest.customThemes.single.id, 'c1');
+    expect(latest.customThemes.single.name, '暮色');
+    expect(latest.customThemes.single.backgroundColor, 0xFF223344);
+    expect(latest.customThemes.single.textColor, 0xFFEFDFC1);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('delete a custom theme falls its binding back safely', (
     tester,
   ) async {
-    final theme = const NovelReaderCustomTheme(
+    const theme = NovelReaderCustomTheme(
       id: 'c1',
       name: '米黄',
       backgroundColor: 0xFF182839,

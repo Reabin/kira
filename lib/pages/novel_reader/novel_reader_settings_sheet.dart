@@ -1,6 +1,7 @@
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../../api/hitokoto_api.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/novel_reader_settings.dart';
 import '../../theme/app_icon_sizes.dart';
@@ -82,65 +83,24 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
     );
   }
 
-  Future<String?> _promptName(String initial) async {
-    final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController(text: initial);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.novelReaderThemeNameTitle),
-        content: TextField(
-          key: const ValueKey('novel-theme-name-field'),
-          controller: controller,
-          autofocus: true,
-          maxLength: 24,
-          decoration: InputDecoration(
-            counterText: '',
-            hintText: l10n.novelReaderThemeNameHint,
-          ),
-        ),
-        actions: [
-          TextButton(
-            key: const ValueKey('novel-theme-name-cancel'),
-            onPressed: () => Navigator.pop(context),
-            child: Text(l10n.cancelButton),
-          ),
-          FilledButton(
-            key: const ValueKey('novel-theme-name-confirm'),
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: Text(l10n.confirmButton),
-          ),
-        ],
-      ),
-    );
-    // 路由退出动画/焦点清理仍可能再读 controller，等一帧后释放。
-    WidgetsBinding.instance.addPostFrameCallback((_) => controller.dispose());
-    return result;
-  }
-
   Future<void> _editCustomTheme(NovelReaderCustomTheme theme) async {
     final l10n = AppLocalizations.of(context)!;
-    var background = Color(theme.backgroundColor);
-    var textColor = Color(theme.textColor);
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_ThemeEditResult>(
       context: context,
       builder: (context) => _ThemeEditDialog(
-        theme: theme,
         title: l10n.novelReaderThemeEditTitle(theme.name),
-        initialBackground: background,
-        initialText: textColor,
-        onChanged: (bg, fg) {
-          background = bg;
-          textColor = fg;
-        },
+        initialName: theme.name,
+        initialBackground: Color(theme.backgroundColor),
+        initialText: Color(theme.textColor),
       ),
     );
-    if (!mounted || confirmed != true) return;
+    if (!mounted || result == null) return;
     _change(
       _settings.upsertCustomTheme(
         theme.copyWith(
-          backgroundColor: background.toARGB32(),
-          textColor: textColor.toARGB32(),
+          name: result.name,
+          backgroundColor: result.background.toARGB32(),
+          textColor: result.text.toARGB32(),
         ),
       ),
     );
@@ -148,34 +108,25 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
 
   Future<void> _addCustomTheme() async {
     final l10n = AppLocalizations.of(context)!;
-    final name = await _promptName('');
-    if (!mounted || name == null || name.isEmpty) return;
-    final id = _settings.newCustomThemeId();
-    var background = const Color(
-      NovelReaderSettings.defaultCustomBackgroundColor,
-    );
-    var textColor = const Color(NovelReaderSettings.defaultCustomTextColor);
-    final confirmed = await showDialog<bool>(
+    final result = await showDialog<_ThemeEditResult>(
       context: context,
       builder: (context) => _ThemeEditDialog(
-        theme: NovelReaderCustomTheme(id: id, name: name),
-        title: l10n.novelReaderThemeEditTitle(name),
-        initialBackground: background,
-        initialText: textColor,
-        onChanged: (bg, fg) {
-          background = bg;
-          textColor = fg;
-        },
+        title: l10n.novelReaderThemeAdd,
+        initialName: '',
+        initialBackground: const Color(
+          NovelReaderSettings.defaultCustomBackgroundColor,
+        ),
+        initialText: const Color(NovelReaderSettings.defaultCustomTextColor),
       ),
     );
-    if (!mounted || confirmed != true) return;
+    if (!mounted || result == null) return;
     _change(
       _settings.upsertCustomTheme(
         NovelReaderCustomTheme(
-          id: id,
-          name: name,
-          backgroundColor: background.toARGB32(),
-          textColor: textColor.toARGB32(),
+          id: _settings.newCustomThemeId(),
+          name: result.name,
+          backgroundColor: result.background.toARGB32(),
+          textColor: result.text.toARGB32(),
         ),
       ),
     );
@@ -259,13 +210,6 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             title: l10n.novelReaderTheme,
             icon: Icons.palette_outlined,
           ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            l10n.novelReaderThemeFollowSystem,
-            style: tt.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
           const SizedBox(height: AppSpacing.sm),
           _modeTile(
             key: const ValueKey('novel-light-theme'),
@@ -279,23 +223,6 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             value: _settings.darkThemeId,
             onChanged: (id) => _selectTheme(true, id),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.xs,
-            children: [
-              ActionChip(
-                key: const ValueKey('novel-theme-add'),
-                avatar: const Icon(Icons.add, size: AppIconSize.sm),
-                label: Text(l10n.novelReaderThemeAdd),
-                onPressed: _addCustomTheme,
-              ),
-            ],
-          ),
-          if (_settings.customThemes.isNotEmpty) ...[
-            const SizedBox(height: AppSpacing.sm),
-            for (final theme in _settings.customThemes) _customThemeTile(theme),
-          ],
           const SizedBox(height: AppSpacing.lg),
           Container(
             key: const ValueKey('novel-settings-preview'),
@@ -319,6 +246,23 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
               ),
             ),
           ),
+          const SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              ActionChip(
+                key: const ValueKey('novel-theme-add'),
+                avatar: const Icon(Icons.add, size: AppIconSize.sm),
+                label: Text(l10n.novelReaderThemeAdd),
+                onPressed: _addCustomTheme,
+              ),
+            ],
+          ),
+          if (_settings.customThemes.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            for (final theme in _settings.customThemes) _customThemeTile(theme),
+          ],
           const Divider(height: AppSpacing.xxl),
           SectionHeader(
             title: l10n.readerDisplaySection,
@@ -457,29 +401,66 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
   }
 }
 
-/// 单个自定义方案的背景/文字色编辑对话框（色轮 + HEX）。
-class _ThemeEditDialog extends StatelessWidget {
+/// 自定义方案编辑对话框：名称 + 背景/文字色 + 实时预览。
+/// 新建与编辑共用，确认后返回 [_ThemeEditResult]。
+class _ThemeEditDialog extends StatefulWidget {
   const _ThemeEditDialog({
-    required this.theme,
     required this.title,
+    required this.initialName,
     required this.initialBackground,
     required this.initialText,
-    required this.onChanged,
   });
 
-  final NovelReaderCustomTheme theme;
   final String title;
+  final String initialName;
   final Color initialBackground;
   final Color initialText;
-  final void Function(Color background, Color text) onChanged;
+
+  @override
+  State<_ThemeEditDialog> createState() => _ThemeEditDialogState();
+}
+
+class _ThemeEditDialogState extends State<_ThemeEditDialog> {
+  late final TextEditingController _nameController = TextEditingController(
+    text: widget.initialName,
+  );
+  late Color _background = widget.initialBackground;
+  late Color _text = widget.initialText;
+
+  /// 一言（漫画类）预览文本；请求成功前保持本地文案。
+  HitokotoSentence? _previewSentence;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreviewSentence();
+  }
+
+  Future<void> _loadPreviewSentence() async {
+    final sentence = await HitokotoApi().fetchSentence();
+    if (!mounted || sentence == null) return;
+    setState(() => _previewSentence = sentence);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    var background = initialBackground;
-    var text = initialText;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final sentence = _previewSentence;
+    final previewText = sentence == null
+        ? l10n.novelReaderPreviewText
+        : sentence.from.isEmpty
+        ? sentence.text
+        : '${sentence.text} ——${sentence.from}';
     return AlertDialog(
-      title: Text(title),
+      title: Text(widget.title),
       content: SizedBox(
         width: double.maxFinite,
         child: SingleChildScrollView(
@@ -487,22 +468,43 @@ class _ThemeEditDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _ColorField(
-                label: l10n.novelReaderBackgroundColor,
-                initial: initialBackground,
-                onChanged: (color) {
-                  background = color;
-                  onChanged(background, text);
-                },
+              TextField(
+                key: const ValueKey('novel-theme-name-field'),
+                controller: _nameController,
+                autofocus: widget.initialName.isEmpty,
+                maxLength: 24,
+                decoration: InputDecoration(
+                  labelText: l10n.novelReaderThemeNameTitle,
+                  counterText: '',
+                ),
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: AppSpacing.md),
               _ColorField(
+                key: const ValueKey('novel-theme-edit-background'),
+                label: l10n.novelReaderBackgroundColor,
+                color: _background,
+                onChanged: (color) => setState(() => _background = color),
+              ),
+              _ColorField(
+                key: const ValueKey('novel-theme-edit-text'),
                 label: l10n.novelReaderTextColor,
-                initial: initialText,
-                onChanged: (color) {
-                  text = color;
-                  onChanged(background, text);
-                },
+                color: _text,
+                onChanged: (color) => setState(() => _text = color),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Container(
+                key: const ValueKey('novel-theme-edit-preview'),
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: _background,
+                  borderRadius: AppRadius.mdR,
+                  border: Border.all(color: cs.outlineVariant),
+                ),
+                child: Text(
+                  previewText,
+                  style: tt.bodyLarge?.copyWith(color: _text),
+                ),
               ),
             ],
           ),
@@ -510,11 +512,21 @@ class _ThemeEditDialog extends StatelessWidget {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () => Navigator.pop(context),
           child: Text(l10n.cancelButton),
         ),
         FilledButton(
-          onPressed: () => Navigator.pop(context, true),
+          key: const ValueKey('novel-theme-edit-confirm'),
+          onPressed: _nameController.text.trim().isEmpty
+              ? null
+              : () => Navigator.pop(
+                  context,
+                  _ThemeEditResult(
+                    name: _nameController.text.trim(),
+                    background: _background,
+                    text: _text,
+                  ),
+                ),
           child: Text(l10n.confirmButton),
         ),
       ],
@@ -522,22 +534,35 @@ class _ThemeEditDialog extends StatelessWidget {
   }
 }
 
+class _ThemeEditResult {
+  const _ThemeEditResult({
+    required this.name,
+    required this.background,
+    required this.text,
+  });
+
+  final String name;
+  final Color background;
+  final Color text;
+}
+
 class _ColorField extends StatelessWidget {
   const _ColorField({
+    super.key,
     required this.label,
-    required this.initial,
+    required this.color,
     required this.onChanged,
   });
 
   final String label;
-  final Color initial;
+  final Color color;
   final ValueChanged<Color> onChanged;
 
   Future<void> _pick(BuildContext context) async {
-    var selected = initial;
+    var selected = color;
     final didSelect =
         await ColorPicker(
-          color: initial,
+          color: color,
           onColorChanged: (color) => selected = color,
           pickersEnabled: const <ColorPickerType, bool>{
             ColorPickerType.both: false,
@@ -571,25 +596,20 @@ class _ColorField extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    final isBackground =
-        label == AppLocalizations.of(context)!.novelReaderBackgroundColor;
     return ListTile(
-      key: ValueKey(
-        isBackground ? 'novel-theme-edit-background' : 'novel-theme-edit-text',
-      ),
       contentPadding: EdgeInsets.zero,
       leading: Container(
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: initial,
+          color: color,
           borderRadius: AppRadius.smR,
           border: Border.all(color: cs.outlineVariant),
         ),
       ),
       title: Text(label, style: tt.bodyMedium),
       subtitle: Text(
-        '#${(initial.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}',
+        '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}',
       ),
       onTap: () => _pick(context),
     );

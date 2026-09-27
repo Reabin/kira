@@ -7136,7 +7136,7 @@ abstract class AppLocalizations {
   /// No description provided for @novelReaderTheme.
   ///
   /// In zh, this message translates to:
-  /// **'阅读背景'**
+  /// **'阅读主题'**
   String get novelReaderTheme;
 
   /// No description provided for @novelReaderThemeSystem.
@@ -7175,12 +7175,6 @@ abstract class AppLocalizations {
   /// **'自定义'**
   String get novelReaderThemeCustom;
 
-  /// No description provided for @novelReaderThemeFollowSystem.
-  ///
-  /// In zh, this message translates to:
-  /// **'背景跟随系统亮暗，深浅模式可分别选择方案'**
-  String get novelReaderThemeFollowSystem;
-
   /// No description provided for @novelReaderThemeLightMode.
   ///
   /// In zh, this message translates to:
@@ -7204,12 +7198,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'方案名称'**
   String get novelReaderThemeNameTitle;
-
-  /// No description provided for @novelReaderThemeNameHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'给这个配色方案起个名字'**
-  String get novelReaderThemeNameHint;
 
   /// No description provided for @novelReaderThemeEditTitle.
   ///

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../api/hitokoto_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
 import '../routing/app_router.dart';
@@ -76,117 +77,128 @@ class _AboutPageState extends State<AboutPage> {
               ? '${snapshot.data!.version}+${snapshot.data!.buildNumber}'
               : '...';
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          return Column(
             children: [
-              // Compact horizontal brand header: logo + name/version/tagline.
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: AppRadius.lgR,
-                    child: Image.asset(
-                      _user.appLogoPath,
-                      width: 52,
-                      height: 52,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                  children: [
+                    // Compact horizontal brand header: logo + name/version/tagline.
+                    Row(
                       children: [
-                        Text(
-                          'Kira',
-                          style: tt.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.2,
-                            height: 1.15,
+                        ClipRRect(
+                          borderRadius: AppRadius.lgR,
+                          child: Image.asset(
+                            _user.appLogoPath,
+                            width: 52,
+                            height: 52,
+                            fit: BoxFit.cover,
                           ),
                         ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          version,
-                          style: tt.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          l10n.aboutBrandTagline,
-                          style: tt.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            height: 1.2,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Kira',
+                                style: tt.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.2,
+                                  height: 1.15,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                version,
+                                style: tt.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Text(
+                                l10n.aboutBrandTagline,
+                                style: tt.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              _UpdateCard(
-                onCheckUpdate: () => AppUpdateService.checkAndPrompt(context),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              SettingTileGroup(
-                axis: Axis.horizontal,
-                children: [
-                  SettingActionTile(
-                    icon: SvgPicture.asset(
-                      'assets/github.svg',
-                      width: 24,
-                      height: 24,
-                      colorFilter: ColorFilter.mode(
-                        cs.onSurfaceVariant,
-                        BlendMode.srcIn,
-                      ),
+                    const SizedBox(height: AppSpacing.xl),
+                    _UpdateCard(
+                      onCheckUpdate: () =>
+                          AppUpdateService.checkAndPrompt(context),
                     ),
-                    label: l10n.aboutRepositoryLabel,
-                    onTap: () async {
-                      await launchUrl(
-                        Uri.parse(_repoUrl),
-                        mode: LaunchMode.externalApplication,
-                      );
-                    },
-                  ),
-                  SettingActionTile(
-                    icon: const Icon(Icons.feedback_outlined),
-                    label: l10n.aboutFeedbackLabel,
-                    onTap: () async {
-                      await launchUrl(
-                        Uri.parse(
-                          'https://github.com/caolib/kira/issues/new/choose',
+                    const SizedBox(height: AppSpacing.lg),
+                    SettingTileGroup(
+                      axis: Axis.horizontal,
+                      children: [
+                        SettingActionTile(
+                          icon: SvgPicture.asset(
+                            'assets/github.svg',
+                            width: 24,
+                            height: 24,
+                            colorFilter: ColorFilter.mode(
+                              cs.onSurfaceVariant,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                          label: l10n.aboutRepositoryLabel,
+                          onTap: () async {
+                            await launchUrl(
+                              Uri.parse(_repoUrl),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          },
                         ),
-                        mode: LaunchMode.externalApplication,
-                      );
-                    },
-                  ),
-                  SettingActionTile(
-                    icon: const Icon(Icons.bug_report_outlined),
-                    label: l10n.aboutLogTitle,
-                    onTap: () => context.pushNamed(AppRoutes.appLog),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              // 宽屏：更新设置与法律/致谢两卡双列并排；窄屏纵向堆叠。
-              if (ScreenLayout.contentWidth(MediaQuery.sizeOf(context).width) >=
-                  ScreenLayout.wideBreakpoint)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildUpdateSettingsCard(cs, l10n)),
-                    const SizedBox(width: AppSpacing.lg),
-                    Expanded(child: _buildLegalCard(cs, l10n)),
+                        SettingActionTile(
+                          icon: const Icon(Icons.feedback_outlined),
+                          label: l10n.aboutFeedbackLabel,
+                          onTap: () async {
+                            await launchUrl(
+                              Uri.parse(
+                                'https://github.com/caolib/kira/issues/new/choose',
+                              ),
+                              mode: LaunchMode.externalApplication,
+                            );
+                          },
+                        ),
+                        SettingActionTile(
+                          icon: const Icon(Icons.bug_report_outlined),
+                          label: l10n.aboutLogTitle,
+                          onTap: () => context.pushNamed(AppRoutes.appLog),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    // 宽屏：更新设置与法律/致谢两卡双列并排；窄屏纵向堆叠。
+                    if (ScreenLayout.contentWidth(
+                          MediaQuery.sizeOf(context).width,
+                        ) >=
+                        ScreenLayout.wideBreakpoint)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: _buildUpdateSettingsCard(cs, l10n)),
+                          const SizedBox(width: AppSpacing.lg),
+                          Expanded(child: _buildLegalCard(cs, l10n)),
+                        ],
+                      )
+                    else ...[
+                      _buildUpdateSettingsCard(cs, l10n),
+                      const SizedBox(height: AppSpacing.lg),
+                      _buildLegalCard(cs, l10n),
+                    ],
                   ],
-                )
-              else ...[
-                _buildUpdateSettingsCard(cs, l10n),
-                const SizedBox(height: AppSpacing.lg),
-                _buildLegalCard(cs, l10n),
-              ],
+                ),
+              ),
+              // 一言固定在页面底部，不随内容滚动。
+              const _HitokotoFooter(),
             ],
           );
         },
