@@ -12,9 +12,11 @@ import '../utils/app_logger.dart';
 import 'api_ordering.dart';
 import 'app_theme_option.dart';
 import 'comment_settings.dart';
+import 'copy_account_store.dart';
 import 'network_proxy_types.dart';
 import 'network_settings.dart';
 import 'reader_settings.dart';
+import 'secure_credential_store.dart';
 import 'theme_settings.dart';
 
 export 'network_proxy_types.dart';
@@ -67,7 +69,21 @@ class SavedCredential {
     if (avatar != null) 'avatar': avatar,
   };
 
+  String get source => loginSource == 'copy' ? 'copy' : 'hotmanga';
+
+  bool get hasIdentity =>
+      username.trim().isNotEmpty || userId?.trim().isNotEmpty == true;
+
+  bool sameAccount(SavedCredential other) {
+    if (source != other.source) return false;
+    if (username.isNotEmpty && other.username.isNotEmpty) {
+      return username == other.username;
+    }
+    return userId?.isNotEmpty == true && userId == other.userId;
+  }
+
   SavedCredential copyWith({
+    String? password,
     String? token,
     String? loginSource,
     String? userId,
@@ -75,7 +91,7 @@ class SavedCredential {
     String? avatar,
   }) => SavedCredential(
     username: username,
-    password: password,
+    password: password ?? this.password,
     token: token ?? this.token,
     loginSource: loginSource ?? this.loginSource,
     userId: userId ?? this.userId,
@@ -98,6 +114,11 @@ class UserManager extends ChangeNotifier {
   final comment = CommentSettings();
   final theme = ThemeSettings();
   final network = NetworkSettings();
+  final CopyAccountStore _copyAccount = CopyAccountStore();
+
+  CopyAccountStore get copyAccount => _copyAccount;
+  String? get copyToken => copyAccount.token;
+  bool get isCopyLoggedIn => copyAccount.isLoggedIn;
 
   // ── Backward-compat constant re-exports ────────────────────────────
   // These delegate to the canonical definitions in each sub-store so
@@ -132,8 +153,6 @@ class UserManager extends ChangeNotifier {
   static const _keyDarkModeCoverBrightness = 'dark_mode_cover_brightness';
   static const _keyBottomNavShowLabels = 'bottom_nav_show_labels';
   static const _keyBottomNavLabelMode = 'bottom_nav_label_mode';
-  static const _keyNavOrder = 'nav_order';
-  static const _keyLastNavKey = 'last_nav_key';
   static const _keyDesktopFontFamily = 'desktop_font_family';
   static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
   static const _keyBookshelfOrdering = 'bookshelf_ordering';
@@ -159,9 +178,6 @@ class UserManager extends ChangeNotifier {
   static const _keyImageLoadTimeout = 'image_load_timeout';
   static const _keyImageRetryCount = 'image_retry_count';
   static const _keyCommentCompactLayout = 'comment_compact_layout';
-  static const _keyCommentShowAvatar = 'comment_show_avatar';
-  static const _keyCommentShowUserName = 'comment_show_user_name';
-  static const _keyCommentShowTime = 'comment_show_time';
   static const _keyCommentPreload = 'comment_preload';
   static const _keyCommentAutoLoadAll = 'comment_auto_load_all';
   static const _keyAutoCheckUpdate = 'auto_check_update';
@@ -201,14 +217,16 @@ class UserManager extends ChangeNotifier {
   String? _savedUsername;
   String? _savedPassword;
   List<SavedCredential> _savedCredentials = [];
+
+  /// Free-form note attached to the COPY account the next login creates
+  /// (「这是谁的账号」). Not a credential: safe to persist in the record.
+  String _copyAccountLabel = '';
   ThemeMode _themeMode = ThemeMode.system;
   String _themeColor = appThemeOptions.first.id;
   DynamicSchemeVariant _themeVariant = appThemeVariantOptions.first.variant;
   int _customThemeColorValue = defaultCustomThemeColor.toARGB32();
   double _darkModeCoverBrightness = defaultDarkModeCoverBrightness;
   BottomNavLabelMode _bottomNavLabelMode = BottomNavLabelMode.selectedOnly;
-  List<String> _navOrder = defaultNavOrder;
-  String _lastNavKey = defaultNavKey;
   String _desktopFontFamily = '';
   int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
   String _bookshelfOrdering = ApiOrdering.datetimeUpdated;
@@ -232,9 +250,6 @@ class UserManager extends ChangeNotifier {
   int _imageLoadTimeout = 15; // 秒
   int _imageRetryCount = 1;
   bool _commentCompactLayout = true;
-  bool _commentShowAvatar = true;
-  bool _commentShowUserName = true;
-  bool _commentShowTime = true;
   bool _commentPreload = true;
   bool _commentAutoLoadAll = false;
   bool _autoCheckUpdate = true;
@@ -303,8 +318,8 @@ class UserManager extends ChangeNotifier {
   /// Compatibility: true when labels are not fully hidden.
   bool get bottomNavShowLabels =>
       _bottomNavLabelMode != BottomNavLabelMode.hidden;
-  List<String> get navOrder => _navOrder;
-  String get lastNavKey => _lastNavKey;
+  List<String> get navOrder => theme.navOrder;
+  String get lastNavKey => theme.lastNavKey;
   String get desktopFontFamily => _desktopFontFamily;
   int get displayModeRefreshRate => _displayModeRefreshRate;
   AppThemeOption get themeOption {
@@ -345,9 +360,9 @@ class UserManager extends ChangeNotifier {
   int get imageLoadTimeout => _imageLoadTimeout;
   int get imageRetryCount => _imageRetryCount;
   bool get commentCompactLayout => _commentCompactLayout;
-  bool get commentShowAvatar => _commentShowAvatar;
-  bool get commentShowUserName => _commentShowUserName;
-  bool get commentShowTime => _commentShowTime;
+  bool get commentShowAvatar => comment.showAvatar;
+  bool get commentShowUserName => comment.showUserName;
+  bool get commentShowTime => comment.showTime;
 
   /// 委托给 [comment]。子 store 的 notifyListeners 会经
   /// _onSubStoreChanged 转发到本 facade 的监听者。
@@ -482,7 +497,120 @@ class UserManager extends ChangeNotifier {
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
+    copyAccount.removeListener(_onSubStoreChanged);
     super.dispose();
+  }
+
+  int _accountRevision = 0;
+  Future<void>? _pendingAccountMutation;
+  bool _accountsPausedForRestore = false;
+
+  /// Keep backup snapshots outside partially written account transactions.
+  Future<T> readAccountStorage<T>(Future<T> Function() read) =>
+      _serializeAccounts(read, allowDuringRestore: true);
+
+  Future<void> pauseAccountMutationsForRestore() async {
+    _accountsPausedForRestore = true;
+    ++_accountRevision;
+    await _pendingAccountMutation;
+  }
+
+  void resumeAccountMutationsAfterRestore() {
+    _accountsPausedForRestore = false;
+  }
+
+  Future<T> _serializeAccounts<T>(
+    Future<T> Function() action, {
+    bool allowDuringRestore = false,
+  }) {
+    if (_accountsPausedForRestore && !allowDuringRestore) {
+      return Future.error(const CopyAccountStorageException());
+    }
+    final previous = _pendingAccountMutation;
+    final barrier = Completer<void>();
+    _pendingAccountMutation = barrier.future;
+    Future<T> run() async {
+      try {
+        return await action();
+      } finally {
+        if (identical(_pendingAccountMutation, barrier.future)) {
+          _pendingAccountMutation = null;
+        }
+        barrier.complete();
+      }
+    }
+
+    return previous == null ? run() : previous.then((_) => run());
+  }
+
+  SavedCredential? get currentCredential => !isLoggedIn
+      ? null
+      : SavedCredential(
+          username: _username ?? '',
+          password: '',
+          token: _token,
+          loginSource: _loginSource,
+          userId: _userId,
+          nickname: _nickname,
+          avatar: _avatar,
+        );
+
+  static const _profileKeys = [
+    _keyUserId,
+    _keyUsername,
+    _keyNickname,
+    _keyAvatar,
+    _keyLoginSource,
+  ];
+
+  Future<void> _requireAccountWrite(Future<bool> write) async {
+    if (!await write) throw const CopyAccountStorageException();
+  }
+
+  Future<void> _persistProfile(SavedCredential credential) async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final entry in {
+      _keyUserId: credential.userId ?? '',
+      _keyUsername: credential.username,
+      _keyNickname: credential.nickname ?? '',
+      _keyAvatar: credential.avatar ?? '',
+      _keyLoginSource: credential.source,
+    }.entries) {
+      await _requireAccountWrite(prefs.setString(entry.key, entry.value));
+    }
+  }
+
+  /// All explicit logins share one commit path: COPY selects both domains;
+  /// HOT selects comics only. Reserve revisions before network work so an old
+  /// response cannot undo a newer login, logout or manual account selection.
+  Future<bool> authenticateAndLogin({
+    required String source,
+    required Future<Map<String, dynamic>> Function() authenticate,
+    String? password,
+  }) async {
+    final revision = ++_accountRevision;
+    final copyRevision = source == 'copy' ? copyAccount.beginLogin() : null;
+    final result = await authenticate();
+    final account = SavedCredential(
+      username: result['username']?.toString().trim() ?? '',
+      password: '',
+      token: result['token']?.toString().trim(),
+      loginSource: source,
+      userId: result['user_id']?.toString().trim(),
+      nickname: result['nickname']?.toString(),
+      avatar: result['avatar']?.toString(),
+    );
+    if (account.token?.isNotEmpty != true || !account.hasIdentity) {
+      throw const FormatException('Login response lacks account identity');
+    }
+    return _serializeAccounts(
+      () => _commitLogin(
+        account,
+        revision: revision,
+        copyRevision: copyRevision,
+        password: password,
+      ),
+    );
   }
 
   Future<void> saveLogin({
@@ -491,175 +619,364 @@ class UserManager extends ChangeNotifier {
     required String username,
     required String nickname,
     required String avatar,
+    bool syncCopyAccount = false,
+    int? copyAccountRevision,
+    String? loginSource,
   }) async {
-    _token = token;
-    _userId = userId;
-    _username = username;
-    _nickname = nickname;
-    _avatar = avatar;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyToken, token);
-    await prefs.setString(_keyUserId, userId);
-    await prefs.setString(_keyUsername, username);
-    await prefs.setString(_keyNickname, nickname);
-    await prefs.setString(_keyAvatar, avatar);
-
-    // 同步更新对应凭证的令牌和用户信息
-    final idx = _savedCredentials.indexWhere((e) => e.username == username);
-    if (idx >= 0) {
-      _savedCredentials[idx] = _savedCredentials[idx].copyWith(
-        token: token,
-        loginSource: _loginSource,
-        userId: userId,
-        nickname: nickname,
-        avatar: avatar,
-      );
-      await prefs.setString(
-        _keySavedCredentials,
-        jsonEncode(_savedCredentials.map((e) => e.toJson()).toList()),
-      );
-    }
-    notifyListeners();
-  }
-
-  Future<void> logout() async {
-    ApiClient().user.clearAuthState();
-    _token = null;
-    _userId = null;
-    _username = null;
-    _nickname = null;
-    _avatar = null;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyToken);
-    await prefs.remove(_keyUserId);
-    await prefs.remove(_keyUsername);
-    await prefs.remove(_keyNickname);
-    await prefs.remove(_keyAvatar);
-    notifyListeners();
-  }
-
-  Future<void> saveCredentials(String username, String password) async {
-    _savedUsername = username;
-    _savedPassword = password;
-    _savedCredentials.removeWhere((e) => e.username == username);
-    _savedCredentials.insert(
-      0,
-      SavedCredential(username: username, password: password),
-    );
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySavedUsername, username);
-    await prefs.setString(_keySavedPassword, password);
-    await prefs.setString(
-      _keySavedCredentials,
-      jsonEncode(_savedCredentials.map((e) => e.toJson()).toList()),
-    );
-  }
-
-  Future<void> clearCredentials() async {
-    _savedUsername = null;
-    _savedPassword = null;
-    _savedCredentials = [];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keySavedUsername);
-    await prefs.remove(_keySavedPassword);
-    await prefs.remove(_keySavedCredentials);
-  }
-
-  /// 直接切换到已保存的凭证（无需重新登录）
-  Future<bool> switchToCredential(SavedCredential credential) async {
-    if (credential.token == null || credential.token!.isEmpty) return false;
-
-    _token = credential.token;
-    _username = credential.username;
-    _nickname = credential.nickname;
-    _avatar = credential.avatar;
-    _userId = credential.userId;
-    if (credential.loginSource != null) {
-      _loginSource = credential.loginSource!;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyToken, _token!);
-    if (_userId != null) await prefs.setString(_keyUserId, _userId!);
-    if (_username != null) await prefs.setString(_keyUsername, _username!);
-    if (_nickname != null) await prefs.setString(_keyNickname, _nickname!);
-    if (_avatar != null) await prefs.setString(_keyAvatar, _avatar!);
-    if (credential.loginSource != null) {
-      await prefs.setString(_keyLoginSource, credential.loginSource!);
-    }
-
-    // 更新凭证顺序，将选中的凭证移到最前
-    _savedCredentials.removeWhere((e) => e.username == credential.username);
-    _savedCredentials.insert(0, credential);
-    _savedUsername = credential.username;
-    _savedPassword = credential.password;
-    await prefs.setString(_keySavedUsername, credential.username);
-    await prefs.setString(_keySavedPassword, credential.password);
-    await prefs.setString(
-      _keySavedCredentials,
-      jsonEncode(_savedCredentials.map((e) => e.toJson()).toList()),
-    );
-
-    notifyListeners();
-
-    // 后台刷新用户信息
-    try {
-      await refreshUserInfo();
-    } catch (e, stack) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          e,
-          stackTrace: stack,
-          source: 'user_manager.refresh_user_info',
+    final revision = ++_accountRevision;
+    final source = loginSource ?? _loginSource;
+    final copyRevision = syncCopyAccount && source == 'copy'
+        ? (copyAccountRevision ?? copyAccount.beginLogin())
+        : null;
+    await _serializeAccounts(
+      () => _commitLogin(
+        SavedCredential(
+          username: username,
+          password: '',
+          token: token,
+          loginSource: source,
+          userId: userId,
+          nickname: nickname,
+          avatar: avatar,
         ),
-      );
-    }
-    return true;
+        revision: revision,
+        copyRevision: copyRevision,
+      ),
+    );
   }
 
-  Future<void> removeSavedCredential(String username) async {
-    _savedCredentials.removeWhere((e) => e.username == username);
-    if (_savedUsername == username) {
-      if (_savedCredentials.isNotEmpty) {
-        _savedUsername = _savedCredentials.first.username;
-        _savedPassword = _savedCredentials.first.password;
+  Future<bool> _commitLogin(
+    SavedCredential account, {
+    required int revision,
+    int? copyRevision,
+    String? password,
+  }) async {
+    bool isCurrent() =>
+        revision == _accountRevision &&
+        (copyRevision == null || copyRevision == copyAccount.revision);
+    if (!isCurrent()) return false;
+    final retained = [..._savedCredentials];
+    final current = currentCredential;
+    if (current != null && current.hasIdentity) {
+      final idx = retained.indexWhere((item) => item.sameAccount(current));
+      if (idx < 0) {
+        retained.add(current);
       } else {
-        _savedUsername = null;
-        _savedPassword = null;
+        retained[idx] = current.copyWith(password: retained[idx].password);
       }
     }
+    final previous = retained.where((item) => item.sameAccount(account));
+    final updated = account.copyWith(
+      password: password ?? (previous.isEmpty ? '' : previous.first.password),
+    );
+    final next = [
+      updated,
+      ...retained.where((item) => !item.sameAccount(account)),
+    ];
+    final secure = SecureCredentialStore();
     final prefs = await SharedPreferences.getInstance();
-    if (_savedUsername == null) {
+    final previousProfile = {
+      for (final key in _profileKeys) key: prefs.getString(key),
+    };
+
+    Future<void> restorePrimary() async {
+      await secure.writeCredentials(_savedCredentials);
+      await secure.writeUsername(_savedUsername);
+      await secure.writePassword(_savedPassword);
+      await secure.writeToken(_token);
+      for (final entry in previousProfile.entries) {
+        final value = entry.value;
+        await _requireAccountWrite(
+          value == null
+              ? prefs.remove(entry.key)
+              : prefs.setString(entry.key, value),
+        );
+      }
+    }
+
+    void publishPrimary() {
+      _savedCredentials = next;
+      _savedUsername = updated.username;
+      _savedPassword = updated.password;
+      _token = updated.token;
+      _userId = updated.userId;
+      _username = updated.username;
+      _nickname = updated.nickname;
+      _avatar = updated.avatar;
+      _loginSource = updated.source;
+      ApiClient().user.clearAuthState();
+    }
+
+    try {
+      await secure.writeCredentials(next);
+      await secure.writeUsername(updated.username);
+      await secure.writePassword(updated.password);
+      await secure.writeToken(updated.token);
+      await _persistProfile(updated);
+      for (final key in [
+        _keyToken,
+        _keySavedCredentials,
+        _keySavedUsername,
+        _keySavedPassword,
+      ]) {
+        await _requireAccountWrite(prefs.remove(key));
+      }
+      if (!isCurrent()) {
+        await restorePrimary();
+        return false;
+      }
+      if (copyRevision != null) {
+        final saved = await copyAccount.saveSession(
+          CopyAccountSession(
+            token: updated.token!,
+            userId: updated.userId ?? '',
+            username: updated.username,
+            nickname: updated.nickname ?? '',
+            avatar: updated.avatar ?? '',
+          ),
+          expectedRevision: copyRevision,
+          isCurrent: isCurrent,
+          onCommitted: publishPrimary,
+        );
+        if (!saved) {
+          await restorePrimary();
+          return false;
+        }
+      } else {
+        publishPrimary();
+      }
+      notifyListeners();
+      return true;
+    } catch (_) {
+      try {
+        await restorePrimary();
+      } catch (_) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            const CopyAccountStorageException(),
+            source: 'user_manager.restore_login',
+          ),
+        );
+      }
+      // Storage failure cannot masquerade as a completed COPY login while the
+      // novel account is still empty (the original partial-success bug).
+      throw const CopyAccountStorageException();
+    }
+  }
+
+  Future<void> logout() {
+    ++_accountRevision;
+    return _serializeAccounts(() async {
+      await SecureCredentialStore().writeToken(null);
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in [
+        _keyToken,
+        _keyUserId,
+        _keyUsername,
+        _keyNickname,
+        _keyAvatar,
+      ]) {
+        await prefs.remove(key);
+      }
+      ApiClient().user.clearAuthState();
+      _token = null;
+      _userId = null;
+      _username = null;
+      _nickname = null;
+      _avatar = null;
+      notifyListeners();
+    });
+  }
+
+  Future<void> saveCredentials(
+    String username,
+    String password, {
+    String? loginSource,
+  }) {
+    ++_accountRevision;
+    final source = loginSource ?? _loginSource;
+    return _serializeAccounts(() async {
+      final identity = SavedCredential(
+        username: username,
+        password: password,
+        loginSource: source,
+      );
+      final existing = _savedCredentials.where(
+        (item) => item.sameAccount(identity),
+      );
+      final next = [
+        existing.isEmpty
+            ? identity
+            : existing.first.copyWith(password: password),
+        ..._savedCredentials.where((item) => !item.sameAccount(identity)),
+      ];
+      await SecureCredentialStore().writeCredentials(next);
+      await SecureCredentialStore().writeUsername(username);
+      await SecureCredentialStore().writePassword(password);
+      _savedUsername = username;
+      _savedPassword = password;
+      _savedCredentials = next;
+      final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keySavedUsername);
       await prefs.remove(_keySavedPassword);
-    } else {
-      await prefs.setString(_keySavedUsername, _savedUsername!);
-      await prefs.setString(_keySavedPassword, _savedPassword ?? '');
+      await prefs.remove(_keySavedCredentials);
+      notifyListeners();
+    });
+  }
+
+  Future<void> clearCredentials() {
+    ++_accountRevision;
+    return _serializeAccounts(() async {
+      await SecureCredentialStore().writeCredentials([]);
+      await SecureCredentialStore().writeUsername(null);
+      await SecureCredentialStore().writePassword(null);
+      _savedUsername = null;
+      _savedPassword = null;
+      _savedCredentials = [];
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keySavedUsername);
+      await prefs.remove(_keySavedPassword);
+      await prefs.remove(_keySavedCredentials);
+      notifyListeners();
+    });
+  }
+
+  // Kept for legacy callers; account-center UI no longer creates notes.
+  void setCopyAccountLabel(String? label) {
+    _copyAccountLabel = label?.trim() ?? '';
+  }
+
+  String? consumeCopyAccountLabel() {
+    final label = _copyAccountLabel;
+    _copyAccountLabel = '';
+    return label.isEmpty ? null : label;
+  }
+
+  Future<bool> switchToCredential(SavedCredential credential) {
+    if (credential.token?.isNotEmpty != true || !credential.hasIdentity) {
+      return Future.value(false);
     }
-    await prefs.setString(
-      _keySavedCredentials,
-      jsonEncode(_savedCredentials.map((e) => e.toJson()).toList()),
+    final revision = ++_accountRevision;
+    // Local comic selection must not switch the independent novel account.
+    return _serializeAccounts(
+      () => _commitLogin(
+        credential,
+        revision: revision,
+        password: credential.password.isEmpty ? null : credential.password,
+      ),
     );
+  }
+
+  Future<void> removeSavedCredential(
+    String username, {
+    String? loginSource,
+    String? userId,
+  }) {
+    ++_accountRevision;
+    final source = loginSource ?? _loginSource;
+    final identity = SavedCredential(
+      username: username,
+      password: '',
+      loginSource: source,
+      userId: userId,
+    );
+    return _serializeAccounts(() async {
+      final next = _savedCredentials
+          .where((item) => !item.sameAccount(identity))
+          .toList();
+      await SecureCredentialStore().writeCredentials(next);
+      final selected = next.where(
+        (item) =>
+            item.username == _savedUsername && item.source == _loginSource,
+      );
+      final replacement = selected.isNotEmpty
+          ? selected.first
+          : (next.isNotEmpty ? next.first : null);
+      await SecureCredentialStore().writeUsername(replacement?.username);
+      await SecureCredentialStore().writePassword(replacement?.password);
+      _savedCredentials = next;
+      _savedUsername = replacement?.username;
+      _savedPassword = replacement?.password;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keySavedCredentials);
+      await prefs.remove(_keySavedUsername);
+      await prefs.remove(_keySavedPassword);
+      notifyListeners();
+    });
+  }
+
+  /// Refresh the clicked identity without changing any selection. A response
+  /// is discarded if auth/credentials changed while its request was in flight.
+  Future<bool> refreshCredential(SavedCredential credential) async {
+    final token = credential.token;
+    if (token == null || token.isEmpty) return false;
+    final revision = _accountRevision;
+    final info = await ApiClient().user.getCredentialInfo(
+      token: token,
+      source: credential.source,
+    );
+    return _serializeAccounts(() async {
+      if (revision != _accountRevision) return false;
+      final idx = _savedCredentials.indexWhere(
+        (item) => item.sameAccount(credential) && item.token == token,
+      );
+      final active = currentCredential;
+      final isActive =
+          active?.sameAccount(credential) == true && active?.token == token;
+      if (idx < 0 && !isActive) return false;
+      final returnedId = info['user_id']?.toString() ?? '';
+      final returnedName = info['username']?.toString() ?? '';
+      if (returnedId.isEmpty && returnedName.isEmpty) return false;
+      if (credential.userId?.isNotEmpty == true &&
+          returnedId.isNotEmpty &&
+          credential.userId != returnedId) {
+        return false;
+      }
+      if (returnedName.isNotEmpty && returnedName != credential.username) {
+        return false;
+      }
+      final updated = (idx < 0 ? credential : _savedCredentials[idx]).copyWith(
+        userId: returnedId.isEmpty ? credential.userId : returnedId,
+        nickname: info['nickname']?.toString(),
+        avatar: info['avatar']?.toString(),
+      );
+      final next = [..._savedCredentials];
+      if (idx >= 0) next[idx] = updated;
+      // Identity-changing operations reserve a revision before they queue.
+      await SecureCredentialStore().writeCredentials(next);
+      if (revision != _accountRevision) {
+        await SecureCredentialStore().writeCredentials(_savedCredentials);
+        return false;
+      }
+      if (isActive) await _persistProfile(updated);
+      if (revision != _accountRevision) {
+        await SecureCredentialStore().writeCredentials(_savedCredentials);
+        if (isActive && active != null) await _persistProfile(active);
+        return false;
+      }
+      _savedCredentials = next;
+      if (isActive) {
+        _userId = updated.userId;
+        _nickname = updated.nickname;
+        _avatar = updated.avatar;
+      }
+      notifyListeners();
+      return true;
+    });
   }
 
   Future<void> refreshUserInfo() async {
-    if (!isLoggedIn) return;
-    final info = await ApiClient().user.getUserInfo();
-    await saveLogin(
-      token: _token!,
-      userId: info['user_id']?.toString() ?? _userId ?? '',
-      username: info['username']?.toString() ?? _username ?? '',
-      nickname: info['nickname']?.toString() ?? _nickname ?? '',
-      avatar: info['avatar']?.toString() ?? _avatar ?? '',
-    );
+    final credential = currentCredential;
+    if (credential != null) await refreshCredential(credential);
   }
 
-  Future<void> setLoginSource(String source) async {
-    _loginSource = source;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyLoginSource, source);
+  Future<void> setLoginSource(String source) {
+    ++_accountRevision;
+    return _serializeAccounts(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await _requireAccountWrite(prefs.setString(_keyLoginSource, source));
+      _loginSource = source;
+    });
   }
 
   static double _normalizeDarkModeCoverBrightness(double value) {
@@ -681,25 +998,6 @@ class UserManager extends ChangeNotifier {
     final legacy = prefs.getBool(_keyBottomNavShowLabels);
     if (legacy == false) return BottomNavLabelMode.hidden;
     return BottomNavLabelMode.selectedOnly;
-  }
-
-  static String _normalizeNavKey(String? key) {
-    return defaultNavOrder.contains(key) ? key! : defaultNavKey;
-  }
-
-  static List<String> _normalizeNavOrder(List<String>? order) {
-    final normalized = <String>[];
-    for (final key in order ?? defaultNavOrder) {
-      if (defaultNavOrder.contains(key) && !normalized.contains(key)) {
-        normalized.add(key);
-      }
-    }
-    for (final key in defaultNavOrder) {
-      if (!normalized.contains(key)) {
-        normalized.add(key);
-      }
-    }
-    return normalized;
   }
 
   static int _normalizeDisplayModeRefreshRate(int? refreshRate) {

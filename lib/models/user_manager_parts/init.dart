@@ -2,6 +2,7 @@ part of '../user_manager.dart';
 
 extension UserManagerInitPart on UserManager {
   Future<void> init({bool persistMigrations = true}) async {
+    ++_accountRevision;
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(UserManager._keyToken);
     _username = prefs.getString(UserManager._keyUsername);
@@ -23,7 +24,7 @@ extension UserManagerInitPart on UserManager {
               .map(
                 (e) => SavedCredential.fromJson(Map<String, dynamic>.from(e)),
               )
-              .where((e) => e.username.isNotEmpty)
+              .where((e) => e.hasIdentity)
               .toList();
         }
       } catch (_) {
@@ -37,12 +38,53 @@ extension UserManagerInitPart on UserManager {
       _savedCredentials = [
         SavedCredential(username: _savedUsername!, password: _savedPassword!),
       ];
+    }
+    // Migrate only after safe storage accepts the complete credential data.
+    // During an outage the legacy session remains usable, without deleting it.
+    try {
+      final secure = SecureCredentialStore();
       if (persistMigrations) {
-        await prefs.setString(
-          UserManager._keySavedCredentials,
-          jsonEncode(_savedCredentials.map((e) => e.toJson()).toList()),
+        await secure.migrateFromSharedPreferences(
+          {for (final key in prefs.getKeys()) key: prefs.get(key)},
+          (key) async {
+            await prefs.remove(key);
+          },
         );
       }
+      final secureToken = await secure.readToken();
+      if (secureToken != null) {
+        _token = secureToken.isEmpty ? null : secureToken;
+      } else if (_token != null && persistMigrations) {
+        await secure.writeToken(_token);
+      }
+      if (persistMigrations && (secureToken != null || _token != null)) {
+        await prefs.remove(UserManager._keyToken);
+      }
+      final migrated = await secure.credentialsMigrated();
+      final secureUsername = await secure.readUsername();
+      final securePassword = await secure.readPassword();
+      _savedUsername = migrated
+          ? secureUsername
+          : secureUsername ?? _savedUsername;
+      _savedPassword = migrated
+          ? securePassword
+          : securePassword ?? _savedPassword;
+      final credentials = await secure.readCredentials();
+      if (migrated || credentials.isNotEmpty) _savedCredentials = credentials;
+      if (_savedCredentials.isEmpty &&
+          _savedUsername?.isNotEmpty == true &&
+          _savedPassword != null) {
+        _savedCredentials = [
+          SavedCredential(username: _savedUsername!, password: _savedPassword!),
+        ];
+      }
+    } catch (_) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          StateError('Credential migration unavailable'),
+          source: 'user_manager.init_credentials',
+        ),
+      );
     }
     _themeMode = ThemeMode.values[prefs.getInt(UserManager._keyThemeMode) ?? 0];
     final savedThemeColor = prefs.getString(UserManager._keyThemeColor);
@@ -60,20 +102,6 @@ extension UserManagerInitPart on UserManager {
           UserManager.defaultDarkModeCoverBrightness,
     );
     _bottomNavLabelMode = UserManager._loadBottomNavLabelMode(prefs);
-    final savedNavOrder = prefs.getStringList(UserManager._keyNavOrder);
-    _navOrder = UserManager._normalizeNavOrder(savedNavOrder);
-    if (persistMigrations &&
-        savedNavOrder != null &&
-        savedNavOrder.join('\u0000') != _navOrder.join('\u0000')) {
-      await prefs.setStringList(UserManager._keyNavOrder, _navOrder);
-    }
-    final savedLastNavKey = prefs.getString(UserManager._keyLastNavKey);
-    _lastNavKey = UserManager._normalizeNavKey(savedLastNavKey);
-    if (persistMigrations &&
-        savedLastNavKey != null &&
-        savedLastNavKey != _lastNavKey) {
-      await prefs.setString(UserManager._keyLastNavKey, _lastNavKey);
-    }
     _desktopFontFamily =
         prefs.getString(UserManager._keyDesktopFontFamily) ?? '';
     _displayModeRefreshRate = UserManager._normalizeDisplayModeRefreshRate(
@@ -123,11 +151,6 @@ extension UserManagerInitPart on UserManager {
     _imageRetryCount = prefs.getInt(UserManager._keyImageRetryCount) ?? 1;
     _commentCompactLayout =
         prefs.getBool(UserManager._keyCommentCompactLayout) ?? true;
-    _commentShowAvatar =
-        prefs.getBool(UserManager._keyCommentShowAvatar) ?? true;
-    _commentShowUserName =
-        prefs.getBool(UserManager._keyCommentShowUserName) ?? true;
-    _commentShowTime = prefs.getBool(UserManager._keyCommentShowTime) ?? true;
     _commentPreload = prefs.getBool(UserManager._keyCommentPreload) ?? true;
     _commentAutoLoadAll =
         prefs.getBool(UserManager._keyCommentAutoLoadAll) ?? false;
@@ -147,6 +170,30 @@ extension UserManagerInitPart on UserManager {
     _disclaimerAccepted =
         prefs.getBool(UserManager._keyDisclaimerAccepted) ?? false;
     _loginSource = prefs.getString(UserManager._keyLoginSource) ?? 'hotmanga';
+    _savedCredentials = [
+      for (final credential in _savedCredentials)
+        credential.loginSource == null
+            ? credential.copyWith(
+                loginSource: credential.username == _savedUsername
+                    ? _loginSource
+                    : 'hotmanga',
+              )
+            : credential,
+    ];
+    final activeCredential = currentCredential;
+    if (activeCredential != null) {
+      final known = _savedCredentials.where(
+        (item) => item.sameAccount(activeCredential),
+      );
+      _savedCredentials = [
+        activeCredential.copyWith(
+          password: known.isEmpty ? '' : known.first.password,
+        ),
+        ..._savedCredentials.where(
+          (item) => !item.sameAccount(activeCredential),
+        ),
+      ];
+    }
     _apiRoute = prefs.getInt(UserManager._keyApiRoute) ?? 0;
     _remoteNoticeEnabled =
         prefs.getBool(UserManager._keyRemoteNoticeEnabled) ?? true;
@@ -232,6 +279,19 @@ extension UserManagerInitPart on UserManager {
     await comment.initFromPrefs(prefs);
     await theme.initFromPrefs(prefs, persistMigrations: persistMigrations);
     await network.initFromPrefs(prefs, persistMigrations: persistMigrations);
+    // loginSource is loaded late above; never infer COPY from token presence.
+    await copyAccount.init(
+      legacySession: _loginSource == 'copy' && isLoggedIn
+          ? CopyAccountSession(
+              token: _token!,
+              userId: _userId ?? '',
+              username: _username ?? '',
+              nickname: _nickname ?? '',
+              avatar: _avatar ?? '',
+            )
+          : null,
+      persistMigrations: persistMigrations,
+    );
 
     // Forward sub-store notifications so legacy listeners on UserManager
     // still rebuild when domain settings change. init() may run more than once
@@ -241,10 +301,12 @@ extension UserManagerInitPart on UserManager {
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
+    copyAccount.removeListener(_onSubStoreChanged);
     reader.addListener(_onSubStoreChanged);
     comment.addListener(_onSubStoreChanged);
     theme.addListener(_onSubStoreChanged);
     network.addListener(_onSubStoreChanged);
+    copyAccount.addListener(_onSubStoreChanged);
 
     _notifyListeners();
   }

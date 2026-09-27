@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:dio/dio.dart';
 
 import '../../models/comic.dart';
+import '../../models/copy_account_store.dart';
 import '../../utils/app_dio.dart';
 import '../../utils/network_error.dart';
 import '../api_transport.dart';
@@ -47,10 +48,23 @@ bool isIpBlockedLoginError(Object error) {
   return false;
 }
 
+class CopyProfileUnavailableException implements Exception {
+  const CopyProfileUnavailableException();
+
+  @override
+  String toString() => 'COPY profile refresh unavailable';
+}
+
 class UserApi {
   final ApiTransport _t;
+  final Dio Function(BaseOptions options)? copyDioFactory;
+  final Dio Function(BaseOptions options)? profileDioFactory;
 
-  UserApi(this._t);
+  UserApi(this._t, {this.copyDioFactory, this.profileDioFactory});
+
+  Dio _createCopyLoginDio(BaseOptions options) =>
+      copyDioFactory?.call(options) ??
+      AppDio.create(source: 'copy_login', options: options);
 
   // ── 用户相关 ──
 
@@ -77,10 +91,10 @@ class UserApi {
     final hostCopy = _t.user.copyLoginHost;
     final salt = Random().nextInt(900000) + 100000;
     final encoded = base64Encode(utf8.encode('$password-$salt'));
-    final dio = AppDio.create(
-      source: 'copy_login',
-      options: BaseOptions(
+    final dio = _createCopyLoginDio(
+      BaseOptions(
         validateStatus: (_) => true,
+        followRedirects: false,
         // 头顺序对齐官方浏览器请求（ref/用户/拷贝登录-最新.txt）
         headers: {
           'sec-ch-ua-platform': '"Windows"',
@@ -121,8 +135,18 @@ class UserApi {
       );
 
       final data = resp.data;
-      if (data is Map && data['code'] == 200) {
-        return Map<String, dynamic>.from(data['results']);
+      if (resp.statusCode == 200 && data is Map && data['code'] == 200) {
+        final results = data['results'];
+        if (results is Map) {
+          final login = Map<String, dynamic>.from(results);
+          // The form's login name is known even when the web endpoint omits
+          // profile fields. Without it the independent store rejects a valid
+          // login as identity-less, leaving novels apparently logged out.
+          if (login['username']?.toString().trim().isNotEmpty != true) {
+            login['username'] = username.trim();
+          }
+          return login;
+        }
       }
 
       String? serverMessage;
@@ -139,6 +163,129 @@ class UserApi {
         response: resp,
         message: message,
         source: 'copy_login',
+      );
+    } finally {
+      dio.close();
+    }
+  }
+
+  /// Fetch one HOT profile without the shared token/cookie injection or 401
+  /// auto-login interceptor. A saved account must never borrow current auth.
+  Future<Map<String, dynamic>> getCredentialInfo({
+    required String token,
+    required String source,
+  }) async {
+    if (source == 'copy') throw const CopyProfileUnavailableException();
+    final options = BaseOptions(
+      followRedirects: false,
+      validateStatus: (_) => true,
+      headers: {
+        'Accept': 'application/json',
+        'platform': '3',
+        'version': '2024.04.28',
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 15; 23113RKC6C Build/AQ3A.240812.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.6778.200 Mobile Safari/537.36',
+        'X-Requested-With': 'com.manga2020.app',
+        'webp': '1',
+        'Authorization': 'Token $token',
+      },
+    );
+    final dio =
+        profileDioFactory?.call(options) ??
+        AppDio.create(
+          source: 'account_profile',
+          options: options,
+          enableErrorLog: false,
+        );
+    try {
+      final response = await dio.get(_t.url('/api/v3/member/info'));
+      final data = response.data;
+      if (response.statusCode == 200 && data is Map && data['code'] == 200) {
+        final results = data['results'];
+        if (results is Map) return Map<String, dynamic>.from(results);
+      }
+      throw StateError('Account profile request failed');
+    } finally {
+      dio.close();
+    }
+  }
+
+  /// Validate a candidate COPY token without changing either stored account.
+  /// The confirmed light-novel collection endpoint requires authentication;
+  /// COPY does not expose the primary transport's member/info endpoint.
+  Future<CopyAccountSession> validateCopyToken(String candidate) async {
+    final token = candidate.trim();
+    if (token.isEmpty) throw const FormatException('Empty COPY token');
+    final version = _t.user.copyAppVersion;
+    final options = BaseOptions(
+      validateStatus: (_) => true,
+      followRedirects: false,
+      headers: {
+        'User-Agent': 'COPY/$version',
+        'Accept': 'application/json',
+        'source': 'copyApp',
+        'platform': '3',
+        'version': version,
+        'Connection': 'keep-alive',
+        'Accept-Encoding': 'gzip',
+        'webp': '1',
+        'Authorization': 'Token $token',
+      },
+    );
+    // Never reuse _t.dio: its 401 handler may re-login the primary HOT account.
+    final dio =
+        copyDioFactory?.call(options) ??
+        AppDio.create(
+          source: 'copy_token_validation',
+          options: options,
+          enableErrorLog: false,
+        );
+    try {
+      final response = await dio.get(
+        'https://${_t.user.copyApiHost}/api/v3/member/collect/books',
+        queryParameters: {
+          'limit': 1,
+          'offset': 0,
+          'free_type': 1,
+          'ordering': '-datetime_modifier',
+          'platform': 3,
+        },
+      );
+      final data = response.data;
+      if (response.statusCode == 200 && data is Map && data['code'] == 200) {
+        final results = data['results'];
+        if (results is Map && results['list'] is List) {
+          // This endpoint validates a token, not a profile. Only reuse identity
+          // already associated with this exact token; never guess a profile URL
+          // or borrow the currently selected account's name.
+          for (final account in _t.user.copyAccount.accounts) {
+            if (account.token == token) return account;
+          }
+          for (final account in [
+            ?_t.user.currentCredential,
+            ..._t.user.savedCredentials,
+          ]) {
+            if (account.source == 'copy' &&
+                account.token == token &&
+                account.hasIdentity) {
+              return CopyAccountSession(
+                token: token,
+                userId: account.userId ?? '',
+                username: account.username,
+                nickname: account.nickname ?? '',
+                avatar: account.avatar ?? '',
+              );
+            }
+          }
+          return CopyAccountSession(token: token);
+        }
+      }
+      // No response-body logging: servers may echo the submitted credential.
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        message: 'COPY token validation failed',
       );
     } finally {
       dio.close();

@@ -2,6 +2,76 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/utils/copy_web_login.dart';
 
 void main() {
+  group('parseCopyWebStorage', () {
+    test('extracts a token and nested profile without guessing identity', () {
+      final credentials = parseCopyWebStorage({
+        'ls': {
+          'token': 'storage-token',
+          'userInfo':
+              '{"user_id":"storage-id","username":"storage-user","nickname":"昵称","avatar":"user/cover/avatar.png"}',
+        },
+        'ss': <String, Object>{},
+      });
+      expect(credentials?.token, 'storage-token');
+      expect(credentials?.userId, 'storage-id');
+      expect(credentials?.username, 'storage-user');
+      expect(credentials?.nickname, '昵称');
+    });
+
+    test('arbitrary hex storage values are not treated as account tokens', () {
+      expect(
+        parseCopyWebStorage({
+          'ls': {'password_hash': '0123456789abcdef0123456789abcdef'},
+        }),
+        isNull,
+      );
+    });
+
+    test('does not borrow a conflicting token account from the same scope', () {
+      final credentials = parseCopyWebStorage({
+        'ls': {
+          'token': 'token-b',
+          'userInfo': {
+            'token': 'token-a',
+            'user_id': 'id-a',
+            'username': 'user-a',
+            'nickname': 'name-a',
+            'avatar': 'avatar-a',
+          },
+        },
+      });
+      expect(credentials?.token, 'token-b');
+      expect(credentials?.userId, isEmpty);
+      expect(credentials?.username, isEmpty);
+      expect(credentials?.nickname, isEmpty);
+      expect(credentials?.avatar, isEmpty);
+    });
+
+    test('skips conflicting JSON subtrees and accepts matching token profiles', () {
+      final credentials = parseCopyWebStorage({
+        'ls': {
+          'token': '"token-b"',
+          'old':
+              '{"token":"token-a","profile":{"user_id":"id-a","nickname":"name-a"}}',
+          'current':
+              '[{"token":"token-b","profile":{"user_id":"id-b","nickname":"name-b"}}]',
+        },
+      });
+      expect(credentials?.token, 'token-b');
+      expect(credentials?.userId, 'id-b');
+      expect(credentials?.nickname, 'name-b');
+    });
+
+    test('does not borrow an identity from a different storage scope', () {
+      final credentials = parseCopyWebStorage({
+        'ls': {'token': 'unknown-token'},
+        'ss': {'user_id': 'other-id'},
+      });
+      expect(credentials?.token, 'unknown-token');
+      expect(credentials?.userId, isEmpty);
+    });
+  });
+
   group('parseCopyWebCookies', () {
     test('解析拷贝官网完整 cookie', () {
       final credentials = parseCopyWebCookies({

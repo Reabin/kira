@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'user_manager.dart';
@@ -28,34 +30,73 @@ class SecureCredentialStore {
   // ── Keys ───────────────────────────────────────────────────────────
 
   static const _keyUsername = 'saved_username';
+  static const _keyToken = 'user_token';
   static const _keyPassword = 'saved_password';
   static const _keyCredentials = 'saved_credentials';
   static const _keyMigrated = 'credentials_migrated_to_secure';
   static const _keyWebDavCredentials = 'backup_webdav_credentials_v1';
   static const _keyBackupPassword = 'backup_password_v1';
   static const _keyBackupRollbackKey = 'backup_rollback_key_v1';
+  static const _keyCopyAccount = 'copy_account_v1';
 
   // ── Read ───────────────────────────────────────────────────────────
 
-  @protected
-  Future<String?> doRead(String key) =>
-      const FlutterSecureStorage().read(key: key);
+  /// widget 测试里没有平台通道，`FlutterSecureStorage` 的 Future 既不完成也不
+  /// 抛错，会让 await 它的启动流程永久挂起。测试统一改注入
+  /// [InMemorySecureCredentialStore]；这里再兜一层，避免个别用例漏配后
+  /// 整个测试文件 10 分钟超时。
+  static final bool _platformAvailable =
+      Platform.environment['FLUTTER_TEST'] != 'true';
 
   @protected
-  Future<void> doWrite(String key, String value) =>
-      const FlutterSecureStorage().write(key: key, value: value);
+  Future<String?> doRead(String key) async {
+    if (!_platformAvailable) return null;
+    try {
+      return await const FlutterSecureStorage().read(key: key);
+    } on MissingPluginException {
+      return null;
+    }
+  }
 
   @protected
-  Future<void> doDelete(String key) =>
-      const FlutterSecureStorage().delete(key: key);
+  Future<void> doWrite(String key, String value) async {
+    if (!_platformAvailable) return;
+    try {
+      await const FlutterSecureStorage().write(key: key, value: value);
+    } on MissingPluginException {
+      // 平台通道缺失时写不进去，保持旧行为，不把异常抛给调用方。
+    }
+  }
+
+  @protected
+  Future<void> doDelete(String key) async {
+    if (!_platformAvailable) return;
+    try {
+      await const FlutterSecureStorage().delete(key: key);
+    } on MissingPluginException {
+      // 同上。
+    }
+  }
 
   Future<String?> readUsername() => doRead(_keyUsername);
+  // Empty is a logout tombstone, distinct from an unmigrated missing record.
+  Future<String?> readToken() => doRead(_keyToken);
+  Future<void> writeToken(String? value) => doWrite(_keyToken, value ?? '');
 
   Future<String?> readPassword() => doRead(_keyPassword);
+
+  Future<bool> credentialsMigrated() async =>
+      await doRead(_keyMigrated) == 'true';
 
   Future<String?> readWebDavCredentials() => doRead(_keyWebDavCredentials);
   Future<String?> readBackupPassword() => doRead(_keyBackupPassword);
   Future<String?> readBackupRollbackKey() => doRead(_keyBackupRollbackKey);
+  Future<String?> readCopyAccountRecord() => doRead(_keyCopyAccount);
+
+  /// A null session must be encoded in the record, not deleted: it is the
+  /// durable marker that prevents legacy primary COPY logins being reimported.
+  Future<void> writeCopyAccountRecord(String value) =>
+      doWrite(_keyCopyAccount, value);
 
   Future<void> writeWebDavCredentials(String? value) =>
       _writeOptional(_keyWebDavCredentials, value);
@@ -76,7 +117,7 @@ class SecureCredentialStore {
       return decoded
           .whereType<Map>()
           .map((e) => SavedCredential.fromJson(Map<String, dynamic>.from(e)))
-          .where((e) => e.username.isNotEmpty)
+          .where((e) => e.hasIdentity)
           .toList();
     } catch (_) {
       return [];
@@ -115,12 +156,14 @@ class SecureCredentialStore {
   // ── Delete ─────────────────────────────────────────────────────────
 
   Future<void> deleteAll() async {
+    await doDelete(_keyToken);
     await doDelete(_keyUsername);
     await doDelete(_keyPassword);
     await doDelete(_keyCredentials);
     await doDelete(_keyWebDavCredentials);
     await doDelete(_keyBackupPassword);
     await doDelete(_keyBackupRollbackKey);
+    await doDelete(_keyCopyAccount);
   }
 
   // ── Migration ──────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../api/user/user_api.dart';
 import '../l10n/app_localizations.dart';
+import '../models/copy_account_store.dart';
 import '../models/user_manager.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
@@ -17,7 +18,12 @@ import 'register_page.dart' show RegisterPrefill;
 List<BoxShadow> _profileCardShadow(ColorScheme cs) => AppShadows.md(cs);
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.copyOnly = false, this.userApi});
+
+  final bool copyOnly;
+
+  /// Allows offline tests to inject an API backed exclusively by fake adapters.
+  final UserApi? userApi;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -33,6 +39,7 @@ class _LoginPageState extends State<LoginPage> {
 
   final _api = ApiClient();
   final _user = UserManager();
+  UserApi get _userApi => widget.userApi ?? _api.user;
   final _usernameCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading = false;
@@ -44,16 +51,16 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    if (_user.savedUsername != null) {
+    if (!widget.copyOnly && _user.savedUsername != null) {
       _usernameCtrl.text = _user.savedUsername!;
       _rememberMe = true;
     }
-    if (_user.savedPassword != null) {
+    if (!widget.copyOnly && _user.savedPassword != null) {
       _passwordCtrl.text = _user.savedPassword!;
     }
     _usernameCtrl.addListener(_onCredentialDraftChanged);
     _user.addListener(_onUserChanged);
-    _useCopyLogin = _user.loginSource == 'copy';
+    _useCopyLogin = widget.copyOnly || _user.loginSource == 'copy';
   }
 
   @override
@@ -109,9 +116,10 @@ class _LoginPageState extends State<LoginPage> {
       .toList();
 
   List<SavedCredential> get _visibleSavedCredentials =>
-      _savedCredentialsForSource(_useCopyLogin);
+      widget.copyOnly ? const [] : _savedCredentialsForSource(_useCopyLogin);
 
   void _selectLoginSource(bool useCopyLogin) {
+    if (widget.copyOnly || _loading) return;
     final credentials = _savedCredentialsForSource(useCopyLogin);
     final next = credentials.isNotEmpty ? credentials.first : null;
     setState(() {
@@ -188,7 +196,7 @@ class _LoginPageState extends State<LoginPage> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: AppRadius.lgR,
-          onTap: () => _applySavedCredential(credential),
+          onTap: _loading ? null : () => _applySavedCredential(credential),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
             child: Row(
@@ -276,6 +284,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _applySavedCredential(SavedCredential credential) {
+    if (_loading) return;
     setState(() {
       _useCopyLogin = _isCopyCredential(credential);
       _rememberMe = true;
@@ -286,7 +295,10 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _removeSavedCredential(SavedCredential credential) async {
-    await _user.removeSavedCredential(credential.username);
+    await _user.removeSavedCredential(
+      credential.username,
+      loginSource: credential.source,
+    );
     if (!mounted) return;
     if (_usernameCtrl.text.trim() == credential.username) {
       setState(() {
@@ -345,6 +357,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
+    if (_loading) return;
     final l10n = AppLocalizations.of(context)!;
     final username = _usernameCtrl.text.trim();
     final password = _passwordCtrl.text;
@@ -359,29 +372,33 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final result = _useCopyLogin
-          ? await _api.user.copyLogin(username, password)
-          : await _api.user.login(username, password);
-      await UserManager().setLoginSource(_useCopyLogin ? 'copy' : 'hotmanga');
-      if (_rememberMe) {
-        await UserManager().saveCredentials(username, password);
-      } else {
-        await UserManager().removeSavedCredential(username);
-      }
-      await UserManager().saveLogin(
-        token: result['token'],
-        userId: result['user_id'],
-        username: result['username'],
-        nickname: result['nickname'] ?? result['username'],
-        avatar: result['avatar'] ?? '',
+      final useCopyLogin = widget.copyOnly || _useCopyLogin;
+      final saved = await _user.authenticateAndLogin(
+        source: useCopyLogin ? 'copy' : 'hotmanga',
+        password: _rememberMe ? password : '',
+        authenticate: () => useCopyLogin
+            ? _userApi.copyLogin(username, password)
+            : _userApi.login(username, password),
       );
-      await UserManager().refreshUserInfo();
-      if (mounted) Navigator.pop(context, true);
+      if (!mounted) return;
+      if (saved) {
+        Navigator.pop(context, true);
+      } else {
+        setState(() {
+          _error = l10n.copyAccountLoginSuperseded;
+          _loading = false;
+        });
+      }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = isIpBlockedLoginError(e)
             ? l10n.profileLoginIpBlockedHint
-            : '${l10n.profileLoginFailedProxyHint}\n$e';
+            : widget.copyOnly
+            ? (e is CopyAccountStorageException
+                  ? l10n.copyAccountStorageFailed
+                  : l10n.profileLoginFailedProxyHint)
+            : l10n.profileLoginFailedProxyHint;
         _loading = false;
       });
     }
@@ -389,6 +406,9 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _showTokenLoginDialog() async {
     final l10n = AppLocalizations.of(context)!;
+    // The selected validation channel is fixed for this dialog. Neither a
+    // stale primary loginSource nor later UI changes can reclassify the token.
+    final useCopyToken = widget.copyOnly || _useCopyLogin;
     var tokenDraft = '';
     var dialogLoading = false;
     String? dialogError;
@@ -412,35 +432,40 @@ class _LoginPageState extends State<LoginPage> {
             });
 
             try {
-              // Temporarily save token so API requests include Authorization.
-              await _user.saveLogin(
-                token: token,
-                userId: '',
-                username: '',
-                nickname: '',
-                avatar: '',
+              final saved = await _user.authenticateAndLogin(
+                source: useCopyToken ? 'copy' : 'hotmanga',
+                authenticate: () async {
+                  if (useCopyToken) {
+                    final session = await _userApi.validateCopyToken(token);
+                    if (session.id == null) {
+                      throw const CopyProfileUnavailableException();
+                    }
+                    return session.toJson();
+                  }
+                  final info = await _userApi.getCredentialInfo(
+                    token: token,
+                    source: 'hotmanga',
+                  );
+                  return {...info, 'token': token};
+                },
               );
-              // Fetch user info with token to validate it.
-              final info = await _api.user.getUserInfo();
-              await _user.saveLogin(
-                token: token,
-                userId: info['user_id']?.toString() ?? '',
-                username: info['username']?.toString() ?? '',
-                nickname:
-                    info['nickname']?.toString() ??
-                    info['username']?.toString() ??
-                    '',
-                avatar: info['avatar']?.toString() ?? '',
-              );
-              if (dialogContext.mounted) {
+              if (!dialogContext.mounted) return;
+              if (saved) {
                 Navigator.of(dialogContext).pop(true);
+              } else {
+                setDialogState(() {
+                  dialogError = l10n.copyAccountLoginSuperseded;
+                  dialogLoading = false;
+                });
               }
             } catch (e) {
-              // Invalid token; clear it.
-              await _user.logout();
               if (!dialogContext.mounted) return;
               setDialogState(() {
-                dialogError = '${l10n.profileTokenInvalidOrExpired}\n$e';
+                dialogError = e is CopyProfileUnavailableException
+                    ? l10n.copyProfileRefreshUnavailable
+                    : e is CopyAccountStorageException
+                    ? l10n.copyAccountStorageFailed
+                    : l10n.profileTokenInvalidOrExpired;
                 dialogLoading = false;
               });
             }
@@ -456,9 +481,18 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text(
+                      useCopyToken
+                          ? l10n.profileCopyCredentialLabel
+                          : l10n.profileHotCredentialLabel,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     TextField(
                       autofocus: true,
                       enabled: !dialogLoading,
+                      obscureText: true,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       onChanged: (value) => tokenDraft = value,
                       decoration: InputDecoration(
                         labelText: l10n.profileTokenLabel,
@@ -520,7 +554,9 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.profileLoginTitle),
+        title: Text(
+          widget.copyOnly ? l10n.copyAccountLoginTitle : l10n.profileLoginTitle,
+        ),
         actions: [
           IconButton(
             tooltip: l10n.profileTokenLoginEntry,
@@ -614,22 +650,30 @@ class _LoginPageState extends State<LoginPage> {
     final l10n = AppLocalizations.of(context)!;
     final visibleSavedCredentials = _visibleSavedCredentials;
     return [
-      SegmentedButton<bool>(
-        segments: [
-          ButtonSegment(
-            value: false,
-            label: Text(l10n.profileHotCredentialLabel),
-            icon: const Icon(Icons.phone_android, size: 18),
-          ),
-          ButtonSegment(
-            value: true,
-            label: Text(l10n.profileCopyCredentialLabel),
-            icon: const Icon(Icons.language, size: 18),
-          ),
-        ],
-        selected: {_useCopyLogin},
-        onSelectionChanged: (v) => _selectLoginSource(v.first),
-      ),
+      if (widget.copyOnly) ...[
+        Text(
+          l10n.copyAccountIndependentHint,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ] else
+        SegmentedButton<bool>(
+          segments: [
+            ButtonSegment(
+              value: false,
+              label: Text(l10n.profileHotCredentialLabel),
+              icon: const Icon(Icons.phone_android, size: 18),
+            ),
+            ButtonSegment(
+              value: true,
+              label: Text(l10n.profileCopyCredentialLabel),
+              icon: const Icon(Icons.language, size: 18),
+            ),
+          ],
+          selected: {_useCopyLogin},
+          onSelectionChanged: (v) => _selectLoginSource(v.first),
+        ),
       const SizedBox(height: AppSpacing.lg),
       if (visibleSavedCredentials.isNotEmpty) ...[
         Column(
@@ -644,43 +688,15 @@ class _LoginPageState extends State<LoginPage> {
         const SizedBox(height: AppSpacing.lg),
       ],
       if (_useCopyLogin) ...[
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _loading ? null : _goWebLogin,
-              icon: const Icon(Icons.language),
-              label: Text(l10n.profileWebLoginButton),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                minimumSize: const Size(double.infinity, 0),
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.mdR),
-              ),
-            ),
-            Positioned(
-              top: -6,
-              right: -6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: cs.primary,
-                  borderRadius: AppRadius.fullR,
-                  border: Border.all(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    width: 2,
-                  ),
-                ),
-                child: Text(
-                  l10n.profileWebLoginRecommendedTag,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: cs.onPrimary,
-                    fontWeight: FontWeight.w600,
-                    height: 1.2,
-                  ),
-                ),
-              ),
-            ),
-          ],
+        OutlinedButton.icon(
+          onPressed: _loading ? null : _goWebLogin,
+          icon: const Icon(Icons.language),
+          label: Text(l10n.profileWebLoginButton),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            minimumSize: const Size(double.infinity, 0),
+            shape: RoundedRectangleBorder(borderRadius: AppRadius.mdR),
+          ),
         ),
         const SizedBox(height: AppSpacing.lg),
       ],
@@ -710,13 +726,14 @@ class _LoginPageState extends State<LoginPage> {
         onSubmitted: (_) => _login(),
       ),
       const SizedBox(height: AppSpacing.sm),
-      CheckboxListTile(
-        value: _rememberMe,
-        onChanged: (v) => setState(() => _rememberMe = v ?? false),
-        title: Text(l10n.profileRememberAccountLabel),
-        controlAffinity: ListTileControlAffinity.leading,
-        contentPadding: EdgeInsets.zero,
-      ),
+      if (!widget.copyOnly)
+        CheckboxListTile(
+          value: _rememberMe,
+          onChanged: (v) => setState(() => _rememberMe = v ?? false),
+          title: Text(l10n.profileRememberAccountLabel),
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: EdgeInsets.zero,
+        ),
     ];
   }
 }

@@ -2,12 +2,40 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
   });
+  tearDown(teardownSecureCredentialStoreForTest);
+
+  test(
+    'comment display settings are shared through facade and sub-store',
+    () async {
+      final user = UserManager();
+      await user.init();
+      await user.setCommentShowAvatar(false);
+      await user.setCommentShowUserName(false);
+      await user.setCommentShowTime(false);
+      expect(user.comment.showAvatar, isFalse);
+      expect(user.comment.showUserName, isFalse);
+      expect(user.comment.showTime, isFalse);
+      await user.comment.setShowAvatar(true);
+      await user.comment.setShowUserName(true);
+      await user.comment.setShowTime(true);
+      expect(user.commentShowAvatar, isTrue);
+      expect(user.commentShowUserName, isTrue);
+      expect(user.commentShowTime, isTrue);
+      await user.init();
+      expect(user.commentShowAvatar, isTrue);
+      expect(user.commentShowUserName, isTrue);
+      expect(user.commentShowTime, isTrue);
+    },
+  );
 
   test('image viewer auto-rotate settings persist', () async {
     final user = UserManager();

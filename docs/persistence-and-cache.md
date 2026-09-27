@@ -15,6 +15,8 @@
 
 **关键事实**：除文件系统外，几乎所有 KV 数据都落在 SharedPreferences。无 Hive、无 SQLite。业务缓存与用户设置**共用同一个 SharedPreferences 实例**，仅靠 `cache_` 前缀隔离——这是清理逻辑和备份过滤的依据。
 
+> `AppStorage.sharedPreferences()` 直接委托 `SharedPreferences.getInstance()`，**不要在外面再缓存这个 Future**：测试用 `setMockInitialValues` 替换平台实现时会清掉插件自己的 completer，被缓存下来的旧 Future 会解析到过期 store，甚至永远不完成（曾导致测试里书架请求数为 0 且挂到 10 分钟超时）。
+
 ## 1. 内存缓存（in-memory）
 
 进程级、非持久化。重启即失。
@@ -85,6 +87,7 @@ Future<T> load() async {
 | MangaHomeRepository (COPY) | `manga_home_copy_v1` | 1h | 否 | `cache_manga_home_copy_v1` |
 | AnimeHomeRepository | `anime_home_v1` | **无** | 否 | `cache_anime_home_v1` |
 | ComicBookshelfRepository | `bookshelf_comic` | 30min | 是 | `cache_bookshelf_comic` |
+| NovelBookshelfRepository | `bookshelf_novel_v2_<scope>_<ordering>` | 30min | 是 | `cache_bookshelf_novel_v2_*` |
 | AnimeBookshelfRepository | `bookshelf_anime` | 30min | 是 | `cache_bookshelf_anime` |
 | ComicDetailRepository | `comic_detail_$pathWord` | **无** | 否 | `cache_comic_detail_<pathWord>` |
 | SearchInitRepository | `search_init_v2` | 1h | 否 | `cache_search_init_v2` |
@@ -145,20 +148,22 @@ Future<T> load() async {
 基于 `flutter_secure_storage`（平台 keychain/keystore）。接口：
 
 ```dart
+Future<String?> readToken();      Future<void> writeToken(String? v);
 Future<String?> readUsername();   Future<void> writeUsername(String? v);
 Future<String?> readPassword();   Future<void> writePassword(String? v);
 Future<List<SavedCredential>> readCredentials();  Future<void> writeCredentials(List<SavedCredential> v);
+Future<bool> credentialsMigrated();
 Future<void> deleteAll();
 ```
 
-键名常量：`saved_username` / `saved_password` / `saved_credentials` / `credentials_migrated_to_secure`。
+键名常量：`user_token` / `saved_username` / `saved_password` / `saved_credentials` / `credentials_migrated_to_secure`，另有不进入普通备份的 `copy_account_v1`、WebDAV 凭据与备份口令。
 
-### ⚠️ 当前状态：已实现但未启用
-`SecureCredentialStore` 已编写且带迁移函数 `migrateFromSharedPreferences`，但**生产代码从未调用它**，`main.dart` 也未触发迁移。当前 `UserManager.saveCredentials`（`user_manager.dart:726`）仍把 username/password 明文写入 SharedPreferences。登录页与 profile 页调用的也是 `UserManager().saveCredentials(...)`。
+### 当前状态：已启用
+`UserManager.init()` 会调用 `migrateFromSharedPreferences`，把 SharedPreferences 里的 `user_token` / `saved_username` / `saved_password` / `saved_credentials` 迁移到安全存储并删除旧键；迁移只在安全存储确认写入后删除明文，写入失败时保留旧数据（try/catch 后只记日志，不阻断启动）。**空 token 是登出墓碑**，与「尚未迁移的缺失记录」语义不同，读取时不能把两者混为一谈。
 
-> 新增敏感凭据（token、密码、API key 等）时：**不要**沿用 SharedPreferences 明文模式。若需启用 secure storage 迁移，见 `docs/refactor.md` 的计划项，并在 `main.dart` 初始化阶段接入 `SecureCredentialStore().migrateFromSharedPreferences(...)`。
+> 新增敏感凭据（token、密码、API key 等）时：**不要**沿用 SharedPreferences 明文模式，也不要塞进普通设置备份。
 
-测试：`InMemorySecureCredentialStore`（`secure_credential_store.dart:139`）+ `test/test_helpers.dart` 的 `setupSecureCredentialStoreForTest`。
+测试注意：`FLUTTER_TEST=true` 时 `doRead/doWrite/doDelete` 直接返回空结果，不走平台通道——flutter_secure_storage 在缺少平台实现时 Future 既不完成也不抛错，会让 await 它的 `UserManager.init()` 永久挂起。需要真实凭据行为的用例请显式注入 `InMemorySecureCredentialStore`（见 `test/backup/account_backup_storage_test.dart`）。
 
 ## 5. 网络层缓存
 
@@ -209,5 +214,19 @@ Future<void> deleteAll();
 2. **可丢弃的业务缓存（首页/详情/列表）** → 继承 `CachedRepository`，设 `cacheKey` + **明确 TTL**，走 `AppStorage.cache`（`cache_` 前缀）。
 3. **按实体索引的历史/记录** → 直接写 SharedPreferences，沿用对应前缀（`reading_history_` 等），不带 `cache_` 前缀。
 4. **用户偏好设置** → 加到对应子 store，归入前缀族，setter 调 `notifyListeners()`。
-5. **敏感凭据** → 用 `SecureCredentialStore`（但需先完成迁移接入，见 §4 警告）。
+5. **敏感凭据** → 用 `SecureCredentialStore`（已接入 `UserManager.init()` 迁移，见 §4）。
 6. **大文件（下载/图片/字体）** → 文件系统 + `path_provider`。
+
+## 9. 轻小说（新增）
+
+- `novel_reading_history_<pathWord>`：本地卷、原始章节索引、段落位置；不使用漫画历史前缀，备份归入阅读历史。
+- `novel_bookmarks_v1`：用户手动添加的轻小说书签，全量 JSON 列表（上限 500）；独立于 `novel_reading_history_`，不随缓存或阅读历史清理。按书、卷、原始章节索引和段落索引去重，精确保存段落 alignment；不保存正文地址/会话。通过 `NovelBookmarkStore` 串行读写，备份归入书签；恢复时暂停写入并由 `reloadRuntimeSettings()` 重载内存。
+- `reader_novel_settings_v1`：字号（10–48）、行距/段距、预设/自定义 ARGB 背景与文字色、`showStatusBar` 和常亮偏好；新增设置仍保存在同一 JSON 键，备份归入设置。
+- 阅读历史和阅读设置每次读取当前 prefs，无一次性数据快照，恢复备份后无需注册额外单例重载。
+- `cache_novel_*`：按主机/账号指纹区分的元数据缓存，明确 TTL。
+- 应用支持目录 `novel_text_cache_v1`：整卷正文和对应目录的文件快照；缓存管理可单独清理，保留阅读历史。
+- 应用文档目录 `novel_downloads`（可改到自定义目录，键 `download_novel_save_directory`）：**永久下载**，与上面的可清理正文缓存是两套存储。带版本清单 `manifest_v1.json`，每卷保存同一版本的原始 TXT + 目录快照、书籍/卷元数据与插图 URL 映射。清单与快照校验通过才显示为已完成；缺失或摘要不符标为「待修复」。删除只作用于被索引、被校验过的文件。
+- `download_novel_queue_state_v1`：小说未完成下载队列（版本、暂停标记、任务列表）。完整成功后只删除任务记录，本地文件保留；启动时依据文件校验清理遗留完成记录，损坏转待修复，失败/暂停/部分完成任务保留。只持久化稳定来源标识（`CopyAccountSession.id`，游客为 `guest`）与主机，**不保存 token**；账号或线路变化后未完成任务暂停。`download_novel_concurrency` 控制并发（1–4）。
+- 清理边界：清正文缓存不动已下载内容；清下载不动阅读进度/历史/书签。退出账号不删除本机已下载内容。
+- `copy_account_v1`：`SecureCredentialStore` 中的独立拷贝会话及迁移/退出标记。不导出到普通设置备份；退出附加账号不得清除其他 secure key。
+- 详细阅读/鉴权/下载边界见 [轻小说](novel.md)。

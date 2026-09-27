@@ -6,7 +6,9 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/user/user_api.dart';
 import '../l10n/app_localizations.dart';
+import '../models/copy_account_store.dart';
 import '../providers/app_providers.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
@@ -27,6 +29,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   InAppWebViewController? _controller;
   double _progress = 0;
   bool _completing = false;
+  bool _readingCredentials = false;
   String? _error;
 
   String get _host => ref.read(userManagerProvider).copyLoginHost;
@@ -42,7 +45,9 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     final result = <String, String>{};
     final candidates = <WebUri>{_baseUri, WebUri('https://www.$_host')};
     final currentUrl = await _controller?.getUrl();
-    if (currentUrl != null) candidates.add(currentUrl);
+    if (currentUrl != null && _isLoginHost(currentUrl.host)) {
+      candidates.add(currentUrl);
+    }
 
     for (final uri in candidates) {
       try {
@@ -52,10 +57,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
             result[c.name] = c.value?.toString() ?? '';
           }
         }
-      } catch (e, st) {
+      } catch (_, st) {
         unawaited(
           AppLogger.instance.recordWarning(
-            e,
+            'Unable to read COPY WebView cookies',
             stackTrace: st,
             source: 'webview_login.read_cookies',
           ),
@@ -65,13 +70,16 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     return result;
   }
 
-  static final _tokenPattern = RegExp(r'^[0-9a-fA-F]{32,128}$');
-  bool _debugLogged = false;
+  bool _isLoginHost(String host) {
+    final base = _host.startsWith('www.') ? _host.substring(4) : _host;
+    return host == base || host == 'www.$base';
+  }
 
-  /// 从页面存储（document.cookie / localStorage / sessionStorage）中
-  /// 提取 token —— h5 版登录可能不写当前域 cookie，而是存 localStorage。
-  /// 同时将读到的内容写入应用日志用于诊断。
-  Future<String?> _extractTokenFromWebStorage({bool logAlways = false}) async {
+  /// Read the official page's candidate token and profile together. Storage
+  /// from a navigation to another website must never be submitted as COPY.
+  Future<CopyWebCredentials?> _extractCredentialsFromWebStorage() async {
+    final currentUrl = await _controller?.getUrl();
+    if (currentUrl == null || !_isLoginHost(currentUrl.host)) return null;
     const source = '''
 (function(){
   try {
@@ -93,20 +101,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       final raw = await _controller?.evaluateJavascript(source: source);
       final json = raw?.toString();
       if (json == null || json.isEmpty) return null;
-      if (logAlways || !_debugLogged) {
-        _debugLogged = true;
-        unawaited(
-          AppLogger.instance.recordWarning(
-            'web storage: $json',
-            source: 'webview_login.debug',
-          ),
-        );
-      }
-      return _findTokenInJson(jsonDecode(json));
-    } catch (e, st) {
+      return parseCopyWebStorage(jsonDecode(json));
+    } catch (_, st) {
       unawaited(
         AppLogger.instance.recordWarning(
-          e,
+          'Unable to read COPY WebView storage',
           stackTrace: st,
           source: 'webview_login.web_storage',
         ),
@@ -115,71 +114,37 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
   }
 
-  /// 在 JSON 树中递归查找形似 token 的值（32~128 位十六进制串），
-  /// localStorage 的值常为嵌套 JSON 字符串，需要逐层解析。
-  String? _findTokenInJson(dynamic node) {
-    if (node is Map) {
-      for (final entry in node.entries) {
-        final value = entry.value;
-        if (entry.key == 'token' && value is String && value.isNotEmpty) {
-          return value;
-        }
-        final found = _findTokenInJson(value);
-        if (found != null) return found;
-      }
-    } else if (node is List) {
-      for (final item in node) {
-        final found = _findTokenInJson(item);
-        if (found != null) return found;
-      }
-    } else if (node is String) {
-      if (_tokenPattern.hasMatch(node)) return node;
-      if (node.startsWith('{') || node.startsWith('[')) {
-        try {
-          return _findTokenInJson(jsonDecode(node));
-        } catch (_) {
-          // 非 JSON 字符串，忽略
-        }
-      }
-    }
-    return null;
-  }
-
   Future<void> _tryExtractAndFinish({bool manual = false}) async {
-    if (_completing) return;
+    if (_completing || _readingCredentials) return;
     final l10n = AppLocalizations.of(context)!;
 
-    Map<String, String> cookieMap;
+    _readingCredentials = true;
+    CopyWebCredentials? credentials;
     try {
-      cookieMap = await _readCookieMap();
-    } catch (e, st) {
+      credentials = parseCopyWebCookies(await _readCookieMap());
+      if (credentials == null ||
+          (credentials.userId.isEmpty && credentials.username.isEmpty)) {
+        final stored = await _extractCredentialsFromWebStorage();
+        if (credentials == null) {
+          credentials = stored;
+        } else if (stored?.token == credentials.token) {
+          credentials = stored;
+        }
+      }
+    } catch (_, st) {
       unawaited(
         AppLogger.instance.recordWarning(
-          e,
+          'Unable to read COPY WebView credentials',
           stackTrace: st,
-          source: 'webview_login.read_cookies',
+          source: 'webview_login.read_credentials',
         ),
       );
-      return;
+    } finally {
+      _readingCredentials = false;
     }
-
-    var credentials = parseCopyWebCookies(cookieMap);
+    if (!mounted) return;
     if (credentials == null) {
-      // cookie 中没有（h5 版可能把 token 存在 localStorage），改从页面存储提取
-      final token = await _extractTokenFromWebStorage(logAlways: manual);
-      if (token != null) {
-        credentials = CopyWebCredentials(
-          token: token,
-          userId: cookieMap['user_id'] ?? '',
-          nickname: '',
-          avatar: '',
-        );
-      }
-    }
-    if (credentials == null) {
-      if (manual && mounted) {
-        showToast(context, l10n.profileWebLoginNotDetected);
-      }
+      if (manual) showToast(context, l10n.profileWebLoginNotDetected);
       return;
     }
 
@@ -191,33 +156,35 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     final user = ref.read(userManagerProvider);
     final api = ref.read(userApiProvider);
     try {
-      // 与令牌登录一致：先暂存 token，再用 getUserInfo 验证并补全资料。
-      await user.setLoginSource('copy');
-      await user.saveLogin(
-        token: credentials.token,
-        userId: credentials.userId,
-        username: '',
-        nickname: credentials.nickname,
-        avatar: credentials.avatar,
+      final saved = await completeCopyWebLogin(
+        user: user,
+        api: api,
+        credentials: credentials,
       );
-      final info = await api.getUserInfo();
-      await user.saveLogin(
-        token: credentials.token,
-        userId: info['user_id']?.toString() ?? credentials.userId,
-        username: info['username']?.toString() ?? '',
-        nickname:
-            info['nickname']?.toString() ??
-            info['username']?.toString() ??
-            credentials.nickname,
-        avatar: info['avatar']?.toString() ?? credentials.avatar,
+      if (!mounted) return;
+      if (saved) {
+        context.pop(true);
+      } else {
+        setState(() {
+          _completing = false;
+          _error = l10n.copyAccountLoginSuperseded;
+        });
+      }
+    } catch (error) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          'COPY WebView login failed',
+          source: 'webview_login.validate',
+        ),
       );
-      if (mounted) context.pop(true);
-    } catch (e) {
-      await user.logout();
       if (mounted) {
         setState(() {
           _completing = false;
-          _error = '${l10n.profileWebLoginFailed}\n$e';
+          _error = error is CopyProfileUnavailableException
+              ? l10n.copyProfileRefreshUnavailable
+              : error is CopyAccountStorageException
+              ? l10n.copyAccountStorageFailed
+              : l10n.profileWebLoginFailed;
         });
       }
     }

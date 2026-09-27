@@ -1,33 +1,27 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../api/api_client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/novel_reading_progress.dart';
 import '../models/user_manager.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 
-import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/app_update.dart';
+import '../utils/novel_reading_store.dart';
 import '../utils/reading_history.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/screen_layout.dart';
-import '../utils/toast.dart';
 
 import '../widgets/setting_tile_group.dart';
-part 'profile/profile_account.dart';
 part 'profile/profile_cards.dart';
 
 const _noticeCenterColor = Color(0xFFEB6F92);
-
-enum _SwitchAccountSheetAction { addAccount }
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -38,14 +32,12 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _user = UserManager();
-  bool _userActionsExpanded = false;
 
   /// 最近一次阅读记录,供「继续阅读」入口展示。null 表示无本地阅读记录。
   ({String pathWord, ReadingRecord record, String comicName})? _continueRecord;
 
-  /// extension part 文件里的成员不是 State 子类成员，不能直接调用受保护的
-  /// [setState]，统一经由这个转发方法。
-  void _setState(VoidCallback fn) => setState(fn);
+  /// 最近一次轻小说阅读进度,供「继续阅读轻小说」入口展示。
+  NovelReadingProgress? _continueNovel;
 
   @override
   void initState() {
@@ -54,11 +46,14 @@ class _ProfilePageState extends State<ProfilePage> {
     // 页面常驻于底部导航分支，initState 只在首次进入时跑一次；
     // 阅读别处产生的新记录后回到本页，需要靠变更通知刷新「继续阅读」。
     ReadingHistory.changes.addListener(_onReadingHistoryChanged);
+    NovelReadingStore.changes.addListener(_onReadingHistoryChanged);
     unawaited(_loadContinueRecord());
+    unawaited(_loadContinueNovel());
   }
 
   @override
   void dispose() {
+    NovelReadingStore.changes.removeListener(_onReadingHistoryChanged);
     ReadingHistory.changes.removeListener(_onReadingHistoryChanged);
     _user.removeListener(_onUserChanged);
     super.dispose();
@@ -66,6 +61,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _onReadingHistoryChanged() {
     unawaited(_loadContinueRecord());
+    unawaited(_loadContinueNovel());
   }
 
   void _onUserChanged() {
@@ -111,10 +107,25 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
+  /// 载入本机最近一条轻小说阅读进度,只读本地存储,不发业务请求。
+  Future<void> _loadContinueNovel() async {
+    try {
+      final recent = await NovelReadingStore().readRecent(limit: 1);
+      if (!mounted) return;
+      setState(() => _continueNovel = recent.isEmpty ? null : recent.first);
+    } catch (e, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'profile.load_continue_novel',
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
     final isWide =
@@ -126,14 +137,7 @@ class _ProfilePageState extends State<ProfilePage> {
           SliverToBoxAdapter(
             child: SizedBox(height: MediaQuery.of(context).padding.top),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(hp, 16, hp, 16),
-              child: _user.isLoggedIn
-                  ? _buildUserCard(cs, tt)
-                  : _buildLoginCard(cs, tt),
-            ),
-          ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.md)),
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(hp, 0, hp, 16),
@@ -168,148 +172,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildUserCard(ColorScheme cs, TextTheme tt) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Card(
-      color: cs.surfaceBright,
-      child: InkWell(
-        borderRadius: AppRadius.lgR,
-        onTap: () {
-          setState(() {
-            _userActionsExpanded = !_userActionsExpanded;
-          });
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: cs.primaryContainer,
-                    child:
-                        _user.avatar != null && _user.avatar!.startsWith('http')
-                        ? ClipOval(
-                            child: CachedNetworkImage(
-                              imageUrl: _user.avatar!,
-                              width: 64,
-                              height: 64,
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : Icon(
-                            Icons.person,
-                            size: 32,
-                            color: cs.onPrimaryContainer,
-                          ),
-                  ),
-                  const SizedBox(width: AppSpacing.lg),
-                  Expanded(
-                    child: Text(
-                      _user.nickname ?? _user.username ?? '',
-                      style: tt.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  AnimatedRotation(
-                    turns: _userActionsExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(Icons.expand_more, color: cs.onSurfaceVariant),
-                  ),
-                ],
-              ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: _userActionsExpanded
-                    ? Column(
-                        children: [
-                          const SizedBox(height: AppSpacing.md),
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final buttonWidth =
-                                  (constraints.maxWidth - 8) / 2;
-                              return Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    child: _buildUserActionButton(
-                                      icon: Icons.refresh,
-                                      label: l10n.refreshUserButton,
-                                      onPressed: () => _refreshUserInfo(),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    child: _buildUserActionButton(
-                                      icon: Icons.switch_account,
-                                      label: l10n.switchAccountButton,
-                                      onPressed: () => _switchAccount(),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    child: _buildUserActionButton(
-                                      icon: Icons.copy_outlined,
-                                      label: l10n.copyTokenButton,
-                                      onPressed: () => _copyToken(),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    child: _buildUserActionButton(
-                                      icon: Icons.logout,
-                                      label: l10n.logoutTitle,
-                                      onPressed: () => _logout(),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      height: 44,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-        ),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18),
-              const SizedBox(width: 6),
-              Text(label, maxLines: 1),
-            ],
-          ),
-        ),
       ),
     );
   }

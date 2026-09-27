@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/l10n/app_localizations.dart';
+import 'package:kira/models/copy_account_store.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/about_page.dart' show AboutPage;
 import 'package:kira/pages/profile_page.dart';
+import 'package:kira/utils/app_update.dart';
 import 'package:kira/utils/remote_notice_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../test_helpers.dart';
 
 Widget _buildTestApp(Widget child) {
   return MaterialApp(
@@ -20,6 +24,8 @@ Widget _buildTestApp(Widget child) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
 
   Future<void> pumpProfilePage(WidgetTester tester) async {
     RemoteNoticeService.unreadActiveCount.value = 0;
@@ -56,18 +62,47 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('switch account sheet shows add account button', (tester) async {
+  testWidgets('account entry keeps its settings icon and current username', (
+    tester,
+  ) async {
     await pumpProfilePage(tester);
+    final tile = tester.widget<ListTile>(
+      find.byKey(const ValueKey('profile-account-entry')),
+    );
+    expect(find.byIcon(Icons.manage_accounts_rounded), findsOneWidget);
+    expect(find.byType(CircleAvatar), findsNothing);
+    expect(tile.subtitle, isNull);
+    expect(tile.trailing, isNull);
+    expect(tile.onTap, isNotNull);
+    expect(find.text('账号中心'), findsNothing);
+    expect(find.text('Alice'), findsNothing);
+    expect(find.text('alice'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('alice')).dy,
+      lessThan(tester.getTopLeft(find.text('通用')).dy),
+    );
+  });
 
-    await tester.tap(find.text('Alice'));
+  testWidgets('manual novel selection does not replace the profile identity', (
+    tester,
+  ) async {
+    await pumpProfilePage(tester);
+    await UserManager().copyAccount.saveSession(
+      const CopyAccountSession(
+        token: 'independent-copy-token',
+        userId: 'copy-id',
+        username: 'copy-user',
+        avatar: 'user/cover/copy.png',
+      ),
+    );
     await tester.pumpAndSettle();
-
-    await tester.tap(find.text('切换账号'));
+    expect(find.byIcon(Icons.manage_accounts_rounded), findsOneWidget);
+    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('copy-user'), findsNothing);
+    await UserManager().logout();
     await tester.pumpAndSettle();
-
-    expect(find.text('Bob'), findsOneWidget);
-    expect(find.text('添加账号'), findsOneWidget);
-    expect(find.byIcon(Icons.person_add_alt_1), findsOneWidget);
+    expect(find.text('未登录'), findsOneWidget);
+    expect(find.text('copy-user'), findsNothing);
   });
 
   testWidgets('profile page shows general settings entry', (tester) async {
@@ -76,24 +111,30 @@ void main() {
     expect(find.text('通用'), findsOneWidget);
   });
 
-  testWidgets('notice center is below AI config in the first settings group', (
+  testWidgets('notice center follows AI configuration and keeps its red dot', (
     tester,
   ) async {
-    // 断言的是单列纵向排布（通知中心在 AI 配置与下载中心之间）。
-    // 测试默认表面逻辑宽 800 越过宽屏断点 720，会切成左右双列，
-    // 下载中心（右列顶部）反而排在通知中心（左列第 5 行）上方。
+    // 单列分组：通用/网络 → 下载 → AI/通知/关于。
+    // 显式使用600逻辑宽，避免默认800宽触发双列布局。
     tester.view.devicePixelRatio = 3.0;
     tester.view.physicalSize = const Size(600 * 3, 1000 * 3);
     addTearDown(tester.view.reset);
 
     await pumpProfilePage(tester);
 
+    expect(
+      MediaQuery.sizeOf(tester.element(find.byType(ProfilePage))).width,
+      600,
+    );
+    final networkTop = tester.getTopLeft(find.byIcon(Icons.dns_rounded)).dy;
     final aiTop = tester.getTopLeft(find.text('AI配置')).dy;
     final noticeTop = tester.getTopLeft(find.text('通知中心')).dy;
     final downloadTop = tester.getTopLeft(find.text('下载中心')).dy;
 
+    expect(downloadTop, greaterThan(networkTop));
+    expect(downloadTop, lessThan(aiTop));
     expect(noticeTop, greaterThan(aiTop));
-    expect(noticeTop, lessThan(downloadTop));
+    expect(noticeTop, lessThan(tester.getTopLeft(find.text('关于')).dy));
   });
 
   testWidgets('notice red dot uses notice icon color', (tester) async {
@@ -123,6 +164,11 @@ void main() {
       buildSignature: '',
     );
     await UserManager().init();
+    // This test only checks the log entry. Suppress AboutPage's automatic
+    // network update check without running a real HTTP client.
+    final previousUpdateState = AppUpdateService.state.value;
+    AppUpdateService.state.value = const AppUpdateState.checking();
+    addTearDown(() => AppUpdateService.state.value = previousUpdateState);
 
     await tester.pumpWidget(_buildTestApp(const AboutPage()));
     // AboutPage 的更新检查指示器常驻动画会让 pumpAndSettle 永不结束，

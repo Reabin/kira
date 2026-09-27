@@ -8,6 +8,8 @@ import 'package:kira/pages/login_page.dart';
 import 'package:kira/widgets/login_node_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 Widget _buildTestApp(Widget child) {
   return MaterialApp(
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -21,6 +23,7 @@ void main() {
 
   // 登录页内置节点状态卡，测试中必须替换探测函数避免真实网络请求。
   setUp(() {
+    setupSecureCredentialStoreForTest();
     LoginNodeStatusCard.probeOverride = (hosts, {onHostResult}) async {
       final results = <String, int?>{for (final host in hosts) host: 120};
       for (final entry in results.entries) {
@@ -32,6 +35,7 @@ void main() {
 
   tearDown(() {
     LoginNodeStatusCard.probeOverride = null;
+    teardownSecureCredentialStoreForTest();
   });
 
   testWidgets('saved accounts are filtered by the selected login source', (
