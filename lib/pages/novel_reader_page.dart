@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -95,6 +96,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   int _jumpRevision = 0;
   bool _loading = true;
   bool _toolbarVisible = true;
+
+  /// 进入页面时的系统栏内边距快照。工具栏显隐会切换沉浸模式，
+  /// MediaQuery.padding 随之变化；正文 viewport 尺寸必须恒定，
+  /// 否则会触发 anchor restoration（见 NovelReaderViewport 注释）。
+  EdgeInsets? _systemPadding;
+
   bool _disposed = false;
   bool _offline = false;
   double? _sliderValue;
@@ -130,6 +137,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _systemPadding ??= MediaQuery.paddingOf(context);
+  }
+
   Future<void> _loadBookmarks() async {
     try {
       await _bookmarks.ensureLoaded();
@@ -145,6 +158,21 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   void _onStatusSettingsChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// 工具栏显隐的唯一入口（正文点击 / 滚动 / 状态浮层）。与漫画阅读器一致：
+  /// 显示时回到常规系统栏，隐藏时进入沉浸模式（状态栏与导航栏收起）。
+  void _setToolbarVisible(bool visible) {
+    if (_toolbarVisible == visible) return;
+    setState(() => _toolbarVisible = visible);
+    if (visible) {
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: SystemUiOverlay.values,
+      );
+    } else {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
   }
 
   bool get _isBookmarked {
@@ -625,6 +653,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     _statusSettings.removeListener(_onStatusSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
     _setScreenOn(false);
+    // 沉浸模式是页面级状态，离开时恢复常规系统栏（与漫画阅读器一致）。
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    );
     super.dispose();
   }
 
@@ -650,17 +683,26 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) unawaited(_flush());
         },
-        child: Scaffold(
-          backgroundColor: palette.background,
-          body: SafeArea(
-            // Toolbars only cover the reading surface. In particular, toggling
-            // them must not resize the viewport and trigger anchor restoration.
-            // Keep system bars / SafeArea independent of toolbar visibility too.
-            child: reading
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          // 与漫画阅读器一致：工具栏显示时状态栏透明、浅色图标（露出下方
+          // 黑色工具栏背景），沉浸时系统栏整体收起。
+          value: _toolbarVisible
+              ? ReaderChrome.systemUiToolbar
+              : ReaderChrome.systemUiImmersive,
+          child: Scaffold(
+            backgroundColor: palette.background,
+            body: reading
                 ? Stack(
                     fit: StackFit.expand,
                     children: [
-                      body,
+                      // 正文 viewport 尺寸必须恒定：内边距固定用进入页面
+                      // 时的系统栏快照，不随沉浸切换变化，否则会触发
+                      // anchor restoration。工具栏（黑色）延伸到状态栏 /
+                      // 导航栏底下，状态栏透明时与其同色衔接。
+                      Padding(
+                        padding: _systemPadding ?? EdgeInsets.zero,
+                        child: body,
+                      ),
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
                       if (_toolbarVisible) ...[
                         Positioned(top: 0, left: 0, right: 0, child: header),
@@ -675,12 +717,14 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                   )
                 // Loading / retry actions remain outside the chrome so they
                 // are reachable even in a short viewport with large text.
-                : Column(
-                    children: [
-                      if (_toolbarVisible) header,
-                      Expanded(child: body),
-                      if (_toolbarVisible) toolbar,
-                    ],
+                : SafeArea(
+                    child: Column(
+                      children: [
+                        if (_toolbarVisible) header,
+                        Expanded(child: body),
+                        if (_toolbarVisible) toolbar,
+                      ],
+                    ),
                   ),
           ),
         ),
@@ -711,7 +755,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             label: AppLocalizations.of(context)!.novelReaderShowToolbar,
             child: InkWell(
               key: const ValueKey('novel-reader-show-toolbar'),
-              onTap: () => setState(() => _toolbarVisible = true),
+              onTap: () => _setToolbarVisible(true),
               child: isCenter
                   ? Align(
                       alignment: isTop
@@ -737,38 +781,46 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final isBookmarked = _bookmarksLoaded && _isBookmarked;
     return ColoredBox(
       color: ReaderChrome.surface,
-      child: SizedBox(
-        height: kToolbarHeight,
-        child: Row(
-          children: [
-            IconButton(
-              key: const ValueKey('novel-reader-back'),
-              tooltip: l10n.novelReaderBack,
-              color: ReaderChrome.onSurface,
-              onPressed: _back,
-              icon: const Icon(Icons.arrow_back),
-            ),
-            Expanded(
-              child: Text(
-                bookName.isEmpty ? l10n.novelReaderTitle : bookName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: ReaderChrome.onSurface,
+      // 工具栏位于全屏 Stack 顶层（覆盖到状态栏底下），内部避开系统栏。
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(
+          height: kToolbarHeight,
+          child: Row(
+            children: [
+              IconButton(
+                key: const ValueKey('novel-reader-back'),
+                tooltip: l10n.novelReaderBack,
+                color: ReaderChrome.onSurface,
+                onPressed: _back,
+                icon: const Icon(Icons.arrow_back),
+              ),
+              Expanded(
+                child: Text(
+                  bookName.isEmpty ? l10n.novelReaderTitle : bookName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: ReaderChrome.onSurface,
+                  ),
                 ),
               ),
-            ),
-            IconButton(
-              key: const ValueKey('novel-reader-bookmark'),
-              tooltip: isBookmarked ? l10n.bookmarkRemove : l10n.bookmarkAdd,
-              // 与漫画阅读器一致，书签高亮不随正文配色改变。
-              color: isBookmarked ? Colors.amberAccent : ReaderChrome.onSurface,
-              onPressed: _loading || _bookmarking || _location == null
-                  ? null
-                  : _toggleBookmark,
-              icon: Icon(isBookmarked ? Icons.bookmark : Icons.bookmark_border),
-            ),
-          ],
+              IconButton(
+                key: const ValueKey('novel-reader-bookmark'),
+                tooltip: isBookmarked ? l10n.bookmarkRemove : l10n.bookmarkAdd,
+                // 与漫画阅读器一致，书签高亮不随正文配色改变。
+                color: isBookmarked
+                    ? Colors.amberAccent
+                    : ReaderChrome.onSurface,
+                onPressed: _loading || _bookmarking || _location == null
+                    ? null
+                    : _toggleBookmark,
+                icon: Icon(
+                  isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -809,10 +861,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
           _recordLocation(location);
         }
       },
-      onTap: () => setState(() => _toolbarVisible = !_toolbarVisible),
-      onScroll: () {
-        if (_toolbarVisible) setState(() => _toolbarVisible = false);
-      },
+      onTap: () => _setToolbarVisible(!_toolbarVisible),
+      onScroll: () => _setToolbarVisible(false),
     );
   }
 
@@ -851,102 +901,105 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final progressLabel = _progressLabel(progress);
     return ColoredBox(
       color: ReaderChrome.surface,
-      child: IconTheme(
-        data: const IconThemeData(color: ReaderChrome.onSurface),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.sm),
-                child: Row(
-                  children: [
-                    if (_offline)
-                      const Padding(
-                        padding: EdgeInsets.only(right: AppSpacing.xs),
-                        child: Icon(Icons.offline_pin_outlined, size: 16),
+      // 工具栏位于全屏 Stack 底部顶层（延伸到导航栏底下），内部避开系统栏。
+      child: SafeArea(
+        top: false,
+        child: IconTheme(
+          data: const IconThemeData(color: ReaderChrome.onSurface),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Row(
+                    children: [
+                      if (_offline)
+                        const Padding(
+                          padding: EdgeInsets.only(right: AppSpacing.xs),
+                          child: Icon(Icons.offline_pin_outlined, size: 16),
+                        ),
+                      Expanded(
+                        child: Text(
+                          _chapterName(l10n),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: ReaderChrome.onSurfaceMuted),
+                        ),
                       ),
-                    Expanded(
-                      child: Text(
-                        _chapterName(l10n),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Text(
+                        progressLabel,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: ReaderChrome.onSurfaceMuted,
                         ),
                       ),
+                    ],
+                  ),
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 2,
+                    activeTrackColor: ReaderChrome.onSurface,
+                    inactiveTrackColor: ReaderChrome.trackInactive,
+                    thumbColor: ReaderChrome.onSurface,
+                  ),
+                  child: Slider(
+                    key: const ValueKey('novel-reader-progress'),
+                    value: value.clamp(0, count > 1 ? count - 1.0 : 1.0),
+                    max: count > 1 ? count - 1.0 : 1,
+                    label: progressLabel,
+                    onChanged: count > 1 && !_loading
+                        ? (value) => setState(() => _sliderValue = value)
+                        : null,
+                    onChangeEnd: count > 1 && !_loading
+                        ? (value) => _jumpTo(document!.anchorFor(value.round()))
+                        : null,
+                  ),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    IconButton(
+                      key: const ValueKey('novel-reader-previous'),
+                      tooltip: l10n.novelReaderPrevious,
+                      onPressed: _canStep(-1) ? () => _step(-1) : null,
+                      // 与漫画阅读器底栏一致：颜色显式指定，禁用态仍可见。
+                      icon: Icon(
+                        Icons.skip_previous,
+                        color: _canStep(-1)
+                            ? ReaderChrome.onSurface
+                            : ReaderChrome.onSurfaceFaint,
+                      ),
                     ),
-                    Text(
-                      progressLabel,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: ReaderChrome.onSurfaceMuted,
+                    IconButton(
+                      key: const ValueKey('novel-reader-contents'),
+                      tooltip: l10n.novelReaderContents,
+                      onPressed: _showContents,
+                      icon: const Icon(Icons.format_list_bulleted),
+                    ),
+                    IconButton(
+                      key: const ValueKey('novel-reader-settings'),
+                      tooltip: l10n.novelReaderSettings,
+                      onPressed: _loading ? null : _showSettings,
+                      icon: const Icon(Icons.text_fields),
+                    ),
+                    IconButton(
+                      key: const ValueKey('novel-reader-next'),
+                      tooltip: l10n.novelReaderNext,
+                      onPressed: _canStep(1) ? () => _step(1) : null,
+                      icon: Icon(
+                        Icons.skip_next,
+                        color: _canStep(1)
+                            ? ReaderChrome.onSurface
+                            : ReaderChrome.onSurfaceFaint,
                       ),
                     ),
                   ],
                 ),
-              ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2,
-                  activeTrackColor: ReaderChrome.onSurface,
-                  inactiveTrackColor: ReaderChrome.trackInactive,
-                  thumbColor: ReaderChrome.onSurface,
-                ),
-                child: Slider(
-                  key: const ValueKey('novel-reader-progress'),
-                  value: value.clamp(0, count > 1 ? count - 1.0 : 1.0),
-                  max: count > 1 ? count - 1.0 : 1,
-                  label: progressLabel,
-                  onChanged: count > 1 && !_loading
-                      ? (value) => setState(() => _sliderValue = value)
-                      : null,
-                  onChangeEnd: count > 1 && !_loading
-                      ? (value) => _jumpTo(document!.anchorFor(value.round()))
-                      : null,
-                ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    key: const ValueKey('novel-reader-previous'),
-                    tooltip: l10n.novelReaderPrevious,
-                    onPressed: _canStep(-1) ? () => _step(-1) : null,
-                    // 与漫画阅读器底栏一致：颜色显式指定，禁用态仍可见。
-                    icon: Icon(
-                      Icons.skip_previous,
-                      color: _canStep(-1)
-                          ? ReaderChrome.onSurface
-                          : ReaderChrome.onSurfaceFaint,
-                    ),
-                  ),
-                  IconButton(
-                    key: const ValueKey('novel-reader-contents'),
-                    tooltip: l10n.novelReaderContents,
-                    onPressed: _showContents,
-                    icon: const Icon(Icons.format_list_bulleted),
-                  ),
-                  IconButton(
-                    key: const ValueKey('novel-reader-settings'),
-                    tooltip: l10n.novelReaderSettings,
-                    onPressed: _loading ? null : _showSettings,
-                    icon: const Icon(Icons.text_fields),
-                  ),
-                  IconButton(
-                    key: const ValueKey('novel-reader-next'),
-                    tooltip: l10n.novelReaderNext,
-                    onPressed: _canStep(1) ? () => _step(1) : null,
-                    icon: Icon(
-                      Icons.skip_next,
-                      color: _canStep(1)
-                          ? ReaderChrome.onSurface
-                          : ReaderChrome.onSurfaceFaint,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
