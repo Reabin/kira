@@ -63,13 +63,13 @@ void main() {
   });
 
   test('named themes, bindings, and false keepScreenOn round-trip', () async {
-    final custom = NovelReaderCustomTheme(
+    const custom = NovelReaderCustomTheme(
       id: 'custom-1',
       name: '夜航',
       backgroundColor: 0xFF182331,
       textColor: 0xFFE8DFC7,
     );
-    final settings = NovelReaderSettings(
+    final settings = const NovelReaderSettings(
       fontSize: 25,
       lineHeight: 1.05,
       paragraphSpacing: 3,
@@ -93,7 +93,7 @@ void main() {
   test(
     'default persistence uses shared MockPrefs and touches only its key',
     () async {
-      final settings = NovelReaderSettings(fontSize: 24).upsertCustomTheme(
+      final settings = const NovelReaderSettings(fontSize: 24).upsertCustomTheme(
         const NovelReaderCustomTheme(id: 'c9', name: '米黄'),
       );
       await settings.save();
@@ -128,7 +128,7 @@ void main() {
       expect(lower.paragraphSpacing, 0);
       expect(lower.darkThemeId, 'green');
       expect(lower.keepScreenOn, isFalse);
-      final upper = NovelReaderSettings(
+      const upper = NovelReaderSettings(
         fontSize: 100,
         lineHeight: 4,
         paragraphSpacing: 1000,
@@ -153,7 +153,7 @@ void main() {
       lineHeight: 3.0,
       paragraphSpacing: 64,
     );
-    final fractional = NovelReaderSettings(
+    const fractional = NovelReaderSettings(
       fontSize: 20.5,
       lineHeight: 1.05,
       paragraphSpacing: 16.25,
@@ -167,7 +167,7 @@ void main() {
   });
 
   test('light and dark bindings stay independent', () {
-    final settings = NovelReaderSettings(
+    const settings = NovelReaderSettings(
       lightThemeId: 'green',
       darkThemeId: 'paper',
     );
@@ -178,7 +178,7 @@ void main() {
   });
 
   test('unknown or deleted theme ids fall back per mode', () {
-    final settings = NovelReaderSettings(
+    const settings = NovelReaderSettings(
       lightThemeId: 'missing',
       darkThemeId: 'paper',
     );
@@ -294,9 +294,8 @@ void main() {
   );
 
   test('palette resolves by system brightness, not the app theme', () {
-    final settings = NovelReaderSettings(
+    const settings = NovelReaderSettings(
       lightThemeId: 'paper',
-      darkThemeId: 'dark',
     );
     final light = NovelReaderPalette.resolve(
       settings,
@@ -317,7 +316,7 @@ void main() {
   });
 
   test('custom palette colors and brightness derivation', () {
-    final settings = NovelReaderSettings(
+    final settings = const NovelReaderSettings(
       lightThemeId: 'custom-1',
       darkThemeId: 'custom-2',
     ).upsertCustomTheme(
@@ -357,8 +356,8 @@ void main() {
   test(
     'fromJson supports partial data and safely parses malformed field types',
     () {
-      expect(NovelReaderSettings.fromJson({}), const NovelReaderSettings());
-      final malformed = NovelReaderSettings.fromJson({
+      expect(NovelReaderSettings.fromJson(const {}), const NovelReaderSettings());
+      final malformed = NovelReaderSettings.fromJson(const {
         'fontSize': '24.5',
         'lineHeight': [],
         'paragraphSpacing': {'unexpected': true},
@@ -374,7 +373,7 @@ void main() {
         NovelReaderSettings.defaultLightThemeId,
       );
       expect(malformed.keepScreenOn, isTrue);
-      final clamped = NovelReaderSettings.fromJson({
+      final clamped = NovelReaderSettings.fromJson(const {
         'fontSize': '-100',
         'lineHeight': 9000,
         'paragraphSpacing': -500,
@@ -438,7 +437,7 @@ void main() {
         await NovelReaderSettings.load(prefs: Future.value(prefs)),
         original,
       );
-      final restored = NovelReaderSettings(
+      const restored = NovelReaderSettings(
         fontSize: 29,
         darkThemeId: 'green',
       );
@@ -484,7 +483,7 @@ void main() {
       final expectation = expectLater(saving, throwsStateError);
       failure.completeError(StateError('MockPrefs unavailable'));
       await expectation;
-      final settings = NovelReaderSettings(lightThemeId: 'paper');
+      const settings = NovelReaderSettings(lightThemeId: 'paper');
       await settings.save(prefs: Future.value(prefs));
       expect(
         await NovelReaderSettings.load(prefs: Future.value(prefs)),

@@ -215,7 +215,7 @@ void _expectQuery(
 ) {
   expect(request.queryParameters, {
     kind.name: tag.pathWord.trim(),
-    'ordering': '-datetime_updated',
+    'ordering': '-popular',
     'limit': 18,
     'offset': offset,
     'platform': 3,

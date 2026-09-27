@@ -651,7 +651,7 @@ void main() {
   ) async {
     await tester.runAsync(
       () =>
-          NovelReaderSettings(
+          const NovelReaderSettings(
                 lightThemeId: 'c1',
                 darkThemeId: 'c1',
                 fontSize: 48,
@@ -689,7 +689,7 @@ void main() {
           await statusSettings.initFromPrefs(
             await SharedPreferences.getInstance(),
           );
-          await NovelReaderSettings().save();
+          await const NovelReaderSettings().save();
         });
         await _mount(tester, repository, store);
         await _slideTo(tester, 150);
@@ -1539,7 +1539,7 @@ void main() {
         await statusSettings.initFromPrefs(
           await SharedPreferences.getInstance(),
         );
-        await NovelReaderSettings().save();
+        await const NovelReaderSettings().save();
       });
       await _mount(tester, repository, store);
       final surface = find.byKey(const ValueKey('novel-reader-surface'));

@@ -399,7 +399,7 @@ void main() {
   );
 
   test('read volume ids accumulate across saves and survive reload', () async {
-    await store.saveProgress(_progress(volumeId: 'volume-1'));
+    await store.saveProgress(_progress());
     await store.saveProgress(
       _progress(
         volumeId: 'volume-2',

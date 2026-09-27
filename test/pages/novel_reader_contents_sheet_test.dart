@@ -309,14 +309,14 @@ void main() {
     tester,
   ) async {
     // API 章节名自带卷名前缀：卷名「第一卷」，章节名「第一卷 序」。
-    final source = const [
+    const source = [
       NovelContentEntry(name: '  第一卷 序  ', contentType: 1),
       NovelContentEntry(name: '第一卷 特典', contentType: 1),
       NovelContentEntry(name: '与卷名无关的章节', contentType: 1),
     ];
     final repository = _Repository({
-      'v1': NovelVolumeDetail(
-        book: const NovelBook(pathWord: 'book', name: '测试小说'),
+      'v1': const NovelVolumeDetail(
+        book: NovelBook(pathWord: 'book', name: '测试小说'),
         volume: NovelVolume(id: 'v1', name: '第一卷', contents: source),
       ),
     });
@@ -610,7 +610,6 @@ void main() {
           volumeId: 'v1',
           volumeName: 'v1 卷',
           chapterName: '正文一',
-          entryIndex: 0,
           paragraphIndex: 40,
           paragraphAlignment: -0.04,
           updatedAt: DateTime(2025),
