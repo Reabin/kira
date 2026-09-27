@@ -12,6 +12,7 @@ import 'app_logger.dart';
 import 'bookmark_store.dart';
 import 'download_manager.dart';
 import 'font_manager.dart';
+import 'novel_bookmark_store.dart';
 import 'reading_stats.dart';
 
 /// 把 SharedPreferences 的当前内容重新灌入各内存单例。
@@ -75,6 +76,11 @@ Future<void> reloadRuntimeSettings({
     await _reloadStep(
       'bookmarks',
       () => BookmarkStore().reload(),
+      strict: strict,
+    );
+    await _reloadStep(
+      'novel_bookmarks',
+      () => NovelBookmarkStore().reload(),
       strict: strict,
     );
   }

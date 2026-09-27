@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/backup/backup_runtime.dart';
+import 'package:kira/models/secure_credential_store.dart';
 import 'package:kira/utils/reading_history.dart';
 import 'package:kira/utils/settings_backup.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -35,51 +36,48 @@ void main() {
     return Map<String, dynamic>.from(preferences);
   }
 
-  test(
-    'exports only portable app settings by default',
-    () async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_token', 'token-1');
-      await prefs.setString('saved_password', 'password-1');
-      await prefs.setString('zhipu_api_key', 'api-key-1');
-      await prefs.setBool('auto_login', true);
-      await prefs.setBool('image_viewer_auto_rotate_landscape', true);
-      await prefs.setInt('image_viewer_landscape_rotation', -1);
-      await prefs.setString('cache_home', '{"stale":false}');
-      await prefs.setString(
+  test('exports only portable app settings by default', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_token', 'token-1');
+    await prefs.setString('saved_password', 'password-1');
+    await prefs.setString('zhipu_api_key', 'api-key-1');
+    await prefs.setBool('auto_login', true);
+    await prefs.setBool('image_viewer_auto_rotate_landscape', true);
+    await prefs.setInt('image_viewer_landscape_rotation', -1);
+    await prefs.setString('cache_home', '{"stale":false}');
+    await prefs.setString(
+      'cache_manga_chapter_detail_v1_comic-a_chapter-3',
+      '{"chapter":{"contents":[{"url":"https://example.com/1.jpg"}]}}',
+    );
+    await ReadingHistory.save(
+      pathWord: 'comic-a',
+      group: ReadingHistory.defaultGroup,
+      chapterUuid: 'chapter-3',
+      chapterName: '第3话',
+      page: 5,
+      totalPage: 20,
+    );
+
+    final backup = await createService().exportPlainText();
+    final decoded = decodeBackup(backup);
+    final preferences = preferencesOf(decoded);
+
+    expect(decoded['categories'], ['settings']);
+    expect(preferences.containsKey('user_token'), isFalse);
+    expect(preferences.containsKey('saved_password'), isFalse);
+    expect(preferences.containsKey('zhipu_api_key'), isFalse);
+    expect(preferences.containsKey('auto_login'), isFalse);
+    expect(preferences['image_viewer_auto_rotate_landscape']?['value'], true);
+    expect(preferences['image_viewer_landscape_rotation']?['value'], -1);
+    expect(preferences.containsKey('reading_history_comic-a'), isFalse);
+    expect(preferences.containsKey('cache_home'), isFalse);
+    expect(
+      preferences.containsKey(
         'cache_manga_chapter_detail_v1_comic-a_chapter-3',
-        '{"chapter":{"contents":[{"url":"https://example.com/1.jpg"}]}}',
-      );
-      await ReadingHistory.save(
-        pathWord: 'comic-a',
-        group: ReadingHistory.defaultGroup,
-        chapterUuid: 'chapter-3',
-        chapterName: '第3话',
-        page: 5,
-        totalPage: 20,
-      );
-
-      final backup = await createService().exportPlainText();
-      final decoded = decodeBackup(backup);
-      final preferences = preferencesOf(decoded);
-
-      expect(decoded['categories'], ['settings']);
-      expect(preferences.containsKey('user_token'), isFalse);
-      expect(preferences.containsKey('saved_password'), isFalse);
-      expect(preferences.containsKey('zhipu_api_key'), isFalse);
-      expect(preferences.containsKey('auto_login'), isFalse);
-      expect(preferences['image_viewer_auto_rotate_landscape']?['value'], true);
-      expect(preferences['image_viewer_landscape_rotation']?['value'], -1);
-      expect(preferences.containsKey('reading_history_comic-a'), isFalse);
-      expect(preferences.containsKey('cache_home'), isFalse);
-      expect(
-        preferences.containsKey(
-          'cache_manga_chapter_detail_v1_comic-a_chapter-3',
-        ),
-        isFalse,
-      );
-    },
-  );
+      ),
+      isFalse,
+    );
+  });
 
   test('exports sensitive settings only when requested', () async {
     final prefs = await SharedPreferences.getInstance();
@@ -187,7 +185,8 @@ void main() {
     final record = await ReadingHistory.get('comic-b');
 
     expect(summary.preferenceCount, 5);
-    expect(prefs.getString('user_token'), 'new-token');
+    expect(await SecureCredentialStore().readToken(), 'new-token');
+    expect(prefs.containsKey('user_token'), isFalse);
     expect(prefs.getBool('auto_login'), isTrue);
     expect(prefs.getBool('image_viewer_auto_rotate_landscape'), isTrue);
     expect(prefs.getInt('image_viewer_landscape_rotation'), -1);

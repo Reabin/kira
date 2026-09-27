@@ -77,6 +77,9 @@ class SettingsBackupService {
   Future<BackupDocument> capture() async {
     _ensureAvailable();
     await _runtime.flush();
+    // A restore can start while pending writes are being drained. Do not read
+    // secure credentials alongside a profile that is still being replaced.
+    _ensureAvailable();
     final snapshot = await _preferences.readAll();
     return _documentFrom(snapshot, BackupCategory.values.toSet());
   }
@@ -204,7 +207,14 @@ class SettingsBackupService {
 
   Future<void> _replace(BackupDocument document) async {
     final current = await _preferences.readAll();
-    for (final key in current.keys) {
+    final keys = {
+      ...current.keys,
+      // A migrated, absent credential can mask a stale plaintext key. Clear
+      // both backends even when that key was not in the effective snapshot.
+      if (document.categories.contains(BackupCategory.account))
+        ...SharedBackupPreferences.secureAccountKeys,
+    };
+    for (final key in keys) {
       if (document.categories.contains(BackupSchema.categoryOf(key))) {
         await _preferences.remove(key);
       }
@@ -245,10 +255,15 @@ class SettingsBackupService {
       await SearchHistory.flush();
       await _runtime.pause();
       final keys = (await _preferences.readAll()).keys.toList();
-      await SecureCredentialStore().deleteAll();
-      for (final key in keys) {
+      for (final key in {
+        ...keys,
+        ...SharedBackupPreferences.secureAccountKeys,
+      }) {
         await _preferences.remove(key);
       }
+      // Run last: removing a primary token writes a logout tombstone, whereas
+      // a full app reset deliberately deletes every device-local secret.
+      await SecureCredentialStore().deleteAll();
       return keys.length;
     } finally {
       _runtime.resume();

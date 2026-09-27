@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../utils/novel_bookmark_store.dart';
 import 'backup_document.dart';
 import 'backup_error.dart';
 
@@ -10,10 +11,13 @@ void validateBackupRecords(Map<String, BackupPreference> preferences) {
     final key = entry.key;
     final isMap =
         key.startsWith('reading_history_') ||
+        key.startsWith('novel_reading_history_') ||
+        key == 'reader_novel_settings_v1' ||
         key == 'reading_stats_v1' ||
         key == 'copy_home_section_collapsed';
     final isList = const {
       'comic_bookmarks_v1',
+      'novel_bookmarks_v1',
       'ai_providers',
       'saved_credentials',
       'zhipu_prompt_presets',
@@ -30,6 +34,10 @@ void validateBackupRecords(Map<String, BackupPreference> preferences) {
     if (isMap && decoded is! Map<String, dynamic>) _invalid();
     if (isList) {
       if (decoded is! List) _invalid();
+      if (key == NovelBookmarkStore.storageKey &&
+          decoded.length > NovelBookmarkStore.maxBookmarks) {
+        _invalid();
+      }
       final ids = <String>{};
       for (final item in decoded) {
         if (item is! Map<String, dynamic>) _invalid();
@@ -42,6 +50,16 @@ void validateBackupRecords(Map<String, BackupPreference> preferences) {
         };
         for (final field in required) {
           if (item[field] is! String) _invalid();
+        }
+        if (key == NovelBookmarkStore.storageKey) {
+          try {
+            final bookmark = NovelBookmark.fromJson(item);
+            if (!ids.add(bookmark.id)) _invalid();
+          } on FormatException {
+            _invalid();
+          } on ArgumentError {
+            _invalid();
+          }
         }
         if (key == 'ai_providers') {
           final id = item['id'];

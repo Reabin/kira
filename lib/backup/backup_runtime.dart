@@ -1,5 +1,7 @@
 import '../api/api_client.dart';
+import '../models/user_manager.dart';
 import '../utils/bookmark_store.dart';
+import '../utils/novel_bookmark_store.dart';
 import '../utils/reading_history.dart';
 import '../utils/reading_stats.dart';
 import '../utils/settings_reload.dart';
@@ -19,15 +21,18 @@ class SettingsBackupRuntime implements BackupRuntime {
       ReadingHistory.flush(),
       ReadingStats.flush(),
       BookmarkStore().flush(),
+      NovelBookmarkStore().flush(),
     ]);
   }
 
   @override
   Future<void> pause() async {
+    await UserManager().pauseAccountMutationsForRestore();
     await Future.wait([
       ReadingHistory.pauseForRestore(),
       ReadingStats.pauseForRestore(),
       BookmarkStore().pauseForRestore(),
+      NovelBookmarkStore().pauseForRestore(),
     ]);
   }
 
@@ -44,8 +49,10 @@ class SettingsBackupRuntime implements BackupRuntime {
 
   @override
   void resume() {
+    UserManager().resumeAccountMutationsAfterRestore();
     ReadingHistory.resumeAfterRestore();
     ReadingStats.resumeAfterRestore();
     BookmarkStore().resumeAfterRestore();
+    NovelBookmarkStore().resumeAfterRestore();
   }
 }

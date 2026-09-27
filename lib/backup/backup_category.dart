@@ -137,6 +137,7 @@ abstract final class BackupSchema {
     'manga_home_source',
     'network_fixed_node_host',
     'network_proxy_host',
+    'reader_novel_settings_v1',
     'saved_credentials',
     'saved_password',
     'saved_username',
@@ -171,11 +172,14 @@ abstract final class BackupSchema {
   };
 
   static BackupCategory? categoryOf(String key) {
-    if (key.startsWith('reading_history_')) {
+    if (key.startsWith('reading_history_') ||
+        key.startsWith('novel_reading_history_')) {
       return BackupCategory.readingHistory;
     }
     if (key == 'reading_stats_v1') return BackupCategory.readingStatistics;
-    if (key == 'comic_bookmarks_v1') return BackupCategory.bookmarks;
+    if (key == 'comic_bookmarks_v1' || key == 'novel_bookmarks_v1') {
+      return BackupCategory.bookmarks;
+    }
     if (accountKeys.contains(key)) return BackupCategory.account;
     if (aiConnectionKeys.contains(key)) return BackupCategory.aiConnection;
     return typeOf(key) == null ? null : BackupCategory.settings;
@@ -188,8 +192,10 @@ abstract final class BackupSchema {
     if (_listKeys.contains(key)) return 'string_list';
     if (_stringKeys.contains(key) ||
         key.startsWith('reading_history_') ||
+        key.startsWith('novel_reading_history_') ||
         key == 'reading_stats_v1' ||
-        key == 'comic_bookmarks_v1') {
+        key == 'comic_bookmarks_v1' ||
+        key == 'novel_bookmarks_v1') {
       return 'string';
     }
     // In particular: backup_*, cache_*, AI conversations/summaries, download
