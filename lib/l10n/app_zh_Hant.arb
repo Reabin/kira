@@ -1,6 +1,13 @@
 {
   "@@locale": "zh_Hant",
   "comicTabLabel": "漫畫",
+  "novelTitle": "輕小說",
+  "novelDownloadUnavailable": "該卷未下載或本機檔案已損壞，請前往下載中心重新下載。",
+  "cacheCategoryNovelHistory": "輕小說閱讀記錄",
+  "cacheNovelTextLabel": "輕小說正文快取",
+  "cacheNovelTextDesc": "已閱讀卷冊的本機正文，清除後重新線上閱讀需要重新請求；已下載到本機的分卷不受影響。",
+  "cacheNovelTextClearConfirm": "清除已快取的輕小說正文？閱讀進度會保留，但離線時將無法繼續閱讀這些卷冊。",
+  "cacheNovelTextCleared": "已清除輕小說正文快取",
   "searchTabLabel": "搜尋",
   "discoverTabLabel": "發現",
   "searchFilterAll": "全部",
@@ -162,6 +169,7 @@
   },
   "refreshButton": "重新整理",
   "noComicUpdates": "沒有漫畫更新",
+  "noNovelUpdates": "沒有輕小說更新",
   "backToTop": "回到頂部",
   "refreshSuccess": "重新整理成功",
   "refreshFailed": "重新整理失敗",
@@ -375,6 +383,7 @@
   "logoutConfirmContent": "確定要登出嗎？",
   "userInfoRefreshedToast": "使用者資訊已重新整理",
   "userInfoRefreshFailedToast": "重新整理失敗，請重試",
+  "copyProfileRefreshUnavailable": "暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱",
   "tokenUnavailableToast": "暫無可複製的權杖",
   "tokenCopiedToast": "權杖已複製到剪貼簿",
   "appearanceTitle": "外觀",
@@ -778,6 +787,13 @@
   "downloadCenterTitle": "下載中心",
   "browseHistoryTitle": "瀏覽記錄",
   "bookmarksTitle": "書籤",
+  "bookmarksTabClearContent": "確定清空所有{type}書籤？",
+  "@bookmarksTabClearContent": {
+    "placeholders": {"type": {"type": "String"}}
+  },
+  "novelBookmarksEmptySubtitle": "閱讀輕小說時，點擊工具列右上角新增書籤",
+  "bookmarksLoadFailed": "書籤載入失敗，請重試",
+  "bookmarksUpdateFailed": "書籤儲存失敗，請重試",
   "statsTitle": "閱讀統計",
   "continueReadingTitle": "繼續閱讀",
   "continueReadingPageLabel": "第 {page} 頁",
@@ -1692,6 +1708,18 @@
   "downloadImageConcurrencyDesc": "數值過大可能導致 IP 被限流，後果自負",
   "downloadChapterComments": "下載章節評論",
   "downloadChapterCommentsDesc": "下載章節時一併儲存評論",
+  "downloadVolumeConcurrency": "卷下載並行數量",
+  "downloadVolumeConcurrencyDesc": "同時下載的輕小說分卷數量，數值越大佔用頻寬越多",
+  "novelDownloadSection": "輕小說下載",
+  "novelDownloadDirectoryOverlap": "輕小說與漫畫下載目錄不能相同或互相包含",
+  "novelDownloadMigrateConfirmContent": "將把已下載的 {count} 部輕小說移動到新目錄，遷移期間請勿退出應用。",
+  "@novelDownloadMigrateConfirmContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadSaveLocation": "儲存位置",
   "downloadSaveLocationDefault": "應用內部目錄（預設）",
   "downloadSaveLocationPickerTitle": "選擇下載儲存目錄",
@@ -1756,8 +1784,24 @@
   "downloadingStatus": "下載中",
   "waitingStatus": "等待中",
   "pausedStatus": "已暫停",
+  "novelDownloadCompleted": "已完成",
+  "novelDownloadPartial": "正文已下載，部分插圖缺失",
+  "novelDownloadFailed": "下載失敗",
+  "novelDownloadUnauthorized": "登入後重試",
+  "novelDownloadLocked": "內容受限",
+  "novelDownloadNeedsRepair": "檔案待修復",
+  "novelDownloadDeleteConfirm": "確定刪除「{volume}」的輕小說下載嗎？本機卷檔案也會刪除。",
+  "@novelDownloadDeleteConfirm": {
+    "placeholders": {
+      "volume": {
+        "type": "String"
+      }
+    }
+  },
   "downloadPauseButton": "暫停下載",
   "downloadResumeButton": "繼續下載",
+  "downloadQueuePause": "暫停",
+  "downloadQueueResume": "繼續",
   "downloadQueueDeleteTitle": "刪除下載任務",
   "downloadQueueDeleteContent": "確定刪除「{chapter}」的下載任務嗎？已下載的 {count} 頁檔案將一併刪除。",
   "downloadQueueDeleteBatchTitle": "刪除 {count} 個下載任務",
@@ -1776,6 +1820,7 @@
       }
     }
   },
+  "downloadQueueDeleteSelectedConfirm": "所選下載任務及已儲存的相關檔案都會被刪除。",
   "downloadQueueSelect": "多選",
   "downloadQueueSelectAll": "全選",
   "downloadQueueDeselectAll": "取消全選",
@@ -2036,15 +2081,27 @@
       }
     }
   },
+  "downloadForegroundGenericTitle": "正在下載內容",
+  "downloadForegroundGenericChannel": "內容下載",
+  "downloadForegroundGenericBody": "下載中 {active} 項 · 等待 {pending} 項",
+  "@downloadForegroundGenericBody": {
+    "placeholders": {
+      "active": {"type": "int"},
+      "pending": {"type": "int"}
+    }
+  },
+  "downloadForegroundFiles": "檔案 {done}/{total}",
+  "@downloadForegroundFiles": {
+    "placeholders": {
+      "done": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "downloadForegroundImages": "圖片 {done}/{total}",
   "@downloadForegroundImages": {
     "placeholders": {
-      "done": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
+      "done": {"type": "int"},
+      "total": {"type": "int"}
     }
   },
   "backupTitle": "備份與同步",
@@ -2197,5 +2254,257 @@
   "backupWebDavTimeout": "連線逾時，請重試。",
   "backupWebDavConflict": "無法儲存至此資料夾，原有備份未被覆蓋。",
   "backupPreviewContents": "內容占比（壓縮前）",
-  "backupEmptyCategory": "沒有內容，還原後將清空"
+  "backupEmptyCategory": "沒有內容，還原後將清空",
+  "novelBookshelf": "小說書架",
+  "novelSearchHint": "搜尋輕小說",
+  "novelSearchEmpty": "沒有找到相關輕小說，換個關鍵字試試",
+  "novelSearchFailed": "搜尋失敗，請重試",
+  "continueReadingComic": "繼續閱讀漫畫",
+  "continueReadingNovel": "繼續閱讀輕小說",
+  "historyTabComic": "漫畫",
+  "historyTabNovel": "輕小說",
+  "novelHistory": "閱讀記錄",
+  "novelCopyLoginRequired": "登入拷貝帳戶後查看書架、收藏",
+  "novelCopyLogin": "登入拷貝帳戶",
+  "novelContinueReading": "繼續閱讀",
+  "novelStartReading": "開始閱讀",
+  "novelVolumeProgress": "本卷 {percent}%",
+  "@novelVolumeProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "novelBrowseBooks": "瀏覽書籍",
+  "novelAllThemes": "全部題材",
+  "novelThemes": "題材",
+  "novelPopularSort": "熱門",
+  "novelUpdatedSort": "最近更新",
+  "novelEmptyBooks": "暫無書籍，試試其他題材",
+  "novelLoadMore": "載入更多",
+  "novelLoadMoreFailed": "載入失敗，點擊重試",
+  "novelLoadFailed": "書籍載入失敗",
+  "novelThemesFailed": "題材載入失敗",
+  "novelVolumes": "分卷目錄",
+  "novelNoVolumes": "暫無可閱讀的分卷",
+  "novelVolumesFailed": "目錄載入失敗",
+  "novelLocalTitle": "輕小說本機",
+  "novelNoLocalTitle": "還沒有本機輕小說",
+  "novelNoLocalSubtitle": "去輕小說詳情頁下載分卷後，這裡會顯示離線內容",
+  "novelDeleteLocalTitle": "刪除本機輕小說",
+  "novelDeleteLocalContent": "確定刪除選中的 {count} 部本機輕小說嗎？已下載分卷和封面都會被刪除。",
+  "@novelDeleteLocalContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelLocalVolumesTitle": "本機分卷 ({count})",
+  "@novelLocalVolumesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelDeleteLocalVolumesTitle": "刪除本機分卷",
+  "novelDeleteLocalVolumesContent": "確定刪除選中的 {count} 卷嗎？對應的正文與插圖都會被刪除。",
+  "@novelDeleteLocalVolumesContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelDeletedVolumesToast": "已刪除 {count} 卷",
+  "@novelDeletedVolumesToast": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelManageVolumes": "管理分卷",
+  "novelVolumeUnit": "卷",
+  "novelDeleteToastSuffix": " 部本機輕小說",
+  "novelBrief": "簡介",
+  "novelNoBrief": "暫無簡介",
+  "novelUncollect": "取消收藏",
+  "novelCollectFailed": "收藏操作失敗，請重試",
+  "novelQueryFailed": "閱讀與收藏狀態載入失敗",
+  "novelAccountRequired": "閱讀權限由拷貝帳戶決定，可登入後重試",
+  "novelLocked": "目前內容受限，可嘗試切換拷貝帳戶",
+  "novelEmptyShelf": "書架還是空的，去發現喜歡的小說吧",
+  "novelShelfFailed": "書架載入失敗",
+  "novelEmptyHistory": "開始閱讀後，進度會儲存在這裡",
+  "novelHistoryFailed": "閱讀記錄載入失敗",
+  "novelClearHistory": "清空閱讀記錄",
+  "novelClearHistoryConfirm": "僅清除本機輕小說閱讀進度，不會取消書架收藏。",
+  "novelRemoveHistory": "移除閱讀記錄",
+  "novelHistoryDeleteFailed": "移除失敗，請重試",
+  "novelBookDetails": "查看詳情",
+  "novelNoComments": "暫無評論",
+  "novelCommentsFailed": "評論載入失敗",
+  "novelCommentsClosed": "本書已關閉評論",
+  "novelWriteComment": "寫下你的評論",
+  "novelPostComment": "發表評論",
+  "novelCommentPosted": "評論已發表",
+  "novelCommentFailed": "發表失敗，內容已保留，請重試",
+  "novelReplies": "查看回覆",
+  "novelReply": "回覆",
+  "novelReplyTitle": "評論回覆",
+  "novelCommentCollapseReplies": "收起回覆",
+  "novelCommentExpandReplies": "展開 {count} 條回覆",
+  "@novelCommentExpandReplies": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "novelCommentReplyLoadFailed": "回覆載入失敗",
+  "novelCommentRetryLoadMoreReplies": "重試載入更多回覆",
+  "novelCommentEmptyReplies": "暫無可顯示的回覆",
+  "novelCommentLoadMoreReplies": "載入更多回覆 ({loaded}/{total})",
+  "@novelCommentLoadMoreReplies": {
+    "placeholders": {
+      "loaded": {},
+      "total": {}
+    }
+  },
+  "novelCommentReplyTitle": "回覆 {userName}",
+  "@novelCommentReplyTitle": {
+    "placeholders": {
+      "userName": {}
+    }
+  },
+  "novelCommentReplyHint": "回覆 {userName}...",
+  "@novelCommentReplyHint": {
+    "placeholders": {
+      "userName": {}
+    }
+  },
+  "novelCommentReplyPosted": "回覆已發布",
+  "novelSerializing": "連載中",
+  "novelCompleted": "已完結",
+  "novelReaderTitle": "輕小說閱讀器",
+  "novelReaderBack": "返回",
+  "novelReaderHideToolbar": "收起工具列",
+  "novelReaderShowToolbar": "展開工具列",
+  "novelReaderContents": "目錄",
+  "novelReaderVolume": "卷冊",
+  "novelReaderVolumesRetry": "卷冊載入失敗，重試",
+  "novelReaderPrevious": "上一章節",
+  "novelReaderNext": "下一章節",
+  "novelReaderSettings": "閱讀設定",
+  "novelReaderFontSize": "字級",
+  "novelReaderLineHeight": "行距",
+  "novelReaderParagraphSpacing": "段距",
+  "novelReaderTheme": "閱讀背景",
+  "novelReaderThemeSystem": "跟隨系統",
+  "novelReaderThemePaper": "紙張",
+  "novelReaderThemeDark": "夜間",
+  "novelReaderThemeWhite": "白底",
+  "novelReaderThemeGreen": "護眼綠",
+  "novelReaderThemeCustom": "自訂",
+  "novelReaderThemeFollowSystem": "背景跟隨系統亮暗，深淺模式可分別選擇方案",
+  "novelReaderThemeLightMode": "淺色模式",
+  "novelReaderThemeDarkMode": "深色模式",
+  "novelReaderThemeAdd": "新增配色方案",
+  "novelReaderThemeNameTitle": "方案名稱",
+  "novelReaderThemeNameHint": "為這個配色方案取個名字",
+  "novelReaderThemeEditTitle": "編輯「{name}」",
+  "@novelReaderThemeEditTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "novelReaderThemeEdit": "編輯方案",
+  "novelReaderThemeDeleteTitle": "刪除配色方案",
+  "novelReaderThemeDeleteContent": "確定刪除「{name}」？綁定它的模式會回退到預設方案。",
+  "@novelReaderThemeDeleteContent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "novelReaderBackgroundColor": "背景顏色",
+  "novelReaderTextColor": "文字顏色",
+  "novelReaderPreviewText": "選擇適合你的閱讀配色與字級。",
+  "novelReaderKeepScreenOn": "閱讀時螢幕常亮",
+  "novelReaderIllustration": "插圖",
+  "novelReaderImageFailed": "插圖載入失敗",
+  "novelReaderEmptyChapter": "本章節暫無正文",
+  "novelReaderEmptyVolume": "本卷暫無可閱讀的正文",
+  "novelReaderLoadFailed": "正文載入失敗，請重試或開啟本機快取",
+  "novelReaderLocked": "本卷暫不可存取，請確認拷貝帳號的閱讀權限",
+  "novelReaderLoginRequired": "請登入拷貝帳號後重試",
+  "novelReaderCopyLogin": "登入拷貝帳號",
+  "novelReaderOpenCache": "開啟本機快取",
+  "novelReaderNoCache": "本卷沒有可用的本機快取",
+  "novelReaderUnnamedChapter": "章節 {number}",
+  "@novelReaderUnnamedChapter": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "novelReaderParagraphProgress": "{current} / {total} 段",
+  "@novelReaderParagraphProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "copyAccountTitle": "輕小說 · 獨立拷貝帳號",
+  "copyAccountLoginTitle": "登入拷貝帳號",
+  "copyAccountIndependentHint": "僅用於拷貝輕小說。登入、切換或登出此帳號都不會改變目前主帳號。",
+  "copyAccountConnected": "拷貝帳號已登入",
+  "copyAccountNotConnected": "尚未登入拷貝帳號",
+  "copyAccountSwitch": "切換拷貝帳號",
+  "copyAccountLogout": "登出拷貝帳號",
+  "copyAccountLogoutConfirm": "僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。",
+  "copyAccountStorageFailed": "無法儲存拷貝帳號，請檢查安全儲存後重試；原帳號保持不變。",
+  "copyAccountLoginSuperseded": "帳號狀態已改變，本次登入已取消，請重試。",
+  "accountCenterTitle": "帳號中心",
+  "accountCenterActiveLabel": "使用中的帳號",
+  "accountCenterSavedLabel": "登入過的帳號",
+  "accountCenterComicAccount": "漫畫帳號",
+  "accountCenterNovelAccount": "輕小說帳號",
+  "accountCenterNovelCopyOnlyHint": "輕小說僅支援使用拷貝帳號",
+  "accountCenterNotLoggedIn": "未登入",
+  "accountCenterAddPrimary": "登入漫畫帳號",
+  "accountCenterAddCopy": "新增拷貝帳號",
+  "accountCenterPickComic": "選擇漫畫使用的帳號",
+  "accountCenterPickNovel": "選擇輕小說使用的帳號",
+  "accountCenterNovelOnlyCopy": "輕小說只能使用拷貝帳號",
+  "accountCenterRenameTitle": "帳號備註",
+  "accountCenterRenameLabel": "備註名",
+  "accountCenterRenameHint": "例如：主號 / 小號",
+  "accountCenterRemoveTitle": "移除帳號",
+  "accountCenterRemoveConfirm": "確定移除「{name}」嗎？僅刪除本機儲存的登入狀態。",
+  "@accountCenterRemoveConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "accountCenterNovelBoundToast": "輕小說已切換到 {name}",
+  "@accountCenterNovelBoundToast": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "accountCenterNameNewTitle": "給新帳號起個備註名"
 }

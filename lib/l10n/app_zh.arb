@@ -1,6 +1,13 @@
 {
   "@@locale": "zh",
   "comicTabLabel": "漫画",
+  "novelTitle": "轻小说",
+  "novelDownloadUnavailable": "该卷未下载或本地文件已损坏，请前往下载中心重新下载。",
+  "cacheCategoryNovelHistory": "轻小说阅读记录",
+  "cacheNovelTextLabel": "轻小说正文缓存",
+  "cacheNovelTextDesc": "已阅读分卷的本地正文，清除后重新在线阅读需要重新请求；已下载到本机的分卷不受影响。",
+  "cacheNovelTextClearConfirm": "清除已缓存的轻小说正文？阅读进度会保留，但离线时将无法继续阅读这些分卷。",
+  "cacheNovelTextCleared": "已清除轻小说正文缓存",
   "searchTabLabel": "搜索",
   "discoverTabLabel": "发现",
   "searchFilterAll": "全部",
@@ -162,6 +169,7 @@
   },
   "refreshButton": "刷新",
   "noComicUpdates": "没有漫画更新",
+  "noNovelUpdates": "没有轻小说更新",
   "backToTop": "回到顶部",
   "refreshSuccess": "刷新成功",
   "refreshFailed": "刷新失败",
@@ -375,6 +383,7 @@
   "logoutConfirmContent": "确定要退出登录吗？",
   "userInfoRefreshedToast": "用户信息已刷新",
   "userInfoRefreshFailedToast": "刷新失败，请重试",
+  "copyProfileRefreshUnavailable": "暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名",
   "tokenUnavailableToast": "暂无可复制的令牌",
   "tokenCopiedToast": "令牌已复制到剪贴板",
   "appearanceTitle": "外观",
@@ -807,6 +816,13 @@
   "downloadCenterTitle": "下载中心",
   "browseHistoryTitle": "浏览记录",
   "bookmarksTitle": "书签",
+  "bookmarksTabClearContent": "确定清空所有{type}书签？",
+  "@bookmarksTabClearContent": {
+    "placeholders": {"type": {"type": "String"}}
+  },
+  "novelBookmarksEmptySubtitle": "阅读轻小说时，点击工具栏右上角添加书签",
+  "bookmarksLoadFailed": "书签加载失败，请重试",
+  "bookmarksUpdateFailed": "书签保存失败，请重试",
   "statsTitle": "阅读统计",
   "continueReadingTitle": "继续阅读",
   "continueReadingPageLabel": "第 {page} 页",
@@ -1721,6 +1737,18 @@
   "downloadImageConcurrencyDesc": "数值过大可能导致 IP 被限流，后果自负",
   "downloadChapterComments": "下载章节评论",
   "downloadChapterCommentsDesc": "下载章节时一并保存评论",
+  "downloadVolumeConcurrency": "卷下载并发数量",
+  "downloadVolumeConcurrencyDesc": "同时下载的轻小说分卷数量，数值越大占用带宽越多",
+  "novelDownloadSection": "轻小说下载",
+  "novelDownloadDirectoryOverlap": "轻小说与漫画下载目录不能相同或互相包含",
+  "novelDownloadMigrateConfirmContent": "将把已下载的 {count} 部轻小说移动到新目录，迁移期间请勿退出应用。",
+  "@novelDownloadMigrateConfirmContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "downloadSaveLocation": "保存位置",
   "downloadSaveLocationDefault": "应用内部目录（默认）",
   "downloadSaveLocationPickerTitle": "选择下载保存目录",
@@ -1785,8 +1813,24 @@
   "downloadingStatus": "下载中",
   "waitingStatus": "等待中",
   "pausedStatus": "已暂停",
+  "novelDownloadCompleted": "已完成",
+  "novelDownloadPartial": "正文已下载，部分插图缺失",
+  "novelDownloadFailed": "下载失败",
+  "novelDownloadUnauthorized": "登录后重试",
+  "novelDownloadLocked": "内容受限",
+  "novelDownloadNeedsRepair": "文件待修复",
+  "novelDownloadDeleteConfirm": "确定删除「{volume}」的轻小说下载吗？本地卷文件也会删除。",
+  "@novelDownloadDeleteConfirm": {
+    "placeholders": {
+      "volume": {
+        "type": "String"
+      }
+    }
+  },
   "downloadPauseButton": "暂停下载",
   "downloadResumeButton": "继续下载",
+  "downloadQueuePause": "暂停",
+  "downloadQueueResume": "继续",
   "downloadQueueDeleteTitle": "删除下载任务",
   "downloadQueueDeleteContent": "确定删除「{chapter}」的下载任务吗？已下载的 {count} 页文件将一并删除。",
   "@downloadQueueDeleteContent": {
@@ -1815,6 +1859,7 @@
       }
     }
   },
+  "downloadQueueDeleteSelectedConfirm": "所选下载任务及已保存的相关文件都会被删除。",
   "downloadQueueSelect": "多选",
   "downloadQueueSelectAll": "全选",
   "downloadQueueDeselectAll": "取消全选",
@@ -2060,15 +2105,27 @@
       }
     }
   },
+  "downloadForegroundGenericTitle": "正在下载内容",
+  "downloadForegroundGenericChannel": "内容下载",
+  "downloadForegroundGenericBody": "下载中 {active} 项 · 等待 {pending} 项",
+  "@downloadForegroundGenericBody": {
+    "placeholders": {
+      "active": {"type": "int"},
+      "pending": {"type": "int"}
+    }
+  },
+  "downloadForegroundFiles": "文件 {done}/{total}",
+  "@downloadForegroundFiles": {
+    "placeholders": {
+      "done": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "downloadForegroundImages": "图片 {done}/{total}",
   "@downloadForegroundImages": {
     "placeholders": {
-      "done": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
+      "done": {"type": "int"},
+      "total": {"type": "int"}
     }
   },
   "backupTitle": "备份与同步",
@@ -2228,5 +2285,257 @@
   "backupWebDavTimeout": "连接超时，请重试。",
   "backupWebDavConflict": "无法保存到此文件夹，原有备份未被覆盖。",
   "backupPreviewContents": "内容占比（压缩前）",
-  "backupEmptyCategory": "没有内容，恢复后将清空"
+  "backupEmptyCategory": "没有内容，恢复后将清空",
+  "novelBookshelf": "小说书架",
+  "novelSearchHint": "搜索轻小说",
+  "novelSearchEmpty": "没有找到相关轻小说，换个关键词试试",
+  "novelSearchFailed": "搜索失败，请重试",
+  "continueReadingComic": "继续阅读漫画",
+  "continueReadingNovel": "继续阅读轻小说",
+  "historyTabComic": "漫画",
+  "historyTabNovel": "轻小说",
+  "novelHistory": "阅读记录",
+  "novelCopyLoginRequired": "登录拷贝账户后查看书架、收藏",
+  "novelCopyLogin": "登录拷贝账户",
+  "novelContinueReading": "继续阅读",
+  "novelStartReading": "开始阅读",
+  "novelVolumeProgress": "本卷 {percent}%",
+  "@novelVolumeProgress": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "novelBrowseBooks": "浏览书籍",
+  "novelAllThemes": "全部题材",
+  "novelThemes": "题材",
+  "novelPopularSort": "热门",
+  "novelUpdatedSort": "最近更新",
+  "novelEmptyBooks": "暂无书籍，试试其他题材",
+  "novelLoadMore": "加载更多",
+  "novelLoadMoreFailed": "加载失败，点击重试",
+  "novelLoadFailed": "书籍加载失败",
+  "novelThemesFailed": "题材加载失败",
+  "novelVolumes": "分卷目录",
+  "novelNoVolumes": "暂无可阅读的分卷",
+  "novelVolumesFailed": "目录加载失败",
+  "novelLocalTitle": "轻小说本地",
+  "novelNoLocalTitle": "还没有本地轻小说",
+  "novelNoLocalSubtitle": "去轻小说详情页下载分卷后，这里会显示离线内容",
+  "novelDeleteLocalTitle": "删除本地轻小说",
+  "novelDeleteLocalContent": "确定删除选中的 {count} 部本地轻小说吗？已下载分卷和封面都会被删除。",
+  "@novelDeleteLocalContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelLocalVolumesTitle": "本地分卷 ({count})",
+  "@novelLocalVolumesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelDeleteLocalVolumesTitle": "删除本地分卷",
+  "novelDeleteLocalVolumesContent": "确定删除选中的 {count} 卷吗？对应的正文与插图都会被删除。",
+  "@novelDeleteLocalVolumesContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelDeletedVolumesToast": "已删除 {count} 卷",
+  "@novelDeletedVolumesToast": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "novelManageVolumes": "管理分卷",
+  "novelVolumeUnit": "卷",
+  "novelDeleteToastSuffix": " 部本地轻小说",
+  "novelBrief": "简介",
+  "novelNoBrief": "暂无简介",
+  "novelUncollect": "取消收藏",
+  "novelCollectFailed": "收藏操作失败，请重试",
+  "novelQueryFailed": "阅读与收藏状态加载失败",
+  "novelAccountRequired": "阅读权限由拷贝账户决定，可登录后重试",
+  "novelLocked": "当前内容受限，可尝试切换拷贝账户",
+  "novelEmptyShelf": "书架还是空的，去发现喜欢的小说吧",
+  "novelShelfFailed": "书架加载失败",
+  "novelEmptyHistory": "开始阅读后，进度会保存在这里",
+  "novelHistoryFailed": "阅读记录加载失败",
+  "novelClearHistory": "清空阅读记录",
+  "novelClearHistoryConfirm": "仅清除本机轻小说阅读进度，不会取消书架收藏。",
+  "novelRemoveHistory": "移除阅读记录",
+  "novelHistoryDeleteFailed": "移除失败，请重试",
+  "novelBookDetails": "查看详情",
+  "novelNoComments": "暂无评论",
+  "novelCommentsFailed": "评论加载失败",
+  "novelCommentsClosed": "本书已关闭评论",
+  "novelWriteComment": "写下你的评论",
+  "novelPostComment": "发表评论",
+  "novelCommentPosted": "评论已发表",
+  "novelCommentFailed": "发表失败，内容已保留，请重试",
+  "novelReplies": "查看回复",
+  "novelReply": "回复",
+  "novelReplyTitle": "评论回复",
+  "novelCommentCollapseReplies": "收起回复",
+  "novelCommentExpandReplies": "展开 {count} 条回复",
+  "@novelCommentExpandReplies": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "novelCommentReplyLoadFailed": "回复加载失败",
+  "novelCommentRetryLoadMoreReplies": "重试加载更多回复",
+  "novelCommentEmptyReplies": "暂无可显示的回复",
+  "novelCommentLoadMoreReplies": "加载更多回复 ({loaded}/{total})",
+  "@novelCommentLoadMoreReplies": {
+    "placeholders": {
+      "loaded": {},
+      "total": {}
+    }
+  },
+  "novelCommentReplyTitle": "回复 {userName}",
+  "@novelCommentReplyTitle": {
+    "placeholders": {
+      "userName": {}
+    }
+  },
+  "novelCommentReplyHint": "回复 {userName}...",
+  "@novelCommentReplyHint": {
+    "placeholders": {
+      "userName": {}
+    }
+  },
+  "novelCommentReplyPosted": "回复已发布",
+  "novelSerializing": "连载中",
+  "novelCompleted": "已完结",
+  "novelReaderTitle": "轻小说阅读器",
+  "novelReaderBack": "返回",
+  "novelReaderHideToolbar": "收起工具栏",
+  "novelReaderShowToolbar": "展开工具栏",
+  "novelReaderContents": "目录",
+  "novelReaderVolume": "卷册",
+  "novelReaderVolumesRetry": "卷册加载失败，重试",
+  "novelReaderPrevious": "上一章节",
+  "novelReaderNext": "下一章节",
+  "novelReaderSettings": "阅读设置",
+  "novelReaderFontSize": "字号",
+  "novelReaderLineHeight": "行距",
+  "novelReaderParagraphSpacing": "段距",
+  "novelReaderTheme": "阅读背景",
+  "novelReaderThemeSystem": "跟随系统",
+  "novelReaderThemePaper": "纸张",
+  "novelReaderThemeDark": "夜间",
+  "novelReaderThemeWhite": "白底",
+  "novelReaderThemeGreen": "护眼绿",
+  "novelReaderThemeCustom": "自定义",
+  "novelReaderThemeFollowSystem": "背景跟随系统亮暗，深浅模式可分别选择方案",
+  "novelReaderThemeLightMode": "浅色模式",
+  "novelReaderThemeDarkMode": "深色模式",
+  "novelReaderThemeAdd": "新建配色方案",
+  "novelReaderThemeNameTitle": "方案名称",
+  "novelReaderThemeNameHint": "给这个配色方案起个名字",
+  "novelReaderThemeEditTitle": "编辑「{name}」",
+  "@novelReaderThemeEditTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "novelReaderThemeEdit": "编辑方案",
+  "novelReaderThemeDeleteTitle": "删除配色方案",
+  "novelReaderThemeDeleteContent": "确定删除「{name}」？绑定它的模式会回退到默认方案。",
+  "@novelReaderThemeDeleteContent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "novelReaderBackgroundColor": "背景颜色",
+  "novelReaderTextColor": "文字颜色",
+  "novelReaderPreviewText": "选择适合你的阅读配色与字号。",
+  "novelReaderKeepScreenOn": "阅读时屏幕常亮",
+  "novelReaderIllustration": "插图",
+  "novelReaderImageFailed": "插图加载失败",
+  "novelReaderEmptyChapter": "本章节暂无正文",
+  "novelReaderEmptyVolume": "本卷暂无可阅读的正文",
+  "novelReaderLoadFailed": "正文加载失败，请重试或打开本地缓存",
+  "novelReaderLocked": "本卷暂不可访问，请确认拷贝账号的阅读权限",
+  "novelReaderLoginRequired": "请登录拷贝账号后重试",
+  "novelReaderCopyLogin": "登录拷贝账号",
+  "novelReaderOpenCache": "打开本地缓存",
+  "novelReaderNoCache": "本卷没有可用的本地缓存",
+  "novelReaderUnnamedChapter": "章节 {number}",
+  "@novelReaderUnnamedChapter": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "novelReaderParagraphProgress": "{current} / {total} 段",
+  "@novelReaderParagraphProgress": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "copyAccountTitle": "轻小说 · 独立拷贝账号",
+  "copyAccountLoginTitle": "登录拷贝账号",
+  "copyAccountIndependentHint": "仅用于拷贝轻小说。登录、切换或退出此账号都不会改变当前主账号。",
+  "copyAccountConnected": "拷贝账号已登录",
+  "copyAccountNotConnected": "尚未登录拷贝账号",
+  "copyAccountSwitch": "切换拷贝账号",
+  "copyAccountLogout": "退出拷贝账号",
+  "copyAccountLogoutConfirm": "仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。",
+  "copyAccountStorageFailed": "无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。",
+  "copyAccountLoginSuperseded": "账号状态已改变，本次登录已取消，请重试。",
+  "accountCenterTitle": "账号中心",
+  "accountCenterActiveLabel": "使用中的账号",
+  "accountCenterSavedLabel": "登录过的账号",
+  "accountCenterComicAccount": "漫画账号",
+  "accountCenterNovelAccount": "轻小说账号",
+  "accountCenterNovelCopyOnlyHint": "轻小说仅支持使用拷贝账号",
+  "accountCenterNotLoggedIn": "未登录",
+  "accountCenterAddPrimary": "登录漫画账号",
+  "accountCenterAddCopy": "添加拷贝账号",
+  "accountCenterPickComic": "选择漫画使用的账号",
+  "accountCenterPickNovel": "选择轻小说使用的账号",
+  "accountCenterNovelOnlyCopy": "轻小说只能使用拷贝账号",
+  "accountCenterRenameTitle": "账号备注",
+  "accountCenterRenameLabel": "备注名",
+  "accountCenterRenameHint": "例如：主号 / 小号",
+  "accountCenterRemoveTitle": "移除账号",
+  "accountCenterRemoveConfirm": "确定移除「{name}」吗？仅删除本机保存的登录状态。",
+  "@accountCenterRemoveConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "accountCenterNovelBoundToast": "轻小说已切换到 {name}",
+  "@accountCenterNovelBoundToast": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "accountCenterNameNewTitle": "给新账号起个备注名"
 }

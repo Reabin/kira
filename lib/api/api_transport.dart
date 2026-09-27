@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
@@ -210,10 +211,11 @@ class ApiTransport {
       final code = data['code'];
       if (code != null && code != 200) {
         final results = data['results'];
-        final message =
-            data['message']?.toString() ??
-            (results is Map ? results['detail']?.toString() : null) ??
-            'Request failed (code: $code)';
+        final message = code.toString() == '210'
+            ? jsonEncode(data)
+            : data['message']?.toString() ??
+                  (results is Map ? results['detail']?.toString() : null) ??
+                  'Request failed (code: $code)';
         return handler.reject(
           DioException(
             requestOptions: response.requestOptions,

@@ -19,12 +19,12 @@ bool comicDetailUsesTwoPane(Size size) =>
 double comicDetailInfoPaneWidth(Size size) =>
     (size.width * 0.36).clamp(300.0, 420.0);
 
-/// 详情页章节卡片：标题 + 状态副标题的紧凑卡片。
+/// 详情页章节卡片：标题 + 可选状态副标题的紧凑卡片。
 /// 在网格中使用时必须以 [chapterTileExtent] 的返回值作为 mainAxisExtent，
 /// 否则大字号/高显示缩放下内容会纵向溢出。
 class ChapterCard extends StatelessWidget {
   final String name;
-  final String subtitle;
+  final String? subtitle;
   final bool isSelected;
   final bool isLastRead;
   final bool isRead;
@@ -36,7 +36,7 @@ class ChapterCard extends StatelessWidget {
   const ChapterCard({
     super.key,
     required this.name,
-    required this.subtitle,
+    this.subtitle,
     required this.isSelected,
     required this.isLastRead,
     required this.isRead,
@@ -136,17 +136,19 @@ class ChapterCard extends StatelessWidget {
                               : FontWeight.normal,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: tt.labelSmall?.copyWith(
-                          color: subtitleColor,
-                          fontSize: 12,
+                      if (subtitle case final subtitle?) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: tt.labelSmall?.copyWith(
+                            color: subtitleColor,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

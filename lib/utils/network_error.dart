@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
@@ -100,10 +101,17 @@ class NetworkError {
   static String message(Object error, {AppLocalizations? l10n}) {
     if (isRateLimited(error)) return rateLimitMessage(l10n);
     if (error is DioException) {
-      final dataMessage = _messageFromData(error.response?.data);
+      final data = error.response?.data;
+      final code = _codeFromData(data)?.toString();
+      if (code == '210' || error.response?.statusCode == 210) {
+        // Code 210 is intentionally verbose: retain the complete upstream body
+        // so the user can diagnose temporary service/API errors.
+        return data is String ? data : jsonEncode(data);
+      }
+      final dataMessage = _messageFromData(data);
       if (dataMessage != null) return dataMessage;
       final message = error.message;
-      final responseCode = _codeFromData(error.response?.data);
+      final responseCode = _codeFromData(data);
       if (l10n != null && responseCode != null) {
         return l10n.networkRequestFailedCode(responseCode.toString());
       }

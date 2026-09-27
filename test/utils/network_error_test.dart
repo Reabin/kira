@@ -56,6 +56,32 @@ void main() {
     expect(entry.toPlainText(), isNot(contains('secret')));
   });
 
+  test('code 210 returns the complete upstream response for diagnosis', () {
+    final options = RequestOptions(
+      path: 'https://example.com/api',
+      method: 'POST',
+    );
+    const payload = {
+      'code': 210,
+      'message': '服务暂时不可用，请稍后再试.',
+      'results': {'detail': '服务暂时不可用，请稍后再试.'},
+    };
+    final error = DioException(
+      requestOptions: options,
+      response: Response<dynamic>(
+        requestOptions: options,
+        statusCode: 200,
+        data: payload,
+      ),
+      message: 'service unavailable',
+      type: DioExceptionType.badResponse,
+    );
+
+    expect(
+      NetworkError.message(error),
+      '{"code":210,"message":"服务暂时不可用，请稍后再试.","results":{"detail":"服务暂时不可用，请稍后再试."}}',
+    );
+  });
   test('throwBadResponse records then throws dio exception', () async {
     final logger = AppLogger(directoryProvider: () async => tempDir);
     final options = RequestOptions(

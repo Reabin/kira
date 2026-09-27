@@ -6,6 +6,7 @@ import '../utils/data_cache.dart';
 import 'api_transport.dart';
 import 'manga/manga_api.dart';
 import 'network/network_api.dart';
+import 'novel/novel_api.dart';
 import 'user/user_api.dart';
 
 /// Facade that creates and exposes individual API services.
@@ -23,6 +24,7 @@ class ApiClient {
 
   late final ApiTransport _transport;
   late final MangaApi manga;
+  late final NovelApi novel;
   late final NetworkApi network;
   late final UserApi user;
 
@@ -62,6 +64,7 @@ class ApiClient {
     );
 
     manga = MangaApi(_transport);
+    novel = NovelApi(_transport);
     network = NetworkApi(_transport);
     user = UserApi(_transport);
 

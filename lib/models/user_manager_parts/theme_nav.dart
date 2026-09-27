@@ -76,21 +76,9 @@ extension UserManagerThemeNavPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setNavOrder(List<String> order) async {
-    _navOrder = UserManager._normalizeNavOrder(order);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(UserManager._keyNavOrder, _navOrder);
-    _notifyListeners();
-  }
+  Future<void> setNavOrder(List<String> order) => theme.setNavOrder(order);
 
-  Future<void> setLastNavKey(String key) async {
-    final nextKey = UserManager._normalizeNavKey(key);
-    if (_lastNavKey == nextKey && key == nextKey) return;
-
-    _lastNavKey = nextKey;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(UserManager._keyLastNavKey, nextKey);
-  }
+  Future<void> setLastNavKey(String key) => theme.setLastNavKey(key);
 
   Future<void> setDesktopFontFamily(String fontFamily) async {
     if (_desktopFontFamily == fontFamily) return;

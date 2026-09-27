@@ -12,6 +12,28 @@ class AppLocalizationsZh extends AppLocalizations {
   String get comicTabLabel => '漫画';
 
   @override
+  String get novelTitle => '轻小说';
+
+  @override
+  String get novelDownloadUnavailable => '该卷未下载或本地文件已损坏，请前往下载中心重新下载。';
+
+  @override
+  String get cacheCategoryNovelHistory => '轻小说阅读记录';
+
+  @override
+  String get cacheNovelTextLabel => '轻小说正文缓存';
+
+  @override
+  String get cacheNovelTextDesc => '已阅读分卷的本地正文，清除后重新在线阅读需要重新请求；已下载到本机的分卷不受影响。';
+
+  @override
+  String get cacheNovelTextClearConfirm =>
+      '清除已缓存的轻小说正文？阅读进度会保留，但离线时将无法继续阅读这些分卷。';
+
+  @override
+  String get cacheNovelTextCleared => '已清除轻小说正文缓存';
+
+  @override
   String get searchTabLabel => '搜索';
 
   @override
@@ -286,6 +308,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noComicUpdates => '没有漫画更新';
+
+  @override
+  String get noNovelUpdates => '没有轻小说更新';
 
   @override
   String get backToTop => '回到顶部';
@@ -604,6 +629,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get userInfoRefreshFailedToast => '刷新失败，请重试';
+
+  @override
+  String get copyProfileRefreshUnavailable => '暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名';
 
   @override
   String get tokenUnavailableToast => '暂无可复制的令牌';
@@ -1272,6 +1300,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get bookmarksTitle => '书签';
+
+  @override
+  String bookmarksTabClearContent(String type) {
+    return '确定清空所有$type书签？';
+  }
+
+  @override
+  String get novelBookmarksEmptySubtitle => '阅读轻小说时，点击工具栏右上角添加书签';
+
+  @override
+  String get bookmarksLoadFailed => '书签加载失败，请重试';
+
+  @override
+  String get bookmarksUpdateFailed => '书签保存失败，请重试';
 
   @override
   String get statsTitle => '阅读统计';
@@ -2671,6 +2713,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get downloadChapterCommentsDesc => '下载章节时一并保存评论';
 
   @override
+  String get downloadVolumeConcurrency => '卷下载并发数量';
+
+  @override
+  String get downloadVolumeConcurrencyDesc => '同时下载的轻小说分卷数量，数值越大占用带宽越多';
+
+  @override
+  String get novelDownloadSection => '轻小说下载';
+
+  @override
+  String get novelDownloadDirectoryOverlap => '轻小说与漫画下载目录不能相同或互相包含';
+
+  @override
+  String novelDownloadMigrateConfirmContent(int count) {
+    return '将把已下载的 $count 部轻小说移动到新目录，迁移期间请勿退出应用。';
+  }
+
+  @override
   String get downloadSaveLocation => '保存位置';
 
   @override
@@ -2750,10 +2809,39 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pausedStatus => '已暂停';
 
   @override
+  String get novelDownloadCompleted => '已完成';
+
+  @override
+  String get novelDownloadPartial => '正文已下载，部分插图缺失';
+
+  @override
+  String get novelDownloadFailed => '下载失败';
+
+  @override
+  String get novelDownloadUnauthorized => '登录后重试';
+
+  @override
+  String get novelDownloadLocked => '内容受限';
+
+  @override
+  String get novelDownloadNeedsRepair => '文件待修复';
+
+  @override
+  String novelDownloadDeleteConfirm(String volume) {
+    return '确定删除「$volume」的轻小说下载吗？本地卷文件也会删除。';
+  }
+
+  @override
   String get downloadPauseButton => '暂停下载';
 
   @override
   String get downloadResumeButton => '继续下载';
+
+  @override
+  String get downloadQueuePause => '暂停';
+
+  @override
+  String get downloadQueueResume => '继续';
 
   @override
   String get downloadQueueDeleteTitle => '删除下载任务';
@@ -2772,6 +2860,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String downloadQueueDeleteBatchContent(int count) {
     return '已下载的 $count 页文件将一并删除。';
   }
+
+  @override
+  String get downloadQueueDeleteSelectedConfirm => '所选下载任务及已保存的相关文件都会被删除。';
 
   @override
   String get downloadQueueSelect => '多选';
@@ -3204,6 +3295,22 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get downloadForegroundGenericTitle => '正在下载内容';
+
+  @override
+  String get downloadForegroundGenericChannel => '内容下载';
+
+  @override
+  String downloadForegroundGenericBody(int active, int pending) {
+    return '下载中 $active 项 · 等待 $pending 项';
+  }
+
+  @override
+  String downloadForegroundFiles(int done, int total) {
+    return '文件 $done/$total';
+  }
+
+  @override
   String downloadForegroundImages(int done, int total) {
     return '图片 $done/$total';
   }
@@ -3539,6 +3646,489 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get backupEmptyCategory => '没有内容，恢复后将清空';
+
+  @override
+  String get novelBookshelf => '小说书架';
+
+  @override
+  String get novelSearchHint => '搜索轻小说';
+
+  @override
+  String get novelSearchEmpty => '没有找到相关轻小说，换个关键词试试';
+
+  @override
+  String get novelSearchFailed => '搜索失败，请重试';
+
+  @override
+  String get continueReadingComic => '继续阅读漫画';
+
+  @override
+  String get continueReadingNovel => '继续阅读轻小说';
+
+  @override
+  String get historyTabComic => '漫画';
+
+  @override
+  String get historyTabNovel => '轻小说';
+
+  @override
+  String get novelHistory => '阅读记录';
+
+  @override
+  String get novelCopyLoginRequired => '登录拷贝账户后查看书架、收藏';
+
+  @override
+  String get novelCopyLogin => '登录拷贝账户';
+
+  @override
+  String get novelContinueReading => '继续阅读';
+
+  @override
+  String get novelStartReading => '开始阅读';
+
+  @override
+  String novelVolumeProgress(String percent) {
+    return '本卷 $percent%';
+  }
+
+  @override
+  String get novelBrowseBooks => '浏览书籍';
+
+  @override
+  String get novelAllThemes => '全部题材';
+
+  @override
+  String get novelThemes => '题材';
+
+  @override
+  String get novelPopularSort => '热门';
+
+  @override
+  String get novelUpdatedSort => '最近更新';
+
+  @override
+  String get novelEmptyBooks => '暂无书籍，试试其他题材';
+
+  @override
+  String get novelLoadMore => '加载更多';
+
+  @override
+  String get novelLoadMoreFailed => '加载失败，点击重试';
+
+  @override
+  String get novelLoadFailed => '书籍加载失败';
+
+  @override
+  String get novelThemesFailed => '题材加载失败';
+
+  @override
+  String get novelVolumes => '分卷目录';
+
+  @override
+  String get novelNoVolumes => '暂无可阅读的分卷';
+
+  @override
+  String get novelVolumesFailed => '目录加载失败';
+
+  @override
+  String get novelLocalTitle => '轻小说本地';
+
+  @override
+  String get novelNoLocalTitle => '还没有本地轻小说';
+
+  @override
+  String get novelNoLocalSubtitle => '去轻小说详情页下载分卷后，这里会显示离线内容';
+
+  @override
+  String get novelDeleteLocalTitle => '删除本地轻小说';
+
+  @override
+  String novelDeleteLocalContent(int count) {
+    return '确定删除选中的 $count 部本地轻小说吗？已下载分卷和封面都会被删除。';
+  }
+
+  @override
+  String novelLocalVolumesTitle(int count) {
+    return '本地分卷 ($count)';
+  }
+
+  @override
+  String get novelDeleteLocalVolumesTitle => '删除本地分卷';
+
+  @override
+  String novelDeleteLocalVolumesContent(int count) {
+    return '确定删除选中的 $count 卷吗？对应的正文与插图都会被删除。';
+  }
+
+  @override
+  String novelDeletedVolumesToast(int count) {
+    return '已删除 $count 卷';
+  }
+
+  @override
+  String get novelManageVolumes => '管理分卷';
+
+  @override
+  String get novelVolumeUnit => '卷';
+
+  @override
+  String get novelDeleteToastSuffix => ' 部本地轻小说';
+
+  @override
+  String get novelBrief => '简介';
+
+  @override
+  String get novelNoBrief => '暂无简介';
+
+  @override
+  String get novelUncollect => '取消收藏';
+
+  @override
+  String get novelCollectFailed => '收藏操作失败，请重试';
+
+  @override
+  String get novelQueryFailed => '阅读与收藏状态加载失败';
+
+  @override
+  String get novelAccountRequired => '阅读权限由拷贝账户决定，可登录后重试';
+
+  @override
+  String get novelLocked => '当前内容受限，可尝试切换拷贝账户';
+
+  @override
+  String get novelEmptyShelf => '书架还是空的，去发现喜欢的小说吧';
+
+  @override
+  String get novelShelfFailed => '书架加载失败';
+
+  @override
+  String get novelEmptyHistory => '开始阅读后，进度会保存在这里';
+
+  @override
+  String get novelHistoryFailed => '阅读记录加载失败';
+
+  @override
+  String get novelClearHistory => '清空阅读记录';
+
+  @override
+  String get novelClearHistoryConfirm => '仅清除本机轻小说阅读进度，不会取消书架收藏。';
+
+  @override
+  String get novelRemoveHistory => '移除阅读记录';
+
+  @override
+  String get novelHistoryDeleteFailed => '移除失败，请重试';
+
+  @override
+  String get novelBookDetails => '查看详情';
+
+  @override
+  String get novelNoComments => '暂无评论';
+
+  @override
+  String get novelCommentsFailed => '评论加载失败';
+
+  @override
+  String get novelCommentsClosed => '本书已关闭评论';
+
+  @override
+  String get novelWriteComment => '写下你的评论';
+
+  @override
+  String get novelPostComment => '发表评论';
+
+  @override
+  String get novelCommentPosted => '评论已发表';
+
+  @override
+  String get novelCommentFailed => '发表失败，内容已保留，请重试';
+
+  @override
+  String get novelReplies => '查看回复';
+
+  @override
+  String get novelReply => '回复';
+
+  @override
+  String get novelReplyTitle => '评论回复';
+
+  @override
+  String get novelCommentCollapseReplies => '收起回复';
+
+  @override
+  String novelCommentExpandReplies(Object count) {
+    return '展开 $count 条回复';
+  }
+
+  @override
+  String get novelCommentReplyLoadFailed => '回复加载失败';
+
+  @override
+  String get novelCommentRetryLoadMoreReplies => '重试加载更多回复';
+
+  @override
+  String get novelCommentEmptyReplies => '暂无可显示的回复';
+
+  @override
+  String novelCommentLoadMoreReplies(Object loaded, Object total) {
+    return '加载更多回复 ($loaded/$total)';
+  }
+
+  @override
+  String novelCommentReplyTitle(Object userName) {
+    return '回复 $userName';
+  }
+
+  @override
+  String novelCommentReplyHint(Object userName) {
+    return '回复 $userName...';
+  }
+
+  @override
+  String get novelCommentReplyPosted => '回复已发布';
+
+  @override
+  String get novelSerializing => '连载中';
+
+  @override
+  String get novelCompleted => '已完结';
+
+  @override
+  String get novelReaderTitle => '轻小说阅读器';
+
+  @override
+  String get novelReaderBack => '返回';
+
+  @override
+  String get novelReaderHideToolbar => '收起工具栏';
+
+  @override
+  String get novelReaderShowToolbar => '展开工具栏';
+
+  @override
+  String get novelReaderContents => '目录';
+
+  @override
+  String get novelReaderVolume => '卷册';
+
+  @override
+  String get novelReaderVolumesRetry => '卷册加载失败，重试';
+
+  @override
+  String get novelReaderPrevious => '上一章节';
+
+  @override
+  String get novelReaderNext => '下一章节';
+
+  @override
+  String get novelReaderSettings => '阅读设置';
+
+  @override
+  String get novelReaderFontSize => '字号';
+
+  @override
+  String get novelReaderLineHeight => '行距';
+
+  @override
+  String get novelReaderParagraphSpacing => '段距';
+
+  @override
+  String get novelReaderTheme => '阅读背景';
+
+  @override
+  String get novelReaderThemeSystem => '跟随系统';
+
+  @override
+  String get novelReaderThemePaper => '纸张';
+
+  @override
+  String get novelReaderThemeDark => '夜间';
+
+  @override
+  String get novelReaderThemeWhite => '白底';
+
+  @override
+  String get novelReaderThemeGreen => '护眼绿';
+
+  @override
+  String get novelReaderThemeCustom => '自定义';
+
+  @override
+  String get novelReaderThemeFollowSystem => '背景跟随系统亮暗，深浅模式可分别选择方案';
+
+  @override
+  String get novelReaderThemeLightMode => '浅色模式';
+
+  @override
+  String get novelReaderThemeDarkMode => '深色模式';
+
+  @override
+  String get novelReaderThemeAdd => '新建配色方案';
+
+  @override
+  String get novelReaderThemeNameTitle => '方案名称';
+
+  @override
+  String get novelReaderThemeNameHint => '给这个配色方案起个名字';
+
+  @override
+  String novelReaderThemeEditTitle(String name) {
+    return '编辑「$name」';
+  }
+
+  @override
+  String get novelReaderThemeEdit => '编辑方案';
+
+  @override
+  String get novelReaderThemeDeleteTitle => '删除配色方案';
+
+  @override
+  String novelReaderThemeDeleteContent(String name) {
+    return '确定删除「$name」？绑定它的模式会回退到默认方案。';
+  }
+
+  @override
+  String get novelReaderBackgroundColor => '背景颜色';
+
+  @override
+  String get novelReaderTextColor => '文字颜色';
+
+  @override
+  String get novelReaderPreviewText => '选择适合你的阅读配色与字号。';
+
+  @override
+  String get novelReaderKeepScreenOn => '阅读时屏幕常亮';
+
+  @override
+  String get novelReaderIllustration => '插图';
+
+  @override
+  String get novelReaderImageFailed => '插图加载失败';
+
+  @override
+  String get novelReaderEmptyChapter => '本章节暂无正文';
+
+  @override
+  String get novelReaderEmptyVolume => '本卷暂无可阅读的正文';
+
+  @override
+  String get novelReaderLoadFailed => '正文加载失败，请重试或打开本地缓存';
+
+  @override
+  String get novelReaderLocked => '本卷暂不可访问，请确认拷贝账号的阅读权限';
+
+  @override
+  String get novelReaderLoginRequired => '请登录拷贝账号后重试';
+
+  @override
+  String get novelReaderCopyLogin => '登录拷贝账号';
+
+  @override
+  String get novelReaderOpenCache => '打开本地缓存';
+
+  @override
+  String get novelReaderNoCache => '本卷没有可用的本地缓存';
+
+  @override
+  String novelReaderUnnamedChapter(int number) {
+    return '章节 $number';
+  }
+
+  @override
+  String novelReaderParagraphProgress(int current, int total) {
+    return '$current / $total 段';
+  }
+
+  @override
+  String get copyAccountTitle => '轻小说 · 独立拷贝账号';
+
+  @override
+  String get copyAccountLoginTitle => '登录拷贝账号';
+
+  @override
+  String get copyAccountIndependentHint => '仅用于拷贝轻小说。登录、切换或退出此账号都不会改变当前主账号。';
+
+  @override
+  String get copyAccountConnected => '拷贝账号已登录';
+
+  @override
+  String get copyAccountNotConnected => '尚未登录拷贝账号';
+
+  @override
+  String get copyAccountSwitch => '切换拷贝账号';
+
+  @override
+  String get copyAccountLogout => '退出拷贝账号';
+
+  @override
+  String get copyAccountLogoutConfirm => '仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。';
+
+  @override
+  String get copyAccountStorageFailed => '无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。';
+
+  @override
+  String get copyAccountLoginSuperseded => '账号状态已改变，本次登录已取消，请重试。';
+
+  @override
+  String get accountCenterTitle => '账号中心';
+
+  @override
+  String get accountCenterActiveLabel => '使用中的账号';
+
+  @override
+  String get accountCenterSavedLabel => '登录过的账号';
+
+  @override
+  String get accountCenterComicAccount => '漫画账号';
+
+  @override
+  String get accountCenterNovelAccount => '轻小说账号';
+
+  @override
+  String get accountCenterNovelCopyOnlyHint => '轻小说仅支持使用拷贝账号';
+
+  @override
+  String get accountCenterNotLoggedIn => '未登录';
+
+  @override
+  String get accountCenterAddPrimary => '登录漫画账号';
+
+  @override
+  String get accountCenterAddCopy => '添加拷贝账号';
+
+  @override
+  String get accountCenterPickComic => '选择漫画使用的账号';
+
+  @override
+  String get accountCenterPickNovel => '选择轻小说使用的账号';
+
+  @override
+  String get accountCenterNovelOnlyCopy => '轻小说只能使用拷贝账号';
+
+  @override
+  String get accountCenterRenameTitle => '账号备注';
+
+  @override
+  String get accountCenterRenameLabel => '备注名';
+
+  @override
+  String get accountCenterRenameHint => '例如：主号 / 小号';
+
+  @override
+  String get accountCenterRemoveTitle => '移除账号';
+
+  @override
+  String accountCenterRemoveConfirm(String name) {
+    return '确定移除「$name」吗？仅删除本机保存的登录状态。';
+  }
+
+  @override
+  String accountCenterNovelBoundToast(String name) {
+    return '轻小说已切换到 $name';
+  }
+
+  @override
+  String get accountCenterNameNewTitle => '给新账号起个备注名';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -3547,6 +4137,28 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get comicTabLabel => '漫畫';
+
+  @override
+  String get novelTitle => '輕小說';
+
+  @override
+  String get novelDownloadUnavailable => '該卷未下載或本機檔案已損壞，請前往下載中心重新下載。';
+
+  @override
+  String get cacheCategoryNovelHistory => '輕小說閱讀記錄';
+
+  @override
+  String get cacheNovelTextLabel => '輕小說正文快取';
+
+  @override
+  String get cacheNovelTextDesc => '已閱讀卷冊的本機正文，清除後重新線上閱讀需要重新請求；已下載到本機的分卷不受影響。';
+
+  @override
+  String get cacheNovelTextClearConfirm =>
+      '清除已快取的輕小說正文？閱讀進度會保留，但離線時將無法繼續閱讀這些卷冊。';
+
+  @override
+  String get cacheNovelTextCleared => '已清除輕小說正文快取';
 
   @override
   String get searchTabLabel => '搜尋';
@@ -3823,6 +4435,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get noComicUpdates => '沒有漫畫更新';
+
+  @override
+  String get noNovelUpdates => '沒有輕小說更新';
 
   @override
   String get backToTop => '回到頂部';
@@ -4141,6 +4756,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get userInfoRefreshFailedToast => '重新整理失敗，請重試';
+
+  @override
+  String get copyProfileRefreshUnavailable => '暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱';
 
   @override
   String get tokenUnavailableToast => '暫無可複製的權杖';
@@ -4809,6 +5427,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get bookmarksTitle => '書籤';
+
+  @override
+  String bookmarksTabClearContent(String type) {
+    return '確定清空所有$type書籤？';
+  }
+
+  @override
+  String get novelBookmarksEmptySubtitle => '閱讀輕小說時，點擊工具列右上角新增書籤';
+
+  @override
+  String get bookmarksLoadFailed => '書籤載入失敗，請重試';
+
+  @override
+  String get bookmarksUpdateFailed => '書籤儲存失敗，請重試';
 
   @override
   String get statsTitle => '閱讀統計';
@@ -6208,6 +6840,23 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get downloadChapterCommentsDesc => '下載章節時一併儲存評論';
 
   @override
+  String get downloadVolumeConcurrency => '卷下載並行數量';
+
+  @override
+  String get downloadVolumeConcurrencyDesc => '同時下載的輕小說分卷數量，數值越大佔用頻寬越多';
+
+  @override
+  String get novelDownloadSection => '輕小說下載';
+
+  @override
+  String get novelDownloadDirectoryOverlap => '輕小說與漫畫下載目錄不能相同或互相包含';
+
+  @override
+  String novelDownloadMigrateConfirmContent(int count) {
+    return '將把已下載的 $count 部輕小說移動到新目錄，遷移期間請勿退出應用。';
+  }
+
+  @override
   String get downloadSaveLocation => '儲存位置';
 
   @override
@@ -6287,10 +6936,39 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get pausedStatus => '已暫停';
 
   @override
+  String get novelDownloadCompleted => '已完成';
+
+  @override
+  String get novelDownloadPartial => '正文已下載，部分插圖缺失';
+
+  @override
+  String get novelDownloadFailed => '下載失敗';
+
+  @override
+  String get novelDownloadUnauthorized => '登入後重試';
+
+  @override
+  String get novelDownloadLocked => '內容受限';
+
+  @override
+  String get novelDownloadNeedsRepair => '檔案待修復';
+
+  @override
+  String novelDownloadDeleteConfirm(String volume) {
+    return '確定刪除「$volume」的輕小說下載嗎？本機卷檔案也會刪除。';
+  }
+
+  @override
   String get downloadPauseButton => '暫停下載';
 
   @override
   String get downloadResumeButton => '繼續下載';
+
+  @override
+  String get downloadQueuePause => '暫停';
+
+  @override
+  String get downloadQueueResume => '繼續';
 
   @override
   String get downloadQueueDeleteTitle => '刪除下載任務';
@@ -6309,6 +6987,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String downloadQueueDeleteBatchContent(int count) {
     return '已下載的 $count 頁檔案將一併刪除。';
   }
+
+  @override
+  String get downloadQueueDeleteSelectedConfirm => '所選下載任務及已儲存的相關檔案都會被刪除。';
 
   @override
   String get downloadQueueSelect => '多選';
@@ -6741,6 +7422,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String get downloadForegroundGenericTitle => '正在下載內容';
+
+  @override
+  String get downloadForegroundGenericChannel => '內容下載';
+
+  @override
+  String downloadForegroundGenericBody(int active, int pending) {
+    return '下載中 $active 項 · 等待 $pending 項';
+  }
+
+  @override
+  String downloadForegroundFiles(int done, int total) {
+    return '檔案 $done/$total';
+  }
+
+  @override
   String downloadForegroundImages(int done, int total) {
     return '圖片 $done/$total';
   }
@@ -7076,4 +7773,487 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get backupEmptyCategory => '沒有內容，還原後將清空';
+
+  @override
+  String get novelBookshelf => '小說書架';
+
+  @override
+  String get novelSearchHint => '搜尋輕小說';
+
+  @override
+  String get novelSearchEmpty => '沒有找到相關輕小說，換個關鍵字試試';
+
+  @override
+  String get novelSearchFailed => '搜尋失敗，請重試';
+
+  @override
+  String get continueReadingComic => '繼續閱讀漫畫';
+
+  @override
+  String get continueReadingNovel => '繼續閱讀輕小說';
+
+  @override
+  String get historyTabComic => '漫畫';
+
+  @override
+  String get historyTabNovel => '輕小說';
+
+  @override
+  String get novelHistory => '閱讀記錄';
+
+  @override
+  String get novelCopyLoginRequired => '登入拷貝帳戶後查看書架、收藏';
+
+  @override
+  String get novelCopyLogin => '登入拷貝帳戶';
+
+  @override
+  String get novelContinueReading => '繼續閱讀';
+
+  @override
+  String get novelStartReading => '開始閱讀';
+
+  @override
+  String novelVolumeProgress(String percent) {
+    return '本卷 $percent%';
+  }
+
+  @override
+  String get novelBrowseBooks => '瀏覽書籍';
+
+  @override
+  String get novelAllThemes => '全部題材';
+
+  @override
+  String get novelThemes => '題材';
+
+  @override
+  String get novelPopularSort => '熱門';
+
+  @override
+  String get novelUpdatedSort => '最近更新';
+
+  @override
+  String get novelEmptyBooks => '暫無書籍，試試其他題材';
+
+  @override
+  String get novelLoadMore => '載入更多';
+
+  @override
+  String get novelLoadMoreFailed => '載入失敗，點擊重試';
+
+  @override
+  String get novelLoadFailed => '書籍載入失敗';
+
+  @override
+  String get novelThemesFailed => '題材載入失敗';
+
+  @override
+  String get novelVolumes => '分卷目錄';
+
+  @override
+  String get novelNoVolumes => '暫無可閱讀的分卷';
+
+  @override
+  String get novelVolumesFailed => '目錄載入失敗';
+
+  @override
+  String get novelLocalTitle => '輕小說本機';
+
+  @override
+  String get novelNoLocalTitle => '還沒有本機輕小說';
+
+  @override
+  String get novelNoLocalSubtitle => '去輕小說詳情頁下載分卷後，這裡會顯示離線內容';
+
+  @override
+  String get novelDeleteLocalTitle => '刪除本機輕小說';
+
+  @override
+  String novelDeleteLocalContent(int count) {
+    return '確定刪除選中的 $count 部本機輕小說嗎？已下載分卷和封面都會被刪除。';
+  }
+
+  @override
+  String novelLocalVolumesTitle(int count) {
+    return '本機分卷 ($count)';
+  }
+
+  @override
+  String get novelDeleteLocalVolumesTitle => '刪除本機分卷';
+
+  @override
+  String novelDeleteLocalVolumesContent(int count) {
+    return '確定刪除選中的 $count 卷嗎？對應的正文與插圖都會被刪除。';
+  }
+
+  @override
+  String novelDeletedVolumesToast(int count) {
+    return '已刪除 $count 卷';
+  }
+
+  @override
+  String get novelManageVolumes => '管理分卷';
+
+  @override
+  String get novelVolumeUnit => '卷';
+
+  @override
+  String get novelDeleteToastSuffix => ' 部本機輕小說';
+
+  @override
+  String get novelBrief => '簡介';
+
+  @override
+  String get novelNoBrief => '暫無簡介';
+
+  @override
+  String get novelUncollect => '取消收藏';
+
+  @override
+  String get novelCollectFailed => '收藏操作失敗，請重試';
+
+  @override
+  String get novelQueryFailed => '閱讀與收藏狀態載入失敗';
+
+  @override
+  String get novelAccountRequired => '閱讀權限由拷貝帳戶決定，可登入後重試';
+
+  @override
+  String get novelLocked => '目前內容受限，可嘗試切換拷貝帳戶';
+
+  @override
+  String get novelEmptyShelf => '書架還是空的，去發現喜歡的小說吧';
+
+  @override
+  String get novelShelfFailed => '書架載入失敗';
+
+  @override
+  String get novelEmptyHistory => '開始閱讀後，進度會儲存在這裡';
+
+  @override
+  String get novelHistoryFailed => '閱讀記錄載入失敗';
+
+  @override
+  String get novelClearHistory => '清空閱讀記錄';
+
+  @override
+  String get novelClearHistoryConfirm => '僅清除本機輕小說閱讀進度，不會取消書架收藏。';
+
+  @override
+  String get novelRemoveHistory => '移除閱讀記錄';
+
+  @override
+  String get novelHistoryDeleteFailed => '移除失敗，請重試';
+
+  @override
+  String get novelBookDetails => '查看詳情';
+
+  @override
+  String get novelNoComments => '暫無評論';
+
+  @override
+  String get novelCommentsFailed => '評論載入失敗';
+
+  @override
+  String get novelCommentsClosed => '本書已關閉評論';
+
+  @override
+  String get novelWriteComment => '寫下你的評論';
+
+  @override
+  String get novelPostComment => '發表評論';
+
+  @override
+  String get novelCommentPosted => '評論已發表';
+
+  @override
+  String get novelCommentFailed => '發表失敗，內容已保留，請重試';
+
+  @override
+  String get novelReplies => '查看回覆';
+
+  @override
+  String get novelReply => '回覆';
+
+  @override
+  String get novelReplyTitle => '評論回覆';
+
+  @override
+  String get novelCommentCollapseReplies => '收起回覆';
+
+  @override
+  String novelCommentExpandReplies(Object count) {
+    return '展開 $count 條回覆';
+  }
+
+  @override
+  String get novelCommentReplyLoadFailed => '回覆載入失敗';
+
+  @override
+  String get novelCommentRetryLoadMoreReplies => '重試載入更多回覆';
+
+  @override
+  String get novelCommentEmptyReplies => '暫無可顯示的回覆';
+
+  @override
+  String novelCommentLoadMoreReplies(Object loaded, Object total) {
+    return '載入更多回覆 ($loaded/$total)';
+  }
+
+  @override
+  String novelCommentReplyTitle(Object userName) {
+    return '回覆 $userName';
+  }
+
+  @override
+  String novelCommentReplyHint(Object userName) {
+    return '回覆 $userName...';
+  }
+
+  @override
+  String get novelCommentReplyPosted => '回覆已發布';
+
+  @override
+  String get novelSerializing => '連載中';
+
+  @override
+  String get novelCompleted => '已完結';
+
+  @override
+  String get novelReaderTitle => '輕小說閱讀器';
+
+  @override
+  String get novelReaderBack => '返回';
+
+  @override
+  String get novelReaderHideToolbar => '收起工具列';
+
+  @override
+  String get novelReaderShowToolbar => '展開工具列';
+
+  @override
+  String get novelReaderContents => '目錄';
+
+  @override
+  String get novelReaderVolume => '卷冊';
+
+  @override
+  String get novelReaderVolumesRetry => '卷冊載入失敗，重試';
+
+  @override
+  String get novelReaderPrevious => '上一章節';
+
+  @override
+  String get novelReaderNext => '下一章節';
+
+  @override
+  String get novelReaderSettings => '閱讀設定';
+
+  @override
+  String get novelReaderFontSize => '字級';
+
+  @override
+  String get novelReaderLineHeight => '行距';
+
+  @override
+  String get novelReaderParagraphSpacing => '段距';
+
+  @override
+  String get novelReaderTheme => '閱讀背景';
+
+  @override
+  String get novelReaderThemeSystem => '跟隨系統';
+
+  @override
+  String get novelReaderThemePaper => '紙張';
+
+  @override
+  String get novelReaderThemeDark => '夜間';
+
+  @override
+  String get novelReaderThemeWhite => '白底';
+
+  @override
+  String get novelReaderThemeGreen => '護眼綠';
+
+  @override
+  String get novelReaderThemeCustom => '自訂';
+
+  @override
+  String get novelReaderThemeFollowSystem => '背景跟隨系統亮暗，深淺模式可分別選擇方案';
+
+  @override
+  String get novelReaderThemeLightMode => '淺色模式';
+
+  @override
+  String get novelReaderThemeDarkMode => '深色模式';
+
+  @override
+  String get novelReaderThemeAdd => '新增配色方案';
+
+  @override
+  String get novelReaderThemeNameTitle => '方案名稱';
+
+  @override
+  String get novelReaderThemeNameHint => '為這個配色方案取個名字';
+
+  @override
+  String novelReaderThemeEditTitle(String name) {
+    return '編輯「$name」';
+  }
+
+  @override
+  String get novelReaderThemeEdit => '編輯方案';
+
+  @override
+  String get novelReaderThemeDeleteTitle => '刪除配色方案';
+
+  @override
+  String novelReaderThemeDeleteContent(String name) {
+    return '確定刪除「$name」？綁定它的模式會回退到預設方案。';
+  }
+
+  @override
+  String get novelReaderBackgroundColor => '背景顏色';
+
+  @override
+  String get novelReaderTextColor => '文字顏色';
+
+  @override
+  String get novelReaderPreviewText => '選擇適合你的閱讀配色與字級。';
+
+  @override
+  String get novelReaderKeepScreenOn => '閱讀時螢幕常亮';
+
+  @override
+  String get novelReaderIllustration => '插圖';
+
+  @override
+  String get novelReaderImageFailed => '插圖載入失敗';
+
+  @override
+  String get novelReaderEmptyChapter => '本章節暫無正文';
+
+  @override
+  String get novelReaderEmptyVolume => '本卷暫無可閱讀的正文';
+
+  @override
+  String get novelReaderLoadFailed => '正文載入失敗，請重試或開啟本機快取';
+
+  @override
+  String get novelReaderLocked => '本卷暫不可存取，請確認拷貝帳號的閱讀權限';
+
+  @override
+  String get novelReaderLoginRequired => '請登入拷貝帳號後重試';
+
+  @override
+  String get novelReaderCopyLogin => '登入拷貝帳號';
+
+  @override
+  String get novelReaderOpenCache => '開啟本機快取';
+
+  @override
+  String get novelReaderNoCache => '本卷沒有可用的本機快取';
+
+  @override
+  String novelReaderUnnamedChapter(int number) {
+    return '章節 $number';
+  }
+
+  @override
+  String novelReaderParagraphProgress(int current, int total) {
+    return '$current / $total 段';
+  }
+
+  @override
+  String get copyAccountTitle => '輕小說 · 獨立拷貝帳號';
+
+  @override
+  String get copyAccountLoginTitle => '登入拷貝帳號';
+
+  @override
+  String get copyAccountIndependentHint => '僅用於拷貝輕小說。登入、切換或登出此帳號都不會改變目前主帳號。';
+
+  @override
+  String get copyAccountConnected => '拷貝帳號已登入';
+
+  @override
+  String get copyAccountNotConnected => '尚未登入拷貝帳號';
+
+  @override
+  String get copyAccountSwitch => '切換拷貝帳號';
+
+  @override
+  String get copyAccountLogout => '登出拷貝帳號';
+
+  @override
+  String get copyAccountLogoutConfirm => '僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。';
+
+  @override
+  String get copyAccountStorageFailed => '無法儲存拷貝帳號，請檢查安全儲存後重試；原帳號保持不變。';
+
+  @override
+  String get copyAccountLoginSuperseded => '帳號狀態已改變，本次登入已取消，請重試。';
+
+  @override
+  String get accountCenterTitle => '帳號中心';
+
+  @override
+  String get accountCenterActiveLabel => '使用中的帳號';
+
+  @override
+  String get accountCenterSavedLabel => '登入過的帳號';
+
+  @override
+  String get accountCenterComicAccount => '漫畫帳號';
+
+  @override
+  String get accountCenterNovelAccount => '輕小說帳號';
+
+  @override
+  String get accountCenterNovelCopyOnlyHint => '輕小說僅支援使用拷貝帳號';
+
+  @override
+  String get accountCenterNotLoggedIn => '未登入';
+
+  @override
+  String get accountCenterAddPrimary => '登入漫畫帳號';
+
+  @override
+  String get accountCenterAddCopy => '新增拷貝帳號';
+
+  @override
+  String get accountCenterPickComic => '選擇漫畫使用的帳號';
+
+  @override
+  String get accountCenterPickNovel => '選擇輕小說使用的帳號';
+
+  @override
+  String get accountCenterNovelOnlyCopy => '輕小說只能使用拷貝帳號';
+
+  @override
+  String get accountCenterRenameTitle => '帳號備註';
+
+  @override
+  String get accountCenterRenameLabel => '備註名';
+
+  @override
+  String get accountCenterRenameHint => '例如：主號 / 小號';
+
+  @override
+  String get accountCenterRemoveTitle => '移除帳號';
+
+  @override
+  String accountCenterRemoveConfirm(String name) {
+    return '確定移除「$name」嗎？僅刪除本機儲存的登入狀態。';
+  }
+
+  @override
+  String accountCenterNovelBoundToast(String name) {
+    return '輕小說已切換到 $name';
+  }
+
+  @override
+  String get accountCenterNameNewTitle => '給新帳號起個備註名';
 }

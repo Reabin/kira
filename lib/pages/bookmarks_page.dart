@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -7,15 +9,14 @@ import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../utils/app_logger.dart';
 import '../utils/bookmark_store.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
+import 'novel_bookmarks_page.dart';
 
-/// 书签列表页：展示用户在阅读器中手动标记的书签，点击直达对应章节页码。
-///
-/// 与浏览记录不同：纯本地数据、无需登录；按漫画分组合并显示，
-/// 支持删除单个书签、单部漫画的全部书签、以及一键清空。
+/// 本地书签按漫画/轻小说分开管理，清空只影响当前类型。
 class BookmarksPage extends StatefulWidget {
   const BookmarksPage({super.key});
 
@@ -23,9 +24,96 @@ class BookmarksPage extends StatefulWidget {
   State<BookmarksPage> createState() => _BookmarksPageState();
 }
 
-class _BookmarksPageState extends State<BookmarksPage> {
+class _BookmarksPageState extends State<BookmarksPage>
+    with SingleTickerProviderStateMixin {
+  final _comicKey = GlobalKey<_ComicBookmarksPageState>();
+  final _novelKey = GlobalKey<NovelBookmarksPageState>();
+  late final TabController _tabs;
+  int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this)..addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (_tabIndex == _tabs.index) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    setState(() => _tabIndex = _tabs.index);
+  }
+
+  void _onItemsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final canClear = _tabIndex == 0
+        ? _comicKey.currentState?.hasBookmarks == true
+        : _novelKey.currentState?.hasBookmarks == true;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.bookmarksTitle),
+        actions: [
+          if (canClear)
+            IconButton(
+              key: const ValueKey('bookmarks_clear_current_type'),
+              icon: const Icon(Icons.delete_outline),
+              tooltip: l10n.bookmarksClearTitle,
+              onPressed: () {
+                if (_tabIndex == 0) {
+                  unawaited(_comicKey.currentState?._clearAll());
+                } else {
+                  unawaited(_novelKey.currentState?.clearAll());
+                }
+              },
+            ),
+        ],
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: [
+            Tab(text: l10n.historyTabComic),
+            Tab(text: l10n.historyTabNovel),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
+          NovelBookmarksPage(key: _novelKey, onChanged: _onItemsChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComicBookmarksPage extends StatefulWidget {
+  const _ComicBookmarksPage({super.key, required this.onChanged});
+
+  final VoidCallback onChanged;
+
+  @override
+  State<_ComicBookmarksPage> createState() => _ComicBookmarksPageState();
+}
+
+class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
+    with AutomaticKeepAliveClientMixin {
   final _store = BookmarkStore();
   bool _loading = true;
+
+  bool get hasBookmarks => !_loading && _store.bookmarks.isNotEmpty;
+
+  @override
+  bool get wantKeepAlive => true;
 
   /// 根 ScaffoldMessenger：删除书签的撤销 SnackBar 显示在根上，
   /// 页面退出时需手动隐藏，否则会残留在上一个页面直到时长结束。
@@ -57,12 +145,16 @@ class _BookmarksPageState extends State<BookmarksPage> {
   }
 
   void _onStoreChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    widget.onChanged();
   }
 
   Future<void> _load() async {
     await _store.ensureLoaded();
-    if (mounted) setState(() => _loading = false);
+    if (!mounted) return;
+    setState(() => _loading = false);
+    widget.onChanged();
   }
 
   Future<void> _refresh() async {
@@ -81,8 +173,14 @@ class _BookmarksPageState extends State<BookmarksPage> {
           if (!mounted || data == null) return;
           setState(() => _details[pathWord] = data);
         })
-        .catchError((_) {
-          // 无可用缓存时保持占位图标。
+        .catchError((Object error, StackTrace stack) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              error,
+              stackTrace: stack,
+              source: 'bookmarks_page.cached_detail',
+            ),
+          );
         })
         .whenComplete(() => _fetchingDetails.remove(pathWord));
   }
@@ -161,7 +259,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.bookmarksClearTitle),
-        content: Text(l10n.bookmarksClearContent),
+        content: Text(l10n.bookmarksTabClearContent(l10n.historyTabComic)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -216,6 +314,7 @@ class _BookmarksPageState extends State<BookmarksPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
@@ -223,99 +322,86 @@ class _BookmarksPageState extends State<BookmarksPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.bookmarksTitle),
-        actions: [
-          if (groups.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              tooltip: l10n.bookmarksClearTitle,
-              onPressed: _clearAll,
-            ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _refresh,
-              child: groups.isEmpty
-                  ? LayoutBuilder(
-                      builder: (context, constraints) => ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: constraints.maxHeight,
-                            child: Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(24),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.bookmark_border,
-                                      size: 64,
+    return _loading
+        ? const Center(child: CircularProgressIndicator())
+        : RefreshIndicator(
+            onRefresh: _refresh,
+            child: groups.isEmpty
+                ? LayoutBuilder(
+                    builder: (context, constraints) => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: constraints.maxHeight,
+                          child: Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.bookmark_border,
+                                    size: 64,
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(height: AppSpacing.lg),
+                                  Text(
+                                    l10n.bookmarksEmptyTitle,
+                                    style: tt.titleMedium?.copyWith(
                                       color: cs.onSurfaceVariant,
                                     ),
-                                    const SizedBox(height: AppSpacing.lg),
-                                    Text(
-                                      l10n.bookmarksEmptyTitle,
-                                      style: tt.titleMedium?.copyWith(
-                                        color: cs.onSurfaceVariant,
-                                      ),
+                                  ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  Text(
+                                    l10n.bookmarksEmptySubtitle,
+                                    textAlign: TextAlign.center,
+                                    style: tt.bodySmall?.copyWith(
+                                      color: cs.onSurfaceVariant,
                                     ),
-                                    const SizedBox(height: AppSpacing.sm),
-                                    Text(
-                                      l10n.bookmarksEmptySubtitle,
-                                      textAlign: TextAlign.center,
-                                      style: tt.bodySmall?.copyWith(
-                                        color: cs.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(hp, 8, hp, 24),
-                      itemCount: groups.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == groups.length) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            child: Center(
-                              child: Text(
-                                l10n.bookmarksSwipeHint,
-                                style: tt.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(hp, 8, hp, 24),
+                    itemCount: groups.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == groups.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Center(
+                            child: Text(
+                              l10n.bookmarksSwipeHint,
+                              style: tt.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
                               ),
                             ),
-                          );
-                        }
-                        final group = groups[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _BookmarkGroupCard(
-                            pathWord: group.key,
-                            bookmarks: group.value,
-                            coverUrl: _groupCoverOf(group.value),
-                            onFetchCover: () => _loadCachedDetail(group.key),
-                            onOpenComic: () => _openComic(group.key),
-                            onOpenBookmark: _openBookmark,
-                            onRemove: _remove,
-                            onClearGroup: _clearGroup,
                           ),
                         );
-                      },
-                    ),
-            ),
-    );
+                      }
+                      final group = groups[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _BookmarkGroupCard(
+                          pathWord: group.key,
+                          bookmarks: group.value,
+                          coverUrl: _groupCoverOf(group.value),
+                          onFetchCover: () => _loadCachedDetail(group.key),
+                          onOpenComic: () => _openComic(group.key),
+                          onOpenBookmark: _openBookmark,
+                          onRemove: _remove,
+                          onClearGroup: _clearGroup,
+                        ),
+                      );
+                    },
+                  ),
+          );
   }
 }
 

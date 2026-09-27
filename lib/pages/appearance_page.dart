@@ -45,6 +45,7 @@ class _AppearancePageState extends State<AppearancePage> {
 
   static const _navMeta = {
     'comic': (Icons.menu_book_outlined, Icons.menu_book),
+    'novel': (Icons.auto_stories_outlined, Icons.auto_stories),
     'search': (Icons.search_outlined, Icons.search),
     'bookshelf': (Icons.bookmark_border, Icons.bookmark),
     'profile': (Icons.person_outline, Icons.person),
@@ -52,6 +53,7 @@ class _AppearancePageState extends State<AppearancePage> {
 
   String _navLabel(String key, AppLocalizations l10n) => switch (key) {
     'comic' => l10n.comicTabLabel,
+    'novel' => l10n.novelTitle,
     'search' => l10n.searchTabLabel,
     'bookshelf' => l10n.bookshelfTabLabel,
     'profile' => l10n.profileTabLabel,

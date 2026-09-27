@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/comic.dart' hide Theme;
 import '../pages/about_page.dart' show AboutPage;
+import '../pages/account_center_page.dart';
 import '../pages/ai_config_page.dart';
 import '../pages/app_log_page.dart';
 import '../pages/appearance_page.dart';
@@ -19,9 +20,15 @@ import '../pages/general_page.dart';
 import '../pages/home_page.dart';
 import '../pages/license_page.dart';
 import '../pages/local_comics_page.dart';
+import '../pages/local_novels_page.dart';
 import '../pages/login_page.dart' show LoginPage;
 import '../pages/network_page.dart';
 import '../pages/notice_center_page.dart';
+import '../pages/novel_detail_page.dart';
+import '../pages/novel_filter_page.dart';
+import '../pages/novel_history_page.dart';
+import '../pages/novel_home_page.dart';
+import '../pages/novel_reader_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/ranking_page.dart';
 import '../pages/reader_page.dart';
@@ -47,14 +54,23 @@ final class AppRoutes {
   // Top-level pages
   static const comicDetail = 'comic_detail';
   static const reader = 'reader';
+  static const novelHome = 'novel_home';
+  static const novelDetail = 'novel_detail';
+  static const novelFilter = 'novel_filter';
+  static const novelReader = 'novel_reader';
+  static const novelBookshelf = 'novel_bookshelf';
+  static const novelHistory = 'novel_history';
   static const recommend = 'recommend';
   static const ranking = 'ranking';
   static const copyMangaList = 'copy_manga_list';
   static const localComics = 'local_comics';
   static const localComicDetail = 'local_comic_detail';
+  static const localNovels = 'local_novels';
+  static const localNovelDetail = 'local_novel_detail';
   static const login = 'login';
   static const register = 'register';
   static const webviewLogin = 'webview_login';
+  static const accountCenter = 'account_center';
   static const general = 'general';
   static const backup = 'backup';
   static const appearance = 'appearance';
@@ -107,6 +123,27 @@ class ReaderExtra {
     this.chapterListPage,
     this.initialPage = 1,
     this.noCatalogBelow = false,
+  });
+}
+
+/// 卷内章节没有远端 UUID，使用目录原始索引定位。
+class NovelReaderExtra {
+  final String name;
+  final String cover;
+  final int entryIndex;
+  final int initialParagraphIndex;
+  final double initialParagraphAlignment;
+  final bool resume;
+  final bool localOnly;
+
+  const NovelReaderExtra({
+    this.name = '',
+    this.cover = '',
+    this.entryIndex = 0,
+    this.initialParagraphIndex = 0,
+    this.initialParagraphAlignment = 0,
+    this.resume = false,
+    this.localOnly = false,
   });
 }
 
@@ -163,7 +200,11 @@ GoRouter createAppRouter() {
               GoRoute(
                 path: '/bookshelf',
                 name: AppRoutes.bookshelf,
-                builder: (_, _) => const BookshelfPage(),
+                builder: (_, state) => BookshelfPage(
+                  initialTab: state.uri.queryParameters['type'] == 'novel'
+                      ? BookshelfTab.novel
+                      : BookshelfTab.comic,
+                ),
               ),
             ],
           ),
@@ -174,6 +215,15 @@ GoRouter createAppRouter() {
                 path: '/profile',
                 name: AppRoutes.profile,
                 builder: (_, _) => const ProfilePage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/novels',
+                name: AppRoutes.novelHome,
+                builder: (_, _) => const NovelHomePage(),
               ),
             ],
           ),
@@ -232,6 +282,61 @@ GoRouter createAppRouter() {
           );
         },
       ),
+      // Compatibility link: the novel shelf now belongs to the shared tab.
+      GoRoute(
+        path: '/novel-bookshelf',
+        name: AppRoutes.novelBookshelf,
+        redirect: (_, _) => '/bookshelf?type=novel',
+      ),
+      GoRoute(
+        path: '/novel-history',
+        name: AppRoutes.novelHistory,
+        builder: (_, _) => const NovelHistoryPage(),
+      ),
+      GoRoute(
+        path: '/novel/:pathWord',
+        name: AppRoutes.novelDetail,
+        builder: (_, state) =>
+            NovelDetailPage(pathWord: state.pathParameters['pathWord']!),
+      ),
+      GoRoute(
+        path: '/novel-filter/:kind/:pathWord',
+        name: AppRoutes.novelFilter,
+        redirect: (_, state) {
+          final kind = state.pathParameters['kind'];
+          if (!NovelFilterKind.values.any((value) => value.name == kind) ||
+              state.pathParameters['pathWord']!.trim().isEmpty) {
+            return '/novels';
+          }
+          return null;
+        },
+        builder: (_, state) => NovelFilterPage(
+          kind: NovelFilterKind.values.byName(state.pathParameters['kind']!),
+          pathWord: state.pathParameters['pathWord']!,
+          name: state.uri.queryParameters['name'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/novel-reader/:pathWord/:volumeId',
+        name: AppRoutes.novelReader,
+        builder: (_, state) {
+          final extra = state.extra;
+          final options = extra is NovelReaderExtra
+              ? extra
+              : const NovelReaderExtra();
+          return NovelReaderPage(
+            pathWord: state.pathParameters['pathWord']!,
+            volumeId: state.pathParameters['volumeId']!,
+            name: options.name,
+            cover: options.cover,
+            initialEntryIndex: options.entryIndex,
+            initialParagraphIndex: options.initialParagraphIndex,
+            initialParagraphAlignment: options.initialParagraphAlignment,
+            resume: options.resume,
+            localOnly: options.localOnly,
+          );
+        },
+      ),
       GoRoute(
         path: '/recommend',
         name: AppRoutes.recommend,
@@ -270,15 +375,26 @@ GoRouter createAppRouter() {
       GoRoute(
         path: '/local-comic-detail/:pathWord',
         name: AppRoutes.localComicDetail,
-        builder: (context, state) {
-          final pathWord = state.pathParameters['pathWord']!;
-          return LocalComicDetailPage(pathWord: pathWord);
-        },
+        builder: (_, state) =>
+            LocalComicDetailPage(pathWord: state.pathParameters['pathWord']!),
+      ),
+      GoRoute(
+        path: '/local-novels',
+        name: AppRoutes.localNovels,
+        builder: (_, _) => const LocalNovelsPage(),
+      ),
+      GoRoute(
+        path: '/local-novel-detail/:pathWord',
+        name: AppRoutes.localNovelDetail,
+        builder: (_, state) =>
+            LocalNovelDetailPage(pathWord: state.pathParameters['pathWord']!),
       ),
       GoRoute(
         path: '/login',
         name: AppRoutes.login,
-        builder: (_, _) => const LoginPage(),
+        builder: (_, state) => LoginPage(
+          copyOnly: state.uri.queryParameters['copyOnly'] == 'true',
+        ),
       ),
       GoRoute(
         path: '/register',
@@ -289,6 +405,11 @@ GoRouter createAppRouter() {
         path: '/login/webview',
         name: AppRoutes.webviewLogin,
         builder: (_, _) => const WebViewLoginPage(),
+      ),
+      GoRoute(
+        path: '/accounts',
+        name: AppRoutes.accountCenter,
+        builder: (_, _) => const AccountCenterPage(),
       ),
       GoRoute(
         path: '/general',

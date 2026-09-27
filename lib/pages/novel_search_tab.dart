@@ -1,0 +1,656 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../l10n/app_localizations.dart';
+import '../models/novel.dart';
+import '../providers/novel_providers.dart';
+import '../routing/app_router.dart';
+import '../theme/app_icon_sizes.dart';
+import '../theme/app_spacing.dart';
+import '../utils/app_logger.dart';
+import '../utils/screen_layout.dart';
+import '../utils/search_history.dart';
+import '../widgets/back_to_top_button.dart';
+import '../widgets/error_retry_view.dart';
+import '../widgets/filter_chip_row.dart';
+import '../widgets/load_more_footer.dart';
+import '../widgets/novel_paged_controller.dart';
+import '../widgets/novel_widgets.dart';
+import '../widgets/result_scroll_listener.dart';
+import '../widgets/section_header.dart';
+import '../widgets/shimmer_skeleton.dart';
+
+enum _NovelOrdering {
+  popular('-popular', 'novelPopularSort'),
+  updated('-datetime_updated', 'novelUpdatedSort');
+
+  const _NovelOrdering(this.value, this.labelKey);
+
+  final String value;
+  final String labelKey;
+
+  String label(AppLocalizations l10n) => switch (this) {
+    _NovelOrdering.popular => l10n.novelPopularSort,
+    _NovelOrdering.updated => l10n.novelUpdatedSort,
+  };
+}
+
+/// 轻小说标签页：上方是体裁筛选 + 热度/更新排序的书籍列表（与「发现」页同构），
+/// 输入关键词后切换为 `/api/v3/search/books` 的搜索结果。
+///
+/// 小说题材来自 `/api/v3/theme/book/count`，与漫画的 `/api/v3/theme/comic/count`
+/// 是两套数据，所以筛选必须留在这里而不能并入「发现」页。
+class NovelSearchTab extends ConsumerStatefulWidget {
+  const NovelSearchTab({super.key});
+
+  @override
+  ConsumerState<NovelSearchTab> createState() => _NovelSearchTabState();
+}
+
+class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
+    with AutomaticKeepAliveClientMixin {
+  static const _kBodyExpanded = 'novel_search_tags_expanded';
+
+  final _searchController = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _scrollController = ScrollController();
+  final _history = SearchHistory();
+  late final NovelPagedController<NovelBook> _books;
+  late final NovelPagedController<NovelBook> _results;
+
+  List<NovelTag> _themes = [];
+  List<String> _historyKeywords = [];
+  String _theme = '';
+  _NovelOrdering _ordering = _NovelOrdering.popular;
+  String? _query;
+  bool _themesLoading = true;
+  bool _themesFailed = false;
+  bool _tagListExpanded = false;
+  bool _hasSearchText = false;
+  bool _canScrollUp = false;
+  int _themesEpoch = 0;
+  int _historyEpoch = 0;
+
+  bool get _idle => _query == null;
+
+  /// 搜索态用 [_results]，浏览态用 [_books]；两者互斥显示。
+  NovelPagedController<NovelBook> get _visible => _idle ? _books : _results;
+
+  bool get _visibleEmpty => _visible.items.isEmpty;
+
+  bool get _visibleFailed => _visible.items.isEmpty && _visible.error != null;
+
+  bool get _canRequestMore =>
+      !_visible.loading &&
+      !_visibleEmpty &&
+      _visible.hasMore &&
+      _visible.refreshError == null;
+
+  bool get _canLoadMore => _canRequestMore && _visible.error == null;
+
+  /// 切走再切回时保留关键词、筛选与滚动位置。
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_onSearchTextChanged);
+    _books = NovelPagedController<NovelBook>(
+      loadPage: (offset) => ref
+          .read(novelApiProvider)
+          .getBooks(theme: _theme, ordering: _ordering.value, offset: offset),
+      keyOf: (book) => book.pathWord,
+    )..addListener(_rebuild);
+    _results = NovelPagedController<NovelBook>(
+      loadPage: (offset) => ref
+          .read(novelApiProvider)
+          .searchBooks(keyword: _query ?? '', offset: offset),
+      keyOf: (book) => book.pathWord,
+    )..addListener(_rebuild);
+    unawaited(_loadThemes());
+    unawaited(_loadHistory());
+    unawaited(_restoreBodyState());
+    unawaited(_books.refresh());
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchTextChanged);
+    _searchController.dispose();
+    _searchFocus.dispose();
+    _scrollController.dispose();
+    _books.dispose();
+    _results.dispose();
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  void _onSearchTextChanged() {
+    final hasText = _searchController.text.isNotEmpty;
+    if (!mounted || hasText == _hasSearchText) return;
+    setState(() => _hasSearchText = hasText);
+  }
+
+  Future<void> _loadHistory() => _updateHistory(_history.load());
+
+  Future<void> _updateHistory(Future<List<String>> operation) async {
+    final epoch = ++_historyEpoch;
+    final entries = await operation;
+    if (!mounted || epoch != _historyEpoch) return;
+    setState(() => _historyKeywords = entries);
+  }
+
+  void _removeHistory(String keyword) {
+    setState(() {
+      _historyKeywords = _historyKeywords
+          .where((entry) => entry != keyword)
+          .toList();
+    });
+    unawaited(_updateHistory(_history.remove(keyword)));
+  }
+
+  void _clearHistory() {
+    setState(() => _historyKeywords = []);
+    unawaited(_updateHistory(_history.clear()));
+  }
+
+  Future<void> _loadThemes() async {
+    final epoch = ++_themesEpoch;
+    setState(() {
+      _themesLoading = true;
+      _themesFailed = false;
+    });
+    try {
+      final themes = await ref.read(novelApiProvider).getThemes();
+      if (!mounted || epoch != _themesEpoch) return;
+      setState(() => _themes = themes);
+    } catch (e, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'novel_search.themes',
+        ),
+      );
+      if (mounted && epoch == _themesEpoch) {
+        setState(() => _themesFailed = true);
+      }
+    } finally {
+      if (mounted && epoch == _themesEpoch) {
+        setState(() => _themesLoading = false);
+      }
+    }
+  }
+
+  Future<void> _restoreBodyState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _tagListExpanded = prefs.getBool(_kBodyExpanded) ?? false;
+      });
+    } catch (e, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'novel_search.restore_state',
+        ),
+      );
+    }
+  }
+
+  Future<void> _persistBodyState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kBodyExpanded, _tagListExpanded);
+    } catch (e, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'novel_search.save_state',
+        ),
+      );
+    }
+  }
+
+  void _toggleTagList() {
+    setState(() => _tagListExpanded = !_tagListExpanded);
+    unawaited(_persistBodyState());
+  }
+
+  Future<void> _doSearch(String query, {bool recordHistory = true}) async {
+    final keyword = query.trim();
+    if (keyword.isEmpty) return;
+    _searchFocus.unfocus();
+    setState(() {
+      _query = keyword;
+      _tagListExpanded = false;
+    });
+    if (recordHistory) unawaited(_updateHistory(_history.add(keyword)));
+    await _results.refresh();
+    if (mounted) unawaited(_scrollToTop());
+  }
+
+  void _clearSearch() {
+    // 浏览列表不受搜索请求影响，无需丢弃它的分页状态。
+    _results.clear();
+    _searchController.clear();
+    setState(() => _query = null);
+    unawaited(_loadHistory());
+  }
+
+  Future<void> _selectTheme(String theme) async {
+    if (_theme == theme) return;
+    setState(() => _theme = theme);
+    await _books.refresh();
+    if (mounted) unawaited(_scrollToTop());
+  }
+
+  Future<void> _selectOrdering(_NovelOrdering ordering) async {
+    if (_ordering == ordering) return;
+    setState(() => _ordering = ordering);
+    await _books.refresh();
+    if (mounted) unawaited(_scrollToTop());
+  }
+
+  void _resetFilters() {
+    if (_theme.isEmpty && _ordering == _NovelOrdering.popular) return;
+    setState(() {
+      _theme = '';
+      _ordering = _NovelOrdering.popular;
+      _tagListExpanded = false;
+    });
+    unawaited(_books.refresh());
+    unawaited(_scrollToTop());
+  }
+
+  Future<void> _refresh() async {
+    if (!_idle) {
+      await _results.refresh(keepItems: true);
+      return;
+    }
+    await Future.wait([
+      _books.refresh(keepItems: true),
+      _loadThemes(),
+      _loadHistory(),
+    ]);
+  }
+
+  Future<void> _loadMore({bool retry = false}) async {
+    if (!_canRequestMore || (_visible.error != null && !retry)) return;
+    await _visible.loadMore();
+  }
+
+  Future<void> _scrollToTop() async {
+    if (!_scrollController.hasClients) return;
+    await _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Future<void> _openBook(NovelBook book) => context.pushNamed(
+    AppRoutes.novelDetail,
+    pathParameters: {'pathWord': book.pathWord},
+  );
+
+  List<FilterChipOption> _themeOptions(AppLocalizations l10n) => [
+    FilterChipOption(
+      label: l10n.novelAllThemes,
+      value: '',
+      icon: Icons.local_offer_outlined,
+      selected: _theme.isEmpty,
+    ),
+    for (final theme in _themes)
+      FilterChipOption(
+        label: theme.name,
+        value: theme.pathWord,
+        selected: _theme == theme.pathWord,
+      ),
+  ];
+
+  List<FilterChipOption> _orderingOptions(AppLocalizations l10n) => [
+    for (final ordering in _NovelOrdering.values)
+      FilterChipOption(
+        label: ordering.label(l10n),
+        value: ordering.value,
+        icon: ordering == _NovelOrdering.popular
+            ? Icons.whatshot
+            : Icons.schedule,
+        selected: _ordering == ordering,
+      ),
+  ];
+
+  Widget _buildFilters(AppLocalizations l10n, double hp) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(hp, AppSpacing.md, hp, AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_themesLoading || _books.loading) ...[
+            const LinearProgressIndicator(),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          if (_themesFailed)
+            InlineRetryNotice(
+              message: l10n.novelThemesFailed,
+              onRetry: () => unawaited(_loadThemes()),
+            ),
+          FilterChipRow(
+            options: _orderingOptions(l10n),
+            onTap: (option) => unawaited(
+              _selectOrdering(
+                _NovelOrdering.values.firstWhere(
+                  (value) => value.value == option.value,
+                ),
+              ),
+            ),
+            // 行尾固定：重置只在有筛选时出现。
+            trailing: _theme.isEmpty && _ordering == _NovelOrdering.popular
+                ? null
+                : filterRowButton(
+                    onPressed: _resetFilters,
+                    icon: Icons.restart_alt,
+                    label: l10n.resetButton,
+                  ),
+          ),
+          // 展开时只渲染下面的题材网格，不再重复一条横向 chip 行。
+          if (_themes.isNotEmpty && !_tagListExpanded) ...[
+            const SizedBox(height: AppSpacing.sm),
+            FilterChipRow(
+              options: _themeOptions(l10n),
+              onTap: (option) => unawaited(_selectTheme(option.value)),
+              trailing: filterRowButton(
+                onPressed: _toggleTagList,
+                icon: Icons.expand_more,
+                label: l10n.tagsExpandAll,
+              ),
+            ),
+          ],
+          if (_themes.isNotEmpty && _tagListExpanded) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SectionHeader(
+              title: l10n.allTagsTitle,
+              trailing: filterRowButton(
+                onPressed: _toggleTagList,
+                icon: Icons.expand_less,
+                label: l10n.tagsCollapseAll,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            AllTagsGrid(
+              tags: [
+                for (final theme in _themes)
+                  FilterTagOption(
+                    name: theme.name,
+                    pathWord: theme.pathWord,
+                    count: theme.count,
+                  ),
+              ],
+              selectedTag: _theme.isEmpty ? null : _theme,
+              onSelected: (value) => unawaited(_selectTheme(value ?? '')),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistory(AppLocalizations l10n, double hp) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SectionHeader(
+              icon: Icons.history_rounded,
+              title: l10n.searchHistoryTitle,
+              trailing: TextButton.icon(
+                onPressed: _clearHistory,
+                icon: const Icon(Icons.delete_sweep_outlined),
+                label: Text(l10n.searchHistoryClear),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: [
+                for (final keyword in _historyKeywords)
+                  InputChip(
+                    label: Text(
+                      keyword,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () {
+                      _searchController.text = keyword;
+                      unawaited(_doSearch(keyword));
+                    },
+                    onDeleted: () => _removeHistory(keyword),
+                    deleteButtonTooltipMessage: l10n.searchHistoryDelete,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final hp = ScreenLayout.horizontalPadding(screenWidth);
+
+    return Stack(
+      children: [
+        Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                hp,
+                AppSpacing.md,
+                hp,
+                AppSpacing.lg,
+              ),
+              child: SearchBar(
+                controller: _searchController,
+                focusNode: _searchFocus,
+                hintText: l10n.novelSearchHint,
+                leading: const Padding(
+                  padding: EdgeInsets.only(left: AppSpacing.sm),
+                  child: Icon(Icons.search),
+                ),
+                trailing: _hasSearchText || !_idle
+                    ? [
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: l10n.searchClearTooltip,
+                          onPressed: _clearSearch,
+                        ),
+                      ]
+                    : null,
+                onSubmitted: _doSearch,
+              ),
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refresh,
+                child: ResultScrollListener(
+                  canScrollUp: _canScrollUp,
+                  onCanScrollUpChanged: (value) =>
+                      setState(() => _canScrollUp = value),
+                  onLoadMore: _canLoadMore ? _loadMore : null,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      if (_idle && _historyKeywords.isNotEmpty)
+                        _buildHistory(l10n, hp),
+                      // 浏览态保留筛选区，搜索态整块换成结果。
+                      if (_idle)
+                        SliverToBoxAdapter(child: _buildFilters(l10n, hp)),
+                      if (_visible.loading && _visibleEmpty)
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: hp),
+                          sliver: ComicCoverSkeletonGrid(
+                            count: 8,
+                            gridDelegate: novelGridDelegate(
+                              context,
+                              screenWidth - hp * 2,
+                            ),
+                          ),
+                        )
+                      else if (_visibleFailed)
+                        SliverErrorRetryView(
+                          message: _idle
+                              ? l10n.novelLoadFailed
+                              : l10n.novelSearchFailed,
+                          onRetry: _idle
+                              ? () => unawaited(_books.refresh())
+                              : () => unawaited(_results.refresh()),
+                        )
+                      else if (_visibleEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Padding(
+                            padding: EdgeInsets.all(hp),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.search_off_rounded,
+                                  size: AppIconSize.empty,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                const SizedBox(height: AppSpacing.lg),
+                                Text(
+                                  _idle
+                                      ? l10n.novelEmptyBooks
+                                      : l10n.novelSearchEmpty,
+                                  textAlign: TextAlign.center,
+                                  style: tt.titleMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else ...[
+                        if (!_idle && _visible.refreshing)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                hp,
+                                0,
+                                hp,
+                                AppSpacing.sm,
+                              ),
+                              child: const LinearProgressIndicator(),
+                            ),
+                          ),
+                        if (_visible.refreshError != null)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: hp),
+                              child: InlineRetryNotice(
+                                message: _idle
+                                    ? l10n.novelLoadFailed
+                                    : l10n.novelSearchFailed,
+                                onRetry: () => unawaited(
+                                  _visible.refresh(keepItems: true),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (!_idle)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                hp,
+                                0,
+                                hp,
+                                AppSpacing.md,
+                              ),
+                              child: Text(
+                                l10n.searchResultSummary(
+                                  _query!,
+                                  _results.items.length,
+                                  l10n.novelTitle,
+                                ),
+                                style: tt.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        SliverPadding(
+                          padding: EdgeInsets.symmetric(horizontal: hp),
+                          sliver: SliverGrid(
+                            gridDelegate: novelGridDelegate(
+                              context,
+                              screenWidth - hp * 2,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) => NovelBookCard(
+                                book: _visible.items[index],
+                                onTap: () =>
+                                    unawaited(_openBook(_visible.items[index])),
+                              ),
+                              childCount: _visible.items.length,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (!_visibleEmpty &&
+                          _visible.hasMore &&
+                          !_visible.refreshing &&
+                          _visible.refreshError == null)
+                        SliverToBoxAdapter(
+                          child: LoadMoreFooter(
+                            loading: _visible.loading,
+                            onPressed: () => _loadMore(retry: true),
+                            label: _visible.error == null
+                                ? l10n.novelLoadMore
+                                : l10n.novelLoadMoreFailed,
+                            horizontalPadding: hp,
+                          ),
+                        ),
+                      // 底部留白：给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_canScrollUp)
+          Positioned(
+            right: AppSpacing.lg,
+            bottom: AppSpacing.lg,
+            child: SafeArea(
+              top: false,
+              child: BackToTopButton(onPressed: _scrollToTop),
+            ),
+          ),
+      ],
+    );
+  }
+}

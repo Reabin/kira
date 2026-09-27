@@ -103,6 +103,48 @@ abstract class AppLocalizations {
   /// **'漫画'**
   String get comicTabLabel;
 
+  /// No description provided for @novelTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说'**
+  String get novelTitle;
+
+  /// No description provided for @novelDownloadUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'该卷未下载或本地文件已损坏，请前往下载中心重新下载。'**
+  String get novelDownloadUnavailable;
+
+  /// No description provided for @cacheCategoryNovelHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说阅读记录'**
+  String get cacheCategoryNovelHistory;
+
+  /// No description provided for @cacheNovelTextLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说正文缓存'**
+  String get cacheNovelTextLabel;
+
+  /// No description provided for @cacheNovelTextDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'已阅读分卷的本地正文，清除后重新在线阅读需要重新请求；已下载到本机的分卷不受影响。'**
+  String get cacheNovelTextDesc;
+
+  /// No description provided for @cacheNovelTextClearConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除已缓存的轻小说正文？阅读进度会保留，但离线时将无法继续阅读这些分卷。'**
+  String get cacheNovelTextClearConfirm;
+
+  /// No description provided for @cacheNovelTextCleared.
+  ///
+  /// In zh, this message translates to:
+  /// **'已清除轻小说正文缓存'**
+  String get cacheNovelTextCleared;
+
   /// No description provided for @searchTabLabel.
   ///
   /// In zh, this message translates to:
@@ -612,6 +654,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'没有漫画更新'**
   String get noComicUpdates;
+
+  /// No description provided for @noNovelUpdates.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有轻小说更新'**
+  String get noNovelUpdates;
 
   /// No description provided for @backToTop.
   ///
@@ -1188,6 +1236,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'刷新失败，请重试'**
   String get userInfoRefreshFailedToast;
+
+  /// No description provided for @copyProfileRefreshUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名'**
+  String get copyProfileRefreshUnavailable;
 
   /// No description provided for @tokenUnavailableToast.
   ///
@@ -2394,6 +2448,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'书签'**
   String get bookmarksTitle;
+
+  /// No description provided for @bookmarksTabClearContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空所有{type}书签？'**
+  String bookmarksTabClearContent(String type);
+
+  /// No description provided for @novelBookmarksEmptySubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读轻小说时，点击工具栏右上角添加书签'**
+  String get novelBookmarksEmptySubtitle;
+
+  /// No description provided for @bookmarksLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'书签加载失败，请重试'**
+  String get bookmarksLoadFailed;
+
+  /// No description provided for @bookmarksUpdateFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'书签保存失败，请重试'**
+  String get bookmarksUpdateFailed;
 
   /// No description provided for @statsTitle.
   ///
@@ -4920,6 +4998,36 @@ abstract class AppLocalizations {
   /// **'下载章节时一并保存评论'**
   String get downloadChapterCommentsDesc;
 
+  /// No description provided for @downloadVolumeConcurrency.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷下载并发数量'**
+  String get downloadVolumeConcurrency;
+
+  /// No description provided for @downloadVolumeConcurrencyDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'同时下载的轻小说分卷数量，数值越大占用带宽越多'**
+  String get downloadVolumeConcurrencyDesc;
+
+  /// No description provided for @novelDownloadSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说下载'**
+  String get novelDownloadSection;
+
+  /// No description provided for @novelDownloadDirectoryOverlap.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说与漫画下载目录不能相同或互相包含'**
+  String get novelDownloadDirectoryOverlap;
+
+  /// No description provided for @novelDownloadMigrateConfirmContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'将把已下载的 {count} 部轻小说移动到新目录，迁移期间请勿退出应用。'**
+  String novelDownloadMigrateConfirmContent(int count);
+
   /// No description provided for @downloadSaveLocation.
   ///
   /// In zh, this message translates to:
@@ -5058,6 +5166,48 @@ abstract class AppLocalizations {
   /// **'已暂停'**
   String get pausedStatus;
 
+  /// No description provided for @novelDownloadCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完成'**
+  String get novelDownloadCompleted;
+
+  /// No description provided for @novelDownloadPartial.
+  ///
+  /// In zh, this message translates to:
+  /// **'正文已下载，部分插图缺失'**
+  String get novelDownloadPartial;
+
+  /// No description provided for @novelDownloadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败'**
+  String get novelDownloadFailed;
+
+  /// No description provided for @novelDownloadUnauthorized.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录后重试'**
+  String get novelDownloadUnauthorized;
+
+  /// No description provided for @novelDownloadLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容受限'**
+  String get novelDownloadLocked;
+
+  /// No description provided for @novelDownloadNeedsRepair.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件待修复'**
+  String get novelDownloadNeedsRepair;
+
+  /// No description provided for @novelDownloadDeleteConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除「{volume}」的轻小说下载吗？本地卷文件也会删除。'**
+  String novelDownloadDeleteConfirm(String volume);
+
   /// No description provided for @downloadPauseButton.
   ///
   /// In zh, this message translates to:
@@ -5069,6 +5219,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'继续下载'**
   String get downloadResumeButton;
+
+  /// No description provided for @downloadQueuePause.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂停'**
+  String get downloadQueuePause;
+
+  /// No description provided for @downloadQueueResume.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续'**
+  String get downloadQueueResume;
 
   /// No description provided for @downloadQueueDeleteTitle.
   ///
@@ -5093,6 +5255,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已下载的 {count} 页文件将一并删除。'**
   String downloadQueueDeleteBatchContent(int count);
+
+  /// No description provided for @downloadQueueDeleteSelectedConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'所选下载任务及已保存的相关文件都会被删除。'**
+  String get downloadQueueDeleteSelectedConfirm;
 
   /// No description provided for @downloadQueueSelect.
   ///
@@ -5897,6 +6065,30 @@ abstract class AppLocalizations {
   /// **'下载中 {active} 章 · 等待 {pending} 章'**
   String downloadForegroundBody(int active, int pending);
 
+  /// No description provided for @downloadForegroundGenericTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'正在下载内容'**
+  String get downloadForegroundGenericTitle;
+
+  /// No description provided for @downloadForegroundGenericChannel.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容下载'**
+  String get downloadForegroundGenericChannel;
+
+  /// No description provided for @downloadForegroundGenericBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载中 {active} 项 · 等待 {pending} 项'**
+  String downloadForegroundGenericBody(int active, int pending);
+
+  /// No description provided for @downloadForegroundFiles.
+  ///
+  /// In zh, this message translates to:
+  /// **'文件 {done}/{total}'**
+  String downloadForegroundFiles(int done, int total);
+
   /// No description provided for @downloadForegroundImages.
   ///
   /// In zh, this message translates to:
@@ -6544,6 +6736,912 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'没有内容，恢复后将清空'**
   String get backupEmptyCategory;
+
+  /// No description provided for @novelBookshelf.
+  ///
+  /// In zh, this message translates to:
+  /// **'小说书架'**
+  String get novelBookshelf;
+
+  /// No description provided for @novelSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索轻小说'**
+  String get novelSearchHint;
+
+  /// No description provided for @novelSearchEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到相关轻小说，换个关键词试试'**
+  String get novelSearchEmpty;
+
+  /// No description provided for @novelSearchFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索失败，请重试'**
+  String get novelSearchFailed;
+
+  /// No description provided for @continueReadingComic.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续阅读漫画'**
+  String get continueReadingComic;
+
+  /// No description provided for @continueReadingNovel.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续阅读轻小说'**
+  String get continueReadingNovel;
+
+  /// No description provided for @historyTabComic.
+  ///
+  /// In zh, this message translates to:
+  /// **'漫画'**
+  String get historyTabComic;
+
+  /// No description provided for @historyTabNovel.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说'**
+  String get historyTabNovel;
+
+  /// No description provided for @novelHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读记录'**
+  String get novelHistory;
+
+  /// No description provided for @novelCopyLoginRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录拷贝账户后查看书架、收藏'**
+  String get novelCopyLoginRequired;
+
+  /// No description provided for @novelCopyLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录拷贝账户'**
+  String get novelCopyLogin;
+
+  /// No description provided for @novelContinueReading.
+  ///
+  /// In zh, this message translates to:
+  /// **'继续阅读'**
+  String get novelContinueReading;
+
+  /// No description provided for @novelStartReading.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始阅读'**
+  String get novelStartReading;
+
+  /// No description provided for @novelVolumeProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'本卷 {percent}%'**
+  String novelVolumeProgress(String percent);
+
+  /// No description provided for @novelBrowseBooks.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览书籍'**
+  String get novelBrowseBooks;
+
+  /// No description provided for @novelAllThemes.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部题材'**
+  String get novelAllThemes;
+
+  /// No description provided for @novelThemes.
+  ///
+  /// In zh, this message translates to:
+  /// **'题材'**
+  String get novelThemes;
+
+  /// No description provided for @novelPopularSort.
+  ///
+  /// In zh, this message translates to:
+  /// **'热门'**
+  String get novelPopularSort;
+
+  /// No description provided for @novelUpdatedSort.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新'**
+  String get novelUpdatedSort;
+
+  /// No description provided for @novelEmptyBooks.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无书籍，试试其他题材'**
+  String get novelEmptyBooks;
+
+  /// No description provided for @novelLoadMore.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载更多'**
+  String get novelLoadMore;
+
+  /// No description provided for @novelLoadMoreFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载失败，点击重试'**
+  String get novelLoadMoreFailed;
+
+  /// No description provided for @novelLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'书籍加载失败'**
+  String get novelLoadFailed;
+
+  /// No description provided for @novelThemesFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'题材加载失败'**
+  String get novelThemesFailed;
+
+  /// No description provided for @novelVolumes.
+  ///
+  /// In zh, this message translates to:
+  /// **'分卷目录'**
+  String get novelVolumes;
+
+  /// No description provided for @novelNoVolumes.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可阅读的分卷'**
+  String get novelNoVolumes;
+
+  /// No description provided for @novelVolumesFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'目录加载失败'**
+  String get novelVolumesFailed;
+
+  /// No description provided for @novelLocalTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说本地'**
+  String get novelLocalTitle;
+
+  /// No description provided for @novelNoLocalTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'还没有本地轻小说'**
+  String get novelNoLocalTitle;
+
+  /// No description provided for @novelNoLocalSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'去轻小说详情页下载分卷后，这里会显示离线内容'**
+  String get novelNoLocalSubtitle;
+
+  /// No description provided for @novelDeleteLocalTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除本地轻小说'**
+  String get novelDeleteLocalTitle;
+
+  /// No description provided for @novelDeleteLocalContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除选中的 {count} 部本地轻小说吗？已下载分卷和封面都会被删除。'**
+  String novelDeleteLocalContent(int count);
+
+  /// No description provided for @novelLocalVolumesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地分卷 ({count})'**
+  String novelLocalVolumesTitle(int count);
+
+  /// No description provided for @novelDeleteLocalVolumesTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除本地分卷'**
+  String get novelDeleteLocalVolumesTitle;
+
+  /// No description provided for @novelDeleteLocalVolumesContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除选中的 {count} 卷吗？对应的正文与插图都会被删除。'**
+  String novelDeleteLocalVolumesContent(int count);
+
+  /// No description provided for @novelDeletedVolumesToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'已删除 {count} 卷'**
+  String novelDeletedVolumesToast(int count);
+
+  /// No description provided for @novelManageVolumes.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理分卷'**
+  String get novelManageVolumes;
+
+  /// No description provided for @novelVolumeUnit.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷'**
+  String get novelVolumeUnit;
+
+  /// No description provided for @novelDeleteToastSuffix.
+  ///
+  /// In zh, this message translates to:
+  /// **' 部本地轻小说'**
+  String get novelDeleteToastSuffix;
+
+  /// No description provided for @novelBrief.
+  ///
+  /// In zh, this message translates to:
+  /// **'简介'**
+  String get novelBrief;
+
+  /// No description provided for @novelNoBrief.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无简介'**
+  String get novelNoBrief;
+
+  /// No description provided for @novelUncollect.
+  ///
+  /// In zh, this message translates to:
+  /// **'取消收藏'**
+  String get novelUncollect;
+
+  /// No description provided for @novelCollectFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏操作失败，请重试'**
+  String get novelCollectFailed;
+
+  /// No description provided for @novelQueryFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读与收藏状态加载失败'**
+  String get novelQueryFailed;
+
+  /// No description provided for @novelAccountRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读权限由拷贝账户决定，可登录后重试'**
+  String get novelAccountRequired;
+
+  /// No description provided for @novelLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前内容受限，可尝试切换拷贝账户'**
+  String get novelLocked;
+
+  /// No description provided for @novelEmptyShelf.
+  ///
+  /// In zh, this message translates to:
+  /// **'书架还是空的，去发现喜欢的小说吧'**
+  String get novelEmptyShelf;
+
+  /// No description provided for @novelShelfFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'书架加载失败'**
+  String get novelShelfFailed;
+
+  /// No description provided for @novelEmptyHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始阅读后，进度会保存在这里'**
+  String get novelEmptyHistory;
+
+  /// No description provided for @novelHistoryFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读记录加载失败'**
+  String get novelHistoryFailed;
+
+  /// No description provided for @novelClearHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'清空阅读记录'**
+  String get novelClearHistory;
+
+  /// No description provided for @novelClearHistoryConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅清除本机轻小说阅读进度，不会取消书架收藏。'**
+  String get novelClearHistoryConfirm;
+
+  /// No description provided for @novelRemoveHistory.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除阅读记录'**
+  String get novelRemoveHistory;
+
+  /// No description provided for @novelHistoryDeleteFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除失败，请重试'**
+  String get novelHistoryDeleteFailed;
+
+  /// No description provided for @novelBookDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看详情'**
+  String get novelBookDetails;
+
+  /// No description provided for @novelNoComments.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无评论'**
+  String get novelNoComments;
+
+  /// No description provided for @novelCommentsFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论加载失败'**
+  String get novelCommentsFailed;
+
+  /// No description provided for @novelCommentsClosed.
+  ///
+  /// In zh, this message translates to:
+  /// **'本书已关闭评论'**
+  String get novelCommentsClosed;
+
+  /// No description provided for @novelWriteComment.
+  ///
+  /// In zh, this message translates to:
+  /// **'写下你的评论'**
+  String get novelWriteComment;
+
+  /// No description provided for @novelPostComment.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表评论'**
+  String get novelPostComment;
+
+  /// No description provided for @novelCommentPosted.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论已发表'**
+  String get novelCommentPosted;
+
+  /// No description provided for @novelCommentFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'发表失败，内容已保留，请重试'**
+  String get novelCommentFailed;
+
+  /// No description provided for @novelReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看回复'**
+  String get novelReplies;
+
+  /// No description provided for @novelReply.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复'**
+  String get novelReply;
+
+  /// No description provided for @novelReplyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'评论回复'**
+  String get novelReplyTitle;
+
+  /// No description provided for @novelCommentCollapseReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起回复'**
+  String get novelCommentCollapseReplies;
+
+  /// No description provided for @novelCommentExpandReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开 {count} 条回复'**
+  String novelCommentExpandReplies(Object count);
+
+  /// No description provided for @novelCommentReplyLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复加载失败'**
+  String get novelCommentReplyLoadFailed;
+
+  /// No description provided for @novelCommentRetryLoadMoreReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'重试加载更多回复'**
+  String get novelCommentRetryLoadMoreReplies;
+
+  /// No description provided for @novelCommentEmptyReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无可显示的回复'**
+  String get novelCommentEmptyReplies;
+
+  /// No description provided for @novelCommentLoadMoreReplies.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载更多回复 ({loaded}/{total})'**
+  String novelCommentLoadMoreReplies(Object loaded, Object total);
+
+  /// No description provided for @novelCommentReplyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复 {userName}'**
+  String novelCommentReplyTitle(Object userName);
+
+  /// No description provided for @novelCommentReplyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复 {userName}...'**
+  String novelCommentReplyHint(Object userName);
+
+  /// No description provided for @novelCommentReplyPosted.
+  ///
+  /// In zh, this message translates to:
+  /// **'回复已发布'**
+  String get novelCommentReplyPosted;
+
+  /// No description provided for @novelSerializing.
+  ///
+  /// In zh, this message translates to:
+  /// **'连载中'**
+  String get novelSerializing;
+
+  /// No description provided for @novelCompleted.
+  ///
+  /// In zh, this message translates to:
+  /// **'已完结'**
+  String get novelCompleted;
+
+  /// No description provided for @novelReaderTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说阅读器'**
+  String get novelReaderTitle;
+
+  /// No description provided for @novelReaderBack.
+  ///
+  /// In zh, this message translates to:
+  /// **'返回'**
+  String get novelReaderBack;
+
+  /// No description provided for @novelReaderHideToolbar.
+  ///
+  /// In zh, this message translates to:
+  /// **'收起工具栏'**
+  String get novelReaderHideToolbar;
+
+  /// No description provided for @novelReaderShowToolbar.
+  ///
+  /// In zh, this message translates to:
+  /// **'展开工具栏'**
+  String get novelReaderShowToolbar;
+
+  /// No description provided for @novelReaderContents.
+  ///
+  /// In zh, this message translates to:
+  /// **'目录'**
+  String get novelReaderContents;
+
+  /// No description provided for @novelReaderVolume.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷册'**
+  String get novelReaderVolume;
+
+  /// No description provided for @novelReaderVolumesRetry.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷册加载失败，重试'**
+  String get novelReaderVolumesRetry;
+
+  /// No description provided for @novelReaderPrevious.
+  ///
+  /// In zh, this message translates to:
+  /// **'上一章节'**
+  String get novelReaderPrevious;
+
+  /// No description provided for @novelReaderNext.
+  ///
+  /// In zh, this message translates to:
+  /// **'下一章节'**
+  String get novelReaderNext;
+
+  /// No description provided for @novelReaderSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读设置'**
+  String get novelReaderSettings;
+
+  /// No description provided for @novelReaderFontSize.
+  ///
+  /// In zh, this message translates to:
+  /// **'字号'**
+  String get novelReaderFontSize;
+
+  /// No description provided for @novelReaderLineHeight.
+  ///
+  /// In zh, this message translates to:
+  /// **'行距'**
+  String get novelReaderLineHeight;
+
+  /// No description provided for @novelReaderParagraphSpacing.
+  ///
+  /// In zh, this message translates to:
+  /// **'段距'**
+  String get novelReaderParagraphSpacing;
+
+  /// No description provided for @novelReaderTheme.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读背景'**
+  String get novelReaderTheme;
+
+  /// No description provided for @novelReaderThemeSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随系统'**
+  String get novelReaderThemeSystem;
+
+  /// No description provided for @novelReaderThemePaper.
+  ///
+  /// In zh, this message translates to:
+  /// **'纸张'**
+  String get novelReaderThemePaper;
+
+  /// No description provided for @novelReaderThemeDark.
+  ///
+  /// In zh, this message translates to:
+  /// **'夜间'**
+  String get novelReaderThemeDark;
+
+  /// No description provided for @novelReaderThemeWhite.
+  ///
+  /// In zh, this message translates to:
+  /// **'白底'**
+  String get novelReaderThemeWhite;
+
+  /// No description provided for @novelReaderThemeGreen.
+  ///
+  /// In zh, this message translates to:
+  /// **'护眼绿'**
+  String get novelReaderThemeGreen;
+
+  /// No description provided for @novelReaderThemeCustom.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义'**
+  String get novelReaderThemeCustom;
+
+  /// No description provided for @novelReaderThemeFollowSystem.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景跟随系统亮暗，深浅模式可分别选择方案'**
+  String get novelReaderThemeFollowSystem;
+
+  /// No description provided for @novelReaderThemeLightMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'浅色模式'**
+  String get novelReaderThemeLightMode;
+
+  /// No description provided for @novelReaderThemeDarkMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'深色模式'**
+  String get novelReaderThemeDarkMode;
+
+  /// No description provided for @novelReaderThemeAdd.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建配色方案'**
+  String get novelReaderThemeAdd;
+
+  /// No description provided for @novelReaderThemeNameTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'方案名称'**
+  String get novelReaderThemeNameTitle;
+
+  /// No description provided for @novelReaderThemeNameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'给这个配色方案起个名字'**
+  String get novelReaderThemeNameHint;
+
+  /// No description provided for @novelReaderThemeEditTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑「{name}」'**
+  String novelReaderThemeEditTitle(String name);
+
+  /// No description provided for @novelReaderThemeEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑方案'**
+  String get novelReaderThemeEdit;
+
+  /// No description provided for @novelReaderThemeDeleteTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'删除配色方案'**
+  String get novelReaderThemeDeleteTitle;
+
+  /// No description provided for @novelReaderThemeDeleteContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除「{name}」？绑定它的模式会回退到默认方案。'**
+  String novelReaderThemeDeleteContent(String name);
+
+  /// No description provided for @novelReaderBackgroundColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景颜色'**
+  String get novelReaderBackgroundColor;
+
+  /// No description provided for @novelReaderTextColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'文字颜色'**
+  String get novelReaderTextColor;
+
+  /// No description provided for @novelReaderPreviewText.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择适合你的阅读配色与字号。'**
+  String get novelReaderPreviewText;
+
+  /// No description provided for @novelReaderKeepScreenOn.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读时屏幕常亮'**
+  String get novelReaderKeepScreenOn;
+
+  /// No description provided for @novelReaderIllustration.
+  ///
+  /// In zh, this message translates to:
+  /// **'插图'**
+  String get novelReaderIllustration;
+
+  /// No description provided for @novelReaderImageFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'插图加载失败'**
+  String get novelReaderImageFailed;
+
+  /// No description provided for @novelReaderEmptyChapter.
+  ///
+  /// In zh, this message translates to:
+  /// **'本章节暂无正文'**
+  String get novelReaderEmptyChapter;
+
+  /// No description provided for @novelReaderEmptyVolume.
+  ///
+  /// In zh, this message translates to:
+  /// **'本卷暂无可阅读的正文'**
+  String get novelReaderEmptyVolume;
+
+  /// No description provided for @novelReaderLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'正文加载失败，请重试或打开本地缓存'**
+  String get novelReaderLoadFailed;
+
+  /// No description provided for @novelReaderLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'本卷暂不可访问，请确认拷贝账号的阅读权限'**
+  String get novelReaderLocked;
+
+  /// No description provided for @novelReaderLoginRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请登录拷贝账号后重试'**
+  String get novelReaderLoginRequired;
+
+  /// No description provided for @novelReaderCopyLogin.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录拷贝账号'**
+  String get novelReaderCopyLogin;
+
+  /// No description provided for @novelReaderOpenCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开本地缓存'**
+  String get novelReaderOpenCache;
+
+  /// No description provided for @novelReaderNoCache.
+  ///
+  /// In zh, this message translates to:
+  /// **'本卷没有可用的本地缓存'**
+  String get novelReaderNoCache;
+
+  /// No description provided for @novelReaderUnnamedChapter.
+  ///
+  /// In zh, this message translates to:
+  /// **'章节 {number}'**
+  String novelReaderUnnamedChapter(int number);
+
+  /// No description provided for @novelReaderParagraphProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'{current} / {total} 段'**
+  String novelReaderParagraphProgress(int current, int total);
+
+  /// No description provided for @copyAccountTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说 · 独立拷贝账号'**
+  String get copyAccountTitle;
+
+  /// No description provided for @copyAccountLoginTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录拷贝账号'**
+  String get copyAccountLoginTitle;
+
+  /// No description provided for @copyAccountIndependentHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅用于拷贝轻小说。登录、切换或退出此账号都不会改变当前主账号。'**
+  String get copyAccountIndependentHint;
+
+  /// No description provided for @copyAccountConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'拷贝账号已登录'**
+  String get copyAccountConnected;
+
+  /// No description provided for @copyAccountNotConnected.
+  ///
+  /// In zh, this message translates to:
+  /// **'尚未登录拷贝账号'**
+  String get copyAccountNotConnected;
+
+  /// No description provided for @copyAccountSwitch.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换拷贝账号'**
+  String get copyAccountSwitch;
+
+  /// No description provided for @copyAccountLogout.
+  ///
+  /// In zh, this message translates to:
+  /// **'退出拷贝账号'**
+  String get copyAccountLogout;
+
+  /// No description provided for @copyAccountLogoutConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。'**
+  String get copyAccountLogoutConfirm;
+
+  /// No description provided for @copyAccountStorageFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。'**
+  String get copyAccountStorageFailed;
+
+  /// No description provided for @copyAccountLoginSuperseded.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号状态已改变，本次登录已取消，请重试。'**
+  String get copyAccountLoginSuperseded;
+
+  /// No description provided for @accountCenterTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号中心'**
+  String get accountCenterTitle;
+
+  /// No description provided for @accountCenterActiveLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用中的账号'**
+  String get accountCenterActiveLabel;
+
+  /// No description provided for @accountCenterSavedLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录过的账号'**
+  String get accountCenterSavedLabel;
+
+  /// No description provided for @accountCenterComicAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'漫画账号'**
+  String get accountCenterComicAccount;
+
+  /// No description provided for @accountCenterNovelAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说账号'**
+  String get accountCenterNovelAccount;
+
+  /// No description provided for @accountCenterNovelCopyOnlyHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说仅支持使用拷贝账号'**
+  String get accountCenterNovelCopyOnlyHint;
+
+  /// No description provided for @accountCenterNotLoggedIn.
+  ///
+  /// In zh, this message translates to:
+  /// **'未登录'**
+  String get accountCenterNotLoggedIn;
+
+  /// No description provided for @accountCenterAddPrimary.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录漫画账号'**
+  String get accountCenterAddPrimary;
+
+  /// No description provided for @accountCenterAddCopy.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加拷贝账号'**
+  String get accountCenterAddCopy;
+
+  /// No description provided for @accountCenterPickComic.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择漫画使用的账号'**
+  String get accountCenterPickComic;
+
+  /// No description provided for @accountCenterPickNovel.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择轻小说使用的账号'**
+  String get accountCenterPickNovel;
+
+  /// No description provided for @accountCenterNovelOnlyCopy.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说只能使用拷贝账号'**
+  String get accountCenterNovelOnlyCopy;
+
+  /// No description provided for @accountCenterRenameTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号备注'**
+  String get accountCenterRenameTitle;
+
+  /// No description provided for @accountCenterRenameLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'备注名'**
+  String get accountCenterRenameLabel;
+
+  /// No description provided for @accountCenterRenameHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'例如：主号 / 小号'**
+  String get accountCenterRenameHint;
+
+  /// No description provided for @accountCenterRemoveTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'移除账号'**
+  String get accountCenterRemoveTitle;
+
+  /// No description provided for @accountCenterRemoveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定移除「{name}」吗？仅删除本机保存的登录状态。'**
+  String accountCenterRemoveConfirm(String name);
+
+  /// No description provided for @accountCenterNovelBoundToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说已切换到 {name}'**
+  String accountCenterNovelBoundToast(String name);
+
+  /// No description provided for @accountCenterNameNewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'给新账号起个备注名'**
+  String get accountCenterNameNewTitle;
 }
 
 class _AppLocalizationsDelegate

@@ -14,7 +14,13 @@ class ThemeSettings extends PrefsStore {
   // ── Shared constants (moved from UserManager) ──────────────────────
 
   static const defaultNavKey = 'comic';
-  static const defaultNavOrder = ['comic', 'search', 'bookshelf', 'profile'];
+  static const defaultNavOrder = [
+    'comic',
+    'novel',
+    'search',
+    'bookshelf',
+    'profile',
+  ];
   static const defaultDisplayModeRefreshRate = 0;
 
   static const appLogoPaths = [
@@ -369,6 +375,10 @@ class ThemeSettings extends PrefsStore {
       if (defaultNavOrder.contains(key) && !normalized.contains(key)) {
         normalized.add(key);
       }
+    }
+    // Add the new destination next to comics without reordering existing tabs.
+    if (!normalized.contains('novel') && normalized.contains('comic')) {
+      normalized.insert(normalized.indexOf('comic') + 1, 'novel');
     }
     for (final key in defaultNavOrder) {
       if (!normalized.contains(key)) {

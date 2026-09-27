@@ -55,7 +55,7 @@ class _MarkerPage extends StatelessWidget {
 }
 
 /// 分支布局与 `_navKeyToBranchIndex` 对齐（comic 0 / search 1 / bookshelf 2 /
-/// profile 3），保证 goBranch 的分支序号不越界。
+/// profile 3 / novel 4），保证 goBranch 的分支序号不越界。
 /// preload 与 app_router 保持一致：各分支页面启动即挂载。
 GoRouter _buildRouter() {
   return GoRouter(
@@ -105,24 +105,40 @@ GoRouter _buildRouter() {
               ),
             ],
           ),
+          // 轻小说分支在 app_router 里刻意不 preload（避免启动即发小说请求），
+          // 这里保持一致，但它仍占可见序的第 5 位。
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/novels',
+                builder: (_, _) => const _MarkerPage('page-novel'),
+              ),
+            ],
+          ),
         ],
       ),
     ],
   );
 }
 
-Widget _buildApp(GoRouter router) {
+Widget _buildApp(GoRouter router, {double textScale = 1}) {
   return MaterialApp.router(
     locale: const Locale('zh'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     routerConfig: router,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: TextScaler.linear(textScale)),
+      child: child!,
+    ),
   );
 }
 
-/// 用户未登录时默认可见序为 [comic, search, profile]。
-Future<void> _pumpShell(WidgetTester tester) async {
-  await tester.pumpWidget(_buildApp(_buildRouter()));
+/// 未登录时默认可见序为 [comic, novel, search, bookshelf, profile]。
+Future<void> _pumpShell(WidgetTester tester, {double textScale = 1}) async {
+  await tester.pumpWidget(_buildApp(_buildRouter(), textScale: textScale));
   await tester.pumpAndSettle();
 }
 
@@ -164,11 +180,22 @@ void main() {
 
   tearDown(teardownSecureCredentialStoreForTest);
 
+  testWidgets('胶囊导航在窄宽和大字号下不横向溢出', (tester) async {
+    tester.view.physicalSize = const Size(400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpShell(tester, textScale: 1.35);
+    await _pumpThroughWarmUp(tester);
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('滑动切页保状态，且所有分支 widget 结构稳定', (tester) async {
     await _pumpShell(tester);
 
     // 结构稳定：隐藏分支也保持同一套包装结构（Offstage>TickerMode>IgnorePointer>
-    // FractionalTranslation>RepaintBoundary），4 个分支各有一份。页面内容里
+    // FractionalTranslation>RepaintBoundary），5 个分支各有一份。页面内容里
     // 也有零散的 FractionalTranslation，这里只认「直接包 RepaintBoundary」的
     // 分支级包装。
     final translations = find.byWidgetPredicate(
@@ -176,48 +203,65 @@ void main() {
           widget is FractionalTranslation && widget.child is RepaintBoundary,
       skipOffstage: false,
     );
-    expect(tester.widgetList(translations).length, 4);
+    expect(tester.widgetList(translations).length, 5);
 
     // 预热后：不可见的相邻分支应已被绘制（无待重绘标记），首次滑入不再付
-    // 首次光栅化的开销；被登录态隐藏的分支（bookshelf）则跳过预热。
+    // 首次光栅化的开销。未登录时书架分支仍然可见（本地小说进度也挂在那里），
+    // 所以它同样会被预热。
     await _pumpThroughWarmUp(tester);
     expect(_branchBoundary(tester, 'page-search').debugNeedsPaint, isFalse);
     expect(_branchBoundary(tester, 'page-profile').debugNeedsPaint, isFalse);
-    expect(_branchBoundary(tester, 'page-bookshelf').debugNeedsPaint, isTrue);
+    expect(_branchBoundary(tester, 'page-bookshelf').debugNeedsPaint, isFalse);
 
-    // 向左滑到搜索页。
-    await tester.timedDrag(
-      find.text('page-comic'),
-      const Offset(-400, 0),
-      const Duration(milliseconds: 300),
+    // 未登录也必须有书架入口：小说阅读记录等本地内容在那里。
+    // 默认 800x600 视口宽>高，主导航走左侧 NavigationRail。
+    expect(
+      tester
+          .widget<NavigationRail>(find.byType(NavigationRail))
+          .destinations
+          .length,
+      5,
     );
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('page-search'), findsOneWidget);
-    expect(find.text('page-comic'), findsNothing);
+
+    Future<void> swipeLeft(String marker, String expected) async {
+      await tester.timedDrag(
+        find.text(marker),
+        const Offset(-400, 0),
+        const Duration(milliseconds: 300),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text(expected), findsOneWidget);
+      expect(find.text(marker), findsNothing);
+    }
+
+    Future<void> swipeRight(String marker, String expected) async {
+      await tester.timedDrag(
+        find.text(marker),
+        const Offset(400, 0),
+        const Duration(milliseconds: 300),
+      );
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text(expected), findsOneWidget);
+      expect(find.text(marker), findsNothing);
+    }
+
+    // 可见序为 comic → novel → search → bookshelf → profile，逐页左滑。
+    await swipeLeft('page-comic', 'page-novel');
+    await swipeLeft('page-novel', 'page-search');
 
     // 改动搜索页内部状态，滑走再滑回来，状态必须保留。
     await tester.tap(find.text('count:0'));
     await tester.pump();
     expect(find.text('count:1'), findsOneWidget);
 
-    await tester.timedDrag(
-      find.text('page-search'),
-      const Offset(-400, 0),
-      const Duration(milliseconds: 300),
-    );
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('page-profile'), findsOneWidget);
+    await swipeLeft('page-search', 'page-bookshelf');
+    await swipeLeft('page-bookshelf', 'page-profile');
 
-    await tester.timedDrag(
-      find.text('page-profile'),
-      const Offset(400, 0),
-      const Duration(milliseconds: 300),
-    );
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('page-search'), findsOneWidget);
+    await swipeRight('page-profile', 'page-bookshelf');
+    await swipeRight('page-bookshelf', 'page-search');
     expect(find.text('count:1'), findsOneWidget);
 
     // 滑动结束后结构依旧稳定。
-    expect(tester.widgetList(translations).length, 4);
+    expect(tester.widgetList(translations).length, 5);
   });
 }

@@ -26,13 +26,11 @@ const _navKeyToBranchIndex = {
   'search': 1,
   'bookshelf': 2,
   'profile': 3,
+  'novel': 4,
 };
 
 List<String> _visibleNavKeys(UserManager user) {
-  final keys = user.navOrder
-      .where(_navKeyToBranchIndex.containsKey)
-      .where((key) => user.isLoggedIn || key != 'bookshelf')
-      .toList();
+  final keys = user.navOrder.where(_navKeyToBranchIndex.containsKey).toList();
   return keys.isEmpty ? const [UserManager.defaultNavKey] : keys;
 }
 
@@ -115,6 +113,8 @@ class _MainShellState extends State<MainShell>
   }
 
   void _restoreLastBranch() {
+    // A direct link to another tab takes precedence over the saved destination.
+    if (widget.navigationShell.currentIndex != 0) return;
     final lastKey = _user.lastNavKey;
     final branchIndex = _navKeyToBranchIndex[lastKey];
     if (branchIndex != null &&
@@ -170,6 +170,11 @@ class _MainShellState extends State<MainShell>
       selectedIcon: Icons.menu_book,
       labelKey: 'comic',
     ),
+    'novel': _NavItem(
+      icon: Icons.auto_stories_outlined,
+      selectedIcon: Icons.auto_stories,
+      labelKey: 'novel',
+    ),
     'search': _NavItem(
       icon: Icons.search_outlined,
       selectedIcon: Icons.search,
@@ -191,6 +196,8 @@ class _MainShellState extends State<MainShell>
     switch (key) {
       case 'comic':
         return l10n.comicTabLabel;
+      case 'novel':
+        return l10n.novelTitle;
       case 'search':
         return l10n.searchTabLabel;
       case 'bookshelf':
@@ -444,7 +451,7 @@ class _MainShellState extends State<MainShell>
     ).scale(1).clamp(1.0, 1.35);
     final cappedScale = textScale > 1.2 ? 1.2 : textScale;
     final iconSize = 24.0 * textScale;
-    final hPad = (showSelectedLabel ? 16.0 : 18.0) * cappedScale;
+    final hPad = (showSelectedLabel ? 10.0 : 14.0) * cappedScale;
     final vPad = 12.0 * cappedScale;
     final gap = showSelectedLabel ? 8.0 * cappedScale : 0.0;
     final reducedMotion = prefersReducedMotion(context);

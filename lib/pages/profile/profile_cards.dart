@@ -1,12 +1,21 @@
 part of '../profile_page.dart';
 
 extension _ProfileCards on _ProfilePageState {
-  /// 第一块设置卡片：通用 / 外观 / 网络 / 通知中心。
+  /// 第一块设置卡片：账号 / 通用 / 外观 / 网络。
   Widget _buildGeneralSettingsCard() {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     return SettingTileGroup(
       children: [
+        ListTile(
+          key: const ValueKey('profile-account-entry'),
+          leading: const _SettingIcon(icon: Icons.manage_accounts_rounded),
+          title: Text(
+            _accountDisplayName(l10n),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          onTap: () => context.pushNamed(AppRoutes.accountCenter),
+        ),
         ListTile(
           leading: const _SettingIcon(icon: Icons.tune_rounded),
           title: Text(l10n.generalTitle),
@@ -24,31 +33,6 @@ extension _ProfileCards on _ProfilePageState {
           title: Text(l10n.networkTitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.pushNamed(AppRoutes.network),
-        ),
-        ValueListenableBuilder<int>(
-          valueListenable: RemoteNoticeService.unreadActiveCount,
-          builder: (context, count, _) {
-            return ListTile(
-              leading: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  const _SettingIcon(icon: Icons.notifications_active_outlined),
-                  if (count > 0)
-                    Positioned(
-                      right: -1,
-                      top: -1,
-                      child: _NoticeRedDot(
-                        color: _noticeCenterColor,
-                        borderColor: cs.surfaceBright,
-                      ),
-                    ),
-                ],
-              ),
-              title: Text(l10n.noticeCenterTitle),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.pushNamed(AppRoutes.noticeCenter),
-            );
-          },
         ),
       ],
     );
@@ -73,7 +57,7 @@ extension _ProfileCards on _ProfilePageState {
     ].where((s) => s.trim().isNotEmpty).toList();
     return ListTile(
       leading: const _SettingIcon(icon: Icons.auto_stories_rounded),
-      title: Text(l10n.continueReadingTitle),
+      title: Text(l10n.continueReadingComic),
       subtitle: parts.isEmpty
           ? null
           : Text(
@@ -87,6 +71,56 @@ extension _ProfileCards on _ProfilePageState {
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _continueReading(entry),
     );
+  }
+
+  /// 「继续阅读轻小说」入口:与漫画那条同款,读取本机小说阅读进度。
+  Widget? _buildContinueNovelTile() {
+    final progress = _continueNovel;
+    if (progress == null) return null;
+    final l10n = AppLocalizations.of(context)!;
+    final tt = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    // 副标题：书名 · 卷名 · 章节名；任一段缺失就跳过,避免空段。
+    final parts = <String>[
+      progress.name.isEmpty ? progress.pathWord : progress.name,
+      progress.volumeName.trim(),
+      progress.chapterName.trim(),
+    ].where((s) => s.trim().isNotEmpty).toList();
+    return ListTile(
+      leading: const _SettingIcon(icon: Icons.menu_book_rounded),
+      title: Text(l10n.continueReadingNovel),
+      subtitle: parts.isEmpty
+          ? null
+          : Text(
+              parts.join(' · '),
+              style: AppTypography.meta(
+                tt,
+              )?.copyWith(color: cs.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _continueNovelReading(progress),
+    );
+  }
+
+  /// 直入小说阅读器:进度本身已经包含卷与段落定位,无需先请求详情。
+  Future<void> _continueNovelReading(NovelReadingProgress progress) async {
+    await context.pushNamed(
+      AppRoutes.novelReader,
+      pathParameters: {
+        'pathWord': progress.pathWord,
+        'volumeId': progress.volumeId,
+      },
+      extra: NovelReaderExtra(
+        name: progress.name,
+        cover: progress.cover,
+        entryIndex: progress.entryIndex,
+        resume: true,
+      ),
+    );
+    if (!mounted) return;
+    await _loadContinueNovel();
   }
 
   /// 跳转到阅读器,恢复上次阅读的章节与页码;返回后刷新记录。
@@ -137,6 +171,7 @@ extension _ProfileCards on _ProfilePageState {
           onTap: () => context.pushNamed(AppRoutes.bookmarks),
         ),
         ?_buildContinueReadingTile(),
+        ?_buildContinueNovelTile(),
         ListTile(
           leading: const _SettingIcon(icon: Icons.bar_chart_rounded),
           title: Text(l10n.statsTitle),
@@ -147,7 +182,7 @@ extension _ProfileCards on _ProfilePageState {
     );
   }
 
-  /// 第三块设置卡片：AI 配置 / 关于。
+  /// 第三块设置卡片：AI 配置 / 通知中心 / 关于。
   Widget _buildAboutCard() {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
@@ -158,6 +193,31 @@ extension _ProfileCards on _ProfilePageState {
           title: Text(l10n.aiConfigTitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.pushNamed(AppRoutes.aiConfig),
+        ),
+        ValueListenableBuilder<int>(
+          valueListenable: RemoteNoticeService.unreadActiveCount,
+          builder: (context, count, _) {
+            return ListTile(
+              leading: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const _SettingIcon(icon: Icons.notifications_active_outlined),
+                  if (count > 0)
+                    Positioned(
+                      right: -1,
+                      top: -1,
+                      child: _NoticeRedDot(
+                        color: _noticeCenterColor,
+                        borderColor: cs.surfaceBright,
+                      ),
+                    ),
+                ],
+              ),
+              title: Text(l10n.noticeCenterTitle),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.pushNamed(AppRoutes.noticeCenter),
+            );
+          },
         ),
         ValueListenableBuilder<bool>(
           valueListenable: AppUpdateService.hasUnseenUpdate,
@@ -188,46 +248,12 @@ extension _ProfileCards on _ProfilePageState {
     );
   }
 
-  Widget _buildLoginCard(ColorScheme cs, TextTheme tt) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return Card(
-      color: cs.surfaceBright,
-      child: InkWell(
-        borderRadius: AppRadius.lgR,
-        onTap: _goLogin,
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 32,
-                backgroundColor: cs.primaryContainer,
-                child: Icon(
-                  Icons.person,
-                  size: 32,
-                  color: cs.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(l10n.notLoggedInTitle, style: tt.titleMedium),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      l10n.loginPromptSubtitle,
-                      style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
-            ],
-          ),
-        ),
-      ),
-    );
+  /// 入口只展示当前漫画身份，不能借用独立的轻小说账号。
+  String _accountDisplayName(AppLocalizations l10n) {
+    if (!_user.isLoggedIn) return l10n.notLoggedInTitle;
+    final nickname = _user.nickname?.trim() ?? '';
+    final username = _user.username?.trim() ?? '';
+    if (username.isNotEmpty) return username;
+    return nickname.isEmpty ? l10n.notLoggedInTitle : nickname;
   }
 }
