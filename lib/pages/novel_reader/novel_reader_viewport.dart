@@ -10,6 +10,7 @@ import '../../models/novel_reader_settings.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/fling_brake_tap_guard.dart';
 import 'novel_reader_document.dart';
 
 /// Owns layout restoration, so neither initial layout nor a font/viewport change
@@ -55,6 +56,9 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   /// ends. Only these notifications hide the toolbar, so programmatic anchor
   /// restoration never does.
   bool _userScrolling = false;
+
+  /// 猛滑后点一下只是给惯性刹车，这种点击不切换工具栏（与漫画阅读器一致）。
+  final _flingBrakeGuard = FlingBrakeTapGuard();
 
   /// Null during any restoration: callers may flush their last valid snapshot,
   /// but must not replace it with a transient layout position.
@@ -201,6 +205,15 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
       _userScrolling = false;
       return false;
     }
+    // 喂给刹车守卫：区分「手指仍按着拖」与「抬手后的惯性」，供点击刹车判定
+    // 使用。程序化 restore 已在上面提前返回，不会污染记录。
+    if (notification is ScrollUpdateNotification &&
+        (notification.scrollDelta ?? 0) != 0) {
+      _flingBrakeGuard.recordScroll(
+        isDrag: notification.dragDetails != null,
+        at: DateTime.now(),
+      );
+    }
     // A user session opens at any ScrollStart (drag or the ballistic phase
     // after finger release) or an explicit direction change, but only an
     // actual ScrollUpdate hides the toolbar: a programmatic jumpTo also
@@ -230,29 +243,40 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
           );
         }
         _size = size;
-        return AbsorbPointer(
-          absorbing: _restoring,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _onScrollNotification,
-            child: GestureDetector(
-              key: const ValueKey('novel-reader-surface'),
-              behavior: HitTestBehavior.opaque,
-              onTap: widget.onTap,
-              child: ScrollablePositionedList.builder(
-                key: const ValueKey('novel-reader-paragraphs'),
-                itemCount: widget.document.itemCount,
-                itemScrollController: _scroll,
-                scrollOffsetController: _offset,
-                itemPositionsListener: _positions,
-                initialScrollIndex: widget.document.itemFor(_desired),
-                initialAlignment: _desired.alignment.isFinite
-                    ? _desired.alignment.clamp(0.0, 0.99)
-                    : 0,
-                addAutomaticKeepAlives: false,
-                padding: EdgeInsets.symmetric(
-                  horizontal: math.max(AppSpacing.xxl, (size.width - 720) / 2),
+        return Listener(
+          // 按下的瞬间列表若还在惯性滚动，这次触摸只是刹车（见
+          // FlingBrakeTapGuard）。判定放在 pointer-down 而不是 onTap 里。
+          onPointerDown: (_) => _flingBrakeGuard.onPointerDown(DateTime.now()),
+          child: AbsorbPointer(
+            absorbing: _restoring,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: GestureDetector(
+                key: const ValueKey('novel-reader-surface'),
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (_flingBrakeGuard.consumeTap()) return;
+                  widget.onTap();
+                },
+                child: ScrollablePositionedList.builder(
+                  key: const ValueKey('novel-reader-paragraphs'),
+                  itemCount: widget.document.itemCount,
+                  itemScrollController: _scroll,
+                  scrollOffsetController: _offset,
+                  itemPositionsListener: _positions,
+                  initialScrollIndex: widget.document.itemFor(_desired),
+                  initialAlignment: _desired.alignment.isFinite
+                      ? _desired.alignment.clamp(0.0, 0.99)
+                      : 0,
+                  addAutomaticKeepAlives: false,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: math.max(
+                      AppSpacing.xxl,
+                      (size.width - 720) / 2,
+                    ),
+                  ),
+                  itemBuilder: _buildParagraph,
                 ),
-                itemBuilder: _buildParagraph,
               ),
             ),
           ),
