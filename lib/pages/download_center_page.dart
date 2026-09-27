@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
@@ -16,6 +17,7 @@ import 'local_novels_page.dart';
 
 class DownloadCenterPage extends StatefulWidget {
   /// 0：漫画；1：轻小说；2：下载队列。
+  /// 轻小说开关关闭时没有小说页：1 落到漫画，≥2 落到队列。
   final int initialTab;
   final DownloadManager? comicDownloads;
   final NovelDownloadManager? novelDownloads;
@@ -36,15 +38,23 @@ class _DownloadCenterPageState extends State<DownloadCenterPage>
   TabController? _tabController;
   late final _comicDownloads = widget.comicDownloads ?? DownloadManager();
   late final _novelDownloads = widget.novelDownloads ?? NovelDownloadManager();
+  late bool _showNovel;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(
-      length: 3,
-      vsync: this,
-      initialIndex: widget.initialTab.clamp(0, 2),
-    );
+    _showNovel = UserManager().showNovel;
+    _tabController = _showNovel
+        ? TabController(
+            length: 3,
+            vsync: this,
+            initialIndex: widget.initialTab.clamp(0, 2),
+          )
+        : TabController(
+            length: 2,
+            vsync: this,
+            initialIndex: widget.initialTab >= 2 ? 1 : 0,
+          );
     _comicDownloads.addListener(_onQueueChanged);
     _novelDownloads.addListener(_onQueueChanged);
     unawaited(_novelDownloads.init());
@@ -79,10 +89,11 @@ class _DownloadCenterPageState extends State<DownloadCenterPage>
               icon: const Icon(Icons.menu_book_outlined),
               text: l10n.comicLabel,
             ),
-            Tab(
-              icon: const Icon(Icons.auto_stories_outlined),
-              text: l10n.novelTitle,
-            ),
+            if (_showNovel)
+              Tab(
+                icon: const Icon(Icons.auto_stories_outlined),
+                text: l10n.novelTitle,
+              ),
             Tab(
               icon: Badge(
                 isLabelVisible: queueCount > 0,
@@ -101,10 +112,11 @@ class _DownloadCenterPageState extends State<DownloadCenterPage>
             embedded: true,
             trailingAction: _settingsFab('download_settings_comic'),
           ),
-          LocalNovelsPage(
-            embedded: true,
-            trailingAction: _settingsFab('download_settings_novel'),
-          ),
+          if (_showNovel)
+            LocalNovelsPage(
+              embedded: true,
+              trailingAction: _settingsFab('download_settings_novel'),
+            ),
           _buildQueueTab(),
         ],
       ),

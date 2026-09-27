@@ -30,7 +30,14 @@ const _navKeyToBranchIndex = {
 };
 
 List<String> _visibleNavKeys(UserManager user) {
-  final keys = user.navOrder.where(_navKeyToBranchIndex.containsKey).toList();
+  final showNovel = user.showNovel;
+  final keys = user.navOrder
+      .where(
+        (key) =>
+            _navKeyToBranchIndex.containsKey(key) &&
+            (key != 'novel' || showNovel),
+      )
+      .toList();
   return keys.isEmpty ? const [UserManager.defaultNavKey] : keys;
 }
 
@@ -99,6 +106,7 @@ class _MainShellState extends State<MainShell>
     _user.remoteNoticeEnabled,
     _user.isLoggedIn,
     _user.navOrder.join('\u0000'),
+    _user.showNovel,
     _user.theme.navSwipeEnabled,
     _user.theme.backExitConfirm,
   );
@@ -116,6 +124,8 @@ class _MainShellState extends State<MainShell>
     // A direct link to another tab takes precedence over the saved destination.
     if (widget.navigationShell.currentIndex != 0) return;
     final lastKey = _user.lastNavKey;
+    // 已隐藏的分支不再恢复（如关闭轻小说开关后 lastNavKey 仍是 'novel'）。
+    if (!_visibleNavKeys(_user).contains(lastKey)) return;
     final branchIndex = _navKeyToBranchIndex[lastKey];
     if (branchIndex != null &&
         branchIndex != widget.navigationShell.currentIndex) {

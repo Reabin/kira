@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel.dart';
+import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/download_center_page.dart';
 import 'package:kira/pages/local_comics_page.dart';
 import 'package:kira/pages/local_novels_page.dart';
@@ -10,6 +11,7 @@ import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/utils/download_manager.dart';
 import 'package:kira/utils/novel_download_manager.dart';
 import 'package:kira/widgets/select_tile.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 只保存内存状态，不创建真实管理器、不读写磁盘或发起下载。
 class _FakeComicDownloads extends ChangeNotifier implements DownloadManager {
@@ -562,6 +564,32 @@ void main() {
     expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 2);
     expect(find.text('下载队列为空'), findsOneWidget);
     expect(_filter, findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('轻小说开关关闭后只剩漫画与队列两个页签', (tester) async {
+    SharedPreferences.setMockInitialValues({'nav_show_novel': true});
+    await UserManager().theme.setShowNovel(false);
+    addTearDown(() => UserManager().theme.setShowNovel(true));
+
+    await _pumpPage(
+      tester,
+      comics: _FakeComicDownloads(),
+      novels: _FakeNovelDownloads(),
+      initialTab: 1,
+    );
+
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabs.tabs, hasLength(2));
+    // 旧语义 tab=1（轻小说页）落到漫画页。
+    expect(tabs.controller!.index, 0);
+    expect(find.byType(LocalComicsPage), findsOneWidget);
+    expect(find.text('下载队列为空'), findsNothing);
+
+    await tester.tap(find.widgetWithText(Tab, '队列'));
+    await tester.pumpAndSettle();
+    expect(tabs.controller!.index, 1);
+    expect(find.text('下载队列为空'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

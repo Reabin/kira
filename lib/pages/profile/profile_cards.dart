@@ -75,6 +75,7 @@ extension _ProfileCards on _ProfilePageState {
 
   /// 「继续阅读轻小说」入口:与漫画那条同款,读取本机小说阅读进度。
   Widget? _buildContinueNovelTile() {
+    if (!_user.showNovel) return null;
     final progress = _continueNovel;
     if (progress == null) return null;
     final l10n = AppLocalizations.of(context)!;

@@ -86,7 +86,6 @@ class _GeneralPageState extends State<GeneralPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final canAutoLogin =
         _user.isLoggedIn &&
@@ -122,9 +121,14 @@ class _GeneralPageState extends State<GeneralPage> {
               SwitchListTile(
                 secondary: const Icon(Icons.exit_to_app_rounded),
                 title: Text(l10n.backExitConfirmTitle),
-                subtitle: Text(l10n.backExitConfirmDesc, style: tt.bodySmall),
                 value: _user.theme.backExitConfirm,
                 onChanged: _user.theme.setBackExitConfirm,
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.auto_stories_outlined),
+                title: Text(l10n.novelTitle),
+                value: _user.showNovel,
+                onChanged: _user.theme.setShowNovel,
               ),
               ListTile(
                 leading: const Icon(Icons.language_rounded),
@@ -142,7 +146,6 @@ class _GeneralPageState extends State<GeneralPage> {
               ListTile(
                 leading: const Icon(Icons.storage_rounded),
                 title: Text(l10n.cacheManagementTitle),
-                subtitle: Text(l10n.cacheManagementDesc),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   context.pushNamed(AppRoutes.cacheManagement);
@@ -156,7 +159,6 @@ class _GeneralPageState extends State<GeneralPage> {
               ListTile(
                 leading: const Icon(Icons.backup_outlined),
                 title: Text(l10n.backupTitle),
-                subtitle: Text(l10n.backupEntryDescription),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => context.pushNamed(AppRoutes.backup),
               ),
@@ -168,10 +170,6 @@ class _GeneralPageState extends State<GeneralPage> {
               ListTile(
                 leading: const Icon(Icons.restart_alt_rounded),
                 title: Text(l10n.resetAppTitle),
-                subtitle: Text(
-                  l10n.resetAppDesc,
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
                 trailing: _resetting
                     ? const SizedBox(
                         width: 18,

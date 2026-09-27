@@ -54,6 +54,7 @@ class ThemeSettings extends PrefsStore {
   static const _keyNavOrder = 'nav_order';
   static const _keyNavSwipeEnabled = 'nav_swipe_enabled';
   static const _keyBackExitConfirm = 'back_exit_confirm';
+  static const _keyShowNovel = 'nav_show_novel';
   static const _keyLastNavKey = 'last_nav_key';
   static const _keyDesktopFontFamily = 'desktop_font_family';
   static const _keyAppFontFamily = 'app_font_family';
@@ -76,6 +77,7 @@ class ThemeSettings extends PrefsStore {
   List<String> _navOrder = defaultNavOrder;
   bool _navSwipeEnabled = true;
   bool _backExitConfirm = true;
+  bool _showNovel = true;
   String _lastNavKey = defaultNavKey;
   String _desktopFontFamily = '';
   String _appFontFamily = '';
@@ -106,6 +108,9 @@ class ThemeSettings extends PrefsStore {
 
   /// Whether back on a bottom-nav root asks for a second press before exiting.
   bool get backExitConfirm => _backExitConfirm;
+
+  /// 是否展示轻小说入口（底部导航、书架等 tab 与各处入口）。
+  bool get showNovel => _showNovel;
   String get lastNavKey => _lastNavKey;
   String get desktopFontFamily => _desktopFontFamily;
   String get appFontFamily => _appFontFamily;
@@ -170,6 +175,7 @@ class ThemeSettings extends PrefsStore {
     }
     _navSwipeEnabled = prefs.getBool(_keyNavSwipeEnabled) ?? true;
     _backExitConfirm = prefs.getBool(_keyBackExitConfirm) ?? true;
+    _showNovel = prefs.getBool(_keyShowNovel) ?? true;
     final savedLastNavKey = prefs.getString(_keyLastNavKey);
     _lastNavKey = _normalizeNavKey(savedLastNavKey);
     if (persistMigrations &&
@@ -292,6 +298,12 @@ class ThemeSettings extends PrefsStore {
     if (_backExitConfirm == enabled) return;
     _backExitConfirm = enabled;
     await setBool(_keyBackExitConfirm, enabled);
+  }
+
+  Future<void> setShowNovel(bool value) async {
+    if (_showNovel == value) return;
+    _showNovel = value;
+    await setBool(_keyShowNovel, value);
   }
 
   Future<void> setLastNavKey(String key) async {

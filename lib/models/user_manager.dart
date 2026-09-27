@@ -319,6 +319,7 @@ class UserManager extends ChangeNotifier {
   bool get bottomNavShowLabels =>
       _bottomNavLabelMode != BottomNavLabelMode.hidden;
   List<String> get navOrder => theme.navOrder;
+  bool get showNovel => theme.showNovel;
   String get lastNavKey => theme.lastNavKey;
   String get desktopFontFamily => _desktopFontFamily;
   int get displayModeRefreshRate => _displayModeRefreshRate;

@@ -36,16 +36,42 @@ part 'bookshelf/bookshelf_toolbar.dart';
 
 enum BookshelfTab { comic, novel }
 
-class BookshelfPage extends ConsumerStatefulWidget {
+class BookshelfPage extends StatefulWidget {
   final BookshelfTab initialTab;
 
   const BookshelfPage({super.key, this.initialTab = BookshelfTab.comic});
 
   @override
-  ConsumerState<BookshelfPage> createState() => _BookshelfTabsState();
+  State<BookshelfPage> createState() => _BookshelfRootState();
 }
 
-class _BookshelfTabsState extends ConsumerState<BookshelfPage>
+class _BookshelfRootState extends State<BookshelfPage> {
+  @override
+  Widget build(BuildContext context) {
+    final user = UserManager();
+    return ListenableBuilder(
+      listenable: user,
+      builder: (context, _) {
+        // 通用页「轻小说」开关关闭时隐藏 tab 组件，只展示漫画书架。
+        if (!user.showNovel) {
+          return const Scaffold(body: _ComicBookshelfPage(active: true));
+        }
+        return _BookshelfDualTabs(initialTab: widget.initialTab);
+      },
+    );
+  }
+}
+
+class _BookshelfDualTabs extends StatefulWidget {
+  final BookshelfTab initialTab;
+
+  const _BookshelfDualTabs({required this.initialTab});
+
+  @override
+  State<_BookshelfDualTabs> createState() => _BookshelfTabsState();
+}
+
+class _BookshelfTabsState extends State<_BookshelfDualTabs>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   late int _selected;
@@ -60,7 +86,7 @@ class _BookshelfTabsState extends ConsumerState<BookshelfPage>
   }
 
   @override
-  void didUpdateWidget(covariant BookshelfPage oldWidget) {
+  void didUpdateWidget(covariant _BookshelfDualTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialTab != oldWidget.initialTab) {
       _tabs.index = widget.initialTab.index;
@@ -208,8 +234,7 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
   void _ensureFresh() {
     if (!_user.isLoggedIn || _refreshing || _loading) return;
     final cacheTime = _comicCacheTime;
-    if (cacheTime != null &&
-        DateTime.now().difference(cacheTime) < _cacheTtl) {
+    if (cacheTime != null && DateTime.now().difference(cacheTime) < _cacheTtl) {
       return;
     }
     unawaited(_load(silent: true));

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../l10n/app_localizations.dart';
+import '../models/user_manager.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
@@ -56,7 +57,9 @@ class _BookmarksPageState extends State<BookmarksPage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final canClear = _tabIndex == 0
+    // 通用页「轻小说」开关关闭时隐藏 tab 组件，只展示漫画书签。
+    final showNovel = UserManager().showNovel;
+    final canClear = _tabIndex == 0 || !showNovel
         ? _comicKey.currentState?.hasBookmarks == true
         : _novelKey.currentState?.hasBookmarks == true;
     return Scaffold(
@@ -69,7 +72,7 @@ class _BookmarksPageState extends State<BookmarksPage>
               icon: const Icon(Icons.delete_outline),
               tooltip: l10n.bookmarksClearTitle,
               onPressed: () {
-                if (_tabIndex == 0) {
+                if (_tabIndex == 0 || !showNovel) {
                   unawaited(_comicKey.currentState?._clearAll());
                 } else {
                   unawaited(_novelKey.currentState?.clearAll());
@@ -77,21 +80,25 @@ class _BookmarksPageState extends State<BookmarksPage>
               },
             ),
         ],
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(text: l10n.historyTabComic),
-            Tab(text: l10n.historyTabNovel),
-          ],
-        ),
+        bottom: showNovel
+            ? TabBar(
+                controller: _tabs,
+                tabs: [
+                  Tab(text: l10n.historyTabComic),
+                  Tab(text: l10n.historyTabNovel),
+                ],
+              )
+            : null,
       ),
-      body: TabBarView(
-        controller: _tabs,
-        children: [
-          _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
-          NovelBookmarksPage(key: _novelKey, onChanged: _onItemsChanged),
-        ],
-      ),
+      body: showNovel
+          ? TabBarView(
+              controller: _tabs,
+              children: [
+                _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
+                NovelBookmarksPage(key: _novelKey, onChanged: _onItemsChanged),
+              ],
+            )
+          : _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
     );
   }
 }

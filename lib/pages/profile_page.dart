@@ -65,7 +65,10 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onUserChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    // 开关重新打开时补一次进度加载，避免入口一直空缺。
+    if (_user.showNovel) unawaited(_loadContinueNovel());
   }
 
   /// 载入最近一条本地阅读记录。记录里的漫画名可能为空(旧记录),
@@ -109,6 +112,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   /// 载入本机最近一条轻小说阅读进度,只读本地存储,不发业务请求。
   Future<void> _loadContinueNovel() async {
+    if (!_user.showNovel) return;
     try {
       final recent = await NovelReadingStore().readRecent(limit: 1);
       if (!mounted) return;

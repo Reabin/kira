@@ -38,23 +38,27 @@ class BrowseHistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    // 通用页「轻小说」开关关闭时隐藏 tab 组件，只展示漫画历史。
+    final showNovel = UserManager().showNovel;
     return DefaultTabController(
-      length: 2,
+      length: showNovel ? 2 : 1,
       child: Scaffold(
         appBar: AppBar(
           title: Text(l10n.browseHistoryTitle),
-          bottom: TabBar(
-            tabs: [
-              Tab(text: l10n.historyTabComic),
-              Tab(text: l10n.historyTabNovel),
-            ],
-          ),
+          bottom: showNovel
+              ? TabBar(
+                  tabs: [
+                    Tab(text: l10n.historyTabComic),
+                    Tab(text: l10n.historyTabNovel),
+                  ],
+                )
+              : null,
         ),
         // 两个列表各自保活：切回来不丢已加载分页与滚动位置。
         body: TabBarView(
           children: [
             _ComicBrowseHistoryPage(loginPageBuilder: loginPageBuilder),
-            const NovelHistoryBody(),
+            if (showNovel) const NovelHistoryBody(),
           ],
         ),
       ),

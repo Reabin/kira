@@ -331,11 +331,15 @@ class _AppearancePageState extends State<AppearancePage> {
                     : 56,
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final itemCount = _user.navOrder.length;
+                    // 与底部导航一致：轻小说关闭时不参与排序预览。
+                    final navOrder = _user.navOrder
+                        .where((key) => key != 'novel' || _user.showNovel)
+                        .toList();
+                    final itemCount = navOrder.length;
                     final widths = _navPreviewItemWidths(
                       availableWidth: constraints.maxWidth,
                       itemCount: itemCount,
-                      selectedIndex: _user.navOrder.indexOf(_user.lastNavKey),
+                      selectedIndex: navOrder.indexOf(_user.lastNavKey),
                       labelMode: _user.bottomNavLabelMode,
                     );
 
@@ -345,13 +349,13 @@ class _AppearancePageState extends State<AppearancePage> {
                       padding: EdgeInsets.zero,
                       itemCount: itemCount,
                       onReorderItem: (oldIndex, newIndex) {
-                        final order = List<String>.of(_user.navOrder);
+                        final order = List<String>.of(navOrder);
                         final item = order.removeAt(oldIndex);
                         order.insert(newIndex, item);
                         _user.setNavOrder(order);
                       },
                       itemBuilder: (context, index) {
-                        final key = _user.navOrder[index];
+                        final key = navOrder[index];
                         final meta = _navMeta[key]!;
                         return SizedBox(
                           key: ValueKey(key),
