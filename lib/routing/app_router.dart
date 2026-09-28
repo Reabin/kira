@@ -135,6 +135,9 @@ class NovelReaderExtra {
   final bool resume;
   final bool localOnly;
 
+  /// 从书签进入：目标段落短暂高亮，提示书签指向的具体位置。
+  final bool highlightParagraph;
+
   /// 栈底没有小说详情页（书架/历史/书签/继续阅读等直达入口）时置 true，
   /// 阅读页「总目录」退出会原地替换成详情页。
   final bool noDetailBelow;
@@ -147,6 +150,7 @@ class NovelReaderExtra {
     this.initialParagraphAlignment = 0,
     this.resume = false,
     this.localOnly = false,
+    this.highlightParagraph = false,
     this.noDetailBelow = false,
   });
 }
@@ -343,6 +347,7 @@ GoRouter createAppRouter() {
             resume: options.resume,
             localOnly: options.localOnly,
             noDetailBelow: options.noDetailBelow,
+            highlightOnEntry: options.highlightParagraph,
           );
         },
       ),

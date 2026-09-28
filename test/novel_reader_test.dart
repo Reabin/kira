@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,7 @@ import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
 import 'package:kira/pages/novel_reader_page.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/repositories/novel_repository.dart';
+import 'package:kira/theme/app_icon_sizes.dart';
 import 'package:kira/theme/novel_reader_theme.dart';
 import 'package:kira/theme/reader_chrome.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
@@ -140,6 +142,7 @@ NovelVolumeContent _volume({
   String? next,
   bool image = false,
   bool longParagraph = false,
+  Set<int> blanks = const {},
 }) {
   final parsed = <NovelReaderEntry>[
     for (var entry = 0; entry < entries; entry++)
@@ -156,12 +159,15 @@ NovelVolumeContent _volume({
             ? []
             : [
                 for (var paragraph = 0; paragraph < paragraphs; paragraph++)
-                  longParagraph
-                      ? List.filled(
-                          80,
-                          '$id.$entry.$paragraph long paragraph',
-                        ).join(' ')
-                      : '$id entry $entry paragraph $paragraph',
+                  if (blanks.contains(paragraph))
+                    ''
+                  else if (longParagraph)
+                    List.filled(
+                      80,
+                      '$id.$entry.$paragraph long paragraph',
+                    ).join(' ')
+                  else
+                    '$id entry $entry paragraph $paragraph',
               ],
       ),
   ];
@@ -216,6 +222,7 @@ Future<void> _mount(
   bool settle = true,
   EdgeInsets padding = EdgeInsets.zero,
   double textScale = 1,
+  bool highlightOnEntry = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -243,6 +250,7 @@ Future<void> _mount(
           initialEntryIndex: initialEntry,
           initialParagraphIndex: initialParagraph,
           initialParagraphAlignment: initialAlignment,
+          highlightOnEntry: highlightOnEntry,
         ),
       ),
     ),
@@ -290,6 +298,43 @@ Future<void> _flush(WidgetTester tester) async {
 NovelReaderLocation _location(WidgetTester tester) => tester
     .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
     .currentLocation!;
+
+/// 段落闪光高亮的正文色描边（DecoratedBox，无布局影响）。
+/// 不传颜色时匹配任意描边高亮。
+Finder highlightBand([Color? color]) => find.byWidgetPredicate((widget) {
+  if (widget is! DecoratedBox) return false;
+  final decoration = widget.decoration;
+  if (decoration is! BoxDecoration || decoration.border is! Border) {
+    return false;
+  }
+  final top = (decoration.border as Border).top.color;
+  return color == null || top == color;
+});
+
+/// 段落正文的颜色（= 高亮描边用色）。
+Color? paragraphForeground(WidgetTester tester, Finder paragraph) =>
+    tester.widget<Text>(paragraph).style?.color;
+
+/// 精确匹配段落文本（忽略书签标记的 WidgetSpan 占位符，且避免
+/// 「paragraph 7」误匹配「paragraph 70」之类的前缀包含问题）。
+Finder paragraphText(String text) => find.byWidgetPredicate((widget) {
+  if (widget is! Text) return false;
+  final plain =
+      (widget.data ?? widget.textSpan?.toPlainText())?.replaceAll('\uFFFC', '');
+  return plain == text;
+});
+
+NovelReaderLocation _centerLocation(WidgetTester tester) => tester
+    .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
+    .anchorAtViewportCenter()!;
+
+/// 双击一个段落：第二次 tap 落在双击窗口内，由段落的 onDoubleTap 接管。
+Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder, warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 80));
+  await tester.tap(finder, warnIfMissed: false);
+  await tester.pumpAndSettle();
+}
 
 Future<void> _slideTo(WidgetTester tester, double item) async {
   final slider = tester.widget<Slider>(
@@ -752,7 +797,8 @@ void main() {
         await _mount(tester, repository, store, resume: true);
         await _flush(tester);
         store.writes.clear();
-        final location = _location(tester);
+        // 按钮书签以视口中点段落为参照，而不是顶部首段。
+        final location = _centerLocation(tester);
         final button = find.byKey(const ValueKey('novel-reader-bookmark'));
         expect(Theme.of(tester.element(button)).brightness, brightness);
         final chrome = tester.widget<ColoredBox>(
@@ -785,8 +831,8 @@ void main() {
         final bookmark = _bookmarks.bookmarks.single;
         expect(bookmark.pathWord, 'book');
         expect(bookmark.volumeId, 'v1');
-        expect(bookmark.entryIndex, 1);
-        expect(bookmark.paragraphIndex, 40);
+        expect(bookmark.entryIndex, location.anchor.entryIndex);
+        expect(bookmark.paragraphIndex, location.anchor.paragraphIndex);
         expect(
           bookmark.paragraphAlignment,
           closeTo(location.anchor.alignment, 1e-6),
@@ -820,6 +866,244 @@ void main() {
       expect(_location(tester).anchor.entryIndex, 1);
       expect(_location(tester).anchor.paragraphIndex, 25);
       expect(_location(tester).anchor.alignment, closeTo(-0.03, 0.005));
+      await _remove(tester);
+    },
+  );
+
+  testWidgets('double-tap paragraph opens the action menu and copies text', (
+    tester,
+  ) async {
+    String? clipboard;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboard = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _mount(tester, repository, store);
+    await _doubleTap(tester, find.text('v1 entry 0 paragraph 0'));
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('书签'), findsOneWidget);
+
+    await tester.tap(find.text('复制'));
+    await _settle(tester);
+    expect(clipboard, 'v1 entry 0 paragraph 0');
+    expect(find.text('段落已复制到剪贴板'), findsOneWidget);
+    // 复制不产生书签，也不闪光高亮。
+    expect(_bookmarks.bookmarks, isEmpty);
+    expect(highlightBand(), findsNothing);
+    await _remove(tester);
+  });
+
+  testWidgets(
+    'double-tap menu bookmark stores the tapped paragraph and flashes highlight',
+    (tester) async {
+      await _mount(tester, repository, store);
+      await _doubleTap(tester, find.text('v1 entry 0 paragraph 2'));
+      await tester.tap(find.text('书签'));
+      await _settle(tester);
+      final bookmark = _bookmarks.bookmarks.single;
+      expect(bookmark.entryIndex, 0);
+      expect(bookmark.paragraphIndex, 2);
+      expect(bookmark.paragraphAlignment, 0);
+      expect(bookmark.progress, closeTo(2 / 300, 1e-6));
+      final paragraph = paragraphText('v1 entry 0 paragraph 2');
+      expect(
+        find.ancestor(
+          of: paragraph,
+          matching: highlightBand(paragraphForeground(tester, paragraph)),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      expect(highlightBand(), findsNothing);
+      await _remove(tester);
+    },
+  );
+
+  testWidgets(
+    'double-tap menu offers bookmark removal for an already bookmarked paragraph',
+    (tester) async {
+      await tester.runAsync(
+        () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
+      );
+      await _mount(tester, repository, store);
+      // 已收藏段落带小书签标记，双击菜单文案仍为「书签」。
+      expect(
+        find.byKey(const ValueKey('novel-paragraph-marker-0-0')),
+        findsOneWidget,
+      );
+      await _doubleTap(
+        tester,
+        paragraphText('v1 entry 0 paragraph 0'),
+      );
+      await tester.tap(find.text('书签'));
+      await _settle(tester);
+      expect(_bookmarks.bookmarks, isEmpty);
+      expect(highlightBand(), findsNothing);
+      await _remove(tester);
+    },
+  );
+
+  testWidgets(
+    'bookmarked paragraphs show a subtle marker that removes the bookmark',
+    (tester) async {
+      await tester.runAsync(
+        () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
+      );
+      await _mount(tester, repository, store);
+      final marker = find.byKey(const ValueKey('novel-paragraph-marker-0-0'));
+      expect(marker, findsOneWidget);
+      // 未收藏的段落没有标记。
+      expect(
+        find.byKey(const ValueKey('novel-paragraph-marker-0-1')),
+        findsNothing,
+      );
+      // 标记用正文同色、正常尺寸。
+      final icon = tester.widget<Icon>(
+        find.descendant(of: marker, matching: find.byType(Icon)),
+      );
+      final paragraph = paragraphText('v1 entry 0 paragraph 0');
+      expect(icon.size, AppIconSize.md);
+      expect(icon.color, paragraphForeground(tester, paragraph));
+      await tester.tap(marker);
+      await _settle(tester);
+      expect(_bookmarks.bookmarks, isEmpty);
+      expect(marker, findsNothing);
+      await _remove(tester);
+    },
+  );
+
+  testWidgets(
+    'toolbar bookmark skips blank paragraphs for the nearest text paragraph',
+    (tester) async {
+      // 段落 3..40 为空行：屏幕中点必落在空行区间内，按钮书签应就近
+      // 改选有文本的段落（可见项里最近的是段落 2），绝不给空行打书签。
+      repository = _Repository({
+        'v1': _volume(blanks: {for (var i = 3; i <= 40; i++) i}),
+      });
+      await _mount(tester, repository, store);
+      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _settle(tester);
+      final bookmark = _bookmarks.bookmarks.single;
+      expect(bookmark.entryIndex, 0);
+      expect(bookmark.paragraphIndex, 2);
+      // 命中的段落带书签标记。
+      expect(
+        find.byKey(
+          ValueKey('novel-paragraph-marker-0-${bookmark.paragraphIndex}'),
+        ),
+        findsOneWidget,
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      await _remove(tester);
+    },
+  );
+
+  testWidgets('double-tap menu disables actions on blank paragraphs', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(blanks: {for (var i = 3; i <= 12; i++) i}),
+    });
+    await _mount(tester, repository, store);
+    final blank = find
+        .descendant(
+          of: find.byKey(const ValueKey('novel-paragraph-0-6')),
+          matching: find.byType(Text),
+        )
+        .first;
+    await _doubleTap(tester, blank);
+    expect(find.text('复制'), findsOneWidget);
+    // PopupMenuItem 是泛型类，byType 匹配不到，用 is 谓词。
+    Finder menuItem(Finder of) => find.ancestor(
+      of: of,
+      matching: find.byWidgetPredicate((widget) => widget is PopupMenuItem),
+    );
+    final copyItem = tester.widget<PopupMenuItem>(menuItem(find.text('复制')));
+    final bookmarkItem = tester.widget<PopupMenuItem>(
+      menuItem(find.text('书签')),
+    );
+    expect(copyItem.enabled, isFalse);
+    expect(bookmarkItem.enabled, isFalse);
+    await _remove(tester);
+  });
+
+  testWidgets(
+    'toolbar bookmark add flashes the paragraph highlight without moving text',
+    (tester) async {
+      await _mount(tester, repository, store);
+      // 按钮打的是视口中点段落，不是顶部首段。
+      final center = _centerLocation(tester).anchor;
+      expect(center.paragraphIndex, greaterThan(0));
+      final marked = paragraphText('v1 entry 0 paragraph ${center.paragraphIndex}');
+      final foreground = paragraphForeground(tester, marked);
+      final topBefore = tester.getTopLeft(marked).dy;
+      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _settle(tester);
+      expect(
+        _bookmarks.bookmarks.single.paragraphIndex,
+        center.paragraphIndex,
+      );
+      expect(
+        find.ancestor(of: marked, matching: highlightBand(foreground)),
+        findsOneWidget,
+      );
+      expect(tester.getTopLeft(marked).dy, topBefore);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      expect(highlightBand(), findsNothing);
+      expect(tester.getTopLeft(marked).dy, topBefore);
+      await _remove(tester);
+    },
+  );
+
+  testWidgets(
+    'entering from a bookmark flashes the target paragraph until the user scrolls',
+    (tester) async {
+      await _mount(
+        tester,
+        repository,
+        store,
+        initialEntry: 1,
+        initialParagraph: 25,
+        initialAlignment: -0.03,
+        highlightOnEntry: true,
+      );
+      final paragraph = paragraphText('v1 entry 1 paragraph 25');
+      expect(
+        find.ancestor(
+          of: paragraph,
+          matching: highlightBand(paragraphForeground(tester, paragraph)),
+        ),
+        findsOneWidget,
+      );
+      // 书签段落定位到视口中部（阅读习惯），绝不贴顶。
+      final height =
+          tester.getRect(
+            find.byKey(const ValueKey('novel-reader-surface')),
+          ).height;
+      final top = tester.getTopLeft(paragraph).dy;
+      expect(top, greaterThan(height * 0.25));
+      expect(top, lessThan(height * 0.75));
+      await tester.drag(
+        find.byKey(const ValueKey('novel-reader-surface')),
+        const Offset(0, -200),
+      );
+      await tester.pump();
+      expect(highlightBand(), findsNothing);
       await _remove(tester);
     },
   );
@@ -937,7 +1221,10 @@ void main() {
       await _flush(tester);
       // 用户滚动会自动隐藏工具栏；本用例专注几何稳定，先点回工具栏。
       expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
-      await tester.tapAt(tester.getRect(surface).center);
+      // 点在页边空白（非段落文字），只切工具栏，不进入段落双击识别。
+      await tester.tapAt(
+        Offset(tester.getRect(surface).left + 8, tester.getRect(surface).center.dy),
+      );
       await tester.pump();
       final before = _location(tester);
       final paragraph = find.byKey(
@@ -965,8 +1252,8 @@ void main() {
       }
 
       for (var toggle = 0; toggle < 6; toggle++) {
-        // Use the reading surface, not the removed top-right hide action.
-        await tester.tapAt(viewportRect.center);
+        // Use the reading surface gutter, not the removed top-right hide action.
+        await tester.tapAt(Offset(viewportRect.left + 8, viewportRect.center.dy));
         await tester.pump();
         // A final settled anchor alone would miss the one-frame jump/restore.
         expectStablePosition();
@@ -1000,7 +1287,13 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(420, 820));
     await _settle(tester);
     expect(_location(tester).anchor.paragraphIndex, 40);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-surface')));
+    await tester.tapAt(
+      Offset(
+        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).left +
+            8,
+        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center.dy,
+      ),
+    );
     await _settle(tester);
     expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
     expect(_location(tester).anchor.paragraphIndex, 40);
@@ -1008,7 +1301,13 @@ void main() {
     await _settle(tester);
     expect(_location(tester).anchor.paragraphIndex, 40);
     // 状态组件默认关闭时，点正文即可恢复工具栏。
-    await tester.tap(find.byKey(const ValueKey('novel-reader-surface')));
+    await tester.tapAt(
+      Offset(
+        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).left +
+            8,
+        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center.dy,
+      ),
+    );
     await _settle(tester);
     expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
     expect(_location(tester).anchor.paragraphIndex, 40);

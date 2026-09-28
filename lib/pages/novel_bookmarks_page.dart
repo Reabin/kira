@@ -221,6 +221,8 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
           initialParagraphIndex: bookmark.paragraphIndex,
           initialParagraphAlignment: bookmark.paragraphAlignment,
           noDetailBelow: true,
+          // 书签进入时短暂高亮目标段落。
+          highlightParagraph: true,
         ),
       );
     }
@@ -434,12 +436,6 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    IconButton(
-                      key: ValueKey('novel_bookmark_clear_${first.pathWord}'),
-                      tooltip: l10n.bookmarksClearTitle,
-                      onPressed: updating ? null : onClear,
-                      icon: const Icon(Icons.delete_sweep_outlined),
-                    ),
                   ],
                 ),
               ),
@@ -489,12 +485,8 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
                   )?.copyWith(color: cs.onSurfaceVariant),
                 ),
                 onTap: () => onOpen(bookmark),
-                trailing: IconButton(
-                  key: ValueKey('novel_bookmark_remove_${bookmark.id}'),
-                  tooltip: l10n.deleteButton,
-                  onPressed: updating ? null : () => onRemove(bookmark),
-                  icon: const Icon(Icons.delete_outline),
-                ),
+                // 与漫画书签条目一致：尾部只放导航箭头，删除走左滑。
+                trailing: Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
               ),
             ),
         ],

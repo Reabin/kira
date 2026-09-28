@@ -44,6 +44,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
     this.resume = false,
     this.localOnly = false,
     this.noDetailBelow = false,
+    this.highlightOnEntry = false,
     this.source,
   });
 
@@ -60,6 +61,9 @@ class NovelReaderPage extends ConsumerStatefulWidget {
   /// 栈底是否没有小说详情页（书架/历史/书签/继续阅读等直达入口）。
   /// 「总目录」退出时据此决定 pop 还是原地替换成详情页。
   final bool noDetailBelow;
+
+  /// 从书签进入：目标段落短暂高亮，提示书签指向的具体位置。
+  final bool highlightOnEntry;
 
   final NovelReaderSource? source;
 
@@ -103,6 +107,15 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   bool _loading = true;
   bool _toolbarVisible = true;
 
+  /// 短暂高亮的书签段落；定时自动清除，滚动或跳转提前清除。
+  static const _highlightDuration = Duration(milliseconds: 2500);
+  NovelReaderAnchor? _highlight;
+  Timer? _highlightTimer;
+
+  /// 从书签进入时待生效的高亮锚点：等卷内容加载、锚点解析后再应用，
+  /// 避免高亮显示在错误位置（如 resume 改变了落点时丢弃）。
+  NovelReaderAnchor? _pendingEntryHighlight;
+
   /// 进入页面时的系统栏内边距快照。工具栏显隐会切换沉浸模式，
   /// MediaQuery.padding 随之变化；正文用它作列表内容层的固定 inset
   /// （viewport 本身全屏恒定），避免触发 anchor restoration。
@@ -141,6 +154,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             widget.initialParagraphAlignment ||
         oldWidget.resume != widget.resume ||
         oldWidget.localOnly != widget.localOnly ||
+        oldWidget.highlightOnEntry != widget.highlightOnEntry ||
         oldWidget.source != widget.source) {
       // Capture against the old book's identity, not the new widget fields.
       unawaited(_flush());
@@ -186,8 +200,14 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     }
   }
 
+  /// 工具栏书签按钮的参照段落：视口垂直中点覆盖的段落（阅读习惯以
+  /// 屏幕中间为基准），顶部首段仅在视口状态不可用时兜底。
+  NovelReaderAnchor? get _bookmarkAnchor =>
+      _viewportKey.currentState?.anchorAtViewportCenter()?.anchor ??
+      _location?.anchor;
+
   bool get _isBookmarked {
-    final anchor = _location?.anchor;
+    final anchor = _bookmarkAnchor;
     return anchor != null &&
         _bookmarks.isBookmarked(
           pathWord: _pathWord,
@@ -199,7 +219,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Future<void> _toggleBookmark() async {
     if (_loading || _bookmarking) return;
-    final location = _viewportKey.currentState?.currentLocation;
+    final location =
+        _viewportKey.currentState?.anchorAtViewportCenter() ??
+        _viewportKey.currentState?.currentLocation;
     if (location == null || _content == null || _document == null) return;
     final progress = _progressAt(location, DateTime.now());
     final session = _session;
@@ -210,6 +232,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (!mounted || !_active(session)) return;
       setState(() => _bookmarksLoaded = true);
       showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
+      // 打书签的当下就闪光高亮目标段落，让「高亮 = 书签指向的段落」
+      // 的语义在按钮入口同样可见；取消书签时同步撤掉正在显示的高亮。
+      if (added) {
+        _showHighlight(location.anchor);
+      } else if (_isSameAnchor(_highlight, location.anchor)) {
+        _clearHighlight();
+      }
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.toggle');
       if (mounted && _active(session)) {
@@ -219,6 +248,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (mounted) setState(() => _bookmarking = false);
     }
   }
+
+  /// 闪光高亮一个段落（书签指向处）：定时自动清除，滚动/跳转提前清除。
+  void _showHighlight(NovelReaderAnchor anchor) {
+    _highlightTimer?.cancel();
+    setState(() => _highlight = anchor);
+    _highlightTimer = Timer(_highlightDuration, () {
+      if (mounted && !_disposed) setState(() => _highlight = null);
+    });
+  }
+
+  void _clearHighlight() {
+    _highlightTimer?.cancel();
+    if (_highlight == null) return;
+    setState(() => _highlight = null);
+  }
+
+  /// 高亮锚点与某段落是否同一位置。
+  bool _isSameAnchor(NovelReaderAnchor? a, NovelReaderAnchor b) =>
+      a != null && a.entryIndex == b.entryIndex && a.paragraphIndex == b.paragraphIndex;
 
   void _beginSession() {
     final session = ++_session;
@@ -236,12 +284,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     _pendingProgress = null;
     _error = null;
     _volumes = [];
+    _highlightTimer?.cancel();
+    _highlight = null;
     _saveTimer?.cancel();
     final initial = NovelReaderAnchor(
       entryIndex: widget.initialEntryIndex,
       paragraphIndex: widget.initialParagraphIndex,
       alignment: widget.initialParagraphAlignment,
     );
+    _pendingEntryHighlight = widget.highlightOnEntry
+        ? NovelReaderAnchor(
+            entryIndex: initial.entryIndex,
+            paragraphIndex: initial.paragraphIndex,
+          )
+        : null;
     unawaited(_initialize(session, widget.resume, initial));
   }
 
@@ -354,6 +410,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       _sliderValue = null;
       _offline = cachedOnly || _source.localOnly;
       _viewportKey = GlobalKey();
+      _highlightTimer?.cancel();
+      _highlight = null;
     });
     try {
       final content = await _source.loadContent(
@@ -380,6 +438,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                   document.itemFor(anchor),
                   alignment: anchor.alignment,
                 );
+        }
+        // 书签进入的高亮：只在实际落点与书签段落一致时生效，避免
+        // resume 等情况改写落点后高亮到别的段落。命中时把落点改为
+        // 视口中部（阅读习惯），不再贴顶显示。
+        final pending = _pendingEntryHighlight;
+        _pendingEntryHighlight = null;
+        if (pending != null &&
+            document.itemCount > 0 &&
+            pending.entryIndex == _target.entryIndex &&
+            pending.paragraphIndex == _target.paragraphIndex) {
+          _target = document.anchorFor(
+            document.itemFor(pending),
+            alignment: 0.5,
+          );
+          _highlightTimer?.cancel();
+          _highlight = pending;
+          _highlightTimer = Timer(_highlightDuration, () {
+            if (mounted && !_disposed) setState(() => _highlight = null);
+          });
         }
       });
     } catch (error, stack) {
@@ -489,6 +566,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final document = _document;
     if (document == null || document.itemCount == 0) return;
     unawaited(_flush());
+    _clearHighlight();
     setState(() {
       _target = document.anchorFor(
         document.itemFor(anchor),
@@ -618,6 +696,203 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ),
   );
 
+  /// 段落上下文菜单的轻量双击识别：点按段落立即切换工具栏（无识别延迟），
+  /// 同一段落两次点按间隔小于窗口期时弹菜单。用真实时钟——
+  /// 与工具栏切换互不干扰（双击时工具栏切了两次，净效果不变）。
+  static const _doubleTapWindow = Duration(milliseconds: 300);
+  NovelReaderParagraph? _lastParagraphTap;
+  DateTime? _lastParagraphTapAt;
+
+  void _handleParagraphTap(NovelReaderParagraph paragraph, Offset position) {
+    final now = DateTime.now();
+    final last = _lastParagraphTap;
+    final lastAt = _lastParagraphTapAt;
+    final same =
+        last != null &&
+        last.entry.entryIndex == paragraph.entry.entryIndex &&
+        last.paragraphIndex == paragraph.paragraphIndex;
+    if (lastAt != null &&
+        same &&
+        now.isBefore(lastAt.add(_doubleTapWindow))) {
+      _lastParagraphTap = null;
+      _lastParagraphTapAt = null;
+      unawaited(_showParagraphMenu(paragraph, position));
+      return;
+    }
+    _lastParagraphTap = paragraph;
+    _lastParagraphTapAt = now;
+  }
+
+  /// 双击段落弹出的轻量上下文菜单：复制、书签。
+  /// 菜单贴着点按落点弹出；书签 id 与按钮书签一致（同段落仅一个）。
+  Future<void> _showParagraphMenu(
+    NovelReaderParagraph paragraph,
+    Offset position,
+  ) async {
+    final document = _document;
+    if (document == null || _loading) return;
+    final session = _session;
+    final request = _request;
+    final anchor = NovelReaderAnchor(
+      entryIndex: paragraph.entry.entryIndex,
+      paragraphIndex: paragraph.paragraphIndex,
+    );
+    final bookmarked = _bookmarks.isBookmarked(
+      pathWord: _pathWord,
+      volumeId: _volumeId,
+      entryIndex: anchor.entryIndex,
+      paragraphIndex: anchor.paragraphIndex,
+    );
+    final overlay =
+        Overlay.of(context, rootOverlay: true).context.findRenderObject()!
+            as RenderBox;
+    final action = await showMenu<_ParagraphAction>(
+      context: context,
+      position: RelativeRect.fromRect(
+        Rect.fromPoints(position, position.translate(0.01, 0.01)),
+        Offset.zero & overlay.size,
+      ),
+      items: _paragraphMenuItems(paragraph, bookmarked),
+    );
+    if (!_active(session) || request != _request || action == null) return;
+    switch (action) {
+      case _ParagraphAction.copy:
+        await Clipboard.setData(ClipboardData(text: paragraph.text));
+        if (mounted && _active(session)) {
+          showToast(
+            context,
+            AppLocalizations.of(context)!.novelReaderCopiedToast,
+          );
+        }
+      case _ParagraphAction.toggleBookmark:
+        await _toggleParagraphBookmark(anchor);
+    }
+  }
+
+  List<PopupMenuEntry<_ParagraphAction>> _paragraphMenuItems(
+    NovelReaderParagraph paragraph,
+    bool bookmarked,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    // 空行/空章节占位没有正文：复制无内容，也不允许打书签。
+    final hasText = paragraph.text.trim().isNotEmpty;
+    return [
+      PopupMenuItem(
+        value: _ParagraphAction.copy,
+        enabled: hasText,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.copy_outlined),
+            const SizedBox(width: AppSpacing.md),
+            Text(l10n.copyButton),
+          ],
+        ),
+      ),
+      PopupMenuItem(
+        value: _ParagraphAction.toggleBookmark,
+        enabled: hasText,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 与阅读页书签按钮一致：书签色不随正文配色改变，已收藏
+            // 状态由图标颜色表达，文案统一为「书签」。
+            Icon(
+              bookmarked ? Icons.bookmark : Icons.bookmark_border,
+              color: bookmarked ? Colors.amberAccent : null,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Text(l10n.novelReaderBookmark),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// 段落是否已有书签（驱动正文里的小书签标记）。
+  bool _isParagraphBookmarked(NovelReaderParagraph paragraph) =>
+      _bookmarksLoaded &&
+      _bookmarks.isBookmarked(
+        pathWord: _pathWord,
+        volumeId: _volumeId,
+        entryIndex: paragraph.entry.entryIndex,
+        paragraphIndex: paragraph.paragraphIndex,
+      );
+
+  /// 点按段落上的小书签标记：取消该书签。
+  Future<void> _removeParagraphBookmark(NovelReaderParagraph paragraph) async {
+    if (_bookmarking) return;
+    final anchor = NovelReaderAnchor(
+      entryIndex: paragraph.entry.entryIndex,
+      paragraphIndex: paragraph.paragraphIndex,
+    );
+    final bookmark = _bookmarks.bookmarks
+        .where(
+          (item) =>
+              item.pathWord == _pathWord &&
+              item.volumeId == _volumeId &&
+              item.entryIndex == anchor.entryIndex &&
+              item.paragraphIndex == anchor.paragraphIndex,
+        )
+        .firstOrNull;
+    if (bookmark == null) return;
+    final session = _session;
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _bookmarking = true);
+    try {
+      await _bookmarks.remove(bookmark.id);
+      if (!mounted || !_active(session)) return;
+      showToast(context, l10n.bookmarkRemoved);
+      if (_isSameAnchor(_highlight, anchor)) _clearHighlight();
+    } catch (error, stack) {
+      _warn(error, stack, 'bookmarks.remove');
+      if (mounted && _active(session)) {
+        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _bookmarking = false);
+    }
+  }
+
+  /// 对任意段落打/取消书签：进度取该段落在卷内的位置，对齐值用段首。
+  /// 空行/空章节占位不接受书签（菜单项已禁用，这里再兜底）。
+  Future<void> _toggleParagraphBookmark(NovelReaderAnchor anchor) async {
+    final document = _document;
+    if (_bookmarking || document == null || document.itemCount == 0) return;
+    if (document.paragraphAt(document.itemFor(anchor)).text.trim().isEmpty) {
+      return;
+    }
+    final item = document.itemFor(anchor);
+    final location = NovelReaderLocation(
+      anchor: anchor,
+      itemIndex: item,
+      progress: (item / document.itemCount).clamp(0, 1),
+    );
+    final session = _session;
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => _bookmarking = true);
+    try {
+      final added = await _bookmarks.toggle(
+        progress: _progressAt(location, DateTime.now()),
+      );
+      if (!mounted || !_active(session)) return;
+      setState(() => _bookmarksLoaded = true);
+      showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
+      if (added) {
+        _showHighlight(anchor);
+      } else if (_isSameAnchor(_highlight, anchor)) {
+        _clearHighlight();
+      }
+    } catch (error, stack) {
+      _warn(error, stack, 'bookmarks.toggle');
+      if (mounted && _active(session)) {
+        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _bookmarking = false);
+    }
+  }
+
   void _setScreenOn(bool enabled) {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     final shouldEnable =
@@ -686,6 +961,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ++_session;
     ++_request;
     _saveTimer?.cancel();
+    _highlightTimer?.cancel();
     _bookmarks.removeListener(_onBookmarksChanged);
     _statusSettings.removeListener(_onStatusSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -894,13 +1170,21 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ),
       target: _target,
       jumpRevision: _jumpRevision,
+      highlight: _highlight,
       onPosition: (location) {
         if (_request == request && identical(_document, document)) {
           _recordLocation(location);
         }
       },
       onTap: () => _setToolbarVisible(!_toolbarVisible),
-      onScroll: () => _setToolbarVisible(false),
+      onParagraphTap: _handleParagraphTap,
+      isBookmarkedParagraph: _isParagraphBookmarked,
+      onBookmarkMarkerTap: (paragraph) =>
+          unawaited(_removeParagraphBookmark(paragraph)),
+      onScroll: () {
+        _clearHighlight();
+        _setToolbarVisible(false);
+      },
     );
   }
 
@@ -1117,3 +1401,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 class _NoCachedVolume {
   const _NoCachedVolume();
 }
+
+/// 双击段落菜单的动作。
+enum _ParagraphAction { copy, toggleBookmark }

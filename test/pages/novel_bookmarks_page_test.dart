@@ -115,7 +115,11 @@ void main() {
     final saved = novelStore.bookmarks.single;
     await _pump(tester, novelStore);
     await _showNovels(tester);
-    await tester.tap(find.byKey(ValueKey('novel_bookmark_remove_${saved.id}')));
+    // 删除入口是条目左滑（与漫画书签一致），尾部只有导航箭头。
+    await tester.drag(
+      find.byKey(ValueKey('novel_bookmark_${saved.id}')),
+      const Offset(-550, 0),
+    );
     await _settleBookmarks(tester, novelStore);
     expect(novelStore.bookmarks, isEmpty);
     expect(BookmarkStore().bookmarks, hasLength(1));
@@ -156,8 +160,10 @@ void main() {
     );
     await _pump(tester, novelStore);
     await _showNovels(tester);
-    await tester.tap(
-      find.byKey(const ValueKey('novel_bookmark_clear_novel-a')),
+    // 分组头部按钮已移除（与漫画一致），清空走左滑头部。
+    await tester.drag(
+      find.byKey(const ValueKey('novel_bookmark_group_novel-a')),
+      const Offset(-550, 0),
     );
     await _settleBookmarks(tester, novelStore);
     expect(novelStore.bookmarks.single.pathWord, 'novel-b');
@@ -269,8 +275,9 @@ void main() {
       expect(tester.takeException(), isNull);
 
       controlled.failWrite = false;
-      await tester.tap(
-        find.byKey(ValueKey('novel_bookmark_remove_${saved.id}')),
+      await tester.drag(
+        find.byKey(ValueKey('novel_bookmark_${saved.id}')),
+        const Offset(-550, 0),
       );
       await _settleBookmarks(tester, novelStore);
       expect(novelStore.bookmarks, isEmpty);

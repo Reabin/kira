@@ -1614,12 +1614,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileWebLoginFailed => '官网登录失败';
 
   @override
-  String get profileSavedAccountsTitle => '已保存账号';
-
-  @override
-  String get profileSavedAccountsHint => '点按快速填充账号密码，右侧可移除';
-
-  @override
   String get profileUsernameLabel => '用户名';
 
   @override
@@ -3842,6 +3836,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelReaderVolume => '卷册';
+
+  @override
+  String get novelReaderBookmark => '书签';
+
+  @override
+  String get novelReaderCopiedToast => '段落已复制到剪贴板';
 
   @override
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
@@ -7889,6 +7889,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderVolume => '卷冊';
+
+  @override
+  String get novelReaderBookmark => '書籤';
+
+  @override
+  String get novelReaderCopiedToast => '段落已複製到剪貼簿';
 
   @override
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';

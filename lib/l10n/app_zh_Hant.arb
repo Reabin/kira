@@ -2362,6 +2362,8 @@
   "novelReaderContents": "目錄",
   "novelReaderCatalog": "總目錄",
   "novelReaderVolume": "卷冊",
+  "novelReaderBookmark": "書籤",
+  "novelReaderCopiedToast": "段落已複製到剪貼簿",
   "novelReaderVolumesRetry": "卷冊載入失敗，重試",
   "novelReaderPrevious": "上一章節",
   "novelReaderNext": "下一章節",

@@ -3031,18 +3031,6 @@ abstract class AppLocalizations {
   /// **'官网登录失败'**
   String get profileWebLoginFailed;
 
-  /// No description provided for @profileSavedAccountsTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'已保存账号'**
-  String get profileSavedAccountsTitle;
-
-  /// No description provided for @profileSavedAccountsHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'点按快速填充账号密码，右侧可移除'**
-  String get profileSavedAccountsHint;
-
   /// No description provided for @profileUsernameLabel.
   ///
   /// In zh, this message translates to:
@@ -7096,6 +7084,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'卷册'**
   String get novelReaderVolume;
+
+  /// No description provided for @novelReaderBookmark.
+  ///
+  /// In zh, this message translates to:
+  /// **'书签'**
+  String get novelReaderBookmark;
+
+  /// No description provided for @novelReaderCopiedToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'段落已复制到剪贴板'**
+  String get novelReaderCopiedToast;
 
   /// No description provided for @novelReaderVolumesRetry.
   ///
