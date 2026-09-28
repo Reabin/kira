@@ -194,8 +194,8 @@ void main() {
   testWidgets('滑动切页保状态，且所有分支 widget 结构稳定', (tester) async {
     await _pumpShell(tester);
 
-    // 结构稳定：隐藏分支也保持同一套包装结构（Offstage>TickerMode>IgnorePointer>
-    // FractionalTranslation>RepaintBoundary），5 个分支各有一份。页面内容里
+    // 结构稳定：隐藏分支也保持同一套包装结构（Offstage>TickerMode>ExcludeFocus>
+    // IgnorePointer>FractionalTranslation>RepaintBoundary），5 个分支各有一份。页面内容里
     // 也有零散的 FractionalTranslation，这里只认「直接包 RepaintBoundary」的
     // 分支级包装。
     final translations = find.byWidgetPredicate(

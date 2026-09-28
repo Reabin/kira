@@ -424,7 +424,8 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     final isWarming = index == _warmBranch;
 
     // 所有分支共用同一套 widget 结构，只在属性值上区分状态：
-    // Offstage > TickerMode > IgnorePointer > FractionalTranslation > RepaintBoundary。
+    // Offstage > TickerMode > ExcludeFocus > IgnorePointer >
+    // FractionalTranslation > RepaintBoundary。
     // 结构若随「是否参与滑动」分叉，Flutter 调和会把整棵分支子树销毁重建
     // （只靠分支 Navigator 的 GlobalKey 补挂回来保状态），切页那一帧就得
     // 付出整页重排 + 重绘，首次显示还要叠加首次光栅化，表现成滑动卡顿。
@@ -451,11 +452,15 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
       offstage: offstage,
       child: TickerMode(
         enabled: isLogical,
-        child: IgnorePointer(
-          ignoring: !isLogical,
-          child: FractionalTranslation(
-            translation: Offset(dx, 0),
-            child: RepaintBoundary(child: widget.children[index]),
+        // 出场页和预热页即使正在绘制，也不能恢复隐藏输入框的焦点。
+        child: ExcludeFocus(
+          excluding: !isLogical,
+          child: IgnorePointer(
+            ignoring: !isLogical,
+            child: FractionalTranslation(
+              translation: Offset(dx, 0),
+              child: RepaintBoundary(child: widget.children[index]),
+            ),
           ),
         ),
       ),

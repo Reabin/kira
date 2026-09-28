@@ -38,6 +38,7 @@ import '../pages/stats_page.dart';
 import '../pages/webview_login_page.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
+import 'dismiss_keyboard_observer.dart';
 import 'main_shell.dart';
 
 /// Named route constants for type-safe navigation.
@@ -168,6 +169,7 @@ class RankingExtra {
 GoRouter createAppRouter() {
   return GoRouter(
     initialLocation: '/',
+    observers: [DismissKeyboardObserver()],
     routes: [
       StatefulShellRoute(
         navigatorContainerBuilder: buildMainShellNavigatorContainer,

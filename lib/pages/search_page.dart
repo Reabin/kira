@@ -98,6 +98,7 @@ class _SearchPageState extends State<SearchPage>
             padding: EdgeInsets.only(top: topInset),
             child: TabBar(
               controller: _tabController,
+              onTap: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               tabs: [
                 Tab(text: l10n.searchTabLabel),
                 Tab(text: l10n.discoverTabLabel),
@@ -110,7 +111,14 @@ class _SearchPageState extends State<SearchPage>
               // 横滑留给主导航，内部标签通过顶部 TabBar 切换。
               physics: const NeverScrollableScrollPhysics(),
               children: [
-                _SearchTab(api: _api, initRepository: _initRepository),
+                AnimatedBuilder(
+                  animation: _tabController,
+                  builder: (context, child) => ExcludeFocus(
+                    excluding: _tabController.index != 0,
+                    child: child!,
+                  ),
+                  child: _SearchTab(api: _api, initRepository: _initRepository),
+                ),
                 _DiscoverTab(api: _api, initRepository: _initRepository),
               ],
             ),

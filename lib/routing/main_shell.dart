@@ -245,6 +245,7 @@ class _MainShellState extends State<MainShell>
     final navKey = orderedKeys[index];
     final branchIndex = _navKeyToBranchIndex[navKey];
     if (branchIndex != null) {
+      FocusManager.instance.primaryFocus?.unfocus();
       widget.navigationShell.goBranch(
         branchIndex,
         initialLocation:
