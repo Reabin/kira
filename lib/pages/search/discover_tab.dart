@@ -15,7 +15,7 @@ class _DiscoverTab extends StatefulWidget {
 }
 
 class _DiscoverTabState extends State<_DiscoverTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BranchDeferredInit {
   final _user = UserManager();
   final _scrollController = ScrollController();
 
@@ -72,6 +72,11 @@ class _DiscoverTabState extends State<_DiscoverTab>
   void initState() {
     super.initState();
     _user.addListener(_onUserChanged);
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     unawaited(_reload());
   }
 

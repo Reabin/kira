@@ -9,6 +9,7 @@ import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../providers/novel_providers.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
@@ -51,7 +52,7 @@ class NovelSearchTab extends ConsumerStatefulWidget {
 }
 
 class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BranchDeferredInit {
   static const _kBodyExpanded = 'novel_search_tags_expanded';
 
   final _searchController = TextEditingController();
@@ -111,6 +112,11 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
           .searchBooks(keyword: _query ?? '', offset: offset),
       keyOf: (book) => book.pathWord,
     )..addListener(_rebuild);
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     unawaited(_loadThemes());
     unawaited(_loadHistory());
     unawaited(_restoreBodyState());

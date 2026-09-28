@@ -15,6 +15,7 @@ import '../utils/dialog_width.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/toast.dart';
+import 'branch_activation.dart';
 
 part 'main_shell_parts/main_shell_badges.dart';
 part 'main_shell_parts/main_shell_branch_container.dart';

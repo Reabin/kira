@@ -13,6 +13,7 @@ import '../models/comic.dart' hide Theme;
 import '../models/user_manager.dart';
 import '../repositories/search_init_repository.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';

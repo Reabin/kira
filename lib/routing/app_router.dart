@@ -178,7 +178,9 @@ GoRouter createAppRouter() {
         },
         branches: [
           // preload 让各分支页面在启动时就挂载（隐藏但活着），首次滑动切入
-          // 不必现场 build + 拉数据；首次绘制由 MainShell 的预热负责。
+          // 不必现场 build + 拉数据；首次绘制由 MainShell 的预热负责，首次
+          // 数据加载由各页面的 BranchDeferredInit 推迟到「切到该分支且停稳」
+          // 之后——启动只请求当前页，隐藏分支停留在骨架态。
           StatefulShellBranch(
             preload: true,
             routes: [
@@ -224,6 +226,7 @@ GoRouter createAppRouter() {
             ],
           ),
           StatefulShellBranch(
+            preload: true,
             routes: [
               GoRoute(
                 path: '/novels',

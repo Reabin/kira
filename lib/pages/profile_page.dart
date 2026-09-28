@@ -8,6 +8,7 @@ import '../models/novel_reading_progress.dart';
 import '../models/user_manager.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -30,7 +31,7 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
+class _ProfilePageState extends State<ProfilePage> with BranchDeferredInit {
   final _user = UserManager();
 
   /// 最近一次阅读记录,供「继续阅读」入口展示。null 表示无本地阅读记录。
@@ -47,6 +48,11 @@ class _ProfilePageState extends State<ProfilePage> {
     // 阅读别处产生的新记录后回到本页，需要靠变更通知刷新「继续阅读」。
     ReadingHistory.changes.addListener(_onReadingHistoryChanged);
     NovelReadingStore.changes.addListener(_onReadingHistoryChanged);
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     unawaited(_loadContinueRecord());
     unawaited(_loadContinueNovel());
   }

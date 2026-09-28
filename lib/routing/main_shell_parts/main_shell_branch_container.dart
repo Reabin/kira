@@ -79,6 +79,17 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
   /// 预热被滑动/切换打断后的重试次数（避免无限重试）。
   int _warmUpRetries = 0;
 
+  /// 停稳激活广播：当前分支在无切换/拖动动画的情况下持续停留
+  /// [_settleDebounceDuration] 后广播其序号。页面侧（BranchDeferredInit）
+  /// 据此把首次数据加载推迟到「切到该页且动画停稳之后」——启动只加载
+  /// 当前页，隐藏分支停留在骨架态（这也让预热画出的状态始终有效）。
+  final ValueNotifier<int?> _settledActiveBranch = ValueNotifier<int?>(null);
+  Timer? _settleDebounce;
+
+  /// 去抖窗口需盖过启动时 _restoreLastBranch 的分支恢复（几十毫秒内发生），
+  /// 否则初始分支会在恢复切走前被判定停稳而提前加载。
+  static const _settleDebounceDuration = Duration(milliseconds: 400);
+
   @override
   void initState() {
     super.initState();
@@ -89,9 +100,11 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
       _tween = null;
       _dualTween = null;
       setState(() => _outgoingIndex = null);
+      _scheduleSettleBroadcast();
     });
     _logicalBranch = widget.currentIndex;
     _scheduleWarmUp();
+    _scheduleSettleBroadcast();
   }
 
   void _onTick() {
@@ -141,6 +154,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
         _pendingBranch = null;
         _outgoingIndex = null;
       });
+      _scheduleSettleBroadcast();
       return;
     }
 
@@ -163,10 +177,13 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
         _startDualTween();
       }
     });
+    _scheduleSettleBroadcast();
   }
 
   @override
   void dispose() {
+    _settleDebounce?.cancel();
+    _settledActiveBranch.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -210,6 +227,17 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     } else {
       _controller.forward(from: 0);
     }
+  }
+
+  /// 分支在无切换/拖动动画下停留足够久后，广播其为「停稳激活」。
+  /// 动画进行中触发的定时器直接作废——各条动画结束路径都会重新安排。
+  void _scheduleSettleBroadcast() {
+    _settleDebounce?.cancel();
+    _settleDebounce = Timer(_settleDebounceDuration, () {
+      _settleDebounce = null;
+      if (!mounted || _transitionBusy) return;
+      _settledActiveBranch.value = _uiBranch;
+    });
   }
 
   // ---- 跟手拖动（由 MainShell 转发手势回调） ----
@@ -280,6 +308,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     _dragging = false;
     _dragAccumPx = 0;
     _dragBaseProgress = 0;
+    _scheduleSettleBroadcast();
 
     final dest = cur + target.toDouble();
     if ((dest - _scrollPos).abs() < 0.0005) {
@@ -318,6 +347,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     _dragging = false;
     _dragAccumPx = 0;
     _dragBaseProgress = 0;
+    _scheduleSettleBroadcast();
     final dest = _visiblePos(_uiBranch);
     if ((dest - _scrollPos).abs() < 0.0005) {
       _scrollPos = dest;
@@ -447,19 +477,23 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
       offstage = !isWarming && dx.abs() >= 1;
     }
 
-    return Offstage(
+    return BranchActivationScope(
       key: ValueKey(index),
-      offstage: offstage,
-      child: TickerMode(
-        enabled: isLogical,
-        // 出场页和预热页即使正在绘制，也不能恢复隐藏输入框的焦点。
-        child: ExcludeFocus(
-          excluding: !isLogical,
-          child: IgnorePointer(
-            ignoring: !isLogical,
-            child: FractionalTranslation(
-              translation: Offset(dx, 0),
-              child: RepaintBoundary(child: widget.children[index]),
+      branchIndex: index,
+      settledBranch: _settledActiveBranch,
+      child: Offstage(
+        offstage: offstage,
+        child: TickerMode(
+          enabled: isLogical,
+          // 出场页和预热页即使正在绘制，也不能恢复隐藏输入框的焦点。
+          child: ExcludeFocus(
+            excluding: !isLogical,
+            child: IgnorePointer(
+              ignoring: !isLogical,
+              child: FractionalTranslation(
+                translation: Offset(dx, 0),
+                child: RepaintBoundary(child: widget.children[index]),
+              ),
             ),
           ),
         ),

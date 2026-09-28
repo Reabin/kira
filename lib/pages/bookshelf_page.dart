@@ -15,6 +15,7 @@ import '../providers/app_providers.dart';
 import '../providers/repository_providers.dart';
 import '../repositories/bookshelf_repository.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/reading_history.dart';
@@ -157,7 +158,7 @@ class _ComicBookshelfPage extends ConsumerStatefulWidget {
 }
 
 class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, BranchDeferredInit {
   static const _cacheTtl = Duration(minutes: 30);
   ApiClient get _api => ref.read(apiClientProvider);
   ComicBookshelfRepository get _comicRepo =>
@@ -200,6 +201,11 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
     WidgetsBinding.instance.addObserver(this);
     _user.addListener(_onUserChanged);
     _startCacheTimeTimer();
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     _loadShowUpdateOnly();
     if (_user.isLoggedIn) {
       _tryLoadCache().then((_) {

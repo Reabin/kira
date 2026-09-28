@@ -15,7 +15,7 @@ class _SearchTab extends StatefulWidget {
 }
 
 class _SearchTabState extends State<_SearchTab>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, BranchDeferredInit {
   static const _kHotSearchExpanded = 'search_hot_search_expanded';
 
   final _searchController = TextEditingController();
@@ -68,6 +68,11 @@ class _SearchTabState extends State<_SearchTab>
     // 缓存管理/重置会重新初始化 UserManager 并通知；切换标签也会通知。
     // 历史不是全局单例，在这里重读即可同步保活页面，无需 settings_reload。
     _user.addListener(_onUserChanged);
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     unawaited(_loadKeywords());
     unawaited(_loadHistory());
     unawaited(_restoreCollapseState());

@@ -14,6 +14,7 @@ import '../providers/app_providers.dart';
 import '../providers/repository_providers.dart';
 import '../repositories/manga_home_repository.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -78,7 +79,7 @@ double _copySectionContentWidth(
 }
 
 class _HomePageState extends ConsumerState<HomePage>
-    with SettingsRebuildGuard<HomePage> {
+    with SettingsRebuildGuard<HomePage>, BranchDeferredInit {
   MangaHomeRepository get _repo => ref.read(mangaHomeRepositoryProvider);
   UserManager get _user => ref.read(userManagerProvider);
   MangaHome? _home;
@@ -94,6 +95,11 @@ class _HomePageState extends ConsumerState<HomePage>
     super.initState();
     _user.addListener(handleSettingsChanged);
     _activeSource = _user.mangaHomeSource;
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     _loadFromCache();
     _load();
   }
@@ -110,15 +116,18 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   void onWatchedSettingsChanged() {
-    // 数据源切换时重新加载对应数据
+    // 数据源切换时重新加载对应数据；分支未激活过时只更新目标源，
+    // 首次加载回调会按当前源拉取。
     if (_activeSource != _user.mangaHomeSource) {
       _activeSource = _user.mangaHomeSource;
-      _loading = true;
-      _error = null;
-      _home = null;
-      _copyHome = null;
-      _loadFromCache();
-      _load();
+      if (branchInitialLoadStarted) {
+        _loading = true;
+        _error = null;
+        _home = null;
+        _copyHome = null;
+        _loadFromCache();
+        _load();
+      }
     }
     setState(() {});
   }

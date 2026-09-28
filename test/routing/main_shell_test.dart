@@ -105,9 +105,11 @@ GoRouter _buildRouter() {
               ),
             ],
           ),
-          // 轻小说分支在 app_router 里刻意不 preload（避免启动即发小说请求），
-          // 这里保持一致，但它仍占可见序的第 5 位。
+          // 轻小说分支与 app_router 一致：preload 挂载页面框架，首次数据
+          // 加载由 BranchDeferredInit 推迟到分支激活（测试页不发起加载）。
+          // 它仍占可见序的第 5 位。
           StatefulShellBranch(
+            preload: true,
             routes: [
               GoRoute(
                 path: '/novels',

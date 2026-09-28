@@ -15,6 +15,7 @@ import '../providers/app_providers.dart';
 import '../providers/novel_providers.dart';
 import '../repositories/novel_bookshelf_repository.dart';
 import '../routing/app_router.dart';
+import '../routing/branch_activation.dart';
 import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
@@ -45,7 +46,7 @@ class NovelBookshelfPage extends ConsumerStatefulWidget {
 }
 
 class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, BranchDeferredInit {
   static const _showUpdateOnlyKey = 'local_novel_bookshelf_show_update_only';
 
   late final UserManager _user = ref.read(userManagerProvider);
@@ -84,6 +85,11 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     _cacheTimeTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+    deferInitialLoadToBranchActivation();
+  }
+
+  @override
+  void onBranchFirstActivated() {
     unawaited(_loadShowUpdateOnly());
     if (_user.isCopyLoggedIn) {
       unawaited(_load());
