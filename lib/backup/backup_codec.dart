@@ -57,7 +57,7 @@ class EncodedBackup {
 class BackupCodec {
   static const maxFileBytes = 16 * 1024 * 1024;
   static const maxContentBytes = 64 * 1024 * 1024;
-  static const iterations = 600000;
+  static const defaultIterations = 600000;
   static const headerLength = 48;
   static const tagLength = 16;
   static const _magic = [75, 73, 82, 65, 66, 65, 75, 33];
@@ -65,8 +65,14 @@ class BackupCodec {
 
   final Cryptography _cryptography;
 
-  BackupCodec({Cryptography? cryptography})
-    : _cryptography = cryptography ?? FlutterCryptography();
+  /// PBKDF2 rounds written to the header and enforced on decode. Tests inject
+  /// a small value to keep pure-Dart derivation off the hot path; production
+  /// callers keep [defaultIterations].
+  final int iterations;
+
+  BackupCodec({Cryptography? cryptography, int? iterations})
+    : _cryptography = cryptography ?? FlutterCryptography(),
+      iterations = iterations ?? defaultIterations;
 
   static Uint8List randomBytes(int length) =>
       Uint8List.fromList(List.generate(length, (_) => _random.nextInt(256)));

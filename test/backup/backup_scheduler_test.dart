@@ -38,7 +38,7 @@ void main() {
         journal: MemoryBackupJournal(),
         runtime: TestBackupRuntime(),
       ),
-      codec: BackupCodec(),
+      codec: BackupCodec(iterations: 1000),
     );
     uploads = [];
     clock = DateTime(2026, 9, 20, 12);

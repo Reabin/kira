@@ -150,8 +150,9 @@ void main() {
       await tester.tap(find.byTooltip(_l10n(tester).searchClearTooltip));
       await pumpSearchFrames(tester);
       expect(find.text('测试热搜'), findsOneWidget);
-      expect(find.text(_l10n(tester).searchHistoryTitle), findsOneWidget);
-      expect(find.widgetWithText(InputChip, '不存在'), findsOneWidget);
+      // 不再记录搜索历史：清空后只剩热门搜索，无历史标题与旧关键词。
+      expect(find.text(_l10n(tester).searchHistoryTitle), findsNothing);
+      expect(find.widgetWithText(InputChip, '不存在'), findsNothing);
       expect(find.text(_l10n(tester).searchEmptyResults), findsNothing);
     });
 

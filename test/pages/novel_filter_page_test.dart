@@ -249,7 +249,7 @@ void main() {
         find.widgetWithText(AppBar, '$title · ${tag.name}'),
         findsOneWidget,
       );
-      expect(find.text('最近更新'), findsOneWidget);
+      expect(find.text('更新'), findsOneWidget);
       expect(find.byType(NovelBookCard), findsOneWidget);
       _expectQuery(harness.bookRequests.single, kind, tag, 0);
       await tester.tap(find.byType(BackButton));

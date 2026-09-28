@@ -14,7 +14,10 @@ Matcher backupError(SettingsBackupErrorCode code) =>
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final codec = BackupCodec();
+  // Pure-Dart PBKDF2 at production rounds costs ~2.3s per derivation; the
+  // format contract (header round count, pre-derivation rejection) is what
+  // these tests cover, so they run at a cheap round count.
+  final codec = BackupCodec(iterations: 1000);
   final document = backupDocument({
     'theme_color': '紫色🌸',
     'theme_mode': 2,
@@ -99,7 +102,9 @@ void main() {
       expect(encrypted.extension, '.kirabak');
       expect(BackupCodec.isEncrypted(encrypted.bytes), isTrue);
       expect(encrypted.bytes.length, prepared.compressed.length + 64);
-      expect(ByteData.sublistView(encrypted.bytes).getUint32(12), 600000);
+      expect(ByteData.sublistView(encrypted.bytes).getUint32(12), 1000);
+      // The shipped format keeps the production KDF strength.
+      expect(BackupCodec().iterations, BackupCodec.defaultIterations);
       final decoded = await codec.decode(encrypted.bytes, password: password);
       expect(decoded.toJson(), document.toJson());
       await expectLater(

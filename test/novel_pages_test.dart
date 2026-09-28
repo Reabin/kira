@@ -464,7 +464,7 @@ void main() {
     h.api.books = (_, ordering, _) =>
         ordering == '-popular' ? old.future : latest.future;
     await h.pump(tester, const NovelHomePage());
-    await tester.tap(find.text('最近更新'));
+    await tester.tap(find.text('更新'));
     await tester.pump();
     latest.complete(_page([const NovelBook(pathWord: 'new', name: '新的结果')]));
     await tester.pumpAndSettle();
