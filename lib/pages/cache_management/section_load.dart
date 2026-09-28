@@ -1,11 +1,12 @@
 part of '../cache_management_page.dart';
 
 extension _CacheSectionLoad on _CacheManagementPageState {
-  Future<List<_ImageCacheSection>> _loadImageCacheSections() async {
+  /// 真正的图片缓存都走 flutter_cache_manager,存放在临时目录。
+  Future<List<_FileCacheSection>> _loadImageCacheSections() async {
     final l10n = AppLocalizations.of(context)!;
     final tempDir = await getTemporaryDirectory();
     return [
-      await _buildImageCacheSection(
+      await _buildFileCacheSection(
         tempDir: tempDir,
         id: 'image:reader',
         cacheKey: _CacheManagementPageState._readerImageCacheKey,
@@ -13,15 +14,7 @@ extension _CacheSectionLoad on _CacheManagementPageState {
         description: l10n.cacheReaderImageDesc,
         icon: Icons.menu_book_outlined,
       ),
-      await _buildImageCacheSection(
-        tempDir: await getApplicationSupportDirectory(),
-        id: 'text:novel',
-        cacheKey: FileNovelCacheStore.directoryName,
-        label: l10n.cacheNovelTextLabel,
-        description: l10n.cacheNovelTextDesc,
-        icon: Icons.auto_stories_outlined,
-      ),
-      await _buildImageCacheSection(
+      await _buildFileCacheSection(
         tempDir: tempDir,
         id: 'image:default',
         cacheKey: DefaultCacheManager.key,
@@ -30,6 +23,20 @@ extension _CacheSectionLoad on _CacheManagementPageState {
         icon: Icons.image_outlined,
       ),
     ];
+  }
+
+  /// 轻小说正文是 application support 目录下的 JSON 文件,不走
+  /// flutter_cache_manager,清理方式也不同,因此单独成节、单独清理。
+  Future<_FileCacheSection> _loadNovelTextSection() async {
+    final l10n = AppLocalizations.of(context)!;
+    return _buildFileCacheSection(
+      tempDir: await getApplicationSupportDirectory(),
+      id: 'text:novel',
+      cacheKey: FileNovelCacheStore.directoryName,
+      label: l10n.cacheNovelTextLabel,
+      description: l10n.cacheNovelTextDesc,
+      icon: Icons.auto_stories_outlined,
+    );
   }
 
   Future<_FontCacheSection?> _loadFontSection() async {
@@ -74,7 +81,7 @@ extension _CacheSectionLoad on _CacheManagementPageState {
     );
   }
 
-  Future<_ImageCacheSection> _buildImageCacheSection({
+  Future<_FileCacheSection> _buildFileCacheSection({
     required Directory tempDir,
     required String id,
     required String cacheKey,
@@ -84,7 +91,7 @@ extension _CacheSectionLoad on _CacheManagementPageState {
   }) async {
     final directory = _cacheDirectoryFor(tempDir, cacheKey);
     final stats = await _directoryStats(directory);
-    return _ImageCacheSection(
+    return _FileCacheSection(
       id: id,
       cacheKey: cacheKey,
       label: label,
@@ -120,22 +127,25 @@ extension _CacheSectionLoad on _CacheManagementPageState {
     return _DirectoryStats(fileCount: fileCount, sizeBytes: sizeBytes);
   }
 
-  Future<void> _clearImageCacheSection(_ImageCacheSection section) async {
-    if (!section.isNovelText) {
-      if (section.cacheKey == DefaultCacheManager.key) {
-        await DefaultCacheManager().emptyCache();
-      } else {
-        await CacheManager(Config(section.cacheKey)).emptyCache();
-      }
+  Future<void> _clearImageCacheSection(_FileCacheSection section) async {
+    if (section.cacheKey == DefaultCacheManager.key) {
+      await DefaultCacheManager().emptyCache();
+    } else {
+      await CacheManager(Config(section.cacheKey)).emptyCache();
     }
 
     final directory = Directory(section.directoryPath);
     if (await directory.exists()) {
       await directory.delete(recursive: true);
     }
-    if (!section.isNovelText) {
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+  }
+
+  Future<void> _clearNovelTextSection(_FileCacheSection section) async {
+    final directory = Directory(section.directoryPath);
+    if (await directory.exists()) {
+      await directory.delete(recursive: true);
     }
   }
 }

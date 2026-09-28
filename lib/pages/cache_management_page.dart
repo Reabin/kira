@@ -75,7 +75,8 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
   bool _loading = true;
   String? _error;
   List<_CacheSection> _sections = const [];
-  List<_ImageCacheSection> _imageCacheSections = const [];
+  List<_FileCacheSection> _imageCacheSections = const [];
+  _FileCacheSection? _novelTextSection;
   _FontCacheSection? _fontSection;
   final Set<String> _revealedSensitiveKeys = {};
   bool _selectionMode = false;
@@ -147,18 +148,21 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       }
 
       final imageCacheSections = await _loadImageCacheSections();
+      final novelTextSection = await _loadNovelTextSection();
       final fontSection = await _loadFontSection();
 
       if (!mounted) return;
       setState(() {
         _sections = sections;
         _imageCacheSections = imageCacheSections;
+        _novelTextSection = novelTextSection;
         _fontSection = fontSection;
         final sectionIds = <String>{
           ...sections.map((section) => section.id),
           ...imageCacheSections
               .where((section) => !section.isEmpty)
               .map((section) => section.id),
+          if (!novelTextSection.isEmpty) novelTextSection.id,
         };
         _selectedSectionIds.removeWhere((id) => !sectionIds.contains(id));
         if (sectionIds.isEmpty) {
@@ -235,6 +239,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       (sum, section) => sum + section.sizeBytes,
     );
     final fontBytes = _fontSection?.sizeBytes ?? 0;
+    final novelTextSection = _novelTextSection;
     final totalBytes = localBytes + imageCacheBytes + fontBytes;
     final maxSectionCardHeight = MediaQuery.sizeOf(context).height * 0.5;
     final maxSectionEntriesHeight = (maxSectionCardHeight - 73)
@@ -306,7 +311,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                   ..._imageCacheSections.map(
                     (section) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _ImageCacheSectionCard(
+                      child: _FileCacheSectionCard(
                         section: section,
                         selectionMode: _selectionMode,
                         selected: _selectedSectionIds.contains(section.id),
@@ -315,6 +320,32 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                             _toggleImageSectionSelected(section),
                         onClear: () => _deleteImageCacheSection(section),
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (novelTextSection != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                    child: Text(
+                      l10n.cacheNovelTextSection,
+                      style: tt.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _FileCacheSectionCard(
+                      section: novelTextSection,
+                      selectionMode: _selectionMode,
+                      selected: _selectedSectionIds.contains(
+                        novelTextSection.id,
+                      ),
+                      sizeLabel: _formatBytes(novelTextSection.sizeBytes),
+                      onToggleSelected: () =>
+                          _toggleNovelTextSectionSelected(novelTextSection),
+                      onClear: () => _deleteNovelTextSection(novelTextSection),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),

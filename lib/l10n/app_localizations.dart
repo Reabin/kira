@@ -3352,7 +3352,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheReaderImageLabel.
   ///
   /// In zh, this message translates to:
-  /// **'图片缓存 / 漫画阅读器'**
+  /// **'漫画阅读器'**
   String get cacheReaderImageLabel;
 
   /// No description provided for @cacheReaderImageDesc.
@@ -3364,7 +3364,7 @@ abstract class AppLocalizations {
   /// No description provided for @cacheDefaultImageLabel.
   ///
   /// In zh, this message translates to:
-  /// **'图片缓存 / 封面与头像'**
+  /// **'封面与头像'**
   String get cacheDefaultImageLabel;
 
   /// No description provided for @cacheDefaultImageDesc.
@@ -4367,6 +4367,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'图片缓存'**
   String get cacheImageCacheSection;
+
+  /// No description provided for @cacheNovelTextSection.
+  ///
+  /// In zh, this message translates to:
+  /// **'轻小说缓存'**
+  String get cacheNovelTextSection;
 
   /// No description provided for @cacheDataCacheSection.
   ///

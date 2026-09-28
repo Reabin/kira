@@ -52,8 +52,8 @@ class _CacheEntry {
   }
 }
 
-class _ImageCacheSection {
-  const _ImageCacheSection({
+class _FileCacheSection {
+  const _FileCacheSection({
     required this.id,
     required this.cacheKey,
     required this.label,
@@ -74,7 +74,6 @@ class _ImageCacheSection {
   final IconData icon;
 
   bool get isEmpty => fileCount == 0 && sizeBytes == 0;
-  bool get isNovelText => cacheKey == FileNovelCacheStore.directoryName;
 }
 
 class _DirectoryStats {

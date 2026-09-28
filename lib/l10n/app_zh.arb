@@ -1090,9 +1090,9 @@
       }
     }
   },
-  "cacheReaderImageLabel": "图片缓存 / 漫画阅读器",
+  "cacheReaderImageLabel": "漫画阅读器",
   "cacheReaderImageDesc": "漫画章节图片缓存。再次打开读过的章节时，图片会优先从这里读取。",
-  "cacheDefaultImageLabel": "图片缓存 / 封面与头像",
+  "cacheDefaultImageLabel": "封面与头像",
   "cacheDefaultImageDesc": "封面、头像等 CachedNetworkImage 默认使用的图片缓存。",
   "commentSettingsEditBuiltInPromptTitle": "编辑内置提示词",
   "commentSettingsEditPromptTitle": "编辑提示词",
@@ -1525,6 +1525,7 @@
     }
   },
   "cacheImageCacheSection": "图片缓存",
+  "cacheNovelTextSection": "轻小说缓存",
   "cacheDataCacheSection": "数据缓存",
   "cacheNoLocalKeyValueData": "没有可显示的本地键值数据",
   "cacheEntryCountSize": "{count} 项 · {size}",

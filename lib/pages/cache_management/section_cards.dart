@@ -1,7 +1,7 @@
 part of '../cache_management_page.dart';
 
-class _ImageCacheSectionCard extends StatelessWidget {
-  const _ImageCacheSectionCard({
+class _FileCacheSectionCard extends StatelessWidget {
+  const _FileCacheSectionCard({
     required this.section,
     required this.selectionMode,
     required this.selected,
@@ -10,7 +10,7 @@ class _ImageCacheSectionCard extends StatelessWidget {
     required this.onClear,
   });
 
-  final _ImageCacheSection section;
+  final _FileCacheSection section;
   final bool selectionMode;
   final bool selected;
   final String sizeLabel;

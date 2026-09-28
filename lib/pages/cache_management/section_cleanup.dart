@@ -14,7 +14,12 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     _toggleSectionIdSelected(section.id);
   }
 
-  void _toggleImageSectionSelected(_ImageCacheSection section) {
+  void _toggleImageSectionSelected(_FileCacheSection section) {
+    if (section.isEmpty) return;
+    _toggleSectionIdSelected(section.id);
+  }
+
+  void _toggleNovelTextSectionSelected(_FileCacheSection section) {
     if (section.isEmpty) return;
     _toggleSectionIdSelected(section.id);
   }
@@ -36,13 +41,19 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
       .where((section) => _selectedSectionIds.contains(section.id))
       .toList(growable: false);
 
-  List<_ImageCacheSection> get _selectedImageCacheSections =>
-      _imageCacheSections
-          .where(
-            (section) =>
-                !section.isEmpty && _selectedSectionIds.contains(section.id),
-          )
-          .toList(growable: false);
+  List<_FileCacheSection> get _selectedImageCacheSections => _imageCacheSections
+      .where(
+        (section) =>
+            !section.isEmpty && _selectedSectionIds.contains(section.id),
+      )
+      .toList(growable: false);
+
+  bool get _novelTextSelected {
+    final section = _novelTextSection;
+    return section != null &&
+        !section.isEmpty &&
+        _selectedSectionIds.contains(section.id);
+  }
 
   bool get _fontSelected {
     final section = _fontSection;
@@ -55,29 +66,29 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     final l10n = AppLocalizations.of(context)!;
     final sections = _selectedSections;
     final imageSections = _selectedImageCacheSections;
+    final novelText = _novelTextSelected ? _novelTextSection : null;
     final font = _fontSelected ? _fontSection : null;
-    if (sections.isEmpty && imageSections.isEmpty && font == null) {
+    if (sections.isEmpty &&
+        imageSections.isEmpty &&
+        novelText == null &&
+        font == null) {
       return;
     }
 
     final entries = sections.expand((section) => section.entries).toList();
     final keys = entries.map((entry) => entry.key).toSet();
-    final imageOnly = imageSections
-        .where((section) => !section.isNovelText)
-        .toList();
-    final imageCacheBytes = imageOnly.fold<int>(
+    final imageCacheBytes = imageSections.fold<int>(
       0,
       (sum, section) => sum + section.sizeBytes,
     );
     final deleteTargets = <String>[
       if (keys.isNotEmpty) l10n.cacheLocalDataTarget(keys.length),
-      if (imageOnly.isNotEmpty)
+      if (imageSections.isNotEmpty)
         l10n.cacheImageDataTarget(
-          imageOnly.length,
+          imageSections.length,
           _formatBytes(imageCacheBytes),
         ),
-      if (imageSections.any((section) => section.isNovelText))
-        l10n.cacheNovelTextLabel,
+      if (novelText != null) l10n.cacheNovelTextLabel,
       if (font != null)
         l10n.cacheFontDataTarget(
           font.fonts.length,
@@ -114,6 +125,9 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
       for (final section in imageSections) {
         await _clearImageCacheSection(section);
       }
+      if (novelText != null) {
+        await _clearNovelTextSection(novelText);
+      }
       if (font != null) {
         for (final f in font.fonts) {
           await FontManager().deleteFont(f.id);
@@ -139,7 +153,7 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     }
   }
 
-  Future<void> _deleteImageCacheSection(_ImageCacheSection section) async {
+  Future<void> _deleteImageCacheSection(_FileCacheSection section) async {
     final l10n = AppLocalizations.of(context)!;
     if (section.isEmpty) {
       showToast(context, l10n.cacheNoImageCacheToClear);
@@ -149,19 +163,13 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          section.isNovelText
-              ? l10n.cacheNovelTextLabel
-              : l10n.cacheClearImageCacheTitle,
-        ),
+        title: Text(l10n.cacheClearImageCacheTitle),
         content: Text(
-          section.isNovelText
-              ? l10n.cacheNovelTextClearConfirm
-              : l10n.cacheClearImageCacheContent(
-                  section.label,
-                  section.fileCount,
-                  _formatBytes(section.sizeBytes),
-                ),
+          l10n.cacheClearImageCacheContent(
+            section.label,
+            section.fileCount,
+            _formatBytes(section.sizeBytes),
+          ),
         ),
         actions: [
           TextButton(
@@ -180,12 +188,46 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     try {
       await _clearImageCacheSection(section);
       if (mounted) {
-        showToast(
-          context,
-          section.isNovelText
-              ? l10n.cacheNovelTextCleared
-              : l10n.cacheImageCacheClearedToast(section.label),
-        );
+        showToast(context, l10n.cacheImageCacheClearedToast(section.label));
+      }
+      await _loadEntries();
+    } catch (e) {
+      if (mounted) {
+        showToast(context, l10n.cacheCleanFailedToast('$e'), isError: true);
+      }
+    }
+  }
+
+  Future<void> _deleteNovelTextSection(_FileCacheSection section) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (section.isEmpty) {
+      showToast(context, l10n.cacheNoImageCacheToClear);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.cacheNovelTextLabel),
+        content: Text(l10n.cacheNovelTextClearConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.cacheClearButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _clearNovelTextSection(section);
+      if (mounted) {
+        showToast(context, l10n.cacheNovelTextCleared);
       }
       await _loadEntries();
     } catch (e) {

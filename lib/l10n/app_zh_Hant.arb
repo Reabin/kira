@@ -1059,9 +1059,9 @@
       }
     }
   },
-  "cacheReaderImageLabel": "圖片快取 / 漫畫閱讀器",
+  "cacheReaderImageLabel": "漫畫閱讀器",
   "cacheReaderImageDesc": "漫畫章節圖片快取。再次開啟讀過的章節時，圖片會優先從這裡讀取。",
-  "cacheDefaultImageLabel": "圖片快取 / 封面與頭像",
+  "cacheDefaultImageLabel": "封面與頭像",
   "cacheDefaultImageDesc": "封面、頭像等 CachedNetworkImage 預設使用的圖片快取。",
   "commentSettingsEditBuiltInPromptTitle": "編輯內建提示詞",
   "commentSettingsEditPromptTitle": "編輯提示詞",
@@ -1494,6 +1494,7 @@
     }
   },
   "cacheImageCacheSection": "圖片快取",
+  "cacheNovelTextSection": "輕小說快取",
   "cacheDataCacheSection": "資料快取",
   "cacheNoLocalKeyValueData": "沒有可顯示的本地鍵值資料",
   "cacheEntryCountSize": "{count} 項 · {size}",
