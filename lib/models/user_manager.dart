@@ -420,6 +420,69 @@ class UserManager extends ChangeNotifier {
   bool get commentBlockNoRemind => _commentBlockNoRemind;
   List<String> get commentBlockwords => List.unmodifiable(_commentBlockwords);
   bool get commentBlockGroupSpam => _commentBlockGroupSpam;
+
+  // ── 屏蔽判定与屏蔽用户写入 ────────────────────────────────────────────
+  // 这几个成员留在类体（而非 UserManagerCommentPart 扩展）是因为扩展成员
+  // 静态解析、无法被测试假体覆写；各评论区对其有真实的多态需求。
+
+  /// `entry` 格式：`userId|userName`（userId 可为空字符串，userName 作为兜底标识）。
+  bool isCommentUserBlocked(String userId, String userName) {
+    if (userId.isEmpty && userName.isEmpty) return false;
+    for (final raw in _commentBlockedUsers) {
+      final sep = raw.indexOf('|');
+      if (sep < 0) {
+        if (userId.isNotEmpty && raw == userId) return true;
+        continue;
+      }
+      final bId = raw.substring(0, sep);
+      final bName = raw.substring(sep + 1);
+      if (userId.isNotEmpty && bId == userId) return true;
+      if (userId.isEmpty && userName.isNotEmpty && bName == userName) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> blockCommentUser(String userId, String userName) async {
+    final key = '$userId|$userName';
+    if (_commentBlockedUsers.any((e) => e == key)) return;
+    _commentBlockedUsers = [..._commentBlockedUsers, key];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      UserManager._keyCommentBlockedUsers,
+      _commentBlockedUsers,
+    );
+    _notifyListeners();
+  }
+
+  /// 评论内容是否命中任一屏蔽词（大小写不敏感）。
+  bool isCommentBlockedByWord(String content) {
+    if (_commentBlockwords.isEmpty || content.isEmpty) return false;
+    final lower = content.toLowerCase();
+    for (final word in _commentBlockwords) {
+      if (word.isEmpty) continue;
+      if (lower.contains(word.toLowerCase())) return true;
+    }
+    return false;
+  }
+
+  /// 群广告预设正则：内容含「群」且含 8~12 位连续数字。
+  static final _groupSpamRegex = RegExp(r'\d{8,12}');
+
+  bool isCommentGroupSpam(String content) {
+    if (!_commentBlockGroupSpam || content.isEmpty) return false;
+    if (!content.contains('群')) return false;
+    return _groupSpamRegex.hasMatch(content);
+  }
+
+  Future<void> setCommentBlockNoRemind(bool value) async {
+    _commentBlockNoRemind = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(UserManager._keyCommentBlockNoRemind, value);
+    _notifyListeners();
+  }
+
   int get logoIndex => _logoIndex;
   String get appLogoPath =>
       appLogoPaths[_logoIndex.clamp(0, appLogoPaths.length - 1)];

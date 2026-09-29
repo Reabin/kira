@@ -16,6 +16,9 @@ class NovelPagedController<T> extends ChangeNotifier {
   bool loading = false;
   bool refreshing = false;
   bool hasMore = true;
+
+  /// 最近一页报告的服务端总数（去重前），供评论区「N 条」计数展示。
+  int total = 0;
   Object? error;
   Object? refreshError;
   int _offset = 0;
@@ -28,6 +31,7 @@ class NovelPagedController<T> extends ChangeNotifier {
     loading = false;
     refreshing = false;
     hasMore = true;
+    total = 0;
     error = null;
     refreshError = null;
     _offset = 0;
@@ -74,6 +78,7 @@ class NovelPagedController<T> extends ChangeNotifier {
       // Advance by raw results, not by the deduplicated visible item count.
       _offset = page.offset + page.list.length;
       hasMore = page.hasMore && _offset > offset;
+      total = page.total;
     } catch (e, stack) {
       unawaited(
         AppLogger.instance.recordWarning(

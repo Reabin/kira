@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Platform folders (`android/`, `ios/`, `linux/`, `macos/`, `web/`, `windows/`) hold only platform-specific integration code. Static assets live in `assets/` and must be declared in `pubspec.yaml`. `ref/` (~106 MB, gitignored) holds reference material only — per-domain sample API responses under `ref/漫画` `ref/轻小说` `ref/评论` …, `ref/dandanplay-API.md` (`dandanplay` is **not** a runtime dependency, it is copied API documentation), and third-party sources such as `ref/rikkahub`. Never import from it, and never cite anything under `ref/` as current behaviour.
+Platform folders (`android/`, `ios/`, `linux/`, `macos/`, `web/`, `windows/`) hold only platform-specific integration code. Static assets live in `assets/` and must be declared in `pubspec.yaml`. `ref/`（gitignored）存放接口文档，仅作参考 —— never import from it, and never cite anything under `ref/` as current behaviour.
 
 ### `lib/` 一级目录速览
 
@@ -24,7 +24,7 @@ Platform folders (`android/`, `ios/`, `linux/`, `macos/`, `web/`, `windows/`) ho
 
 ## Maintenance Scope
 
-Anime was removed outright (`569f482`), not merely frozen — treat it as absent, not as deprecated code to keep compiling. Two live product areas: **漫画（拷贝 + 热辣）** 与 **轻小说**. Both are active; 轻小说 design details live in `docs/novel.md`. `ref/` is gitignored reference material (API docs, sample JSON, third-party source) — never import from it.
+Anime was removed outright (`569f482`), not merely frozen — treat it as absent, not as deprecated code to keep compiling. Two live product areas: **漫画（拷贝 + 热辣）** 与 **轻小说**. Both are active; 轻小说 design details live in `docs/novel.md`. `ref/` 已被 gitignore 排除，只存放接口文档 — never import from it.
 
 ## Architecture Patterns
 
@@ -116,6 +116,7 @@ Android is the only **released** target (`build_apk.ps1` + `.github/workflows/re
 - `test/test_helpers.dart` is mandatory for widget tests: `wrapWithApp(child)` injects the `AppLocalizations` delegate — a bare `MaterialApp` makes `AppLocalizations.of(context)!` throw. Call `setupSecureCredentialStoreForTest()` in `setUp` and `teardownSecureCredentialStoreForTest()` in `tearDown` for anything that runs `UserManager.init()`; without it the platform channel hangs the test.
 - For `CachedRepository` subclasses: override `loadFromCache`/`saveToCache` with in-memory maps to avoid SharedPreferences in tests.
 - New features and bug fixes should include tests when the behavior can be exercised outside platform-only code.
+- **不要擅自跑全量测试**：默认只跑与改动相关的测试文件（`flutter test test/xxx_test.dart …`）；全量 `flutter test` 耗时且输出量大，仅在用户明确要求时执行。
 - Baseline commands: `flutter analyze` (clean) and `flutter test` both pass on `main`; `dart format lib test` is not enforced repo-wide, so unrelated files may already differ — format the files you touched only.
 
 ## Commit & Pull Request Guidelines

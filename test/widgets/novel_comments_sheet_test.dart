@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -80,11 +81,78 @@ class _User extends ChangeNotifier implements UserManager {
   String? copyToken;
   bool hotLoggedIn = false;
 
+  // 屏蔽配置：对应 UserManager 类体上的同名成员（判定逻辑为类成员，
+  // 假体覆写后才可在测试中驱动屏蔽过滤）。
+  List<String> blockedUsers = const [];
+  List<String> blockwords = const [];
+  bool blockGroupSpam = false;
+  bool blockNoRemind = false;
+  final blockedCalls = <(String, String)>[];
+
   @override
   bool get isCopyLoggedIn => copyToken?.isNotEmpty == true;
 
   @override
   bool get isLoggedIn => hotLoggedIn || isCopyLoggedIn;
+
+  @override
+  List<String> get commentBlockedUsers => blockedUsers;
+
+  @override
+  List<String> get commentBlockwords => blockwords;
+
+  @override
+  bool get commentBlockGroupSpam => blockGroupSpam;
+
+  @override
+  bool get commentBlockNoRemind => blockNoRemind;
+
+  @override
+  bool isCommentUserBlocked(String userId, String userName) {
+    for (final raw in blockedUsers) {
+      final sep = raw.indexOf('|');
+      final id = sep < 0 ? raw : raw.substring(0, sep);
+      final name = sep < 0 ? '' : raw.substring(sep + 1);
+      if (userId.isNotEmpty && id == userId) return true;
+      if (userId.isEmpty && name.isNotEmpty && name == userName) return true;
+    }
+    return false;
+  }
+
+  @override
+  bool isCommentBlockedByWord(String content) {
+    final lower = content.toLowerCase();
+    return blockwords.any(
+      (word) => word.isNotEmpty && lower.contains(word.toLowerCase()),
+    );
+  }
+
+  @override
+  bool isCommentGroupSpam(String content) =>
+      blockGroupSpam &&
+      content.contains('群') &&
+      RegExp(r'\d{8,12}').hasMatch(content);
+
+  @override
+  Future<void> blockCommentUser(String userId, String userName) async {
+    blockedCalls.add((userId, userName));
+    final key = '$userId|$userName';
+    if (!blockedUsers.contains(key)) {
+      blockedUsers = [...blockedUsers, key];
+      notifyListeners();
+    }
+  }
+
+  @override
+  Future<void> setCommentBlockNoRemind(bool value) async {
+    blockNoRemind = value;
+    notifyListeners();
+  }
+
+  void setBlockedUsers(List<String> list) {
+    blockedUsers = List.unmodifiable(list);
+    notifyListeners();
+  }
 
   void switchAccount(String? token) {
     copyToken = token;
@@ -110,6 +178,7 @@ class _Harness {
     bool dark = false,
     double textScale = 1,
     double keyboardInset = 0,
+    String bookName = '测试小说',
   }) async {
     router = GoRouter(
       routes: [
@@ -120,6 +189,7 @@ class _Harness {
               heightFactor: 0.85,
               child: NovelCommentsSheet(
                 bookUuid: _bookUuid,
+                bookName: bookName,
                 replyId: replyId,
                 allowPosting: allowPosting,
               ),
@@ -210,7 +280,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('设置入口复用漫画面板，只显示四项适用设置并写原键', (tester) async {
+  testWidgets('设置入口复用漫画面板：外观三项 + 屏蔽过滤区，写原键', (tester) async {
     final h = _Harness();
     await h.pump(tester);
     await tester.pumpAndSettle();
@@ -220,17 +290,19 @@ void main() {
       find.byType(CommentSettingsPanel),
     );
     expect(panel.isChapterComments, isFalse);
-    expect(panel.showFilteringSettings, isFalse);
-    expect(find.byType(SwitchListTile), findsNWidgets(3));
+    // 与漫画评论区一致：屏蔽词/群广告/黑名单过滤区对本评论区开放。
+    expect(panel.showFilteringSettings, isTrue);
+    // 外观三项 + 群广告开关；布局/预载/自动加载/AI 摘要仍不出现。
+    expect(find.byType(SwitchListTile), findsNWidgets(4));
     expect(find.byType(Slider), findsOneWidget);
     expect(find.byType(SegmentedButton<bool>), findsNothing);
-    // Filtering editors and all chapter-only/API controls are absent.
+    // 屏蔽词编辑器出现；黑名单为空时只有说明文案。
     expect(
       find.descendant(
         of: find.byType(CommentSettingsPanel),
         matching: find.byType(TextField),
       ),
-      findsNothing,
+      findsOneWidget,
     );
     for (final tile in tester.widgetList<SwitchListTile>(
       find.byType(SwitchListTile),
@@ -244,6 +316,7 @@ void main() {
     expect(prefs.getBool('comment_show_user_name'), isFalse);
     expect(prefs.getBool('comment_show_time'), isFalse);
     expect(prefs.getDouble('comment_font_scale'), 1.5);
+    expect(prefs.getBool('comment_block_group_spam'), isFalse);
     expect(prefs.containsKey('comment_preload'), isFalse);
     expect(prefs.containsKey('comment_auto_load_all'), isFalse);
     h.router.pop();
@@ -810,6 +883,176 @@ void main() {
     );
     // 关闭按钮退出 sheet（顶层 sheet 由 pump 的 Scaffold 弹出，maybePop 应消费）。
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down_rounded));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('标题栏展示书名副标题与计数：分页中 N/M，全部加载后 N 条', (tester) async {
+    final h = _Harness();
+    var failed = false;
+    h.api.load = (_, offset) async {
+      if (offset == 0) {
+        return _page(
+          [const NovelComment(id: 'a', comment: '第一条', userName: '甲')],
+          total: 3,
+        );
+      }
+      if (!failed) {
+        failed = true;
+        throw const NovelApiException('offline');
+      }
+      return _page([
+        const NovelComment(id: 'b', comment: '第二条', userName: '乙'),
+        const NovelComment(id: 'c', comment: '第三条', userName: '丙'),
+      ], total: 3, offset: 1);
+    };
+    await h.pump(tester, bookName: '魔法图书');
+    await tester.pumpAndSettle();
+    expect(find.text('魔法图书'), findsOneWidget);
+    // 首页加载后自动续拉失败，计数保持「已加载/总数」。
+    expect(find.text('1/3'), findsOneWidget);
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(NovelCommentsSheet)),
+    )!;
+    await tester.tap(find.text(l10n.novelLoadMoreFailed));
+    await tester.pumpAndSettle();
+    expect(find.text('3 条'), findsOneWidget);
+  });
+
+  testWidgets('屏蔽用户：评论即时隐藏并计显示屏蔽数，解除后恢复', (tester) async {
+    final h = _Harness();
+    h.user.blockedUsers = const ['|小说读者'];
+    h.api.load = (_, _) async => _page([
+      _comment,
+      const NovelComment(id: 'other', comment: '正常评论', userName: '好用户'),
+    ], total: 2);
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('正常评论'), findsOneWidget);
+    expect(find.text('评论正文'), findsNothing);
+    expect(find.text('1/2|1'), findsOneWidget);
+    // 黑名单变更通知即时重过滤，无需重进评论区。
+    h.user.setBlockedUsers(const []);
+    await tester.pumpAndSettle();
+    expect(find.text('评论正文'), findsOneWidget);
+    expect(find.text('2 条'), findsOneWidget);
+  });
+
+  testWidgets('屏蔽词与群广告开关过滤列表，计数显示屏蔽数', (tester) async {
+    final h = _Harness();
+    h.user.blockwords = const ['广告'];
+    h.user.blockGroupSpam = true;
+    h.api.load = (_, _) async => _page([
+      _comment,
+      const NovelComment(id: 'ad', comment: '促销广告内容', userName: '甲'),
+      const NovelComment(id: 'spam', comment: '加群12345678领福利', userName: '乙'),
+      const NovelComment(id: 'ok', comment: '正常讨论', userName: '丙'),
+    ], total: 4);
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('评论正文'), findsOneWidget);
+    expect(find.text('正常讨论'), findsOneWidget);
+    expect(find.text('促销广告内容'), findsNothing);
+    expect(find.text('加群12345678领福利'), findsNothing);
+    expect(find.text('2/4|2'), findsOneWidget);
+  });
+
+  testWidgets('楼中楼回复按屏蔽配置过滤', (tester) async {
+    final h = _Harness();
+    h.user.blockwords = const ['广告'];
+    h.api.load = (replyId, _) async => replyId == null
+        ? _page([_comment])
+        : _page([
+            const NovelComment(id: 'r1', comment: '干净的回复', userName: '甲'),
+            const NovelComment(id: 'r2', comment: '垃圾广告回复', userName: '乙'),
+          ], total: 2);
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('展开 2 条回复'));
+    await tester.pumpAndSettle();
+    expect(find.text('干净的回复'), findsOneWidget);
+    expect(find.text('垃圾广告回复'), findsNothing);
+    // 服务端回复总数不变，可见数减少后仍提示补全。
+    expect(find.text('加载更多回复 (1/2)'), findsOneWidget);
+  });
+
+  testWidgets('长按评论弹出操作菜单：复制、+1 发同内容顶层评论', (tester) async {
+    final h = _Harness();
+    h.user.switchAccount('copy-a');
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(() {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      );
+    });
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(NovelCommentsSheet)),
+    )!;
+    // 长按用户名打开菜单；正文是 SelectableText，长按仍走文本选择。
+    await tester.longPress(find.text('小说读者'));
+    await tester.pumpAndSettle();
+    expect(find.text(l10n.chapterCommentsActionTitle), findsOneWidget);
+    await tester.tap(find.text(l10n.copyButton));
+    await tester.pumpAndSettle();
+    expect(copied, '评论正文');
+    await tester.longPress(find.text('小说读者'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('+1'));
+    await tester.pumpAndSettle();
+    expect(h.api.posts, [(_bookUuid, '评论正文', null)]);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('游客长按 +1 先跳 COPY 登录，不发送', (tester) async {
+    final h = _Harness();
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('小说读者'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('+1'));
+    await tester.pumpAndSettle();
+    expect(h.loginCopyOnly, 'true');
+    expect(h.api.posts, isEmpty);
+  });
+
+  testWidgets('长按屏蔽用户走确认弹窗，确认后评论立即隐藏', (tester) async {
+    final h = _Harness();
+    await h.pump(tester);
+    await tester.pumpAndSettle();
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(NovelCommentsSheet)),
+    )!;
+    await tester.longPress(find.text('小说读者'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(l10n.chapterCommentsBlockUser));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(
+      find.text(l10n.comicCommentBlockNamedConfirm('小说读者')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text(l10n.chapterCommentsNoRemindAgain));
+    await tester.tap(find.text(l10n.chapterCommentsBlock));
+    await tester.pumpAndSettle();
+    expect(find.text('评论正文'), findsNothing);
+    expect(find.text('0/1|1'), findsOneWidget);
+    expect(h.user.blockedCalls, [('', '小说读者')]);
+    expect(h.user.blockNoRemind, isTrue);
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });

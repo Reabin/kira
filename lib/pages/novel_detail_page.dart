@@ -570,6 +570,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       heightFactor: 0.85,
       child: NovelCommentsSheet(
         bookUuid: book.uuid,
+        bookName: book.name,
         allowPosting: !book.closeComment,
       ),
     );

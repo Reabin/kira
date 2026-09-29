@@ -77,11 +77,15 @@ class NovelCommentsSheet extends ConsumerStatefulWidget {
   const NovelCommentsSheet({
     super.key,
     required this.bookUuid,
+    required this.bookName,
     this.replyId,
     this.allowPosting = true,
   });
 
   final String bookUuid;
+
+  /// 标题栏副标题展示的书名，与漫画评论区一致。
+  final String bookName;
   final String? replyId;
   final bool allowPosting;
 
@@ -121,6 +125,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
       keyOf: (comment) => comment.id,
     )..addListener(_rebuild);
     _user.addListener(_onAccountChanged);
+    // 屏蔽词/黑名单/群广告开关变更后即时重过滤已加载的评论。
+    _user.addListener(_rebuild);
     _settings.addListener(_rebuild);
     _scroll.addListener(_handleScrollDirection);
     unawaited(_comments.refresh());
@@ -173,6 +179,7 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
   @override
   void dispose() {
     _user.removeListener(_onAccountChanged);
+    _user.removeListener(_rebuild);
     _settings.removeListener(_rebuild);
     _scroll.removeListener(_handleScrollDirection);
     _scroll.dispose();
@@ -442,6 +449,252 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
       ? error.message
       : fallback;
 
+  // ── 屏蔽过滤（与漫画评论区共用 UserManager 的屏蔽配置） ────────────────
+
+  bool get _hasBlockFilters =>
+      _user.commentBlockedUsers.isNotEmpty ||
+      _user.commentBlockwords.isNotEmpty ||
+      _user.commentBlockGroupSpam;
+
+  bool _isCommentVisible(NovelComment comment) =>
+      !_user.isCommentUserBlocked(comment.userId, comment.userName.trim()) &&
+      !_user.isCommentBlockedByWord(comment.comment) &&
+      !_user.isCommentGroupSpam(comment.comment);
+
+  /// 主列表按屏蔽配置过滤后的可见评论；无任何屏蔽时直接复用原始列表。
+  List<NovelComment> get _visibleComments => !_hasBlockFilters
+      ? _comments.items
+      : _comments.items.where(_isCommentVisible).toList(growable: false);
+
+  /// 已加载评论中被屏蔽隐藏的条数，用于标题栏「显示数/总数|屏蔽数」。
+  int get _blockedCount => !_hasBlockFilters
+      ? 0
+      : _comments.items.length - _visibleComments.length;
+
+  /// 评论区计数文案，与漫画评论区一致：全部加载且无屏蔽时显示「N 条」；
+  /// 有屏蔽时为「显示数/总数|屏蔽数」，屏蔽为 0 则不显示 |屏蔽数。
+  String _buildCountLabel(AppLocalizations l10n) {
+    final total = _comments.total;
+    if (total <= 0) return '';
+    final visibleCount = _visibleComments.length;
+    final blocked = _blockedCount;
+    final allLoaded = _comments.items.length >= total;
+    if (allLoaded && blocked == 0) {
+      return l10n.chapterCommentsTotalCount(total);
+    }
+    if (blocked > 0) {
+      return l10n.chapterCommentsCountWithBlocked(visibleCount, total, blocked);
+    }
+    return '$visibleCount/$total';
+  }
+
+  // ── 评论长按操作菜单：复制 / +1 / 屏蔽用户（与漫画评论区一致） ──────────
+
+  Future<void> _showCommentActionMenu(NovelComment comment) async {
+    final l10n = AppLocalizations.of(context)!;
+    final content = comment.comment.trim();
+    if (content.isEmpty) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.8,
+      ),
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        final tt = Theme.of(sheetContext).textTheme;
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      l10n.chapterCommentsActionTitle,
+                      style: tt.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      tooltip: l10n.closeButton,
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: AppRadius.mdR,
+                    border: Border.all(color: cs.outlineVariant),
+                  ),
+                  child: Text(
+                    content,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.bodyMedium,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ListTile(
+                  leading: const Icon(Icons.copy_outlined),
+                  title: Text(l10n.copyButton),
+                  onTap: () => Navigator.of(sheetContext).pop('copy'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.add_comment_outlined),
+                  title: const Text('+1'),
+                  subtitle: Text(l10n.chapterCommentsPlusOneSubtitle),
+                  onTap: () => Navigator.of(sheetContext).pop('plus_one'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.block_outlined),
+                  title: Text(l10n.chapterCommentsBlockUser),
+                  subtitle: Text(
+                    l10n.chapterCommentsHideUserComments(comment.userName),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop('block'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) return;
+    if (action == 'copy') {
+      await Clipboard.setData(ClipboardData(text: content));
+      if (!mounted) return;
+      showToast(context, l10n.comicCommentCopied);
+    } else if (action == 'plus_one') {
+      await _plusOneComment(content);
+    } else if (action == 'block') {
+      await _blockCommentUser(comment);
+    }
+  }
+
+  Future<void> _plusOneComment(String content) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!_user.isCopyLoggedIn) {
+      await _login();
+      return;
+    }
+    final length = CommentText.lengthOf(content);
+    if (length < CommentText.minLength || length > CommentText.maxLength) {
+      showToast(
+        context,
+        l10n.chapterCommentsPlusOneLengthInvalid,
+        isError: true,
+      );
+      return;
+    }
+    try {
+      await ref
+          .read(novelApiProvider)
+          .postComment(bookUuid: widget.bookUuid, content: content);
+      if (!mounted) return;
+      showToast(context, l10n.chapterCommentsPlusOneSent);
+      unawaited(_comments.refresh());
+    } catch (e, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'novel_comments.plus_one',
+        ),
+      );
+      if (mounted) {
+        showToast(
+          context,
+          _errorMessage(e, l10n.novelCommentFailed),
+          isError: true,
+        );
+      }
+    }
+  }
+
+  Future<void> _blockCommentUser(NovelComment comment) async {
+    final l10n = AppLocalizations.of(context)!;
+    final name = comment.userName.trim();
+    if (_user.commentBlockNoRemind) {
+      await _user.blockCommentUser(comment.userId, name);
+      if (!mounted) return;
+      showToast(context, l10n.chapterCommentsUserBlocked);
+      return;
+    }
+
+    var noRemind = false;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: Text(l10n.chapterCommentsBlockUser),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name.isEmpty
+                    ? l10n.chapterCommentsBlockUnnamedConfirm
+                    : l10n.comicCommentBlockNamedConfirm(name),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              GestureDetector(
+                onTap: () => setLocal(() => noRemind = !noRemind),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: Checkbox(
+                        value: noRemind,
+                        onChanged: (v) => setLocal(() => noRemind = v ?? false),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Text(
+                      l10n.chapterCommentsNoRemindAgain,
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.chapterCommentsBlock),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    if (noRemind) await _user.setCommentBlockNoRemind(true);
+    await _user.blockCommentUser(comment.userId, name);
+    if (!mounted) return;
+    // UserManager 的变更通知会触发 _rebuild，按新黑名单重过滤。
+    showToast(context, l10n.chapterCommentsUserBlocked);
+  }
+
   // ── Inline replies (comic-sheet behavior) ──────────────────────────────
 
   _NovelReplyState _replyStateOf(String commentId) =>
@@ -504,23 +757,29 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
             offset: loadMore ? current.replies.length : 0,
           );
       if (!isCurrent()) return;
+      // 与漫画评论区一致：回复合并后先按屏蔽配置过滤，再按时间正序排列。
+      // 未配置任何屏蔽时跳过判定，行为与数据都与原逻辑一致。
       final merged = loadMore
           ? [
               ...current.replies,
               ...page.list.where(
-                (item) =>
-                    !current.replies.any((existing) => existing.id == item.id),
+                (item) => !current.replies.any(
+                  (existing) => existing.id == item.id,
+                ),
               ),
             ]
           : [...page.list];
+      final visibleReplies = _hasBlockFilters
+          ? merged.where(_isCommentVisible).toList()
+          : merged;
       // 回复按时间正序（从旧到新）。
-      merged.sort((a, b) => a.createAt.compareTo(b.createAt));
+      visibleReplies.sort((a, b) => a.createAt.compareTo(b.createAt));
       final latest = _replyStateOf(comment.id);
       setState(() {
         _replyStates[comment.id] = latest.copyWith(
           loading: false,
           loadingMore: false,
-          replies: merged,
+          replies: visibleReplies,
           total: page.total,
         );
       });
@@ -552,27 +811,44 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.sizeOf(context).width,
         maxHeight: MediaQuery.sizeOf(context).height * 0.85,
       ),
-      builder: (_) => CommentSettingsPanel(
-        isChapterComments: false,
-        showFilteringSettings: false,
-        useCompactLayout: false,
-        showUserAvatar: _settings.showAvatar,
-        showUserName: _settings.showUserName,
-        showCommentTime: _settings.showTime,
-        commentFontScale: _settings.fontScale,
-        commentPreload: false,
-        commentAutoLoadAll: false,
-        onLayoutChanged: (_) {},
-        onShowAvatarChanged: _settings.setShowAvatar,
-        onShowUserNameChanged: _settings.setShowUserName,
-        onShowCommentTimeChanged: _settings.setShowTime,
-        onFontScaleChanged: _settings.setFontScale,
-        onPreloadChanged: (_) {},
-        onAutoLoadAllChanged: (_) {},
-      ),
+      builder: (sheetContext) {
+        final sheetSize = MediaQuery.sizeOf(sheetContext);
+        // 键盘弹出时面板顶边保持不动、底边抬到输入法上方，否则输入法
+        // 会盖住面板底部的屏蔽词输入框（与漫画评论区同款处理）。
+        final keyboard = MediaQuery.viewInsetsOf(sheetContext).bottom;
+        final sheetHeight = (sheetSize.height * 0.85 - keyboard)
+            .clamp(0.0, sheetSize.height)
+            .toDouble();
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: keyboard),
+            child: SizedBox(
+              width: sheetSize.width,
+              height: sheetHeight,
+              child: CommentSettingsPanel(
+                isChapterComments: false,
+                useCompactLayout: false,
+                showUserAvatar: _settings.showAvatar,
+                showUserName: _settings.showUserName,
+                showCommentTime: _settings.showTime,
+                commentFontScale: _settings.fontScale,
+                commentPreload: false,
+                commentAutoLoadAll: false,
+                onLayoutChanged: (_) {},
+                onShowAvatarChanged: _settings.setShowAvatar,
+                onShowUserNameChanged: _settings.setShowUserName,
+                onShowCommentTimeChanged: _settings.setShowTime,
+                onFontScaleChanged: _settings.setFontScale,
+                onPreloadChanged: (_) {},
+                onAutoLoadAllChanged: (_) {},
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -592,13 +868,35 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        widget.replyId == null
-                            ? l10n.chapterCommentsComment
-                            : l10n.novelReplyTitle,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.replyId == null
+                                ? l10n.chapterCommentsComment
+                                : l10n.novelReplyTitle,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (widget.bookName.isNotEmpty) ...[
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              widget.bookName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Text(
+                      _buildCountLabel(l10n),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant,
                       ),
                     ),
                     IconButton(
@@ -672,11 +970,17 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
                   AppSpacing.lg,
                   _listBottomPadding,
                 ),
-                sliver: SliverList.separated(
-                  itemCount: _comments.items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) =>
-                      _buildCommentCard(context, _comments.items[index]),
+                sliver: Builder(
+                  builder: (context) {
+                    // 屏蔽过滤在构建时套用，配置变化经 _rebuild 自动刷新。
+                    final visible = _visibleComments;
+                    return SliverList.separated(
+                      itemCount: visible.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) =>
+                          _buildCommentCard(context, visible[index]),
+                    );
+                  },
                 ),
               ),
             if (_comments.items.isNotEmpty && _comments.hasMore)
@@ -821,6 +1125,7 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () => _showPostDialog(replyTo: comment),
+            onLongPress: () => _showCommentActionMenu(comment),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1098,6 +1403,7 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _showPostDialog(replyTo: reply),
+      onLongPress: () => _showCommentActionMenu(reply),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
