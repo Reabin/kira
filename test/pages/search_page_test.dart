@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,8 @@ void main() {
     // AppStorage 保留自己的 prefs future；仅重置插件 mock 不会清掉旧实例缓存。
     await AppStorage.cache.remove('search_init_v3_copy');
     await AppStorage.cache.remove('copy_filter_options_v1');
+    await AppStorage.cache.remove('discover_popular_list_v1_hot');
+    await AppStorage.cache.remove('discover_popular_list_v1_copy');
     await AppStorage.preferences.remove('search_history_v1');
   });
 
@@ -677,6 +680,53 @@ void main() {
       expect(find.text('过期题材'), findsNothing);
       expect(find.text('过期地区'), findsNothing);
       expect(_visibleComics(tester), ['HOT当前']);
+    });
+  });
+
+  group('发现默认列表缓存', () {
+    // 卸载当前页面树，供下一个 rig 重新初始化。
+    Future<void> unloadPage(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pumpSearchFrames(tester);
+    }
+
+    testWidgets('初始化命中默认列表缓存时不再发请求，直接显示缓存数据', (tester) async {
+      final rig = SearchTestRig();
+      await _pumpPage(tester, rig, tab: 1);
+      rig.manga.listings.single.succeed(['第一次']);
+      await pumpSearchFrames(tester);
+      await unloadPage(tester);
+
+      final rig2 = SearchTestRig();
+      await _pumpPage(tester, rig2, tab: 1);
+      await pumpSearchFrames(tester);
+      expect(rig2.manga.listings, isEmpty);
+      expect(_visibleComics(tester), ['第一次']);
+    });
+
+    testWidgets('缓存过期后初始化重新发请求', (tester) async {
+      final rig = SearchTestRig();
+      await _pumpPage(tester, rig, tab: 1);
+      rig.manga.listings.single.succeed(['第一次']);
+      await pumpSearchFrames(tester);
+      // 把缓存条目的过期时间拨到过去，模拟 TTL 过期。
+      await tester.runAsync(() async {
+        final prefs = await AppStorage.sharedPreferences();
+        const key = 'cache_discover_popular_list_v1_hot';
+        final decoded =
+            jsonDecode(prefs.getString(key)!) as Map<String, dynamic>;
+        decoded['__cache_expires_at__'] =
+            DateTime.now().millisecondsSinceEpoch - 1000;
+        await prefs.setString(key, jsonEncode(decoded));
+      });
+      await unloadPage(tester);
+
+      final rig2 = SearchTestRig();
+      await _pumpPage(tester, rig2, tab: 1);
+      expect(rig2.manga.listings, hasLength(1));
+      rig2.manga.listings.single.succeed(['第二次']);
+      await pumpSearchFrames(tester);
+      expect(_visibleComics(tester), ['第二次']);
     });
   });
 

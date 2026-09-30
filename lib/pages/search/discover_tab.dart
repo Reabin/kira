@@ -23,6 +23,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
   late String _source = _user.discoverSource;
   late SearchInitRepository _initRepo = _repositoryForSource(_source);
   late final _copyFilterRepo = CopyFilterRepository(api: widget.api);
+  late final _popularListRepos = {
+    'hot': DiscoverPopularListRepository(api: widget.api),
+    'copy': DiscoverPopularListRepository(source: 'copy', api: widget.api),
+  };
 
   List<m.Theme> _tags = [];
   List<Comic> _comics = [];
@@ -77,7 +81,8 @@ class _DiscoverTabState extends State<_DiscoverTab>
 
   @override
   void onBranchFirstActivated() {
-    unawaited(_reload());
+    // 仅首次激活的初始化允许读默认列表缓存；切源/重置/刷新都直连。
+    unawaited(_reload(useListCache: true));
   }
 
   @override
@@ -148,10 +153,15 @@ class _DiscoverTabState extends State<_DiscoverTab>
   Future<void> _reload({
     bool forceRefresh = false,
     bool keepResults = false,
+    bool useListCache = false,
   }) async {
     await Future.wait<void>([
       _loadMetadata(forceRefresh: forceRefresh),
-      _loadComics(keepResults: keepResults),
+      _loadComics(
+        forceRefresh: forceRefresh,
+        keepResults: keepResults,
+        useListCache: useListCache,
+      ),
     ]);
   }
 
@@ -297,7 +307,40 @@ class _DiscoverTabState extends State<_DiscoverTab>
           theme: tag,
         );
 
-  Future<void> _loadComics({bool keepResults = false}) async {
+  /// 仅「分支首次激活 + 默认条件（全部题材 + 热度）+ offset 0」走仓库缓存
+  /// （TTL 1 天，[forceRefresh] 绕过）；切源/重置/筛选等后续操作一律直连 API，
+  /// 保证用户主动操作总能看到最新列表。
+  Future<({List<Comic> list, int total})> _fetchFirstPage({
+    required bool forceRefresh,
+    required bool useListCache,
+    required String source,
+    required String ordering,
+    required String? tag,
+    required String? top,
+  }) async {
+    final isDefaultQuery =
+        ordering == ApiOrdering.popular && tag == null && top == null;
+    if (!isDefaultQuery || !useListCache) {
+      return _fetchComicPage(
+        source: source,
+        ordering: ordering,
+        offset: 0,
+        tag: tag,
+        top: top,
+      );
+    }
+    final page = _popularListRepos[source]!;
+    final data = forceRefresh
+        ? await page.forceRefreshApi()
+        : await page.load();
+    return (list: data.list, total: data.total);
+  }
+
+  Future<void> _loadComics({
+    bool keepResults = false,
+    bool forceRefresh = false,
+    bool useListCache = false,
+  }) async {
     final epoch = ++_listEpoch;
     final source = _source;
     final ordering = _ordering;
@@ -317,10 +360,11 @@ class _DiscoverTabState extends State<_DiscoverTab>
       _loadMoreFailed = false;
     });
     try {
-      final result = await _fetchComicPage(
+      final result = await _fetchFirstPage(
+        forceRefresh: forceRefresh,
+        useListCache: useListCache,
         source: source,
         ordering: ordering,
-        offset: 0,
         tag: tag,
         top: top,
       );

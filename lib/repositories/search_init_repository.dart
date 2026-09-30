@@ -1,6 +1,7 @@
 import '../api/api_client.dart';
 import '../models/cached_repository.dart';
 import '../models/comic.dart' as m;
+import '../utils/json_helpers.dart';
 
 /// Simple data holder for search init (hot keywords + tags).
 class SearchInitData {
@@ -34,7 +35,7 @@ class SearchInitRepository extends CachedRepository<SearchInitData> {
     : _api = api ?? ApiClient(),
       super(
         cacheKey: 'search_init_v3_$source',
-        ttl: const Duration(hours: 12),
+        ttl: const Duration(days: 3),
         skipApiIfCacheFresh: true,
         deserialize: SearchInitData.fromJson,
         serialize: (d) => d.toJson(),
@@ -69,7 +70,7 @@ class CopyFilterRepository extends CachedRepository<m.CopyFilterOptions> {
     : _api = api ?? ApiClient(),
       super(
         cacheKey: 'copy_filter_options_v1',
-        ttl: const Duration(hours: 12),
+        ttl: const Duration(days: 3),
         skipApiIfCacheFresh: true,
         deserialize: m.CopyFilterOptions.fromJson,
         serialize: (d) => d.toJson(),
@@ -80,4 +81,58 @@ class CopyFilterRepository extends CachedRepository<m.CopyFilterOptions> {
   @override
   Future<m.CopyFilterOptions> fetchFromApi() =>
       _api.manga.getCopyFilterOptions();
+}
+
+/// 发现页默认条件首屏（全部题材 + 热度排序 + offset 0）的列表数据。
+class DiscoverComicPageData {
+  final List<m.Comic> list;
+  final int total;
+
+  const DiscoverComicPageData({required this.list, required this.total});
+
+  factory DiscoverComicPageData.fromJson(Map<String, dynamic> json) =>
+      DiscoverComicPageData(
+        list: jsonList(json, 'list')
+            .whereType<Map>()
+            .map((e) => m.Comic.fromJson(Map<String, dynamic>.from(e)))
+            .toList(),
+        total: jsonInt(json, 'total'),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'list': list.map((c) => c.toJson()).toList(),
+    'total': total,
+  };
+}
+
+/// Cached repository for 发现页默认条件的首屏列表（热度榜）。
+///
+/// 热度榜变化很小：仅缓存默认条件（popular + theme/top 全空）的 offset 0
+/// 首屏，hot/copy 各一条缓存，TTL 内直接读缓存不发请求。调用方只在分支
+/// 首次激活的初始化时经过本仓库；切源/重置/筛选/下拉刷新等操作一律直连
+/// API，不经过这里。
+class DiscoverPopularListRepository
+    extends CachedRepository<DiscoverComicPageData> {
+  DiscoverPopularListRepository({this.source = 'hot', ApiClient? api})
+    : _api = api ?? ApiClient(),
+      super(
+        cacheKey: 'discover_popular_list_v1_$source',
+        ttl: const Duration(days: 1),
+        skipApiIfCacheFresh: true,
+        deserialize: DiscoverComicPageData.fromJson,
+        serialize: (d) => d.toJson(),
+      );
+
+  /// 'hot'（默认）或 'copy'，决定请求哪个源、读写哪条缓存。
+  final String source;
+
+  final ApiClient _api;
+
+  @override
+  Future<DiscoverComicPageData> fetchFromApi() async {
+    final result = source == 'copy'
+        ? await _api.manga.getCopyComicList()
+        : await _api.manga.getComicList();
+    return DiscoverComicPageData(list: result.list, total: result.total);
+  }
 }
