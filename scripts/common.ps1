@@ -1,6 +1,8 @@
 function Get-CurrentTag {
     # 必须 @() 包裹：单个 tag 时原样返回字符串，[0] 会取到首字符而非整行
     $tags = @(git tag --sort=-v:refname 2>$null)
+    # 忽略 beta 预发布 tag，基线版本从最新正式版算起
+    $tags = @($tags | Where-Object { $_ -notmatch 'beta' })
     if ($tags.Count -gt 0) { return $tags[0] }
     return 'v0.0.0'
 }
