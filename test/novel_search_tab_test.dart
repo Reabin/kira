@@ -39,11 +39,13 @@ class _Api implements NovelApi {
   Future<NovelPage<NovelBook>> Function(String keyword, int offset)? search;
   final bookRequests = <(String, String, int)>[];
   final searchRequests = <(String, int)>[];
+  int themesCalls = 0;
 
   @override
-  Future<List<NovelTag>> getThemes() async => const [
-    NovelTag(name: '奇幻', pathWord: 'fantasy'),
-  ];
+  Future<List<NovelTag>> getThemes() {
+    themesCalls++;
+    return Future.value(const [NovelTag(name: '奇幻', pathWord: 'fantasy')]);
+  }
 
   @override
   Future<NovelPage<NovelBook>> getBooks({
@@ -320,5 +322,69 @@ void main() {
     }
     expect(api.bookRequests.map((request) => request.$3), [0, 1]);
     expect(find.text('浏览下一页'), findsOneWidget);
+  });
+
+  group('首页缓存', () {
+    Future<void> unload(WidgetTester tester) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('初始化命中题材与热度榜缓存时不再发请求', (tester) async {
+      final api = _Api();
+      await _pump(tester, api);
+      await tester.pumpAndSettle();
+      expect(find.text(_book.name), findsOneWidget);
+      expect(find.text('奇幻'), findsOneWidget);
+      await unload(tester);
+
+      final api2 = _Api();
+      await _pump(tester, api2);
+      await tester.pumpAndSettle();
+      expect(api2.bookRequests, isEmpty);
+      expect(api2.themesCalls, 0);
+      expect(find.text(_book.name), findsOneWidget);
+      expect(find.text('奇幻'), findsOneWidget);
+    });
+
+    testWidgets('下拉刷新绕过缓存强制拉新', (tester) async {
+      final api = _Api();
+      await _pump(tester, api);
+      await tester.pumpAndSettle();
+      expect(api.bookRequests, hasLength(1));
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 450));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(api.bookRequests, hasLength(2));
+      expect(api.bookRequests.last.$3, 0);
+    });
+
+    testWidgets('切题材与重置不读缓存，直接发请求', (tester) async {
+      final api = _Api();
+      await _pump(tester, api);
+      await tester.pumpAndSettle();
+      expect(api.bookRequests, hasLength(1));
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(NovelSearchTab)),
+      )!;
+
+      Future<void> tapChip(String label) async {
+        final chip = find.widgetWithText(FilterChip, label);
+        await tester.ensureVisible(chip);
+        await tester.pumpAndSettle();
+        await tester.tap(chip);
+        await tester.pumpAndSettle();
+      }
+
+      await tapChip('奇幻');
+      expect(api.bookRequests, hasLength(2));
+      expect(api.bookRequests.last.$1, 'fantasy');
+
+      await tapChip(l10n.resetButton);
+      expect(api.bookRequests, hasLength(3));
+      expect(api.bookRequests.last.$1, '');
+    });
   });
 }

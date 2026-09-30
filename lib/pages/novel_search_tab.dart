@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../providers/novel_providers.dart';
+import '../repositories/novel_home_repository.dart';
 import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_icon_sizes.dart';
@@ -75,6 +76,16 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   int _themesEpoch = 0;
   int _historyEpoch = 0;
 
+  /// 仅分支首次激活的默认首屏读缓存仓库；消费一次后所有加载直连 API。
+  bool _initialListLoad = true;
+
+  late final _themesRepo = NovelThemesRepository(
+    api: ref.read(novelApiProvider),
+  );
+  late final _popularListRepo = NovelPopularListRepository(
+    api: ref.read(novelApiProvider),
+  );
+
   bool get _idle => _query == null;
 
   /// 搜索态用 [_results]，浏览态用 [_books]；两者互斥显示。
@@ -101,9 +112,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     super.initState();
     _searchController.addListener(_onSearchTextChanged);
     _books = NovelPagedController<NovelBook>(
-      loadPage: (offset) => ref
-          .read(novelApiProvider)
-          .getBooks(theme: _theme, ordering: _ordering.value, offset: offset),
+      loadPage: _loadBookPage,
       keyOf: (book) => book.pathWord,
     )..addListener(_rebuild);
     _results = NovelPagedController<NovelBook>(
@@ -117,7 +126,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
 
   @override
   void onBranchFirstActivated() {
-    unawaited(_loadThemes());
+    unawaited(_loadThemes(useCache: true));
     unawaited(_loadHistory());
     unawaited(_restoreBodyState());
     unawaited(_books.refresh());
@@ -144,6 +153,27 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     setState(() => _hasSearchText = hasText);
   }
 
+  /// 默认条件（全部题材 + 热度）的 offset 0 首屏在分支首次激活时走仓库
+  /// 缓存（TTL 1 天，标志消费一次即失效）；切题材/排序/重置/下拉刷新/
+  /// 加载更多一律直连 API，保证用户主动操作总能看到最新列表。
+  Future<NovelPage<NovelBook>> _loadBookPage(int offset) async {
+    final isDefaultQuery =
+        _theme.isEmpty && _ordering == _NovelOrdering.popular;
+    if (offset == 0 && _initialListLoad && isDefaultQuery) {
+      _initialListLoad = false;
+      final data = await _popularListRepo.load();
+      return NovelPage<NovelBook>(
+        list: data.list,
+        total: data.total,
+        limit: 18,
+        offset: 0,
+      );
+    }
+    return ref
+        .read(novelApiProvider)
+        .getBooks(theme: _theme, ordering: _ordering.value, offset: offset);
+  }
+
   Future<void> _loadHistory() => _updateHistory(_history.load());
 
   Future<void> _updateHistory(Future<List<String>> operation) async {
@@ -167,14 +197,18 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     unawaited(_updateHistory(_history.clear()));
   }
 
-  Future<void> _loadThemes() async {
+  /// [useCache] 仅在分支首次激活时为 true：TTL 内直接读缓存不发请求。
+  /// 下拉刷新等后续操作直连 API。
+  Future<void> _loadThemes({bool useCache = false}) async {
     final epoch = ++_themesEpoch;
     setState(() {
       _themesLoading = true;
       _themesFailed = false;
     });
     try {
-      final themes = await ref.read(novelApiProvider).getThemes();
+      final themes = useCache
+          ? (await _themesRepo.load()).themes
+          : await ref.read(novelApiProvider).getThemes();
       if (!mounted || epoch != _themesEpoch) return;
       setState(() => _themes = themes);
     } catch (e, stack) {
