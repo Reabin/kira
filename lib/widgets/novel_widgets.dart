@@ -14,6 +14,7 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/time_format.dart';
 import 'comic_card_surface.dart';
 import 'cover_placeholder.dart';
+import 'novel_hero_tags.dart';
 
 /// The same cover treatment as manga cards, without rewriting CDN URLs.
 class NovelCover extends StatelessWidget {
@@ -72,12 +73,28 @@ class NovelBookCard extends StatelessWidget {
     required this.onTap,
     this.subtitle,
     this.onLongPress,
+    this.heroTagBase,
   });
 
   final NovelBook book;
   final VoidCallback onTap;
   final String? subtitle;
   final VoidCallback? onLongPress;
+
+  /// 非 null 时封面参与进详情页的 Hero 动画。
+  final String? heroTagBase;
+
+  Widget _buildHero(Widget child) {
+    final base = heroTagBase;
+    if (base == null) return child;
+    return Hero(
+      tag: NovelHeroTags.cover(base),
+      createRectTween: NovelHeroTags.createRectTween,
+      placeholderBuilder: (_, heroSize, _) =>
+          SizedBox(width: heroSize.width, height: heroSize.height),
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +111,7 @@ class NovelBookCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: NovelCover(url: book.cover)),
+          Expanded(child: _buildHero(NovelCover(url: book.cover))),
           const SizedBox(height: 6),
           Text(
             book.name,

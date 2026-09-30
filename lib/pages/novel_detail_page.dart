@@ -29,6 +29,7 @@ import '../widgets/cover_placeholder.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/novel_comments_sheet.dart';
+import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_widgets.dart';
 import 'comic_detail_page.dart'
     show
@@ -39,9 +40,21 @@ import 'comic_detail_page.dart'
 import 'novel_filter_page.dart';
 
 class NovelDetailPage extends ConsumerStatefulWidget {
-  const NovelDetailPage({super.key, required this.pathWord});
+  const NovelDetailPage({
+    super.key,
+    required this.pathWord,
+    this.initialBook,
+    this.heroTagBase,
+  });
 
   final String pathWord;
+
+  /// 来源卡片携带的书籍数据，首帧立即渲染封面与信息区，
+  /// 让进入详情的 Hero 动画有落点（对齐漫画详情的 initialComic）。
+  final NovelBook? initialBook;
+
+  /// 非 null 时封面与来源列表卡片参与 Hero 动画。
+  final String? heroTagBase;
 
   @override
   ConsumerState<NovelDetailPage> createState() => _NovelDetailPageState();
@@ -81,6 +94,13 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   @override
   void initState() {
     super.initState();
+    // 首帧立即渲染来源卡片带来的书籍信息，Hero 动画才有落点；
+    // 缓存与接口数据随后覆盖。
+    final initialBook = widget.initialBook;
+    if (initialBook != null) {
+      _detail = NovelDetail(book: initialBook);
+      _detailLoading = false;
+    }
     _token = _user.copyToken;
     _user.addListener(_onAccountChanged);
     _downloads.addListener(_onDownloadsChanged);
@@ -626,8 +646,9 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   }
 
   /// 封面：与漫画详情页同款圆角裁剪、亮度过滤与占位图。
+  /// 来源卡片传了 heroTagBase 时包裹 Hero，飞行期间占位保持卡片槽位。
   Widget _buildCover(NovelBook book) {
-    return ClipRRect(
+    final child = ClipRRect(
       borderRadius: AppRadius.mdR,
       child: SizedBox(
         width: 120,
@@ -647,6 +668,15 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
                 ),
         ),
       ),
+    );
+    final base = widget.heroTagBase;
+    if (base == null) return child;
+    return Hero(
+      tag: NovelHeroTags.cover(base),
+      createRectTween: NovelHeroTags.createRectTween,
+      placeholderBuilder: (_, heroSize, _) =>
+          SizedBox(width: heroSize.width, height: heroSize.height),
+      child: child,
     );
   }
 

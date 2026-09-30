@@ -16,6 +16,7 @@ import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart'
     show FilterChipOption, FilterChipRow, InlineRetryNotice;
 import '../widgets/load_more_footer.dart';
+import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_paged_controller.dart';
 import '../widgets/novel_widgets.dart';
 import '../widgets/result_scroll_listener.dart';
@@ -219,15 +220,26 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                         sliver: SliverGrid(
                           gridDelegate: grid,
                           delegate: SliverChildBuilderDelegate(
-                            (context, index) => NovelBookCard(
-                              book: _books.items[index],
-                              onTap: () => context.pushNamed(
-                                AppRoutes.novelDetail,
-                                pathParameters: {
-                                  'pathWord': _books.items[index].pathWord,
-                                },
-                              ),
-                            ),
+                            (context, index) {
+                              final book = _books.items[index];
+                              final heroTagBase = NovelHeroTags.base(
+                                scope: 'novel-filter',
+                                pathWord: book.pathWord,
+                                index: index,
+                              );
+                              return NovelBookCard(
+                                book: book,
+                                heroTagBase: heroTagBase,
+                                onTap: () => context.pushNamed(
+                                  AppRoutes.novelDetail,
+                                  pathParameters: {'pathWord': book.pathWord},
+                                  extra: NovelDetailExtra(
+                                    initialBook: book,
+                                    heroTagBase: heroTagBase,
+                                  ),
+                                ),
+                              );
+                            },
                             childCount: _books.items.length,
                           ),
                         ),

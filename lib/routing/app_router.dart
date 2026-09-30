@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/comic.dart' hide Theme;
+import '../models/novel.dart';
 import '../pages/about_page.dart' show AboutPage;
 import '../pages/account_center_page.dart';
 import '../pages/ai_config_page.dart';
@@ -38,6 +39,7 @@ import '../pages/stats_page.dart';
 import '../pages/webview_login_page.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/novel_hero_tags.dart';
 import 'dismiss_keyboard_observer.dart';
 import 'main_shell.dart';
 
@@ -123,6 +125,14 @@ class ReaderExtra {
     this.initialPage = 1,
     this.noCatalogBelow = false,
   });
+}
+
+/// Extra data for [NovelDetailPage] route.
+class NovelDetailExtra {
+  final NovelBook? initialBook;
+  final String? heroTagBase;
+
+  const NovelDetailExtra({this.initialBook, this.heroTagBase});
 }
 
 /// 卷内章节没有远端 UUID，使用目录原始索引定位。
@@ -308,8 +318,26 @@ GoRouter createAppRouter() {
       GoRoute(
         path: '/novel/:pathWord',
         name: AppRoutes.novelDetail,
-        builder: (_, state) =>
-            NovelDetailPage(pathWord: state.pathParameters['pathWord']!),
+        pageBuilder: (context, state) {
+          final extra = state.extra as NovelDetailExtra?;
+          return CustomTransitionPage(
+            key: state.pageKey,
+            transitionDuration: NovelHeroTags.transitionDuration,
+            reverseTransitionDuration: NovelHeroTags.reverseTransitionDuration,
+            child: NovelDetailPage(
+              pathWord: state.pathParameters['pathWord']!,
+              initialBook: extra?.initialBook,
+              heroTagBase: extra?.heroTagBase,
+            ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  if (animation.status == AnimationStatus.reverse) {
+                    return Opacity(opacity: 0, child: child);
+                  }
+                  return child;
+                },
+          );
+        },
       ),
       GoRoute(
         path: '/novel-filter/:kind/:pathWord',

@@ -30,6 +30,7 @@ import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
+import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_widgets.dart';
 import '../widgets/ordering_tile.dart';
 import '../widgets/shimmer_skeleton.dart';
@@ -384,11 +385,15 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     }
   }
 
-  Future<void> _openBook(NovelBook book) async {
+  Future<void> _openBook(NovelBook book, String? heroTagBase) async {
     final generation = _generation;
     await context.pushNamed(
       AppRoutes.novelDetail,
       pathParameters: {'pathWord': book.pathWord},
+      extra: NovelDetailExtra(
+        initialBook: book,
+        heroTagBase: heroTagBase,
+      ),
     );
     // Also update browse ordering / update badges after returning from reading.
     // Collection notifications already started their own refresh, even empty.
@@ -612,11 +617,17 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       sliver: SliverGrid(
         delegate: SliverChildBuilderDelegate((_, i) {
           final entry = filtered[i];
+          final heroTagBase = NovelHeroTags.base(
+            scope: 'novel-bookshelf',
+            pathWord: entry.book.pathWord,
+            index: i,
+          );
           return Stack(
             children: [
               NovelBookCard(
                 book: entry.book,
-                onTap: () => _openBook(entry.book),
+                heroTagBase: heroTagBase,
+                onTap: () => _openBook(entry.book, heroTagBase),
                 subtitle: entry.lastBrowseName,
                 onLongPress: _removing.contains(entry.book.pathWord)
                     ? null
