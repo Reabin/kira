@@ -461,6 +461,14 @@
   "appearanceUnknownError": "未知错误",
   "appearanceAutoSystem": "自动（跟随系统）",
   "appearanceAutoShort": "自动",
+  "appearanceAutoRefreshRate": "自动 · {rate}Hz",
+  "@appearanceAutoRefreshRate": {
+    "placeholders": {
+      "rate": {
+        "type": "int"
+      }
+    }
+  },
   "appearanceRefreshRateCurrent": "{rate}Hz（当前）",
   "@appearanceRefreshRateCurrent": {
     "placeholders": {

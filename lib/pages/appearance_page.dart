@@ -35,12 +35,16 @@ class AppearancePage extends StatefulWidget {
   State<AppearancePage> createState() => _AppearancePageState();
 }
 
-class _AppearancePageState extends State<AppearancePage> {
+class _AppearancePageState extends State<AppearancePage>
+    with WidgetsBindingObserver {
   final _user = UserManager();
   double? _previewCoverBrightness;
   double? _previewCardShadowElevation;
-  List<int> _refreshRates = const [];
+  List<int> _refreshRates = DisplayModePreference.refreshRates(const []);
   int? _activeRefreshRate;
+  Timer? _refreshRateTimer;
+  int _refreshRateGeneration = 0;
+  bool _refreshRateVisible = false;
   bool _applyingRate = false;
 
   static const _navMeta = {
@@ -64,19 +68,70 @@ class _AppearancePageState extends State<AppearancePage> {
   void initState() {
     super.initState();
     _user.addListener(_onChanged);
+    WidgetsBinding.instance.addObserver(this);
     if (DisplayModePreference.isSupportedPlatform) {
       unawaited(_loadRefreshRates());
     }
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshRateVisible = TickerMode.valuesOf(context).enabled;
+    _syncRefreshRatePolling();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _syncRefreshRatePolling();
+  }
+
+  void _syncRefreshRatePolling() {
+    _refreshRateTimer?.cancel();
+    final generation = ++_refreshRateGeneration;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (!mounted ||
+        !DisplayModePreference.isSupportedPlatform ||
+        !_refreshRateVisible ||
+        _applyingRate ||
+        (lifecycle != null && lifecycle != AppLifecycleState.resumed)) {
+      return;
+    }
+    unawaited(_readActiveRefreshRate(generation));
+  }
+
+  Future<void> _readActiveRefreshRate(int generation) async {
+    var interval = const Duration(seconds: 1);
+    int? rate;
+    try {
+      rate = await DisplayModePreference.activeRefreshRate();
+    } catch (e, stack) {
+      interval = const Duration(seconds: 5);
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'appearance.active_refresh_rate',
+        ),
+      );
+    }
+    // Ignore responses from before a preference/lifecycle change or disposal.
+    if (!mounted || generation != _refreshRateGeneration) return;
+    if (rate != _activeRefreshRate) {
+      setState(() => _activeRefreshRate = rate);
+    }
+    // A single cancellable timer also observes delayed native mode switches.
+    _refreshRateTimer = Timer(
+      interval,
+      () => unawaited(_readActiveRefreshRate(generation)),
+    );
+  }
+
   Future<void> _loadRefreshRates() async {
     try {
-      final data = await DisplayModePreference.load();
+      final rates = await DisplayModePreference.loadRefreshRates();
       if (!mounted) return;
-      setState(() {
-        _refreshRates = DisplayModePreference.refreshRates(data.modes);
-        _activeRefreshRate = data.active.refreshRate.round();
-      });
+      setState(() => _refreshRates = rates);
     } catch (e, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
@@ -91,10 +146,12 @@ class _AppearancePageState extends State<AppearancePage> {
   Future<void> _selectRefreshRate(int rate) async {
     if (_applyingRate || rate == _user.displayModeRefreshRate) return;
     setState(() => _applyingRate = true);
+    _syncRefreshRatePolling();
     await _user.setDisplayModeRefreshRate(rate);
     final applied = await DisplayModePreference.applyRefreshRate(rate);
     if (!mounted) return;
     setState(() => _applyingRate = false);
+    _syncRefreshRatePolling();
     final l10n = AppLocalizations.of(context)!;
     showToast(
       context,
@@ -106,6 +163,9 @@ class _AppearancePageState extends State<AppearancePage> {
 
   @override
   void dispose() {
+    _refreshRateTimer?.cancel();
+    ++_refreshRateGeneration;
+    WidgetsBinding.instance.removeObserver(this);
     _user.removeListener(_onChanged);
     super.dispose();
   }
@@ -437,30 +497,26 @@ class _AppearancePageState extends State<AppearancePage> {
               ListTile(
                 leading: const Icon(Icons.monitor_heart_outlined),
                 title: Text(l10n.appearanceRefreshRateTitle),
-                trailing: _refreshRates.isEmpty
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : SelectTile<int>(
-                        value: _user.displayModeRefreshRate,
-                        items: [
-                          SelectItem(
-                            0,
-                            l10n.appearanceAutoSystem,
-                            compactLabel: l10n.appearanceAutoShort,
-                          ),
-                          for (final rate in _refreshRates)
-                            SelectItem(
-                              rate,
-                              rate == _activeRefreshRate
-                                  ? l10n.appearanceRefreshRateCurrent(rate)
-                                  : '$rate Hz',
-                            ),
-                        ],
-                        onChanged: _applyingRate ? (_) {} : _selectRefreshRate,
+                trailing: SelectTile<int>(
+                  value: _user.displayModeRefreshRate,
+                  items: [
+                    SelectItem(
+                      0,
+                      l10n.appearanceAutoSystem,
+                      compactLabel: _activeRefreshRate == null
+                          ? l10n.appearanceAutoShort
+                          : l10n.appearanceAutoRefreshRate(_activeRefreshRate!),
+                    ),
+                    for (final rate in _refreshRates)
+                      SelectItem(
+                        rate,
+                        rate == _activeRefreshRate
+                            ? l10n.appearanceRefreshRateCurrent(rate)
+                            : '$rate Hz',
                       ),
+                  ],
+                  onChanged: _applyingRate ? (_) {} : _selectRefreshRate,
+                ),
               ),
             ],
           )

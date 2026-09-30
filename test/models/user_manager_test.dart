@@ -156,10 +156,13 @@ void main() {
       UserManager.defaultDisplayModeRefreshRate,
     );
 
-    await user.setDisplayModeRefreshRate(120);
-    await user.init();
-
-    expect(user.displayModeRefreshRate, 120);
+    for (final rate in [120, 165, 0]) {
+      await user.setDisplayModeRefreshRate(rate);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('pref_display_mode_refresh_rate'), rate);
+      await user.init();
+      expect(user.displayModeRefreshRate, rate);
+    }
   });
 
   test('display mode refresh rate falls back to auto when invalid', () async {

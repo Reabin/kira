@@ -1519,6 +1519,12 @@ abstract class AppLocalizations {
   /// **'自动'**
   String get appearanceAutoShort;
 
+  /// No description provided for @appearanceAutoRefreshRate.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动 · {rate}Hz'**
+  String appearanceAutoRefreshRate(int rate);
+
   /// No description provided for @appearanceRefreshRateCurrent.
   ///
   /// In zh, this message translates to:

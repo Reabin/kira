@@ -9,8 +9,10 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.Display
 import android.view.KeyEvent
 import android.view.WindowManager
+import androidx.annotation.RequiresApi
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -134,6 +136,7 @@ class MainActivity : FlutterActivity() {
                     setWindowPreferredRefreshRate(refreshRate)
                     result.success(null)
                 }
+                "getSupportedRefreshRates" -> result.success(getSupportedRefreshRates())
                 else -> result.notImplemented()
             }
         }
@@ -229,6 +232,39 @@ class MainActivity : FlutterActivity() {
             preferredRefreshRate = nextRefreshRate
         }
     }
+
+    /**
+     * Every refresh rate the display can be driven at: all supported modes,
+     * the active mode, and each mode's alternative refresh rates. The
+     * alternatives matter on VRR panels whose getSupportedModes() comes back
+     * empty or incomplete when seamless refresh rate switching is in effect.
+     */
+    private fun getSupportedRefreshRates(): List<Double> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return emptyList()
+        return collectSupportedRefreshRates()
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private fun collectSupportedRefreshRates(): List<Double> {
+        val display = currentDisplay()
+        val rates = sortedSetOf<Double>()
+        for (mode in display.supportedModes) {
+            rates.add(mode.refreshRate.toDouble())
+            mode.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+        }
+        val active = display.mode
+        rates.add(active.refreshRate.toDouble())
+        active.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+        return rates.toList()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun currentDisplay(): Display =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            display
+        } else {
+            windowManager.defaultDisplay
+        }
 
     private fun setAppIcon(index: Int) {
         val pm = packageManager

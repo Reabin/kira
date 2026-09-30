@@ -48,7 +48,20 @@ final class SelectItem<T> {
 class _SelectTileState<T> extends State<SelectTile<T>> {
   final _layerLink = LayerLink();
   OverlayEntry? _menuEntry;
+  double? _menuWidth;
   bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant SelectTile<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_menuEntry == null) return;
+    // Refresh labels/selection and measure the capsule after its new layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _menuEntry == null) return;
+      _menuWidth = context.size?.width;
+      _menuEntry?.markNeedsBuild();
+    });
+  }
 
   void _dismissMenu() {
     _menuEntry?.remove();
@@ -63,7 +76,7 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
     }
     setState(() => _expanded = true);
     final overlay = Overlay.of(context);
-    final width = context.size?.width;
+    _menuWidth = context.size?.width;
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     _menuEntry = OverlayEntry(
@@ -81,7 +94,7 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
             link: _layerLink,
             targetAnchor: Alignment.bottomLeft,
             child: SizedBox(
-              width: width,
+              width: _menuWidth,
               child: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(12),

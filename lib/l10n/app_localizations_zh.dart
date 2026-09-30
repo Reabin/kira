@@ -781,6 +781,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceAutoShort => '自动';
 
   @override
+  String appearanceAutoRefreshRate(int rate) {
+    return '自动 · ${rate}Hz';
+  }
+
+  @override
   String appearanceRefreshRateCurrent(int rate) {
     return '${rate}Hz（当前）';
   }
@@ -4832,6 +4837,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceAutoShort => '自動';
+
+  @override
+  String appearanceAutoRefreshRate(int rate) {
+    return '自動 · ${rate}Hz';
+  }
 
   @override
   String appearanceRefreshRateCurrent(int rate) {
