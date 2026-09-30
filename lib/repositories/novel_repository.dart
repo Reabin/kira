@@ -143,11 +143,8 @@ class _NovelMetadataRepository extends CachedRepository<Map<String, dynamic>> {
     required this.store,
     required this.fetch,
     required this.checkIdentity,
-  }) : super(
-         skipApiIfCacheFresh: true,
-         deserialize: _identity,
-         serialize: _identity,
-       );
+    required super.skipApiIfCacheFresh,
+  }) : super(deserialize: _identity, serialize: _identity);
 
   static Map<String, dynamic> _identity(Map<String, dynamic> json) => json;
 
@@ -184,8 +181,13 @@ class _NovelMetadataRepository extends CachedRepository<Map<String, dynamic>> {
 
 class NovelRepository {
   static const homeTtl = Duration(hours: 1);
+
+  /// 详情接口的 TTL 门控窗口：6h 内再进同一本书，详情请求静默跳过。
   static const detailTtl = Duration(hours: 6);
-  static const volumesTtl = Duration(hours: 6);
+
+  /// 卷目录每次都发请求（对齐漫画详情的章节策略），TTL 仅用于清理
+  /// 长期不再打开的书籍占用的存储；每次拉新回写都会刷新它。
+  static const volumesTtl = Duration(days: 7);
   static const volumeDetailTtl = Duration(days: 1);
   static const textTtl = Duration(days: 30);
 
@@ -217,6 +219,7 @@ class NovelRepository {
     required String kind,
     required Duration ttl,
     required Future<Map<String, dynamic>> Function() fetch,
+    required bool skipApiIfCacheFresh,
     String path = '',
     String volume = '',
     bool refresh = false,
@@ -235,6 +238,7 @@ class NovelRepository {
         store: _store,
         fetch: fetch,
         checkIdentity: () => api.ensureIdentity(identity),
+        skipApiIfCacheFresh: skipApiIfCacheFresh,
       ),
     );
     return refresh ? repository.forceRefreshApi() : repository.load();
@@ -245,6 +249,7 @@ class NovelRepository {
       await _loadMetadata(
         kind: 'home',
         ttl: homeTtl,
+        skipApiIfCacheFresh: true,
         refresh: refresh,
         fetch: () async => (await api.getHome()).toJson(),
       ),
@@ -258,12 +263,24 @@ class NovelRepository {
             kind: 'detail',
             path: pathWord,
             ttl: detailTtl,
+            skipApiIfCacheFresh: true,
             refresh: refresh,
             fetch: () async => (await api.getDetail(pathWord)).toJson(),
           ),
         ),
       );
 
+  /// Cache-only read for fast first paint; may be null or expired.
+  Future<NovelDetail?> loadDetailFromCache(String pathWord) =>
+      api.withIdentity(() async {
+        final identity = api.requestIdentity;
+        final key = _key('detail', identity.cacheScope, pathWord);
+        final cached = await _store.readMetadata(key);
+        api.ensureIdentity(identity);
+        return cached == null ? null : NovelDetail.fromJson(cached);
+      });
+
+  /// 卷目录每次都发请求；缓存仅用于页面先渲染（[loadVolumesFromCache]）。
   Future<List<NovelVolume>> loadVolumes(
     String pathWord, {
     bool refresh = false,
@@ -272,6 +289,7 @@ class NovelRepository {
       kind: 'volumes',
       path: pathWord,
       ttl: volumesTtl,
+      skipApiIfCacheFresh: false,
       refresh: refresh,
       fetch: () async => {
         'list': (await api.getVolumes(
@@ -281,6 +299,17 @@ class NovelRepository {
     );
     return NovelPage.fromJson(json, NovelVolume.fromJson).list;
   });
+
+  /// Cache-only read for fast first paint; may be null or expired.
+  Future<List<NovelVolume>?> loadVolumesFromCache(String pathWord) =>
+      api.withIdentity(() async {
+        final identity = api.requestIdentity;
+        final key = _key('volumes', identity.cacheScope, pathWord);
+        final cached = await _store.readMetadata(key);
+        api.ensureIdentity(identity);
+        if (cached == null) return null;
+        return NovelPage.fromJson(cached, NovelVolume.fromJson).list;
+      });
 
   Future<NovelVolumeDetail> loadVolumeDetail(
     String pathWord,
@@ -293,6 +322,7 @@ class NovelRepository {
         path: pathWord,
         volume: volumeId,
         ttl: volumeDetailTtl,
+        skipApiIfCacheFresh: true,
         refresh: refresh,
         fetch: () async =>
             (await api.getVolumeDetail(pathWord, volumeId)).toJson(),

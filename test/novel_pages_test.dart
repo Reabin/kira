@@ -167,10 +167,17 @@ class _Repository implements NovelRepository {
   }
 
   @override
+  Future<NovelDetail?> loadDetailFromCache(String pathWord) async => null;
+
+  @override
   Future<List<NovelVolume>> loadVolumes(
     String pathWord, {
     bool refresh = false,
   }) async => volumes;
+
+  @override
+  Future<List<NovelVolume>?> loadVolumesFromCache(String pathWord) async =>
+      null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -1262,7 +1269,9 @@ void main() {
       ]);
       await h.pump(
         tester,
-        const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+        const Scaffold(
+          body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+        ),
         textScale: longName ? 2 : 1,
       );
       await tester.pumpAndSettle();
@@ -1285,7 +1294,9 @@ void main() {
     h.api.comments = (_, _) => response.future;
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.pump();
     expect(find.byType(CommentSkeleton), findsNWidgets(6));
@@ -1309,7 +1320,9 @@ void main() {
         : replies.future;
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.pumpAndSettle();
     await tester.tap(
@@ -1346,7 +1359,9 @@ void main() {
         : more.future;
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.pumpAndSettle();
     final scroll = tester
@@ -1391,7 +1406,9 @@ void main() {
           _page([const NovelComment(id: 'public', comment: '公开评论')]);
       await h.pump(
         tester,
-        const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+        const Scaffold(
+          body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+        ),
       );
       await tester.pumpAndSettle();
       expect(find.text('公开评论'), findsOneWidget);
@@ -1410,7 +1427,9 @@ void main() {
     h.api.comments = (_, _) async => throw const NovelApiException('offline');
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.text('评论加载失败'), findsOneWidget);
@@ -1434,7 +1453,9 @@ void main() {
           );
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.tap(find.byIcon(Icons.comment_outlined));
     // 首屏仍在加载，不能等待无限循环的骨架动画。
@@ -1469,7 +1490,11 @@ void main() {
     await h.pump(
       tester,
       const Scaffold(
-        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说', allowPosting: false),
+        body: NovelCommentsSheet(
+          bookUuid: 'book-uuid',
+          bookName: '测试小说',
+          allowPosting: false,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -1496,7 +1521,9 @@ void main() {
     };
     await h.pump(
       tester,
-      const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+      const Scaffold(
+        body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+      ),
     );
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
@@ -1611,7 +1638,9 @@ void main() {
       };
       await h.pump(
         tester,
-        const Scaffold(body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说')),
+        const Scaffold(
+          body: NovelCommentsSheet(bookUuid: 'book-uuid', bookName: '测试小说'),
+        ),
       );
       await tester.pumpAndSettle();
       // 首屏不足一屏会自动分页，回复保留在原卡片内展开。

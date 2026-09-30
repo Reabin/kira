@@ -59,8 +59,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   bool _enqueuingDownloads = false;
   bool _detailLoading = true;
   bool _detailFailed = false;
+  bool _refreshingDetail = false;
   bool _volumesLoading = true;
   bool _volumesFailed = false;
+  bool _refreshingVolumes = false;
   bool _queryLoading = true;
   bool _queryFailed = false;
   bool _progressLoading = true;
@@ -82,7 +84,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _token = _user.copyToken;
     _user.addListener(_onAccountChanged);
     _downloads.addListener(_onDownloadsChanged);
-    unawaited(_refresh(refresh: false));
+    unawaited(_initializePage());
   }
 
   @override
@@ -98,7 +100,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _downloadSelectionMode = false;
     _collected = null;
     _collecting = false;
-    unawaited(_refresh(refresh: false));
+    unawaited(_initializePage());
   }
 
   @override
@@ -130,6 +132,36 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     unawaited(_loadDetail(refresh: true));
   }
 
+  /// 对齐漫画详情页：先读持久化缓存秒显界面，再后台拉新覆盖。
+  /// 详情接口有 6h TTL 门控，卷目录每次都发；拉新期间显示刷新指示。
+  Future<void> _initializePage() async {
+    await _loadFromCache();
+    await _loadQuery();
+    await _loadProgress();
+    unawaited(_loadDetail());
+    unawaited(_loadVolumes());
+  }
+
+  /// Cache-only first paint; keeps the loading state when nothing is cached.
+  Future<void> _loadFromCache() async {
+    final repo = ref.read(novelRepositoryProvider);
+    final (detail, volumes) = await (
+      repo.loadDetailFromCache(widget.pathWord),
+      repo.loadVolumesFromCache(widget.pathWord),
+    ).wait;
+    if (!mounted) return;
+    setState(() {
+      if (detail != null) {
+        _detail = detail;
+        _detailLoading = false;
+      }
+      if (volumes != null) {
+        _volumes = volumes;
+        _volumesLoading = false;
+      }
+    });
+  }
+
   Future<void> _refresh({bool refresh = true}) async {
     await Future.wait([
       _loadDetail(refresh: refresh),
@@ -151,8 +183,14 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   Future<void> _loadDetail({bool refresh = false}) async {
     final generation = ++_detailGeneration;
+    final hasVisibleDetail = _detail != null;
     setState(() {
-      _detailLoading = true;
+      // 已有可见数据时只亮刷新指示，不把界面打回骨架。
+      if (hasVisibleDetail) {
+        _refreshingDetail = true;
+      } else {
+        _detailLoading = true;
+      }
       _detailFailed = false;
     });
     try {
@@ -168,15 +206,23 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       }
     } finally {
       if (mounted && generation == _detailGeneration) {
-        setState(() => _detailLoading = false);
+        setState(() {
+          _detailLoading = false;
+          _refreshingDetail = false;
+        });
       }
     }
   }
 
   Future<void> _loadVolumes({bool refresh = false}) async {
     final generation = ++_volumeGeneration;
+    final hasVisibleVolumes = _volumes.isNotEmpty;
     setState(() {
-      _volumesLoading = true;
+      if (hasVisibleVolumes) {
+        _refreshingVolumes = true;
+      } else {
+        _volumesLoading = true;
+      }
       _volumesFailed = false;
     });
     try {
@@ -197,7 +243,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       }
     } finally {
       if (mounted && generation == _volumeGeneration) {
-        setState(() => _volumesLoading = false);
+        setState(() {
+          _volumesLoading = false;
+          _refreshingVolumes = false;
+        });
       }
     }
   }
@@ -886,6 +935,25 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   List<Widget> _buildVolumeSlivers() {
     final l10n = AppLocalizations.of(context)!;
     return [
+      // 后台拉新时的刷新指示（漫画详情页同款小转圈）。
+      if (_refreshingDetail || _refreshingVolumes)
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.sm,
+              AppSpacing.lg,
+              0,
+            ),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox.square(
+                dimension: 22,
+                child: ExpressiveLoadingIndicator(),
+              ),
+            ),
+          ),
+        ),
       if (_volumesLoading && _volumes.isEmpty)
         const SliverToBoxAdapter(
           child: Padding(
@@ -893,7 +961,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             child: Center(child: ExpressiveLoadingIndicator()),
           ),
         )
-      else if (_volumesFailed)
+      else if (_volumesFailed && _volumes.isEmpty)
         SliverToBoxAdapter(
           child: ErrorRetryView(
             message: l10n.novelVolumesFailed,

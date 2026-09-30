@@ -49,20 +49,18 @@ class ComicDetailData {
 ///
 /// Takes [pathWord] as a constructor parameter to build a per-comic cache key.
 class ComicDetailRepository extends CachedRepository<ComicDetailData> {
-  /// How long an untouched comic detail entry survives.
+  /// TTL 门控窗口：6h 内再进同一本漫画，详情接口静默跳过、直接读缓存。
   ///
-  /// This entry carries the full chapter list — the largest payload the app
-  /// caches — and one is written per comic ever opened. Without a TTL they
-  /// accumulated forever. Because [skipApiIfCacheFresh] is off, [load] still
-  /// hits the API every time, so the TTL only bounds how long a comic the user
-  /// stopped reading keeps occupying storage; anything reopened is rewritten
-  /// and its TTL renewed.
-  static const cacheTtl = Duration(days: 7);
+  /// 章节列表与收藏态不受门控影响，页面每次仍会单独拉新。本条目同时承载
+  /// 章节页快照（页面 `_saveCache` 回写），任何一次回写都会刷新 TTL；6h
+  /// 未被打开的条目由 TTL 清理，避免每本开过的漫画永久占存储。
+  static const cacheTtl = Duration(hours: 6);
 
   ComicDetailRepository(String pathWord)
     : super(
         cacheKey: 'comic_detail_$pathWord',
         ttl: cacheTtl,
+        skipApiIfCacheFresh: true,
         deserialize: ComicDetailData.fromJson,
         serialize: (d) => d.toJson(),
       );

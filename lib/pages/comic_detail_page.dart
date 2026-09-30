@@ -263,8 +263,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
     }
 
     try {
-      final comic = await _api.manga.getComicDetail(widget.pathWord);
+      // 详情走 6h TTL 门控：命中缓存时这里不会发网络请求，但章节页与
+      // 收藏态在下方照常拉新。
+      final data = await _repo.load();
       if (!mounted) return;
+      final comic = data.comic;
       final selectedGroup = _resolveSelectedGroup(
         comic,
         preferredGroup: _selectedGroup,
