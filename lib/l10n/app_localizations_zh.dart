@@ -1601,7 +1601,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileWebLoginPageTitle => '官网登录';
 
   @override
-  String get profileWebLoginHint => '在官网中登录拷贝漫画账号，登录成功后将自动完成';
+  String get profileWebLoginHint =>
+      '在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态';
 
   @override
   String get profileWebLoginCompleting => '已获取登录信息，正在验证…';
@@ -1616,7 +1617,35 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileWebLoginResetTooltip => '清除官网登录状态';
 
   @override
+  String get profileWebLoginResetDone => '已清除官网登录状态，请登录其他账号';
+
+  @override
+  String profileWebLoginKnownAccount(String name) {
+    return '检测到本机已保存的账号「$name」，尚未自动登录';
+  }
+
+  @override
+  String get profileWebLoginKnownAccountFallback => '已保存的账号';
+
+  @override
+  String get profileWebLoginUseAccount => '使用该账号';
+
+  @override
+  String get profileWebLoginSwitchAccount => '切换其他账号';
+
+  @override
+  String get profileWebLoginRetryButton => '重新检测登录';
+
+  @override
+  String get profileWebLoginResetFailed => '清除官网登录状态失败，请重试';
+
+  @override
   String get profileWebLoginFailed => '官网登录失败';
+
+  @override
+  String profileCopyAutoLoginRejected(String detail) {
+    return '登录被拒绝：$detail';
+  }
 
   @override
   String get profileUsernameLabel => '用户名';
@@ -4022,6 +4051,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accountCenterNotLoggedIn => '未登录';
 
   @override
+  String get accountProfileMissing => '已登录（未获取资料）';
+
+  @override
   String get accountCenterAddPrimary => '登录漫画账号';
 
   @override
@@ -4057,6 +4089,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String accountCenterNovelBoundToast(String name) {
     return '轻小说已切换到 $name';
   }
+
+  @override
+  String get accountViewTitle => '查看账号';
+
+  @override
+  String get accountViewUsernameLabel => '用户名';
+
+  @override
+  String get accountViewPasswordLabel => '密码';
+
+  @override
+  String get accountViewPasswordUnavailable => '未保存密码（该账号未勾选「记住账号」或使用令牌登录）';
+
+  @override
+  String get accountViewTokenLabel => '令牌 (Token)';
+
+  @override
+  String get accountViewNoToken => '无令牌';
+
+  @override
+  String get accountViewCopiedToast => '已复制到剪贴板';
 
   @override
   String get accountCenterNameNewTitle => '给新账号起个备注名';
@@ -5659,7 +5712,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileWebLoginPageTitle => '官網登入';
 
   @override
-  String get profileWebLoginHint => '在官網中登入拷貝漫畫帳號，登入成功後將自動完成';
+  String get profileWebLoginHint =>
+      '在官網中登入拷貝漫畫帳號，登入成功後將自動完成；若要換成其他帳號，請先點右上角清除登入狀態';
 
   @override
   String get profileWebLoginCompleting => '已獲取登入資訊，正在驗證…';
@@ -5674,7 +5728,35 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileWebLoginResetTooltip => '清除官網登入狀態';
 
   @override
+  String get profileWebLoginResetDone => '已清除官網登入狀態，請登入其他帳號';
+
+  @override
+  String profileWebLoginKnownAccount(String name) {
+    return '偵測到本機已儲存的帳號「$name」，尚未自動登入';
+  }
+
+  @override
+  String get profileWebLoginKnownAccountFallback => '已儲存的帳號';
+
+  @override
+  String get profileWebLoginUseAccount => '使用該帳號';
+
+  @override
+  String get profileWebLoginSwitchAccount => '切換其他帳號';
+
+  @override
+  String get profileWebLoginRetryButton => '重新偵測登入';
+
+  @override
+  String get profileWebLoginResetFailed => '清除官網登入狀態失敗，請重試';
+
+  @override
   String get profileWebLoginFailed => '官網登入失敗';
+
+  @override
+  String profileCopyAutoLoginRejected(String detail) {
+    return '登入被拒絕：$detail';
+  }
 
   @override
   String get profileUsernameLabel => '使用者名稱';
@@ -8080,6 +8162,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get accountCenterNotLoggedIn => '未登入';
 
   @override
+  String get accountProfileMissing => '已登入（未取得資料）';
+
+  @override
   String get accountCenterAddPrimary => '登入漫畫帳號';
 
   @override
@@ -8115,6 +8200,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String accountCenterNovelBoundToast(String name) {
     return '輕小說已切換到 $name';
   }
+
+  @override
+  String get accountViewTitle => '檢視帳號';
+
+  @override
+  String get accountViewUsernameLabel => '使用者名稱';
+
+  @override
+  String get accountViewPasswordLabel => '密碼';
+
+  @override
+  String get accountViewPasswordUnavailable => '未儲存密碼（該帳號未勾選「記住帳號」或使用權杖登入）';
+
+  @override
+  String get accountViewTokenLabel => '權杖 (Token)';
+
+  @override
+  String get accountViewNoToken => '無權杖';
+
+  @override
+  String get accountViewCopiedToast => '已複製到剪貼簿';
 
   @override
   String get accountCenterNameNewTitle => '給新帳號起個備註名';

@@ -9,6 +9,8 @@ extension UserManagerInitPart on UserManager {
     _nickname = prefs.getString(UserManager._keyNickname);
     _avatar = prefs.getString(UserManager._keyAvatar);
     _userId = prefs.getString(UserManager._keyUserId);
+    final accountId = prefs.getString(UserManager._keyAccountId)?.trim();
+    _accountId = accountId?.isNotEmpty == true ? accountId : null;
     _savedUsername = prefs.getString(UserManager._keySavedUsername);
     _savedPassword = prefs.getString(UserManager._keySavedPassword);
     final savedCredentialsRaw = prefs.getString(
@@ -24,7 +26,7 @@ extension UserManagerInitPart on UserManager {
               .map(
                 (e) => SavedCredential.fromJson(Map<String, dynamic>.from(e)),
               )
-              .where((e) => e.hasIdentity)
+              .where((e) => e.hasAccountKey)
               .toList();
         }
       } catch (_) {
@@ -180,6 +182,19 @@ extension UserManagerInitPart on UserManager {
               )
             : credential,
     ];
+    if (_loginSource == 'copy' &&
+        isLoggedIn &&
+        _accountId?.isNotEmpty != true) {
+      final known = _savedCredentials
+          .where((item) => item.source == 'copy' && item.token == _token)
+          .firstOrNull;
+      _accountId =
+          known?.accountId ??
+          CopyAccountSession.identityOf(
+            userId: _userId ?? '',
+            username: _username ?? '',
+          );
+    }
     final activeCredential = currentCredential;
     if (activeCredential != null) {
       final known = _savedCredentials.where(
@@ -288,6 +303,7 @@ extension UserManagerInitPart on UserManager {
               username: _username ?? '',
               nickname: _nickname ?? '',
               avatar: _avatar ?? '',
+              accountId: _accountId,
             )
           : null,
       persistMigrations: persistMigrations,

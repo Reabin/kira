@@ -228,5 +228,5 @@ Future<void> deleteAll();
 - 应用文档目录 `novel_downloads`（可改到自定义目录，键 `download_novel_save_directory`）：**永久下载**，与上面的可清理正文缓存是两套存储。带版本清单 `manifest_v1.json`，每卷保存同一版本的原始 TXT + 目录快照、书籍/卷元数据与插图 URL 映射。清单与快照校验通过才显示为已完成；缺失或摘要不符标为「待修复」。删除只作用于被索引、被校验过的文件。
 - `download_novel_queue_state_v1`：小说未完成下载队列（版本、暂停标记、任务列表）。完整成功后只删除任务记录，本地文件保留；启动时依据文件校验清理遗留完成记录，损坏转待修复，失败/暂停/部分完成任务保留。只持久化稳定来源标识（`CopyAccountSession.id`，游客为 `guest`）与主机，**不保存 token**；账号或线路变化后未完成任务暂停。`download_novel_concurrency` 控制并发（1–4）。
 - 清理边界：清正文缓存不动已下载内容；清下载不动阅读进度/历史/书签。退出账号不删除本机已下载内容。
-- `copy_account_v1`：`SecureCredentialStore` 中的独立拷贝会话及迁移/退出标记。不导出到普通设置备份；退出附加账号不得清除其他 secure key。
+- `copy_account_v1`：`SecureCredentialStore` 中的独立拷贝会话及迁移/退出标记。不导出到普通设置备份；退出附加账号不得清除其他 secure key。通过认证但尚无资料的账号使用随机 `local:` 标识；`account_id` 固定后不随资料补全或 Token 更新变化。主账号的同一标识以 `user_account_id` 保存，归入敏感账号备份分类；它不是 Token 或 Token 指纹。
 - 详细阅读/鉴权/下载边界见 [轻小说](novel.md)。

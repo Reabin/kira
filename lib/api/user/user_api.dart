@@ -48,19 +48,18 @@ bool isIpBlockedLoginError(Object error) {
   return false;
 }
 
-class CopyProfileUnavailableException implements Exception {
-  const CopyProfileUnavailableException();
-
-  @override
-  String toString() => 'COPY profile refresh unavailable';
-}
-
 class UserApi {
   final ApiTransport _t;
   final Dio Function(BaseOptions options)? copyDioFactory;
   final Dio Function(BaseOptions options)? profileDioFactory;
+  final Dio Function(BaseOptions options)? copyProfileDioFactory;
 
-  UserApi(this._t, {this.copyDioFactory, this.profileDioFactory});
+  UserApi(
+    this._t, {
+    this.copyDioFactory,
+    this.profileDioFactory,
+    this.copyProfileDioFactory,
+  });
 
   Dio _createCopyLoginDio(BaseOptions options) =>
       copyDioFactory?.call(options) ??
@@ -169,13 +168,13 @@ class UserApi {
     }
   }
 
-  /// Fetch one HOT profile without the shared token/cookie injection or 401
-  /// auto-login interceptor. A saved account must never borrow current auth.
+  /// Fetch one account profile without shared token/cookie injection or the
+  /// primary transport's 401 auto-login interceptor.
   Future<Map<String, dynamic>> getCredentialInfo({
     required String token,
     required String source,
   }) async {
-    if (source == 'copy') throw const CopyProfileUnavailableException();
+    if (source == 'copy') return getCopyCredentialInfo(token);
     final options = BaseOptions(
       followRedirects: false,
       validateStatus: (_) => true,
@@ -204,15 +203,76 @@ class UserApi {
         final results = data['results'];
         if (results is Map) return Map<String, dynamic>.from(results);
       }
-      throw StateError('Account profile request failed');
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        message: 'Account profile request failed',
+      );
+    } finally {
+      dio.close();
+    }
+  }
+
+  /// Fetch a COPY profile with its own token and a COPY-app header set
+  /// (`ref/用户/拷贝个人信息.txt`): `COPY/<version>` UA, `Referer`
+  /// `com.copymanga.app-<version>` and form-urlencoded content type, not the
+  /// HOT browser-style profile headers. The capture's signed headers
+  /// (`x-auth-signature`, `x-auth-timestamp`, `dt`, `deviceinfo`, `pseudoid`,
+  /// `umstring`) have no known generation rule and are deliberately omitted;
+  /// request-capture cookies are omitted as well. Never use the shared HOT
+  /// transport for this COPY host.
+  Future<Map<String, dynamic>> getCopyCredentialInfo(String token) async {
+    final candidate = token.trim();
+    if (candidate.isEmpty) throw const FormatException('Empty COPY token');
+    final version = _t.user.copyAppVersion;
+    final options = BaseOptions(
+      followRedirects: false,
+      validateStatus: (_) => true,
+      headers: {
+        'User-Agent': 'COPY/$version',
+        'Accept': 'application/json',
+        'source': 'copyApp',
+        'platform': '3',
+        'version': version,
+        'webp': '1',
+        'Referer': 'com.copymanga.app-$version',
+        'Content-Type': Headers.formUrlEncodedContentType,
+        'Authorization': 'Token $candidate',
+      },
+    );
+    final dio =
+        copyProfileDioFactory?.call(options) ??
+        AppDio.create(
+          source: 'copy_account_profile',
+          options: options,
+          enableErrorLog: false,
+        );
+    try {
+      final response = await dio.get(
+        'https://${_t.user.copyApiHost}/api/v3/member/info',
+        queryParameters: {'platform': 3},
+      );
+      final data = response.data;
+      if (response.statusCode == 200 && data is Map && data['code'] == 200) {
+        final results = data['results'];
+        if (results is Map) return Map<String, dynamic>.from(results);
+      }
+      // Avoid logging the response body: it contains personal account data.
+      throw DioException(
+        requestOptions: response.requestOptions,
+        response: response,
+        type: DioExceptionType.badResponse,
+        message: 'COPY profile request failed',
+      );
     } finally {
       dio.close();
     }
   }
 
   /// Validate a candidate COPY token without changing either stored account.
-  /// The confirmed light-novel collection endpoint requires authentication;
-  /// COPY does not expose the primary transport's member/info endpoint.
+  /// The collection endpoint is used only for validation, not profile lookup;
+  /// COPY profile refresh is not currently wired into this client.
   Future<CopyAccountSession> validateCopyToken(String candidate) async {
     final token = candidate.trim();
     if (token.isEmpty) throw const FormatException('Empty COPY token');
@@ -267,9 +327,10 @@ class UserApi {
           ]) {
             if (account.source == 'copy' &&
                 account.token == token &&
-                account.hasIdentity) {
+                account.hasAccountKey) {
               return CopyAccountSession(
                 token: token,
+                accountId: account.accountId,
                 userId: account.userId ?? '',
                 username: account.username,
                 nickname: account.nickname ?? '',

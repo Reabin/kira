@@ -960,12 +960,34 @@
   "profileWebLoginButton": "官网登录",
   "profileWebLoginRecommendedTag": "推荐",
   "profileWebLoginPageTitle": "官网登录",
-  "profileWebLoginHint": "在官网中登录拷贝漫画账号，登录成功后将自动完成",
+  "profileWebLoginHint": "在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态",
   "profileWebLoginCompleting": "已获取登录信息，正在验证…",
   "profileWebLoginManualButton": "我已完成登录",
   "profileWebLoginNotDetected": "未检测到登录信息，请先在官网中完成登录",
   "profileWebLoginResetTooltip": "清除官网登录状态",
+  "profileWebLoginResetDone": "已清除官网登录状态，请登录其他账号",
+  "profileWebLoginKnownAccount": "检测到本机已保存的账号「{name}」，尚未自动登录",
+  "@profileWebLoginKnownAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileWebLoginKnownAccountFallback": "已保存的账号",
+  "profileWebLoginUseAccount": "使用该账号",
+  "profileWebLoginSwitchAccount": "切换其他账号",
+  "profileWebLoginRetryButton": "重新检测登录",
+  "profileWebLoginResetFailed": "清除官网登录状态失败，请重试",
   "profileWebLoginFailed": "官网登录失败",
+  "profileCopyAutoLoginRejected": "登录被拒绝：{detail}",
+  "@profileCopyAutoLoginRejected": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "profileUsernameLabel": "用户名",
   "profilePasswordLabel": "密码",
   "profileTokenLabel": "令牌 (Token)",
@@ -2489,6 +2511,7 @@
   "accountCenterNovelAccount": "轻小说账号",
   "accountCenterNovelCopyOnlyHint": "轻小说仅支持使用拷贝账号",
   "accountCenterNotLoggedIn": "未登录",
+  "accountProfileMissing": "已登录（未获取资料）",
   "accountCenterAddPrimary": "登录漫画账号",
   "accountCenterAddCopy": "添加拷贝账号",
   "accountCenterPickComic": "选择漫画使用的账号",
@@ -2514,5 +2537,12 @@
       }
     }
   },
+  "accountViewTitle": "查看账号",
+  "accountViewUsernameLabel": "用户名",
+  "accountViewPasswordLabel": "密码",
+  "accountViewPasswordUnavailable": "未保存密码（该账号未勾选「记住账号」或使用令牌登录）",
+  "accountViewTokenLabel": "令牌 (Token)",
+  "accountViewNoToken": "无令牌",
+  "accountViewCopiedToast": "已复制到剪贴板",
   "accountCenterNameNewTitle": "给新账号起个备注名"
 }

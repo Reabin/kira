@@ -2,11 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../api/user/user_api.dart';
-import '../models/copy_account_store.dart';
 import '../models/user_manager.dart';
 import 'app_logger.dart';
 
-/// 从拷贝官网 cookie 中提取的登录凭证。
+/// 从拷贝官网 cookie 或 storage 中提取的候选登录凭证。
 class CopyWebCredentials {
   final String token;
   final String userId;
@@ -14,13 +13,78 @@ class CopyWebCredentials {
   final String nickname;
   final String avatar;
 
+  /// Only a profile in the same stored authentication object as the token is
+  /// associated with it. Independent cookies/storage keys may be stale.
+  final bool profileBoundToToken;
+
   const CopyWebCredentials({
     required this.token,
     required this.userId,
     this.username = '',
     required this.nickname,
     required this.avatar,
+    this.profileBoundToToken = false,
   });
+
+  /// 该凭证是否与本机已保存的某个拷贝账号是同一个。
+  ///
+  /// WebView 里的登录态是持久的，所以官网登录页一打开就可能带着旧账号的
+  /// cookie/storage；只有「本机没保存过的账号」才允许自动完成登录，否则
+  /// 用户会被直接送进旧账号、没有机会切换到另一个账号。
+  bool matchesSavedAccount(UserManager user) {
+    final candidate = token.trim();
+    if (candidate.isEmpty) return false;
+    for (final account in user.copyAccount.accounts) {
+      if (account.token == candidate) return true;
+      if (userId.isNotEmpty && account.userId == userId) return true;
+      if (username.isNotEmpty && account.username == username) return true;
+    }
+    for (final account in [?user.currentCredential, ...user.savedCredentials]) {
+      if (account.source != 'copy') continue;
+      if (account.token == candidate) return true;
+      if (userId.isNotEmpty && account.userId == userId) return true;
+      if (username.isNotEmpty && account.username == username) return true;
+    }
+    return false;
+  }
+}
+
+/// 官网登录页是否应当自动完成登录。
+///
+/// 本机已保存的账号不自动登录：WebView 会一直带着旧账号的登录态，自动完成会
+/// 让用户没有机会切到另一个账号。用户点「我已完成登录」时走 [manual]，
+/// 表示这是明确意图，照常完成。
+bool shouldAutoCompleteWebLogin({
+  required CopyWebCredentials credentials,
+  required UserManager user,
+  bool manual = false,
+}) => manual || !credentials.matchesSavedAccount(user);
+
+/// 官网登录页表单里抓到的账号密码。
+///
+/// 官网登录时密码直接由网页 POST 给服务器，客户端只接收 URL、拿不到表单体，
+/// 所以只能靠在登录页注入脚本读取，供「自动重登」在令牌失效后使用。
+class CopyWebLoginForm {
+  final String username;
+  final String password;
+
+  const CopyWebLoginForm({required this.username, required this.password});
+}
+
+/// 表单内容能否并回某个账号。
+///
+/// 拷贝官网的 cookie 把登录名放在 `name` 里（本机存成昵称），所以用户名和
+/// 昵称任一与表单一致就算同一个账号。两者都对不上时一律不写，避免把 A 的
+/// 密码存到 B 账号上。
+bool canApplyLoginForm({
+  required String accountUsername,
+  required String accountNickname,
+  required String formUsername,
+  required String password,
+}) {
+  final form = formUsername.trim();
+  if (form.isEmpty || password.isEmpty) return false;
+  return accountUsername.trim() == form || accountNickname.trim() == form;
 }
 
 /// Validate the extracted candidate and use the same dual-domain commit as
@@ -29,29 +93,49 @@ Future<bool> completeCopyWebLogin({
   required UserManager user,
   required UserApi api,
   required CopyWebCredentials credentials,
-}) => user.authenticateAndLogin(
-  source: 'copy',
-  authenticate: () async {
-    final validated = await api.validateCopyToken(credentials.token);
-    final session = CopyAccountSession(
-      token: validated.token,
-      userId: validated.userId.isNotEmpty
-          ? validated.userId
-          : credentials.userId,
-      username: validated.username.isNotEmpty
-          ? validated.username
-          : credentials.username,
-      nickname: credentials.nickname.isNotEmpty
-          ? credentials.nickname
-          : validated.nickname,
-      avatar: credentials.avatar.isNotEmpty
-          ? credentials.avatar
-          : validated.avatar,
-    );
-    if (session.id == null) throw const CopyProfileUnavailableException();
-    return session.toJson();
-  },
-);
+}) async {
+  final saved = await user.authenticateAndLogin(
+    source: 'copy',
+    authenticate: () async {
+      final validated = await api.validateCopyToken(credentials.token);
+      // Validation may reuse a profile for this exact token. Cookie fields alone
+      // cannot prove an association, so missing profile data never blocks login.
+      if (!credentials.profileBoundToToken ||
+          (validated.userId.isNotEmpty &&
+              credentials.userId.isNotEmpty &&
+              validated.userId != credentials.userId) ||
+          (validated.username.isNotEmpty &&
+              credentials.username.isNotEmpty &&
+              validated.username != credentials.username)) {
+        return validated.toJson();
+      }
+      return {
+        ...validated.toJson(),
+        'user_id': validated.userId.isNotEmpty
+            ? validated.userId
+            : credentials.userId,
+        'username': validated.username.isNotEmpty
+            ? validated.username
+            : credentials.username,
+        'nickname': credentials.nickname.isNotEmpty
+            ? credentials.nickname
+            : validated.nickname,
+        'avatar': credentials.avatar.isNotEmpty
+            ? credentials.avatar
+            : validated.avatar,
+      };
+    },
+  );
+  if (saved) {
+    final session = user.copyAccount.accounts
+        .where((account) => account.token == credentials.token.trim())
+        .firstOrNull;
+    if (session != null) {
+      user.refreshCopyCredentialInBackground(session, api: api);
+    }
+  }
+  return saved;
+}
 
 /// 去掉 cookie 值两端的引号（拷贝官网会给部分值加引号）。
 String _unquote(String value) {
@@ -92,41 +176,78 @@ CopyWebCredentials? parseCopyWebCookies(Map<String, String> cookies) {
   );
 }
 
-/// Read profile fields from the same official-site storage snapshot as the
-/// candidate token. Arbitrary hex strings are not tokens; no profile request is
-/// invented and no storage contents are logged.
-CopyWebCredentials? parseCopyWebStorage(Object? snapshot) {
+/// Storage keys are independent writes. Only profiles inside a JSON object
+/// carrying the same token may participate in account identity; a bare token
+/// plus a separate userInfo entry is still a valid token-only candidate.
+CopyWebCredentials? parseCopyWebStorage(
+  Object? snapshot, {
+  String? matchingToken,
+}) {
   final scopes = snapshot is Map
       ? [snapshot['ls'], snapshot['ss']]
       : <Object?>[];
   for (final scope in scopes) {
-    final maps = _storageMaps(scope, 0).toList();
-    for (final tokenMap in maps) {
-      final tokenValue = tokenMap['token'];
-      if (tokenValue is! String) continue;
-      final token = _unquote(tokenValue);
-      if (token.isEmpty) continue;
-      var profile = tokenMap;
-      if (_profileField(profile, 'user_id').isEmpty &&
-          _profileField(profile, 'username').isEmpty) {
-        for (final map in _storageMaps(scope, 0, matchingToken: token)) {
-          if (_profileField(map, 'user_id').isNotEmpty ||
-              _profileField(map, 'username').isNotEmpty) {
-            profile = map;
-            break;
-          }
-        }
-      }
-      return CopyWebCredentials(
-        token: token,
-        userId: _profileField(profile, 'user_id'),
-        username: _profileField(profile, 'username'),
-        nickname: _profileField(profile, 'nickname'),
-        avatar: _profileField(profile, 'avatar'),
-      );
+    if (scope is! Map) continue;
+    final rootToken = _storageToken(scope);
+    if (matchingToken != null &&
+        rootToken != null &&
+        rootToken != matchingToken) {
+      continue;
     }
+    // Do not include the raw storage-key map as an authentication object.
+    final maps = [
+      for (final value in scope.values)
+        ..._storageMaps(value, 0, matchingToken: matchingToken),
+    ];
+    final token =
+        rootToken ??
+        maps
+            .map(_storageToken)
+            .whereType<String>()
+            .where((value) => matchingToken == null || value == matchingToken)
+            .firstOrNull;
+    if (token == null) continue;
+    final profile = _boundProfile(scope, token);
+    return CopyWebCredentials(
+      token: token,
+      userId: profile == null ? '' : _profileField(profile, 'user_id'),
+      username: profile == null ? '' : _profileField(profile, 'username'),
+      nickname: profile == null ? '' : _profileField(profile, 'nickname'),
+      avatar: profile == null ? '' : _profileField(profile, 'avatar'),
+      profileBoundToToken: profile != null,
+    );
   }
   return null;
+}
+
+Map<dynamic, dynamic>? _boundProfile(
+  Map<dynamic, dynamic> scope,
+  String token,
+) {
+  Map<dynamic, dynamic>? displayOnly;
+  for (final value in scope.values) {
+    for (final tokenMap in _storageMaps(value, 0, matchingToken: token)) {
+      if (_storageToken(tokenMap) != token) continue;
+      for (final map in _storageMaps(tokenMap, 0, matchingToken: token)) {
+        if (_profileField(map, 'user_id').isNotEmpty ||
+            _profileField(map, 'username').isNotEmpty) {
+          return map;
+        }
+        if (_profileField(map, 'nickname').isNotEmpty ||
+            _profileField(map, 'avatar').isNotEmpty) {
+          displayOnly ??= map;
+        }
+      }
+    }
+  }
+  return displayOnly;
+}
+
+String? _storageToken(Map<dynamic, dynamic> map) {
+  final value = map['token'];
+  if (value is! String) return null;
+  final token = _unquote(value);
+  return token.isEmpty ? null : token;
 }
 
 String _profileField(Map<dynamic, dynamic> map, String key) =>

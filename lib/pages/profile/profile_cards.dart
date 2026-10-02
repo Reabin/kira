@@ -256,6 +256,6 @@ extension _ProfileCards on _ProfilePageState {
     final nickname = _user.nickname?.trim() ?? '';
     final username = _user.username?.trim() ?? '';
     if (username.isNotEmpty) return username;
-    return nickname.isEmpty ? l10n.notLoggedInTitle : nickname;
+    return nickname.isEmpty ? l10n.accountProfileMissing : nickname;
   }
 }

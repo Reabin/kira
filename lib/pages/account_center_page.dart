@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
-import '../api/user/user_api.dart';
+import '../api/api_client.dart';
 import '../l10n/app_localizations.dart';
 import '../models/copy_account_store.dart';
 import '../models/user_manager.dart';
@@ -56,8 +56,6 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     setState(() => _busy = true);
     try {
       await action();
-    } on CopyProfileUnavailableException {
-      _toast(l10n.copyProfileRefreshUnavailable, isError: true);
     } on CopyAccountStorageException {
       _toast(l10n.copyAccountStorageFailed, isError: true);
     } catch (_) {
@@ -98,18 +96,32 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       _user.loginSource == 'copy' &&
       _user.token == account.token;
 
-  String _name(String username, String? nickname, String? id) {
+  String _name(
+    String username,
+    String? nickname,
+    String? id,
+    String? accountId,
+  ) {
     if (username.trim().isNotEmpty) return username.trim();
     if (nickname?.trim().isNotEmpty == true) return nickname!.trim();
-    return id?.trim() ?? '';
+    if (id?.trim().isNotEmpty == true) return id!.trim();
+    final fallback = AppLocalizations.of(context)!.accountProfileMissing;
+    final key = accountId ?? '';
+    return key.isEmpty
+        ? fallback
+        : '$fallback · ${key.substring(key.length > 6 ? key.length - 6 : 0)}';
   }
 
-  String _credentialName(SavedCredential account) =>
-      _name(account.username, account.nickname, account.userId);
+  String _credentialName(SavedCredential account) => _name(
+    account.username,
+    account.nickname,
+    account.userId,
+    account.accountId,
+  );
   String _copyName(CopyAccountSession account) =>
-      _name(account.username, account.nickname, account.userId);
+      _name(account.username, account.nickname, account.userId, account.id);
   String _credentialKey(SavedCredential account) =>
-      'primary-${account.source}-${account.username.isNotEmpty ? account.username : account.userId}';
+      'primary-${account.source}-${account.source == 'copy' && account.accountId?.isNotEmpty == true ? account.accountId : (account.username.isNotEmpty ? account.username : account.userId)}';
   String _copyKey(CopyAccountSession account) => 'copy-${account.id}';
   String _sourceLabel(AppLocalizations l10n, SavedCredential account) =>
       account.source == 'copy'
@@ -135,10 +147,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
           if (current == null)
             SelectItem('none', l10n.accountCenterNotLoggedIn),
           for (final account in primary)
-            SelectItem(
-              _credentialKey(account),
-              _credentialName(account),
-            ),
+            SelectItem(_credentialKey(account), _credentialName(account)),
           for (final account in copies)
             SelectItem(_copyKey(account), _copyName(account)),
           SelectItem('add', l10n.addAccountButton),
@@ -262,6 +271,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
                       ? l10n.accountCenterComicAccount
                       : '',
                   busy: _busy,
+                  onView: () => _viewCredential(account),
                   onRefresh: () => _refreshCredential(account),
                   onCopy: () => _copyToken(account.token),
                   onLogout: () => _removeCredential(account),
@@ -278,7 +288,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
                       l10n.accountCenterNovelAccount,
                   ].join(' · '),
                   busy: _busy,
-                  onRefresh: _refreshCopy,
+                  onView: () => _viewCopy(account),
+                  onRefresh: () => _refreshCopy(account),
                   onCopy: () => _copyToken(account.token),
                   onLogout: () => _removeCopy(account),
                 ),
@@ -289,6 +300,117 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
                 onTap: _busy ? null : _login,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 账号密码只在本机安全存储里；列表中的凭据不含密码（COPY 走令牌登录），
+  /// 主账号需要回到 [_user.savedCredentials] 里按身份取回已保存的密码。
+  String _savedPasswordFor(SavedCredential account) {
+    if (account.source == 'copy') return '';
+    if (account.password.isNotEmpty) return account.password;
+    for (final credential in [
+      ?_user.currentCredential,
+      ..._user.savedCredentials,
+    ]) {
+      if (credential.source == 'copy') continue;
+      if (credential.sameAccount(account) && credential.password.isNotEmpty) {
+        return credential.password;
+      }
+    }
+    if (_user.savedUsername == account.username &&
+        _user.savedPassword?.isNotEmpty == true) {
+      return _user.savedPassword!;
+    }
+    return '';
+  }
+
+  Future<void> _viewCredential(SavedCredential account) => _showAccountView(
+    username: _credentialName(account),
+    password: _savedPasswordFor(account),
+    token: account.token,
+  );
+
+  /// 拷贝账号的密码存在凭据列表里（官网登录时脚本抓取），账号库本身只有
+  /// 令牌。按令牌或账号 id 精确匹配，不做用户名兜底，避免显示成同名的另一
+  /// 个账号的密码。
+  String _savedCopyPassword(CopyAccountSession account) {
+    if (account.token.isEmpty) return '';
+    for (final credential in [
+      ?_user.currentCredential,
+      ..._user.savedCredentials,
+    ]) {
+      if (credential.source != 'copy' || credential.password.isEmpty) continue;
+      if (credential.token == account.token) return credential.password;
+      final id = account.id;
+      if (id != null && credential.accountId == id) {
+        return credential.password;
+      }
+    }
+    return '';
+  }
+
+  Future<void> _viewCopy(CopyAccountSession account) => _showAccountView(
+    username: _copyName(account),
+    password: _savedCopyPassword(account),
+    token: account.token,
+    // 令牌才是拷贝账号真正的凭证，即使已经存了密码也一并展示。
+    alwaysShowToken: true,
+  );
+
+  Future<void> _showAccountView({
+    required String username,
+    required String password,
+    String? token,
+    bool alwaysShowToken = false,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    // 有保存密码时只展示 用户名 + 密码；没有密码（令牌登录）时用令牌代替
+    // 密码展示，因为那才是本机实际保存的凭证。
+    final hasToken = token?.isNotEmpty == true;
+    final showToken = hasToken && (alwaysShowToken || password.isEmpty);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.accountViewTitle),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _AccountViewField(
+                label: l10n.accountViewUsernameLabel,
+                value: username,
+                l10n: l10n,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _AccountViewField(
+                label: l10n.accountViewPasswordLabel,
+                value: password.isEmpty
+                    ? l10n.accountViewPasswordUnavailable
+                    : password,
+                obscure: password.isNotEmpty,
+                l10n: l10n,
+              ),
+              if (showToken) ...[
+                const SizedBox(height: AppSpacing.md),
+                _AccountViewField(
+                  label: l10n.accountViewTokenLabel,
+                  value: token!,
+                  obscure: true,
+                  l10n: l10n,
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(l10n.closeButton),
           ),
         ],
       ),
@@ -323,8 +445,16 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   });
 
-  Future<void> _refreshCopy() => _guard(() async {
-    throw const CopyProfileUnavailableException();
+  Future<void> _refreshCopy(CopyAccountSession account) => _guard(() async {
+    final l10n = AppLocalizations.of(context)!;
+    final refreshed = await _user.refreshCopyCredential(
+      account,
+      api: ApiClient().user,
+    );
+    _toast(
+      refreshed ? l10n.userInfoRefreshedToast : l10n.userInfoRefreshFailedToast,
+      isError: !refreshed,
+    );
   });
 
   Future<void> _switchToCredential(SavedCredential account) => _guard(() async {
@@ -348,6 +478,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
           userId: account.userId,
           nickname: account.nickname,
           avatar: account.avatar,
+          accountId: account.id,
         ),
       );
 
@@ -371,6 +502,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
         account.username,
         loginSource: account.source,
         userId: account.userId,
+        accountId: account.accountId,
+        token: account.token,
       );
     });
   }
@@ -390,6 +523,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
         account.username,
         loginSource: 'copy',
         userId: account.userId,
+        accountId: account.id,
+        token: account.token,
       );
     });
   }
@@ -438,7 +573,74 @@ class _SectionLabel extends StatelessWidget {
   );
 }
 
-enum _AccountAction { refresh, copy, logout }
+enum _AccountAction { view, refresh, copy, logout }
+
+/// 只读展示一个字段，密码/令牌默认打码，可切换显示并复制。
+class _AccountViewField extends StatefulWidget {
+  const _AccountViewField({
+    required this.label,
+    required this.value,
+    required this.l10n,
+    this.obscure = false,
+  });
+
+  final String label;
+  final String value;
+  final AppLocalizations l10n;
+  final bool obscure;
+
+  @override
+  State<_AccountViewField> createState() => _AccountViewFieldState();
+}
+
+class _AccountViewFieldState extends State<_AccountViewField> {
+  late bool _hidden = widget.obscure;
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  )..selection = TextSelection.collapsed(offset: widget.value.length);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      readOnly: true,
+      obscureText: _hidden,
+      enableInteractiveSelection: true,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        isDense: true,
+        border: OutlineInputBorder(borderRadius: AppRadius.mdR),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.obscure)
+              IconButton(
+                tooltip: widget.label,
+                icon: Icon(_hidden ? Icons.visibility_off : Icons.visibility),
+                onPressed: () => setState(() => _hidden = !_hidden),
+              ),
+            IconButton(
+              tooltip: widget.l10n.copyButton,
+              icon: const Icon(Icons.copy_rounded),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: widget.value));
+                if (context.mounted) {
+                  showToast(context, widget.l10n.accountViewCopiedToast);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _AccountTile extends StatelessWidget {
   const _AccountTile({
@@ -448,6 +650,7 @@ class _AccountTile extends StatelessWidget {
     required this.badge,
     required this.selectedLabel,
     required this.busy,
+    required this.onView,
     required this.onRefresh,
     required this.onCopy,
     required this.onLogout,
@@ -458,6 +661,7 @@ class _AccountTile extends StatelessWidget {
   final String badge;
   final String selectedLabel;
   final bool busy;
+  final VoidCallback onView;
   final VoidCallback onRefresh;
   final VoidCallback onCopy;
   final VoidCallback onLogout;
@@ -503,6 +707,8 @@ class _AccountTile extends StatelessWidget {
         enabled: !busy,
         onSelected: (action) {
           switch (action) {
+            case _AccountAction.view:
+              onView();
             case _AccountAction.refresh:
               onRefresh();
             case _AccountAction.copy:
@@ -512,6 +718,10 @@ class _AccountTile extends StatelessWidget {
           }
         },
         itemBuilder: (_) => [
+          PopupMenuItem(
+            value: _AccountAction.view,
+            child: Text(l10n.accountViewTitle),
+          ),
           PopupMenuItem(
             value: _AccountAction.refresh,
             child: Text(l10n.refreshUserButton),

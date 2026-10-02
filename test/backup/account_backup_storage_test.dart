@@ -171,6 +171,46 @@ void main() {
     },
   );
 
+  test(
+    'token-only account backup round-trips its handle without touching novel credentials',
+    () async {
+      const account = SavedCredential(
+        username: '',
+        password: '',
+        token: 'token-only-backup',
+        loginSource: 'copy',
+        accountId: 'local:backup-handle',
+      );
+      final values = <String, Object>{
+        'user_token': account.token!,
+        'user_account_id': account.accountId!,
+        'user_username': '',
+        'user_id': '',
+        'user_nickname': '',
+        'user_avatar': '',
+        'login_source': 'copy',
+        'saved_credentials': jsonEncode([account.toJson()]),
+      };
+      await service.restore(backupDocument(values), {BackupCategory.account});
+      expect(user.currentCredential?.accountId, account.accountId);
+      expect(user.currentCredential?.hasIdentity, isFalse);
+      expect(user.savedCredentials, hasLength(1));
+      expect(user.savedCredentials.single.accountId, account.accountId);
+      expect(await secure.readCopyAccountRecord(), copyRecord);
+      final captured = (await service.capture()).select({
+        BackupCategory.account,
+      });
+      expect(captured.preferences['user_account_id']?.value, account.accountId);
+      final ordinary = BackupDocument.parse(await service.exportPlainText());
+      expect(ordinary.preferences, isNot(contains('user_account_id')));
+      await user.init();
+      expect(user.currentCredential?.accountId, account.accountId);
+      expect(user.token, account.token);
+      expect(user.copyToken, 'novel-token');
+      expect(await secure.readCopyAccountRecord(), copyRecord);
+    },
+  );
+
   test('capture refuses a restore that started during its flush', () async {
     final runtime = _DelayedFlushRuntime();
     final captureService = SettingsBackupService(

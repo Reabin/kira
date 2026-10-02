@@ -441,7 +441,11 @@ GoRouter createAppRouter() {
       GoRoute(
         path: '/login/webview',
         name: AppRoutes.webviewLogin,
-        builder: (_, _) => const WebViewLoginPage(),
+        builder: (_, state) => WebViewLoginPage(
+          autoFill: state.extra is ({String username, String password})
+              ? state.extra as ({String username, String password})
+              : null,
+        ),
       ),
       GoRoute(
         path: '/accounts',

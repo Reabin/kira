@@ -117,7 +117,7 @@ class SecureCredentialStore {
       return decoded
           .whereType<Map>()
           .map((e) => SavedCredential.fromJson(Map<String, dynamic>.from(e)))
-          .where((e) => e.hasIdentity)
+          .where((e) => e.hasAccountKey)
           .toList();
     } catch (_) {
       return [];

@@ -931,12 +931,34 @@
   "profileWebLoginButton": "官網登入",
   "profileWebLoginRecommendedTag": "推薦",
   "profileWebLoginPageTitle": "官網登入",
-  "profileWebLoginHint": "在官網中登入拷貝漫畫帳號，登入成功後將自動完成",
+  "profileWebLoginHint": "在官網中登入拷貝漫畫帳號，登入成功後將自動完成；若要換成其他帳號，請先點右上角清除登入狀態",
   "profileWebLoginCompleting": "已獲取登入資訊，正在驗證…",
   "profileWebLoginManualButton": "我已完成登入",
   "profileWebLoginNotDetected": "未偵測到登入資訊，請先在官網中完成登入",
   "profileWebLoginResetTooltip": "清除官網登入狀態",
+  "profileWebLoginResetDone": "已清除官網登入狀態，請登入其他帳號",
+  "profileWebLoginKnownAccount": "偵測到本機已儲存的帳號「{name}」，尚未自動登入",
+  "@profileWebLoginKnownAccount": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "profileWebLoginKnownAccountFallback": "已儲存的帳號",
+  "profileWebLoginUseAccount": "使用該帳號",
+  "profileWebLoginSwitchAccount": "切換其他帳號",
+  "profileWebLoginRetryButton": "重新偵測登入",
+  "profileWebLoginResetFailed": "清除官網登入狀態失敗，請重試",
   "profileWebLoginFailed": "官網登入失敗",
+  "profileCopyAutoLoginRejected": "登入被拒絕：{detail}",
+  "@profileCopyAutoLoginRejected": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "profileUsernameLabel": "使用者名稱",
   "profilePasswordLabel": "密碼",
   "profileTokenLabel": "權杖 (Token)",
@@ -2458,6 +2480,7 @@
   "accountCenterNovelAccount": "輕小說帳號",
   "accountCenterNovelCopyOnlyHint": "輕小說僅支援使用拷貝帳號",
   "accountCenterNotLoggedIn": "未登入",
+  "accountProfileMissing": "已登入（未取得資料）",
   "accountCenterAddPrimary": "登入漫畫帳號",
   "accountCenterAddCopy": "新增拷貝帳號",
   "accountCenterPickComic": "選擇漫畫使用的帳號",
@@ -2483,5 +2506,12 @@
       }
     }
   },
+  "accountViewTitle": "檢視帳號",
+  "accountViewUsernameLabel": "使用者名稱",
+  "accountViewPasswordLabel": "密碼",
+  "accountViewPasswordUnavailable": "未儲存密碼（該帳號未勾選「記住帳號」或使用權杖登入）",
+  "accountViewTokenLabel": "權杖 (Token)",
+  "accountViewNoToken": "無權杖",
+  "accountViewCopiedToast": "已複製到剪貼簿",
   "accountCenterNameNewTitle": "給新帳號起個備註名"
 }

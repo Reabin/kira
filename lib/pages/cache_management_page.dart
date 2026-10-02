@@ -64,6 +64,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
     'user_username',
     'user_nickname',
     'user_avatar',
+    'user_account_id',
     'user_id',
     'saved_username',
     'saved_password',

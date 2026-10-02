@@ -20,7 +20,9 @@ import '../test_helpers.dart';
 
 class _ProfileApi implements UserApi {
   Future<Map<String, dynamic>> Function(String, String)? respond;
+  Future<Map<String, dynamic>> Function(String)? respondCopy;
   final requests = <({String token, String source})>[];
+  final copyRequests = <String>[];
 
   @override
   Future<Map<String, dynamic>> getCredentialInfo({
@@ -28,8 +30,20 @@ class _ProfileApi implements UserApi {
     required String source,
   }) async {
     requests.add((token: token, source: source));
-    if (source == 'copy') throw const CopyProfileUnavailableException();
+    if (source == 'copy') return getCopyCredentialInfo(token);
     return respond!(token, source);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getCopyCredentialInfo(String token) async {
+    copyRequests.add(token);
+    return respondCopy?.call(token) ??
+        {
+          'user_id': 'refreshed-${token.substring(token.length - 1)}',
+          'username': 'refreshed-user',
+          'nickname': '更新昵称',
+          'avatar': 'updated-avatar',
+        };
   }
 
   @override
@@ -104,7 +118,7 @@ void main() {
           'user_id': 'hot-id',
           'nickname': '热辣主号',
         },
-        _second.toJson(),
+        _second.copyWith(password: 'second-pass').toJson(),
       ]),
     });
     setupSecureCredentialStoreForTest();
@@ -226,7 +240,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('切换账号'), findsNothing);
-      for (final label in ['刷新用户', '复制令牌', '退出登录']) {
+      for (final label in ['查看账号', '刷新用户', '复制令牌', '退出登录']) {
         expect(find.text(label), findsOneWidget);
       }
     },
@@ -246,6 +260,83 @@ void main() {
     expect(user.copyAccount.token, _copyB.token);
     expect(find.text(_copyA.token), findsNothing);
     expect(find.text(_second.token!), findsNothing);
+  });
+
+  testWidgets('view shows the clicked HOT account name and stored password', (
+    tester,
+  ) async {
+    await pump(tester);
+    await action(tester, 'primary-hotmanga-second-hot-user', '查看账号');
+    expect(find.text('查看账号'), findsWidgets);
+    // 用户名可见；密码默认打码，但控件里确实带着保存的明文。
+    expect(find.text('second-hot-user'), findsWidgets);
+    expect(find.text('查看账号'), findsOneWidget);
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(fields.length, 2);
+    expect(fields[0].obscureText, isFalse);
+    expect(fields[0].controller?.text, 'second-hot-user');
+    expect(fields[1].obscureText, isTrue);
+    expect(fields[1].controller?.text, 'second-pass');
+    expect(user.token, 'hot-token');
+  });
+
+  testWidgets('COPY accounts expose the view entry with username and token', (
+    tester,
+  ) async {
+    await user.copyAccount.saveSession(_copyA);
+    await pump(tester);
+    await action(tester, 'copy-${_copyA.id}', '查看账号');
+    expect(find.text('查看账号'), findsOneWidget);
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    // 用户名 + 未保存密码占位 + 令牌：拷贝账号的凭证就是令牌。
+    expect(fields.length, 3);
+    expect(fields[0].controller?.text, _copyA.username);
+    expect(fields[0].obscureText, isFalse);
+    expect(fields[1].controller?.text, contains('未保存密码'));
+    expect(fields[2].controller?.text, _copyA.token);
+    expect(fields[2].obscureText, isTrue);
+    expect(user.copyAccount.token, _copyA.token);
+  });
+
+  testWidgets('COPY view shows the stored password and still lists the token', (
+    tester,
+  ) async {
+    // 走真实登录路径：密码存在凭据列表里，只有登录才会写进去。
+    await user.authenticateAndLogin(
+      source: 'copy',
+      authenticate: () async => {
+        'token': _copyA.token,
+        'user_id': _copyA.userId,
+        'username': _copyA.username,
+        'nickname': _copyA.nickname,
+        'avatar': _copyA.avatar,
+      },
+    );
+    await user.saveLoginFormPasswords({_copyA.username: 'copy-pass'});
+    await pump(tester);
+    await action(tester, 'copy-${_copyA.id}', '查看账号');
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(fields.length, 3);
+    expect(fields[1].controller?.text, 'copy-pass');
+    expect(fields[1].obscureText, isTrue);
+    expect(fields[2].controller?.text, _copyA.token);
+  });
+
+  testWidgets('view copy button copies the account password', (tester) async {
+    await pump(tester);
+    await action(tester, 'primary-hotmanga-second-hot-user', '查看账号');
+    final copyIcons = find.byIcon(Icons.copy_rounded);
+    expect(copyIcons, findsNWidgets(2));
+    await tester.tap(copyIcons.last);
+    await tester.pumpAndSettle();
+    expect(clipboard, 'second-pass');
+    expect(find.text('已复制到剪贴板'), findsOneWidget);
   });
 
   testWidgets('refresh inactive HOT changes only its stored profile', (
@@ -274,18 +365,49 @@ void main() {
   });
 
   testWidgets(
-    'COPY refresh reports unavailable without requests or selection changes',
+    'COPY refresh uses clicked account token without changing either selection',
     (tester) async {
       await user.copyAccount.saveSession(_copyA);
+      final copyAId = user.copyAccount.activeId;
       await user.copyAccount.saveSession(_copyB);
+      final activeCopyId = user.copyAccount.activeId;
+      api.respondCopy = (token) async => {
+        'user_id': token == _copyA.token ? _copyA.userId : _copyB.userId,
+        'username': token == _copyA.token ? _copyA.username : _copyB.username,
+        'nickname': '更新昵称',
+        'avatar': 'updated-avatar',
+      };
       await pump(tester);
       await action(tester, 'copy-${_copyA.id}', '刷新用户');
-      expect(api.requests, isEmpty);
-      expect(find.text('用户信息已刷新'), findsNothing);
+      expect(api.copyRequests, ['copy-a-token']);
+      expect(user.copyAccount.byId(copyAId)?.nickname, '更新昵称');
+      expect(user.copyAccount.byId(copyAId)?.avatar, 'updated-avatar');
+      expect(user.copyAccount.activeId, activeCopyId);
       expect(user.copyAccount.token, _copyB.token);
       expect(user.token, 'hot-token');
+      expect(user.nickname, '热辣主号');
+      expect(find.text('用户信息已刷新'), findsOneWidget);
     },
   );
+
+  test('late COPY profile response cannot revive a removed account', () async {
+    await user.copyAccount.saveSession(_copyA);
+    final pending = Completer<Map<String, dynamic>>();
+    api.respondCopy = (_) => pending.future;
+    final refreshing = user.refreshCopyCredential(
+      user.copyAccount.session!,
+      api: api,
+    );
+    await user.copyAccount.removeAccount(_copyA.id!);
+    pending.complete({
+      'user_id': _copyA.userId,
+      'username': _copyA.username,
+      'nickname': '迟到的资料',
+    });
+    expect(await refreshing, isFalse);
+    expect(user.copyAccount.byId(_copyA.id), isNull);
+    expect(user.copyAccount.accounts, isEmpty);
+  });
 
   testWidgets('switching saved HOT does not select a novel identity', (
     tester,
@@ -300,6 +422,31 @@ void main() {
     expect(user.copyAccount.token, _copyA.token);
     expect(api.requests, isEmpty);
   });
+
+  testWidgets(
+    'HOT accounts remain independently selectable after repeated restarts',
+    (tester) async {
+      await user.switchToCredential(user.currentCredential!);
+      await user.init();
+      await user.switchToCredential(_second);
+      await user.init();
+      await pump(tester);
+      expect(
+        find.byKey(const ValueKey('primary-hotmanga-hot-user')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('primary-hotmanga-second-hot-user')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('comic-account-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('hot-user').last);
+      await tester.pumpAndSettle();
+      expect(user.token, 'hot-token');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('top dropdowns select domains independently without a sheet', (
     tester,
@@ -329,6 +476,54 @@ void main() {
     expect(user.token, _copyA.token);
     expect(user.copyToken, _copyA.token);
   });
+
+  testWidgets(
+    'token-only accounts have distinct labels and working selection/removal',
+    (tester) async {
+      await user.authenticateAndLogin(
+        source: 'copy',
+        authenticate: () async => {'token': 'unknown-a'},
+      );
+      final a = user.copyAccount.session!;
+      await user.authenticateAndLogin(
+        source: 'copy',
+        authenticate: () async => {'token': 'unknown-b'},
+      );
+      final b = user.copyAccount.session!;
+      String label(CopyAccountSession account) =>
+          '已登录（未获取资料） · ${account.id!.substring(account.id!.length - 6)}';
+      await pump(tester);
+      expect(find.byKey(ValueKey('copy-${a.id}')), findsOneWidget);
+      expect(find.byKey(ValueKey('copy-${b.id}')), findsOneWidget);
+      expect(find.text(label(a)), findsOneWidget);
+      expect(find.text('unknown-a'), findsNothing);
+      expect(find.text('unknown-b'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('comic-account-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label(a)).last);
+      await tester.pumpAndSettle();
+      expect(user.token, a.token);
+      expect(user.copyToken, b.token);
+      await action(tester, 'copy-${b.id}', '复制令牌');
+      expect(clipboard, b.token);
+      await action(tester, 'copy-${a.id}', '退出登录');
+      await tester.tap(find.text('确认'));
+      await tester.pumpAndSettle();
+      expect(user.isLoggedIn, isFalse);
+      expect(user.copyToken, b.token);
+      expect(
+        user.savedCredentials.any((item) => item.accountId == a.id),
+        isFalse,
+      );
+      expect(
+        user.savedCredentials.any((item) => item.accountId == b.id),
+        isTrue,
+      );
+      expect(find.byKey(ValueKey('copy-${a.id}')), findsNothing);
+      expect(find.byKey(ValueKey('copy-${b.id}')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('logout removes only the clicked saved HOT', (tester) async {
     await user.copyAccount.saveSession(_copyA);

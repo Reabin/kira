@@ -170,8 +170,9 @@ void main() {
       });
       await user.init();
       expect(user.copyAccount.session?.toJson(), {
-        // 身份改由 userId 派生，`id` 不入库；label 为账号备注，默认空串。
+        // 迁移固定原派生标识；后续补充资料不改变已有绑定。
         'token': 'legacy-copy',
+        'account_id': 'u:legacy-id',
         'user_id': 'legacy-id',
         'username': 'legacy-user',
         'nickname': 'legacy-name',
@@ -350,6 +351,15 @@ void main() {
       expect(notifications, 1);
     },
   );
+
+  test('non-string and empty tokens are never accepted as sessions', () {
+    for (final token in [null, '', ' ', 42, const <String, String>{}]) {
+      expect(
+        () => CopyAccountSession.fromJson({'token': token}),
+        throwsFormatException,
+      );
+    }
+  });
 
   test(
     'invalid session and corrupt record never overwrite existing data',
@@ -613,21 +623,277 @@ void main() {
     },
   );
 
+  test('token-only login gets a durable, non-identity account id', () async {
+    expect(
+      await store.login(
+        () async => const CopyAccountSession(token: 'anonymous-token'),
+      ),
+      isTrue,
+    );
+    final session = store.session!;
+    expect(session.id, matches(r'^local:[0-9a-f]{32}$'));
+    expect(session.accountId, session.id);
+    expect(session.hasIdentity, isFalse);
+    expect(session.userId, isEmpty);
+    expect(session.username, isEmpty);
+    expect(session.nickname, isEmpty);
+    expect(store.isLoggedIn, isTrue);
+
+    final restarted = CopyAccountStore(secureStore: secure);
+    addTearDown(restarted.dispose);
+    await restarted.init();
+    expect(restarted.token, 'anonymous-token');
+    expect(restarted.activeId, session.id);
+    expect(restarted.session?.toJson(), session.toJson());
+    expect(restarted.session?.hasIdentity, isFalse);
+  });
+
+  test('unresolved sessions do not share a null membership key', () {
+    final first = CopyAccountSession.fromJson(const {'token': 'candidate'});
+    final second = CopyAccountSession.fromJson(const {'token': 'candidate'});
+    expect(first.id, isNull);
+    expect(first.accountId, isNull);
+    expect(first.hasIdentity, isFalse);
+    expect(first, first);
+    expect(first, isNot(second));
+    expect({first, second}, hasLength(2));
+    expect(CopyAccountSession.fromJson(first.toJson()).id, isNull);
+  });
+
+  test('pinned account id round-trips and overrides later identity', () {
+    const original = CopyAccountSession(
+      token: 'candidate',
+      accountId: 'local:record',
+      label: '备注',
+    );
+    final profiled = original.copyWith(
+      userId: 'server-id',
+      username: 'server-name',
+      nickname: 'nickname',
+      avatar: 'avatar',
+    );
+    expect(profiled.id, original.id);
+    expect(profiled.hasIdentity, isTrue);
+    expect(profiled.label, original.label);
+    expect(
+      CopyAccountSession.fromJson(profiled.toJson()).toJson(),
+      profiled.toJson(),
+    );
+    expect(original.copyWith(label: '新备注').accountId, original.accountId);
+    expect(
+      original.copyWith(accountId: 'local:replacement').id,
+      'local:replacement',
+    );
+  });
+
+  test('same validated token reuses its handle and optional profile', () async {
+    await store.saveSession(
+      const CopyAccountSession(token: 'anonymous-token', label: '主号'),
+    );
+    final id = store.activeId;
+    await store.saveSession(
+      const CopyAccountSession(token: ' anonymous-token '),
+    );
+    expect(store.accounts, hasLength(1));
+    expect(store.activeId, id);
+    expect(store.session?.label, '主号');
+    expect(store.session?.hasIdentity, isFalse);
+
+    await store.saveSession(
+      const CopyAccountSession(
+        token: 'anonymous-token',
+        userId: 'learned-id',
+        username: 'learned-name',
+        nickname: '昵称',
+        avatar: 'avatar',
+      ),
+    );
+    expect(store.activeId, id);
+    expect(store.session?.hasIdentity, isTrue);
+    await store.saveSession(const CopyAccountSession(token: 'anonymous-token'));
+    expect(store.activeId, id);
+    expect(store.session?.userId, 'learned-id');
+    expect(store.session?.username, 'learned-name');
+    expect(store.session?.nickname, '昵称');
+    expect(store.session?.avatar, 'avatar');
+    expect(store.session?.label, '主号');
+
+    await store.saveSession(
+      const CopyAccountSession(token: 'rotated-token', userId: 'learned-id'),
+    );
+    expect(store.accounts, hasLength(1));
+    expect(store.activeId, id);
+    expect(store.token, 'rotated-token');
+    await store.init();
+    expect(store.activeId, id);
+    expect(store.token, 'rotated-token');
+  });
+
   test(
-    'an account without id or username is rejected instead of half-saved',
+    'different unknown tokens remain separately selectable and removable',
     () async {
-      await store.saveSession(_copyA);
-      // 同步抛出：无效数据在任何 await/落盘之前就被拒绝。
-      expect(
-        () => store.saveSession(
-          const CopyAccountSession(token: 'anonymous-token'),
-        ),
-        throwsFormatException,
-      );
-      expect(store.accounts.length, 1);
-      expect(store.token, _copyA.token);
+      await store.saveSession(const CopyAccountSession(token: 'unknown-a'));
+      final a = store.session!;
+      await store.saveSession(const CopyAccountSession(token: 'unknown-b'));
+      final b = store.session!;
+      expect(a.id, isNot(b.id));
+      expect(a, isNot(b));
+      expect(store.accounts, hasLength(2));
+
+      expect(await store.selectAccount(a.id), isTrue);
+      await store.init();
+      expect(store.token, a.token);
+      expect(store.activeId, a.id);
+      expect(store.accounts, hasLength(2));
+      await store.removeAccount(a.id!);
+      expect(store.token, b.token);
+      expect(store.byId(a.id), isNull);
+      expect(store.accounts, hasLength(1));
+      await store.init();
+      expect(store.activeId, b.id);
+      await store.removeAccount(b.id!);
+      expect(store.isLoggedIn, isFalse);
+      await store.init(legacySession: a);
+      expect(store.accounts, isEmpty);
     },
   );
+
+  test(
+    'pre-resolved handle is reused by save and existing COPY handle wins',
+    () async {
+      final resolved = store.resolveSession(
+        const CopyAccountSession(token: 'candidate'),
+      );
+      expect(store.accounts, isEmpty);
+      expect(store.isLoggedIn, isFalse);
+      final writes = secure.writes;
+      expect(resolved.id, startsWith('local:'));
+      await store.saveSession(resolved);
+      expect(store.activeId, resolved.id);
+      expect(secure.writes, writes + 1);
+
+      final restoredPrimary = store.resolveSession(
+        const CopyAccountSession(
+          token: 'candidate',
+          accountId: 'local:primary',
+        ),
+      );
+      expect(restoredPrimary.id, resolved.id);
+      await store.saveSession(restoredPrimary);
+      expect(store.accounts, hasLength(1));
+      expect(store.activeId, resolved.id);
+
+      await store.saveSession(
+        CopyAccountSession(token: 'rotated', accountId: resolved.id),
+      );
+      expect(store.accounts, hasLength(1));
+      expect(store.activeId, resolved.id);
+      expect(store.token, 'rotated');
+    },
+  );
+
+  test(
+    'legacy username binding stays pinned when a server id arrives',
+    () async {
+      const legacy = CopyAccountSession(
+        token: 'legacy-token',
+        username: 'legacy-name',
+      );
+      await secure.writeCopyAccountRecord(
+        jsonEncode({
+          'migrationHandled': true,
+          'activeId': legacy.id,
+          'accounts': [legacy.toJson()],
+        }),
+      );
+      await store.init();
+      expect(store.session?.accountId, isNull);
+      expect(store.activeId, legacy.id);
+      await store.saveSession(
+        const CopyAccountSession(
+          token: 'new-token',
+          username: 'legacy-name',
+          userId: 'known-id',
+        ),
+      );
+      expect(store.accounts, hasLength(1));
+      expect(store.activeId, legacy.id);
+      expect(store.session?.accountId, legacy.id);
+      expect(store.session?.userId, 'known-id');
+      await store.init();
+      expect(store.activeId, legacy.id);
+      await store.saveSession(
+        const CopyAccountSession(token: 'another-token', userId: 'known-id'),
+      );
+      expect(store.accounts, hasLength(1));
+      expect(store.activeId, legacy.id);
+      expect(store.session?.username, 'legacy-name');
+    },
+  );
+
+  test(
+    'matching usernames cannot merge conflicting server identities',
+    () async {
+      await store.saveSession(
+        const CopyAccountSession(
+          token: 'a-token',
+          userId: 'a-id',
+          username: 'same',
+        ),
+      );
+      await store.saveSession(
+        const CopyAccountSession(
+          token: 'b-token',
+          userId: 'b-id',
+          username: 'same',
+        ),
+      );
+      expect(store.accounts, hasLength(2));
+      expect(store.byId('u:a-id')?.token, 'a-token');
+      expect(store.byId('u:b-id')?.token, 'b-token');
+      await store.saveSession(
+        const CopyAccountSession(
+          token: 'a-new-token',
+          userId: 'a-id',
+          username: 'same',
+        ),
+      );
+      expect(store.accounts, hasLength(2));
+      expect(store.activeId, 'u:a-id');
+      expect(store.byId('u:b-id')?.token, 'b-token');
+    },
+  );
+
+  test(
+    'legacy token-only import allocates and persists a handle once',
+    () async {
+      final freshSecure = _MemorySecureStore();
+      final fresh = CopyAccountStore(secureStore: freshSecure);
+      addTearDown(fresh.dispose);
+      const legacy = CopyAccountSession(token: 'legacy-token-only');
+      await fresh.init(legacySession: legacy);
+      final id = fresh.activeId;
+      expect(id, startsWith('local:'));
+      expect(fresh.session?.hasIdentity, isFalse);
+      final writes = freshSecure.writes;
+      await fresh.init(legacySession: legacy);
+      expect(fresh.activeId, id);
+      expect(freshSecure.writes, writes);
+    },
+  );
+
+  test('token-only write failure retains prior account and record', () async {
+    await store.saveSession(_copyA);
+    final before = await secure.readCopyAccountRecord();
+    secure.failWrite = true;
+    await expectLater(
+      store.saveSession(const CopyAccountSession(token: 'new-unknown')),
+      throwsA(isA<CopyAccountStorageException>()),
+    );
+    expect(store.accounts, hasLength(1));
+    expect(store.activeId, _copyA.id);
+    expect(await secure.readCopyAccountRecord(), before);
+  });
 
   test('clear drops every COPY account and persists the tombstone', () async {
     await store.saveSession(_copyA);

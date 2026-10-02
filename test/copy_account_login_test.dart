@@ -15,13 +15,15 @@ import 'package:kira/models/secure_credential_store.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/login_page.dart';
 import 'package:kira/pages/profile_page.dart';
+import 'package:kira/pages/webview_login_page.dart';
+import 'package:kira/routing/app_router.dart';
 import 'package:kira/utils/copy_web_login.dart';
 import 'package:kira/utils/data_cache.dart';
 import 'package:kira/widgets/login_node_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeAdapter implements HttpClientAdapter {
-  final FutureOr<ResponseBody> Function(RequestOptions) respond;
+  FutureOr<ResponseBody> Function(RequestOptions) respond;
   final requests = <RequestOptions>[];
 
   _FakeAdapter(this.respond);
@@ -82,6 +84,7 @@ Map<String, Object?> _mainSnapshot(UserManager user) => {
   'source': user.loginSource,
   'username': user.username,
   'id': user.userId,
+  'accountId': user.currentCredential?.accountId,
   'nickname': user.nickname,
   'avatar': user.avatar,
   'savedUsername': user.savedUsername,
@@ -95,6 +98,7 @@ void main() {
   final originalApi = ApiClient();
   late UserApi api;
   late _FakeAdapter copyAdapter;
+  late _FakeAdapter copyProfileAdapter;
   late _FakeAdapter mainAdapter;
   late Dio primaryDio;
   late Dio commentDio;
@@ -146,6 +150,9 @@ void main() {
       'results': {'list': <Object>[], 'total': 0},
     });
     copyAdapter = _FakeAdapter((request) => response(request));
+    copyProfileAdapter = _FakeAdapter(
+      (_) => _jsonResponse({'code': 200, 'results': <String, Object>{}}),
+    );
     primaryResponse = (_) => throw StateError('Unexpected primary request');
     mainAdapter = _FakeAdapter((request) => primaryResponse(request));
     primaryDio = Dio()..httpClientAdapter = mainAdapter;
@@ -170,6 +177,8 @@ void main() {
           Dio(options)..httpClientAdapter = copyAdapter,
       profileDioFactory: (options) =>
           Dio(options)..httpClientAdapter = mainAdapter,
+      copyProfileDioFactory: (options) =>
+          Dio(options)..httpClientAdapter = copyProfileAdapter,
     );
     // Any accidental refresh/logout through the global facade must hit a fake,
     // never the singleton's platform HttpClientAdapter.
@@ -213,6 +222,32 @@ void main() {
             ),
           ],
         ),
+        GoRoute(
+          name: AppRoutes.webviewLogin,
+          path: '/webview-login',
+          builder: (context, state) {
+            final extra = state.extra;
+            final fill = extra is ({String username, String password})
+                ? '${extra.username}:${extra.password}'
+                : 'no-fill';
+            return Scaffold(
+              appBar: AppBar(title: const Text('test-official-login')),
+              body: Column(
+                children: [
+                  Text('test-fill:$fill'),
+                  TextButton(
+                    onPressed: () => context.pop(false),
+                    child: const Text('test-web-cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.pop(true),
+                    child: const Text('test-web-success'),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
     addTearDown(router.dispose);
@@ -227,16 +262,31 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> submitPassword(WidgetTester tester) async {
+  Future<void> submitHotPassword(
+    WidgetTester tester, {
+    String password = 'hot-password',
+    bool useKeyboard = false,
+  }) async {
     await tester.enterText(find.byType(TextField).at(0), 'same-username');
-    await tester.enterText(find.byType(TextField).at(1), 'copy-password');
+    await tester.enterText(find.byType(TextField).at(1), password);
     await tester.ensureVisible(find.widgetWithText(FilledButton, '登录'));
     await tester.runAsync(() async {
-      await tester.tap(find.widgetWithText(FilledButton, '登录'));
+      if (useKeyboard) {
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+      } else {
+        await tester.tap(find.widgetWithText(FilledButton, '登录'));
+      }
       await Future<void>.delayed(const Duration(milliseconds: 30));
     });
     await tester.pumpAndSettle();
   }
+
+  // COPY's password API remains for legacy auto-login, but is no longer
+  // reachable from LoginPage. Exercise its account transaction directly.
+  Future<bool> authenticateCopyPassword() => user.authenticateAndLogin(
+    source: 'copy',
+    authenticate: () => api.copyLogin('same-username', 'copy-password'),
+  );
 
   Future<void> submitToken(
     WidgetTester tester, {
@@ -430,12 +480,9 @@ void main() {
   }
 
   testWidgets(
-    'ordinary COPY token selection rejects a HOT-valid candidate without touching accounts',
+    'switching HOT to COPY rejects a HOT-valid token without touching accounts',
     (tester) async {
-      await tester.runAsync(() async {
-        await user.setLoginSource('copy');
-        await user.copyAccount.saveSession(_oldSession);
-      });
+      await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
       final before = _mainSnapshot(user);
       // This candidate is valid only on HOT. The selected COPY validator must
       // reject it instead of silently using HOT member/info and marking COPY.
@@ -445,6 +492,9 @@ void main() {
       });
       response = (_) => _jsonResponse({'code': 401}, 401);
       await pumpLogin(tester, copyOnly: false);
+      await tester.tap(find.text('拷贝漫画'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNWidgets(2));
       await submitToken(tester, token: 'valid-hot-only');
       expect(_mainSnapshot(user), before);
       expect(user.copyToken, 'old-copy');
@@ -518,10 +568,10 @@ void main() {
     },
   );
 
-  testWidgets(
-    'ordinary COPY password login explicitly synchronizes after COPY authentication',
-    (tester) async {
-      await tester.runAsync(() => user.setLoginSource('copy'));
+  test(
+    'legacy COPY password authentication explicitly synchronizes the independent account',
+    () async {
+      await user.setLoginSource('copy');
       response = (_) => _jsonResponse({
         'code': 200,
         'results': {
@@ -531,12 +581,7 @@ void main() {
           'nickname': 'COPY main',
         },
       });
-      primaryResponse = (_) => _jsonResponse({
-        'code': 200,
-        'results': {'user_id': 'copy-id', 'username': 'copy-main'},
-      });
-      await pumpLogin(tester, copyOnly: false);
-      await submitPassword(tester);
+      expect(await authenticateCopyPassword(), isTrue);
       expect(user.token, 'authenticated-copy');
       expect(user.loginSource, 'copy');
       expect(user.copyToken, 'authenticated-copy');
@@ -545,19 +590,21 @@ void main() {
   );
 
   testWidgets(
-    'COPY-only mode hides HOT switch and saved credentials but keeps official login',
+    'COPY-only mode exposes account form plus official and token login entries',
     (tester) async {
       await pumpLogin(tester);
       expect(find.byType(SegmentedButton<bool>), findsNothing);
+      expect(find.byType(TextField), findsNWidgets(2));
       expect(find.byType(CheckboxListTile), findsNothing);
+      expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
       expect(find.text('热辣漫画'), findsNothing);
       expect(find.text('same-username'), findsNothing);
-      // 官网登录保持可用：COPY-only 入口必须能走 WebView，否则只能手抄令牌。
-      expect(find.text('官网登录'), findsOneWidget);
+      expect(find.byTooltip('官网登录'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('official-register-copy')),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.byIcon(Icons.language), findsOneWidget);
       expect(find.byIcon(Icons.key), findsOneWidget);
       expect(
         tester
@@ -571,13 +618,222 @@ void main() {
   );
 
   testWidgets(
+    'COPY account login requires both fields before opening the official page',
+    (tester) async {
+      await pumpLogin(tester);
+      await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+      await tester.tap(find.widgetWithText(FilledButton, '登录'));
+      await tester.pumpAndSettle();
+      expect(find.text('请输入用户名和密码'), findsOneWidget);
+      expect(find.text('test-official-login'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'username field offers saved accounts of the active login source only',
+    (tester) async {
+      // 存一个拷贝账号（含登录名与密码），模拟自动填表登录后的本机状态。
+      await tester.runAsync(() async {
+        await completeCopyWebLogin(
+          user: user,
+          api: api,
+          credentials: const CopyWebCredentials(
+            token: 'suggest-copy',
+            userId: 'copy-id',
+            username: 'copy-user',
+            nickname: '拷贝昵称',
+            avatar: '',
+            profileBoundToToken: true,
+          ),
+        );
+        await user.saveLoginFormPasswords(
+          {'copy-user': 'copy-password'},
+          anchorToken: 'suggest-copy',
+        );
+      });
+
+      await pumpLogin(tester);
+      expect(
+        find.byKey(const ValueKey('login-saved-account-copy-user')),
+        findsOneWidget,
+      );
+      expect(find.text('拷贝昵称'), findsOneWidget);
+      // 热辣账号不出现在拷贝 tab 的列表里。
+      expect(
+        find.byKey(const ValueKey('login-saved-account-same-username')),
+        findsNothing,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('login-saved-account-copy-user')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('login-username-field')))
+            .controller!
+            .text,
+        'copy-user',
+      );
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('login-password-field')))
+            .controller!
+            .text,
+        'copy-password',
+      );
+      // 回填后直接点登录即可把账密带进官网登录页。
+      await tester.tap(find.widgetWithText(FilledButton, '登录'));
+      await tester.pumpAndSettle();
+      expect(find.text('test-fill:copy-user:copy-password'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'username field lists saved HOT accounts on the ordinary login tab',
+    (tester) async {
+      await pumpLogin(tester, copyOnly: false);
+      expect(
+        find.byKey(const ValueKey('login-saved-account-same-username')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('login-saved-account-same-username')),
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('login-password-field')))
+            .controller!
+            .text,
+        'hot-password',
+      );
+    },
+  );
+
+  testWidgets(
+    'COPY account login opens the official page with the entered credentials',
+    (tester) async {
+      await pumpLogin(tester);
+      await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+      await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+      await tester.tap(find.widgetWithText(FilledButton, '登录'));
+      await tester.pumpAndSettle();
+      expect(find.text('test-official-login'), findsOneWidget);
+      expect(find.text('test-fill:auto-user:auto-password'), findsOneWidget);
+      expect(find.text('test-fill:no-fill'), findsNothing);
+
+      // 官网页面里取消登录，返回登录页且账号状态不变。
+      await tester.tap(find.text('test-web-cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(copyAdapter.requests, isEmpty);
+    },
+  );
+
+  group('buildCopyLoginFillScript', () {
+    test('targets the official login form structure', () {
+      final script = buildCopyLoginFillScript(
+        username: 'user',
+        password: 'pass',
+      );
+      // 防重入标记 + 桥名。
+      expect(script, contains('__copyAutoLoginInjected'));
+      expect(script, contains("callHandler('copyAutoLogin'"));
+      // 桌面版选择器（Element UI）：el-form + 可见 primary 按钮。
+      expect(script, contains("querySelector('form.el-form')"));
+      expect(script, contains('.el-input__inner'));
+      expect(script, contains('button.el-button--primary'));
+      // 移动版选择器（Vant UI h5）：van-form + 登錄按钮。
+      expect(script, contains("querySelector('form.van-form')"));
+      expect(script, contains('.van-field__control'));
+      expect(script, contains('.van-button-login'));
+      // 可见性过滤，避开注册 pane 的隐藏按钮。
+      expect(script, contains('offsetParent'));
+      // Element UI / Vant 都需要 native setter + input 事件更新 v-model。
+      expect(script, contains('HTMLInputElement.prototype'));
+      expect(script, contains("new Event('input'"));
+      // 错误回报：Element 的红色 toast 与 Vant 的 toast（「成功」字样过滤），
+      // 以及两种表单的红字校验兜底。
+      expect(script, contains('.el-message--error'));
+      expect(script, contains('.van-toast'));
+      expect(script, contains('--success'));
+      expect(script, contains('/成功|success/i'));
+      expect(script, contains('.el-form-item__error'));
+      expect(script, contains('.van-field__error-message'));
+      // 表单找不到的超时回报。
+      expect(script, contains('form_not_found'));
+    });
+
+    test('embeds credentials as a legal JSON literal', () {
+      const username = 'user"1</script>\n';
+      const password = r"pass'2\3${}";
+      final payload = jsonEncode({'username': username, 'password': password});
+      final script = buildCopyLoginFillScript(
+        username: username,
+        password: password,
+      );
+      expect(script, contains('var params = $payload;'));
+      // 嵌入的字面量可被完整还原，特殊字符无转义损失。
+      expect(jsonDecode(payload), {
+        'username': username,
+        'password': password,
+      });
+    });
+  });
+
+  for (final copyOnly in [false, true]) {
+    testWidgets(
+      'official login route supports cancel and success in copyOnly=$copyOnly',
+      (tester) async {
+        await pumpLogin(tester, copyOnly: copyOnly);
+        if (!copyOnly) {
+          await tester.tap(find.text('拷贝漫画'));
+          await tester.pumpAndSettle();
+        }
+        final before = _mainSnapshot(user);
+        expect(find.byType(TextField), findsNWidgets(2));
+        expect(find.byType(CheckboxListTile), findsNothing);
+        expect(find.byTooltip('官网登录'), findsOneWidget);
+        expect(find.byIcon(Icons.key), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('official-register-copy')),
+          findsNothing,
+        );
+
+        await tester.tap(find.byTooltip('官网登录'));
+        await tester.pumpAndSettle();
+        expect(find.text('test-official-login'), findsOneWidget);
+        await tester.tap(find.text('test-web-cancel'));
+        await tester.pumpAndSettle();
+        expect(find.byType(LoginPage), findsOneWidget);
+        expect(find.byType(TextField), findsNWidgets(2));
+        expect(_mainSnapshot(user), before);
+
+        await tester.tap(find.byTooltip('官网登录'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('test-web-success'));
+        await tester.pumpAndSettle();
+        expect(find.text('test-home'), findsOneWidget);
+        expect(copyAdapter.requests, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
     'ordinary login retains the source switch and saved primary credential',
     (tester) async {
       await pumpLogin(tester, copyOnly: false);
       expect(find.byType(SegmentedButton<bool>), findsOneWidget);
       expect(find.byType(CheckboxListTile), findsOneWidget);
-      // 已保存账号卡列表已移除，仅表单预填主账号。
-      expect(find.text('same-username'), findsOneWidget);
+      // 表单预填主账号，下方列表同时列出该账号供一键回填。
+      expect(find.text('same-username'), findsNWidgets(2));
+      expect(
+        find.byKey(const ValueKey('login-saved-account-same-username')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('official-register-hotmanga')),
         findsOneWidget,
@@ -586,9 +842,9 @@ void main() {
     },
   );
 
-  testWidgets(
-    'COPY-only password login selects COPY for comics and novels without losing HOT',
-    (tester) async {
+  test(
+    'legacy COPY password authentication selects comics and novels without losing HOT',
+    () async {
       response = (_) => _jsonResponse({
         'code': 200,
         'results': {
@@ -598,8 +854,7 @@ void main() {
           'nickname': 'COPY name',
         },
       });
-      await pumpLogin(tester);
-      await submitPassword(tester);
+      expect(await authenticateCopyPassword(), isTrue);
       expect(user.copyToken, 'password-copy');
       expect(user.token, 'password-copy');
       expect(user.loginSource, 'copy');
@@ -613,7 +868,6 @@ void main() {
             .token,
         'hot-token',
       );
-      expect(find.text('test-home'), findsOneWidget);
       expect(copyAdapter.requests, hasLength(1));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('user_token'), isNull);
@@ -626,18 +880,18 @@ void main() {
     },
   );
 
-  testWidgets(
-    'COPY-only password failure preserves primary and existing COPY',
-    (tester) async {
-      await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
+  test(
+    'legacy COPY password failure preserves primary and existing COPY',
+    () async {
+      await user.copyAccount.saveSession(_oldSession);
       final before = _mainSnapshot(user);
       response = (_) => _jsonResponse({'code': 401, 'message': 'invalid'}, 401);
-      await pumpLogin(tester);
-      await submitPassword(tester);
+      await expectLater(
+        authenticateCopyPassword(),
+        throwsA(isA<DioException>()),
+      );
       expect(user.copyToken, 'old-copy');
       expect(_mainSnapshot(user), before);
-      expect(find.byType(LoginPage), findsOneWidget);
-      expect(tester.takeException(), isNull);
     },
   );
 
@@ -697,58 +951,87 @@ void main() {
     expect(copyAdapter.requests, isEmpty);
   });
 
-  testWidgets(
+  test(
     'COPY password response without profile still binds both using the authenticated login name',
-    (tester) async {
+    () async {
       response = (_) => _jsonResponse({
         'code': 200,
         'results': {'token': 'minimal-copy'},
       });
-      await pumpLogin(tester);
-      await submitPassword(tester);
+      expect(await authenticateCopyPassword(), isTrue);
       expect(user.token, 'minimal-copy');
       expect(user.copyToken, 'minimal-copy');
       expect(user.copyAccount.session?.username, 'same-username');
       expect(user.copyAccount.activeId, isNotNull);
-      expect(find.text('test-home'), findsOneWidget);
     },
   );
 
-  testWidgets('HOT password login changes comics but keeps the novel account', (
-    tester,
-  ) async {
-    await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
-    expectedPrimaryRequests = 1;
-    primaryResponse = (_) => _jsonResponse({
-      'code': 200,
-      'results': {
-        'token': 'new-hot',
-        'user_id': 'new-hot-id',
-        'username': 'same-username',
+  for (final remember in [false, true]) {
+    testWidgets(
+      'HOT password login preserves COPY and honors remember=$remember',
+      (tester) async {
+        await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
+        expectedPrimaryRequests = 1;
+        primaryResponse = (_) => _jsonResponse({
+          'code': 200,
+          'results': {
+            'token': 'new-hot',
+            'user_id': 'new-hot-id',
+            'username': 'same-username',
+          },
+        });
+        await pumpLogin(tester, copyOnly: false);
+        if (!remember) {
+          await tester.ensureVisible(find.byType(CheckboxListTile));
+          await tester.tap(find.byType(CheckboxListTile));
+          await tester.pumpAndSettle();
+        }
+        await submitHotPassword(
+          tester,
+          password: 'new-hot-password',
+          useKeyboard: remember,
+        );
+        expect(user.token, 'new-hot');
+        expect(user.loginSource, 'hotmanga');
+        expect(user.copyToken, _oldSession.token);
+        expect(user.savedPassword, remember ? 'new-hot-password' : '');
+        expect(
+          user.savedCredentials
+              .singleWhere((item) => item.source == 'hotmanga')
+              .password,
+          remember ? 'new-hot-password' : '',
+        );
+        expect(mainAdapter.requests.single.path, endsWith('/api/v3/login'));
+        expect(copyAdapter.requests, isEmpty);
+        expect(find.text('test-home'), findsOneWidget);
       },
-    });
-    await pumpLogin(tester, copyOnly: false);
-    await submitPassword(tester);
-    expect(user.token, 'new-hot');
-    expect(user.loginSource, 'hotmanga');
-    expect(user.copyToken, _oldSession.token);
-    expect(copyAdapter.requests, isEmpty);
-  });
+    );
+  }
 
   for (final copyOnly in [false, true]) {
     testWidgets(
-      'unknown COPY token in copyOnly=$copyOnly never pretends to be a bound account',
+      'unknown valid COPY token in copyOnly=$copyOnly logs in without profile',
       (tester) async {
-        await tester.runAsync(() async {
-          if (!copyOnly) await user.setLoginSource('copy');
-          await user.copyAccount.saveSession(_oldSession);
-        });
-        final before = _mainSnapshot(user);
+        await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
         await pumpLogin(tester, copyOnly: copyOnly);
+        if (!copyOnly) {
+          await tester.tap(find.text('拷贝漫画'));
+          await tester.pumpAndSettle();
+        }
         await submitToken(tester, token: 'unknown-valid-token');
-        expect(_mainSnapshot(user), before);
-        expect(user.copyToken, _oldSession.token);
-        expect(find.byType(AlertDialog), findsOneWidget);
+        expect(user.token, 'unknown-valid-token');
+        expect(user.copyToken, 'unknown-valid-token');
+        expect(user.copyAccount.session?.hasIdentity, isFalse);
+        final id = user.copyAccount.activeId;
+        expect(id, startsWith('local:'));
+        expect(user.currentCredential?.accountId, id);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('test-home'), findsOneWidget);
+        await tester.runAsync(() => user.init());
+        expect(user.token, 'unknown-valid-token');
+        expect(user.copyToken, 'unknown-valid-token');
+        expect(user.currentCredential?.accountId, id);
+        expect(user.copyAccount.activeId, id);
         expect(copyAdapter.requests, hasLength(1));
         expect(
           copyAdapter.requests.single.path,
@@ -852,6 +1135,349 @@ void main() {
     );
   });
 
+  Future<bool> webTokenLogin(String token) => completeCopyWebLogin(
+    user: user,
+    api: api,
+    credentials: CopyWebCredentials(
+      token: token,
+      userId: '',
+      nickname: '',
+      avatar: '',
+    ),
+  );
+
+  test(
+    'successful token login returns before its optional profile request completes',
+    () async {
+      final profileStarted = Completer<void>();
+      final profileResponse = Completer<ResponseBody>();
+      copyProfileAdapter.respond = (_) {
+        profileStarted.complete();
+        return profileResponse.future;
+      };
+
+      expect(await webTokenLogin('profile-after-login'), isTrue);
+      final accountId = user.copyAccount.session!.id;
+      expect(user.currentCredential?.hasIdentity, isFalse);
+      await profileStarted.future;
+      expect(user.token, 'profile-after-login');
+      expect(user.copyToken, 'profile-after-login');
+      expect(user.copyAccount.activeId, accountId);
+
+      profileResponse.complete(
+        _jsonResponse({
+          'code': 200,
+          'results': {
+            'user_id': 'loaded-profile-id',
+            'username': 'loaded-profile-user',
+            'nickname': '已获取昵称',
+            'avatar': 'loaded-avatar',
+          },
+        }),
+      );
+      for (
+        var attempt = 0;
+        attempt < 30 && user.copyAccount.session?.userId != 'loaded-profile-id';
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+      }
+      expect(user.token, 'profile-after-login');
+      expect(user.copyToken, 'profile-after-login');
+      expect(user.copyAccount.activeId, accountId);
+      expect(user.copyAccount.session?.userId, 'loaded-profile-id');
+      expect(user.copyAccount.session?.nickname, '已获取昵称');
+      expect(user.currentCredential?.accountId, accountId);
+      expect(user.currentCredential?.username, 'loaded-profile-user');
+    },
+  );
+
+  test(
+    'token-only web login survives restart without inventing identity',
+    () async {
+      expect(await webTokenLogin('unknown-web-token'), isTrue);
+      final id = user.copyAccount.activeId;
+      expect(id, matches(r'^local:[0-9a-f]{32}$'));
+      expect(user.currentCredential?.accountId, id);
+      expect(user.currentCredential?.hasIdentity, isFalse);
+      expect(user.currentCredential?.hasAccountKey, isTrue);
+      expect(user.username, isEmpty);
+      expect(user.userId, isEmpty);
+      expect(user.savedPassword, isEmpty);
+      expect(
+        user.savedCredentials
+            .singleWhere((item) => item.source == 'copy')
+            .password,
+        isEmpty,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('user_account_id'), id);
+      expect(prefs.getString('user_token'), isNull);
+      await user.init();
+      expect(user.token, 'unknown-web-token');
+      expect(user.copyToken, user.token);
+      expect(user.currentCredential?.accountId, id);
+      expect(user.copyAccount.activeId, id);
+      expect(
+        user.savedCredentials.where((item) => item.source == 'copy'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'token-only accounts deduplicate, switch and remove by exact handle',
+    () async {
+      await webTokenLogin('unknown-a');
+      final a = user.currentCredential!;
+      await webTokenLogin('unknown-b');
+      final b = user.currentCredential!;
+      expect(a.sameAccount(b), isFalse);
+      await webTokenLogin('unknown-a');
+      expect(user.currentCredential?.accountId, a.accountId);
+      expect(user.copyAccount.accounts, hasLength(2));
+      expect(
+        user.savedCredentials.where((item) => item.source == 'copy'),
+        hasLength(2),
+      );
+      expect(await user.switchToCredential(b), isTrue);
+      expect(user.token, b.token);
+      expect(user.copyToken, a.token);
+      await user.removeSavedCredential(
+        '',
+        loginSource: 'copy',
+        accountId: a.accountId,
+      );
+      await user.copyAccount.removeAccount(a.accountId!);
+      await user.init();
+      expect(user.token, b.token);
+      expect(user.copyToken, b.token);
+      expect(
+        user.savedCredentials.where((item) => item.source == 'copy'),
+        hasLength(1),
+      );
+      expect(user.currentCredential?.accountId, b.accountId);
+    },
+  );
+
+  test(
+    'stale cookie and unbound storage profile cannot overwrite another account',
+    () async {
+      await user.authenticateAndLogin(
+        source: 'copy',
+        password: 'old-password',
+        authenticate: () async => _oldSession.toJson(),
+      );
+      final candidates = [
+        parseCopyWebCookies({
+          'token': 'new-cookie-token',
+          'user_id': _oldSession.userId,
+          'username': _oldSession.username,
+          'name': 'old-name',
+        })!,
+        parseCopyWebStorage({
+          'ls': {
+            'token': 'new-storage-token',
+            'userInfo': jsonEncode({
+              'user_id': _oldSession.userId,
+              'username': _oldSession.username,
+            }),
+          },
+        })!,
+      ];
+      for (final credentials in candidates) {
+        expect(
+          await completeCopyWebLogin(
+            user: user,
+            api: api,
+            credentials: credentials,
+          ),
+          isTrue,
+        );
+        expect(user.currentCredential?.hasIdentity, isFalse);
+        expect(user.savedPassword, isEmpty);
+        expect(user.copyAccount.byId(_oldSession.id)?.token, _oldSession.token);
+        expect(
+          user.savedCredentials
+              .singleWhere((item) => item.token == _oldSession.token)
+              .password,
+          'old-password',
+        );
+      }
+      expect(user.copyAccount.accounts, hasLength(3));
+    },
+  );
+
+  test(
+    'profile enrichment keeps the token-only account handle in both domains',
+    () async {
+      await webTokenLogin('unknown-a');
+      final id = user.copyAccount.activeId;
+      expect(
+        await completeCopyWebLogin(
+          user: user,
+          api: api,
+          credentials: const CopyWebCredentials(
+            token: 'unknown-a',
+            userId: 'learned-id',
+            username: 'learned-name',
+            nickname: 'learned-nickname',
+            avatar: '',
+            profileBoundToToken: true,
+          ),
+        ),
+        isTrue,
+      );
+      expect(user.currentCredential?.hasIdentity, isTrue);
+      expect(user.currentCredential?.accountId, id);
+      expect(user.copyAccount.activeId, id);
+      expect(user.copyAccount.accounts, hasLength(1));
+      await user.init();
+      expect(user.currentCredential?.accountId, id);
+      expect(user.copyAccount.activeId, id);
+    },
+  );
+
+  test(
+    'existing novel handle wins over a restored primary handle for the same token',
+    () async {
+      await user.copyAccount.saveSession(
+        const CopyAccountSession(
+          token: 'shared-token',
+          accountId: 'local:novel',
+        ),
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await secure.writeToken('shared-token');
+      await prefs.setString('login_source', 'copy');
+      await prefs.setString('user_account_id', 'local:primary');
+      for (final key in [
+        'user_id',
+        'user_username',
+        'user_nickname',
+        'user_avatar',
+      ]) {
+        await prefs.setString(key, '');
+      }
+      await secure.writeCredentials(const [
+        SavedCredential(
+          username: '',
+          password: '',
+          token: 'shared-token',
+          loginSource: 'copy',
+          accountId: 'local:primary',
+        ),
+      ]);
+      final novelRecord = await secure.readCopyAccountRecord();
+      await user.init(persistMigrations: false);
+      expect(user.currentCredential?.accountId, 'local:primary');
+      expect(await secure.readCopyAccountRecord(), novelRecord);
+      expect(await webTokenLogin('shared-token'), isTrue);
+      expect(user.currentCredential?.accountId, 'local:novel');
+      expect(user.copyAccount.activeId, 'local:novel');
+      expect(user.savedCredentials, hasLength(1));
+      await user.init();
+      expect(user.currentCredential?.accountId, 'local:novel');
+    },
+  );
+
+  test(
+    'empty and non-string login tokens never modify account state',
+    () async {
+      final before = _mainSnapshot(user);
+      for (final token in [null, '', '  ', 42, <String, Object>{}]) {
+        await expectLater(
+          user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => {'token': token},
+          ),
+          throwsFormatException,
+        );
+        expect(_mainSnapshot(user), before);
+        expect(user.copyToken, isNull);
+      }
+      await expectLater(
+        user.authenticateAndLogin(
+          source: 'hotmanga',
+          authenticate: () async => {'token': 'hot-no-identity'},
+        ),
+        throwsFormatException,
+      );
+      expect(_mainSnapshot(user), before);
+    },
+  );
+
+  test(
+    'failed token-only web authentication or persistence keeps previous accounts',
+    () async {
+      await user.copyAccount.saveSession(_oldSession);
+      final before = _mainSnapshot(user);
+      final previousId = (await SharedPreferences.getInstance()).getString(
+        'user_account_id',
+      );
+      response = (_) => _jsonResponse({'code': 401}, 401);
+      await expectLater(
+        webTokenLogin('invalid-token'),
+        throwsA(isA<DioException>()),
+      );
+      expect(_mainSnapshot(user), before);
+      response = (_) => _jsonResponse({
+        'code': 200,
+        'results': {'list': []},
+      });
+      secure.failCopyWrite = true;
+      await expectLater(
+        webTokenLogin('valid-token'),
+        throwsA(isA<CopyAccountStorageException>()),
+      );
+      expect(_mainSnapshot(user), before);
+      expect(user.copyToken, _oldSession.token);
+      expect(
+        (await SharedPreferences.getInstance()).getString('user_account_id'),
+        previousId,
+      );
+      secure.failCopyWrite = false;
+      await user.init();
+      expect(user.token, before['token']);
+      expect(user.copyToken, _oldSession.token);
+    },
+  );
+
+  test(
+    'late HOT auto-login cannot overwrite a new token-only COPY login',
+    () async {
+      await user.setAutoLogin(true);
+      final started = Completer<void>();
+      final relogin = Completer<Map<String, dynamic>>();
+      expectedPrimaryRequests = 1;
+      expectedReLogins = 1;
+      transport.loginHandler = (_, _) {
+        reLogins++;
+        started.complete();
+        return relogin.future;
+      };
+      primaryResponse = (_) => _jsonResponse({'code': 401}, 401);
+      final request = primaryDio.get<dynamic>(
+        'https://primary.test/needs-auth',
+      );
+      final rejected = expectLater(request, throwsA(isA<DioException>()));
+      await started.future;
+      expect(await webTokenLogin('new-copy-token'), isTrue);
+      final before = _mainSnapshot(user);
+      relogin.complete({
+        'token': 'late-hot-token',
+        'username': 'same-username',
+        'user_id': 'hot-id',
+      });
+      await rejected;
+      expect(_mainSnapshot(user), before);
+      expect(user.loginSource, 'copy');
+      expect(user.copyToken, 'new-copy-token');
+      await user.init();
+      expect(user.token, 'new-copy-token');
+    },
+  );
+
   test(
     'WebView official login validates then selects COPY in both domains',
     () async {
@@ -861,6 +1487,7 @@ void main() {
         api: api,
         credentials: const CopyWebCredentials(
           token: 'web-copy-token',
+          profileBoundToToken: true,
           userId: 'web-id',
           nickname: 'web-copy',
           avatar: '',
@@ -881,6 +1508,129 @@ void main() {
       expect(
         user.savedCredentials.any((item) => item.userId == 'web-id'),
         isTrue,
+      );
+    },
+  );
+
+  test(
+    'web login form password is stored for the matching account only',
+    () async {
+      // 官网登录拿不到表单密码，只能由登录页注入的脚本回报；这里验证只有
+      // 用户名对得上的账号会拿到密码，不匹配的用户名不会误存。
+      await completeCopyWebLogin(
+        user: user,
+        api: api,
+        credentials: const CopyWebCredentials(
+          token: 'form-token',
+          userId: 'form-id',
+          username: 'form-user',
+          nickname: 'form-user',
+          avatar: '',
+          profileBoundToToken: true,
+        ),
+      );
+      await user.saveLoginFormPasswords({'unknown-user': 'wrong-password'});
+      expect(
+        user.savedCredentials.any((item) => item.password == 'wrong-password'),
+        isFalse,
+      );
+
+      await user.saveLoginFormPasswords({'form-user': 'form-password'});
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'form-token')
+            .password,
+        'form-password',
+      );
+      expect(user.savedPassword, 'form-password');
+
+      await user.init();
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'form-token')
+            .password,
+        'form-password',
+      );
+      expect(user.savedPassword, 'form-password');
+    },
+  );
+
+  test(
+    'auto-fill password anchors on the logged-in token for token-only accounts',
+    () async {
+      // 自动填表登录的新账号是 token-only（username 为空），用户名匹配规则
+      // 永远对不上；按本次登录的 token 锚定才能把密码并回正确的账号。
+      response = (_) => _jsonResponse({
+        'code': 200,
+        'results': {'list': <Object>[]},
+      });
+      await completeCopyWebLogin(
+        user: user,
+        api: api,
+        credentials: const CopyWebCredentials(
+          token: 'auto-token',
+          userId: '',
+          nickname: '',
+          avatar: '',
+        ),
+      );
+      final tokenOnly = user.savedCredentials
+          .firstWhere((item) => item.token == 'auto-token');
+      expect(tokenOnly.username, isEmpty);
+
+      // token 对不上时不写入，防止把密码并到别的账号。
+      await user.saveLoginFormPasswords(
+        {'auto-user': 'auto-password'},
+        anchorToken: 'another-token',
+      );
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'auto-token')
+            .password,
+        isEmpty,
+      );
+
+      await user.saveLoginFormPasswords(
+        {'auto-user': 'auto-password'},
+        anchorToken: 'auto-token',
+      );
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'auto-token')
+            .password,
+        'auto-password',
+      );
+      // 登录名一并补上，登录页才能按名字回填。
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'auto-token')
+            .username,
+        'auto-user',
+      );
+      // 已有登录名不被覆盖（密码相同则不产生变更）。
+      await user.saveLoginFormPasswords(
+        {'other-name': 'auto-password'},
+        anchorToken: 'auto-token',
+      );
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'auto-token')
+            .username,
+        'auto-user',
+      );
+      // 现有账号（其它 token）不受锚定写入影响。
+      final others = user.savedCredentials.where(
+        (item) => item.token != 'auto-token' && item.source == 'copy',
+      );
+      for (final item in others) {
+        expect(item.password, isNot('auto-password'));
+      }
+      await user.init();
+      expect(
+        user.savedCredentials
+            .firstWhere((item) => item.token == 'auto-token')
+            .password,
+        'auto-password',
       );
     },
   );

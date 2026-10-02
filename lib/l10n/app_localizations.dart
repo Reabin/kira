@@ -3004,7 +3004,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileWebLoginHint.
   ///
   /// In zh, this message translates to:
-  /// **'在官网中登录拷贝漫画账号，登录成功后将自动完成'**
+  /// **'在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态'**
   String get profileWebLoginHint;
 
   /// No description provided for @profileWebLoginCompleting.
@@ -3031,11 +3031,59 @@ abstract class AppLocalizations {
   /// **'清除官网登录状态'**
   String get profileWebLoginResetTooltip;
 
+  /// No description provided for @profileWebLoginResetDone.
+  ///
+  /// In zh, this message translates to:
+  /// **'已清除官网登录状态，请登录其他账号'**
+  String get profileWebLoginResetDone;
+
+  /// No description provided for @profileWebLoginKnownAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'检测到本机已保存的账号「{name}」，尚未自动登录'**
+  String profileWebLoginKnownAccount(String name);
+
+  /// No description provided for @profileWebLoginKnownAccountFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'已保存的账号'**
+  String get profileWebLoginKnownAccountFallback;
+
+  /// No description provided for @profileWebLoginUseAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用该账号'**
+  String get profileWebLoginUseAccount;
+
+  /// No description provided for @profileWebLoginSwitchAccount.
+  ///
+  /// In zh, this message translates to:
+  /// **'切换其他账号'**
+  String get profileWebLoginSwitchAccount;
+
+  /// No description provided for @profileWebLoginRetryButton.
+  ///
+  /// In zh, this message translates to:
+  /// **'重新检测登录'**
+  String get profileWebLoginRetryButton;
+
+  /// No description provided for @profileWebLoginResetFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'清除官网登录状态失败，请重试'**
+  String get profileWebLoginResetFailed;
+
   /// No description provided for @profileWebLoginFailed.
   ///
   /// In zh, this message translates to:
   /// **'官网登录失败'**
   String get profileWebLoginFailed;
+
+  /// No description provided for @profileCopyAutoLoginRejected.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录被拒绝：{detail}'**
+  String profileCopyAutoLoginRejected(String detail);
 
   /// No description provided for @profileUsernameLabel.
   ///
@@ -7433,6 +7481,12 @@ abstract class AppLocalizations {
   /// **'未登录'**
   String get accountCenterNotLoggedIn;
 
+  /// No description provided for @accountProfileMissing.
+  ///
+  /// In zh, this message translates to:
+  /// **'已登录（未获取资料）'**
+  String get accountProfileMissing;
+
   /// No description provided for @accountCenterAddPrimary.
   ///
   /// In zh, this message translates to:
@@ -7498,6 +7552,48 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'轻小说已切换到 {name}'**
   String accountCenterNovelBoundToast(String name);
+
+  /// No description provided for @accountViewTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看账号'**
+  String get accountViewTitle;
+
+  /// No description provided for @accountViewUsernameLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名'**
+  String get accountViewUsernameLabel;
+
+  /// No description provided for @accountViewPasswordLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'密码'**
+  String get accountViewPasswordLabel;
+
+  /// No description provided for @accountViewPasswordUnavailable.
+  ///
+  /// In zh, this message translates to:
+  /// **'未保存密码（该账号未勾选「记住账号」或使用令牌登录）'**
+  String get accountViewPasswordUnavailable;
+
+  /// No description provided for @accountViewTokenLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'令牌 (Token)'**
+  String get accountViewTokenLabel;
+
+  /// No description provided for @accountViewNoToken.
+  ///
+  /// In zh, this message translates to:
+  /// **'无令牌'**
+  String get accountViewNoToken;
+
+  /// No description provided for @accountViewCopiedToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'已复制到剪贴板'**
+  String get accountViewCopiedToast;
 
   /// No description provided for @accountCenterNameNewTitle.
   ///

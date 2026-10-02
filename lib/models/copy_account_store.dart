@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
@@ -9,12 +10,13 @@ import 'secure_credential_store.dart';
 
 /// Only COPY credentials may enter this store. The primary account is separate.
 ///
-/// [id] is a stable, non-secret handle derived from the server-side identity.
-/// Bindings (「轻小说用哪个账号」) persist the id, never the token, so a token
-/// rotation cannot silently repoint a binding at a different person.
+/// [id] is a stable, non-secret handle, independent of the token. Accounts
+/// without a known server identity receive a local handle when saved. Bindings
+/// (「轻小说用哪个账号」) keep that handle when profile fields are later filled in.
 @immutable
 class CopyAccountSession {
   final String token;
+  final String? accountId;
   final String userId;
   final String username;
   final String nickname;
@@ -26,6 +28,7 @@ class CopyAccountSession {
 
   const CopyAccountSession({
     required this.token,
+    this.accountId,
     this.userId = '',
     this.username = '',
     this.nickname = '',
@@ -33,12 +36,20 @@ class CopyAccountSession {
     this.label = '',
   });
 
-  CopyAccountSession copyWith({String? label}) => CopyAccountSession(
+  CopyAccountSession copyWith({
+    String? accountId,
+    String? userId,
+    String? username,
+    String? nickname,
+    String? avatar,
+    String? label,
+  }) => CopyAccountSession(
     token: token,
-    userId: userId,
-    username: username,
-    nickname: nickname,
-    avatar: avatar,
+    accountId: accountId ?? this.accountId,
+    userId: userId ?? this.userId,
+    username: username ?? this.username,
+    nickname: nickname ?? this.nickname,
+    avatar: avatar ?? this.avatar,
     label: label ?? this.label,
   );
 
@@ -54,17 +65,29 @@ class CopyAccountSession {
     return 'n:${sha256.convert(utf8.encode(name)).toString().substring(0, 32)}';
   }
 
-  /// Null when neither an id nor a username is known: such an entry cannot be
-  /// re-selected after a restart, so it is rejected rather than half-saved.
-  String? get id => identityOf(userId: userId, username: username);
+  bool get hasIdentity =>
+      userId.trim().isNotEmpty || username.trim().isNotEmpty;
+
+  /// Older records keep their derived id. Once saved, the pinned account id
+  /// takes precedence even when a later login provides more profile fields.
+  String? get id {
+    final savedId = accountId?.trim();
+    return savedId?.isNotEmpty == true
+        ? savedId
+        : identityOf(userId: userId, username: username);
+  }
 
   factory CopyAccountSession.fromJson(Map<String, dynamic> json) {
     final token = json['token'];
     if (token is! String || token.trim().isEmpty) {
       throw const FormatException('Invalid COPY session');
     }
+    final accountId = json['account_id'];
     return CopyAccountSession(
       token: token.trim(),
+      accountId: accountId is String && accountId.trim().isNotEmpty
+          ? accountId.trim()
+          : null,
       userId: json['user_id']?.toString() ?? '',
       username: json['username']?.toString() ?? '',
       nickname: json['nickname']?.toString() ?? '',
@@ -75,6 +98,7 @@ class CopyAccountSession {
 
   Map<String, dynamic> toJson() => {
     'token': token,
+    if (accountId != null) 'account_id': accountId,
     'user_id': userId,
     'username': username,
     'nickname': nickname,
@@ -86,10 +110,11 @@ class CopyAccountSession {
   /// that entry (and its token/label) instead of duplicating the list.
   @override
   bool operator ==(Object other) =>
-      other is CopyAccountSession && other.id == id;
+      identical(this, other) ||
+      other is CopyAccountSession && id != null && other.id == id;
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => id?.hashCode ?? identityHashCode(this);
 }
 
 /// Deliberately excludes the platform exception, which may contain secrets.
@@ -212,7 +237,7 @@ class CopyAccountStore extends ChangeNotifier {
           // Prefer an existing record over legacy credentials, even if a
           // future/older writer left its marker false.
           accounts = raw == null && legacySession != null
-              ? [CopyAccountSession.fromJson(legacySession.toJson())]
+              ? [_resolveSession(legacySession, accounts)]
               : accounts;
           activeId = accounts.isEmpty ? null : accounts.first.id;
           await _writeRecord(accounts, activeId);
@@ -230,7 +255,7 @@ class CopyAccountStore extends ChangeNotifier {
           // not a user intent: once the primary is a live COPY session it may
           // be imported. Only an explicit clear (「cleared」 tombstone) blocks
           // re-import after the user deliberately emptied the list.
-          accounts = [CopyAccountSession.fromJson(legacySession.toJson())];
+          accounts = [_resolveSession(legacySession, accounts)];
           activeId = accounts.first.id;
           await _writeRecord(accounts, activeId);
           if (revision != _revision) return;
@@ -275,6 +300,69 @@ class CopyAccountStore extends ChangeNotifier {
     return list.isEmpty ? null : list.first.id;
   }
 
+  /// Resolve a validated login before a dual-domain commit writes credentials.
+  /// This does not publish or persist anything; the caller must retain the
+  /// returned id and keep its revision guard until saveSession completes.
+  CopyAccountSession resolveSession(CopyAccountSession session) =>
+      _resolveSession(session, _accounts);
+
+  static CopyAccountSession _resolveSession(
+    CopyAccountSession session,
+    List<CopyAccountSession> accounts,
+  ) {
+    final candidate = CopyAccountSession.fromJson(session.toJson());
+    var known = accounts
+        .where((account) => account.token == candidate.token)
+        .firstOrNull;
+    known ??= accounts
+        .where(
+          (account) =>
+              candidate.accountId != null && account.id == candidate.accountId,
+        )
+        .firstOrNull;
+    if (known == null && candidate.userId.trim().isNotEmpty) {
+      known = accounts
+          .where((account) => account.userId.trim() == candidate.userId.trim())
+          .firstOrNull;
+    }
+    if (known == null && candidate.username.trim().isNotEmpty) {
+      known = accounts
+          .where(
+            (account) =>
+                account.username.trim() == candidate.username.trim() &&
+                (account.userId.trim().isEmpty ||
+                    candidate.userId.trim().isEmpty),
+          )
+          .firstOrNull;
+    }
+    if (known == null) {
+      return candidate.copyWith(accountId: candidate.id ?? _newAccountId());
+    }
+    // An exact token or known identity may fill profile gaps, but must not
+    // change an existing binding (including legacy username-derived ids).
+    return candidate.copyWith(
+      accountId: known.id,
+      userId: candidate.userId.trim().isEmpty ? known.userId : candidate.userId,
+      username: candidate.username.trim().isEmpty
+          ? known.username
+          : candidate.username,
+      nickname: candidate.nickname.trim().isEmpty
+          ? known.nickname
+          : candidate.nickname,
+      avatar: candidate.avatar.trim().isEmpty ? known.avatar : candidate.avatar,
+      label: candidate.label.trim().isEmpty ? known.label : candidate.label,
+    );
+  }
+
+  static String _newAccountId() {
+    final random = Random.secure();
+    final bytes = List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    );
+    return 'local:${bytes.join()}';
+  }
+
   int beginLogin() => ++_revision;
 
   Future<bool> login(Future<CopyAccountSession> Function() validate) async {
@@ -293,19 +381,11 @@ class CopyAccountStore extends ChangeNotifier {
     void Function()? onCommitted,
   }) {
     final validated = CopyAccountSession.fromJson(session.toJson());
-    if (validated.id == null) {
-      throw const FormatException('COPY account without identity');
-    }
     final revision = expectedRevision ?? beginLogin();
     bool superseded() => revision != _revision || isCurrent?.call() == false;
     return _serialize(() async {
       if (superseded()) return false;
-      // Re-login of a known account keeps its note unless the caller supplies
-      // a new one: an expired-token login must not silently erase 「这是谁」.
-      final known = byId(validated.id);
-      final entry = validated.label.isEmpty && known != null
-          ? validated.copyWith(label: known.label)
-          : validated;
+      final entry = resolveSession(validated);
       final next = [
         entry,
         ..._accounts.where((account) => account.id != entry.id),
@@ -330,6 +410,68 @@ class CopyAccountStore extends ChangeNotifier {
       // A dual-domain login publishes the primary state before either set of
       // listeners observes this newly selected COPY identity.
       onCommitted?.call();
+      notifyListeners();
+      return true;
+    });
+  }
+
+  /// Refreshes profile fields for a stored account without changing either
+  /// selected account. The exact token and revisions guard against stale data.
+  Future<bool> updateProfile({
+    required String id,
+    required String token,
+    required Map<String, dynamic> profile,
+    required int expectedRevision,
+    bool Function()? isCurrent,
+    void Function(CopyAccountSession session)? onCommitted,
+  }) {
+    if (_revision != expectedRevision || isCurrent?.call() == false) {
+      return Future.value(false);
+    }
+    final revision = ++_revision;
+    bool current() => revision == _revision && isCurrent?.call() != false;
+    String field(String key, String oldValue) {
+      final value = profile[key];
+      return value is String && value.trim().isNotEmpty
+          ? value.trim()
+          : oldValue;
+    }
+
+    return _serialize(() async {
+      if (!current()) return false;
+      final existing = byId(id);
+      if (existing == null || existing.token != token) return false;
+      final returnedId = field('user_id', '');
+      if (returnedId.isNotEmpty &&
+          existing.userId.isNotEmpty &&
+          returnedId != existing.userId) {
+        return false;
+      }
+      final updated = existing.copyWith(
+        accountId: existing.id,
+        userId: returnedId.isEmpty ? existing.userId : returnedId,
+        username: field('username', existing.username),
+        nickname: field('nickname', existing.nickname),
+        avatar: field('avatar', existing.avatar),
+      );
+      final next = [
+        for (final account in _accounts)
+          if (account.id == id) updated else account,
+      ];
+      try {
+        await _writeRecord(next, _activeId);
+        if (!current()) {
+          await _writeRecord(_accounts, _activeId);
+          return false;
+        }
+      } catch (_) {
+        _logStorageFailure('refresh');
+        throw const CopyAccountStorageException();
+      }
+      if (!current()) return false;
+      _accounts = next;
+      _migrationHandled = true;
+      onCommitted?.call(updated);
       notifyListeners();
       return true;
     });

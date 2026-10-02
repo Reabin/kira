@@ -105,6 +105,20 @@ void main() {
     expect(find.text('copy-user'), findsNothing);
   });
 
+  testWidgets('a token-only comic account is shown as logged in', (
+    tester,
+  ) async {
+    await pumpProfilePage(tester);
+    await UserManager().authenticateAndLogin(
+      source: 'copy',
+      authenticate: () async => {'token': 'token-only-profile'},
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('已登录（未获取资料）'), findsOneWidget);
+    expect(find.text('未登录'), findsNothing);
+    expect(find.text('token-only-profile'), findsNothing);
+  });
+
   testWidgets('profile page shows general settings entry', (tester) async {
     await pumpProfilePage(tester);
 

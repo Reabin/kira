@@ -7,8 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../api/api_transport.dart';
+import '../api/user/user_api.dart';
 import '../utils/app_icon_switcher.dart';
 import '../utils/app_logger.dart';
+import '../utils/copy_web_login.dart' show CopyWebLoginForm, canApplyLoginForm;
 import 'api_ordering.dart';
 import 'app_theme_option.dart';
 import 'comment_settings.dart';
@@ -37,6 +39,7 @@ class SavedCredential {
   final String? userId;
   final String? nickname;
   final String? avatar;
+  final String? accountId;
 
   const SavedCredential({
     required this.username,
@@ -46,17 +49,22 @@ class SavedCredential {
     this.userId,
     this.nickname,
     this.avatar,
+    this.accountId,
   });
 
   factory SavedCredential.fromJson(Map<String, dynamic> json) =>
       SavedCredential(
         username: json['username']?.toString() ?? '',
         password: json['password']?.toString() ?? '',
-        token: json['token']?.toString(),
+        token: json['token'] is String ? json['token'] : null,
         loginSource: json['login_source']?.toString(),
         userId: json['user_id']?.toString(),
         nickname: json['nickname']?.toString(),
         avatar: json['avatar']?.toString(),
+        accountId: switch (json['account_id']) {
+          final String value when value.trim().isNotEmpty => value.trim(),
+          _ => null,
+        },
       );
 
   Map<String, dynamic> toJson() => {
@@ -67,6 +75,7 @@ class SavedCredential {
     if (userId != null) 'user_id': userId,
     if (nickname != null) 'nickname': nickname,
     if (avatar != null) 'avatar': avatar,
+    if (accountId != null) 'account_id': accountId,
   };
 
   String get source => loginSource == 'copy' ? 'copy' : 'hotmanga';
@@ -74,8 +83,26 @@ class SavedCredential {
   bool get hasIdentity =>
       username.trim().isNotEmpty || userId?.trim().isNotEmpty == true;
 
+  /// A local COPY handle supports token-only accounts without inventing a
+  /// server identity. Password-only legacy credentials still need a name.
+  bool get hasAccountKey =>
+      hasIdentity ||
+      (source == 'copy' &&
+          accountId?.trim().isNotEmpty == true &&
+          token?.trim().isNotEmpty == true);
+
   bool sameAccount(SavedCredential other) {
     if (source != other.source) return false;
+    if (source == 'copy') {
+      if (token?.isNotEmpty == true && token == other.token) return true;
+      if (accountId?.isNotEmpty == true &&
+          other.accountId?.isNotEmpty == true) {
+        return accountId == other.accountId;
+      }
+      if (userId?.isNotEmpty == true && other.userId?.isNotEmpty == true) {
+        return userId == other.userId;
+      }
+    }
     if (username.isNotEmpty && other.username.isNotEmpty) {
       return username == other.username;
     }
@@ -83,20 +110,23 @@ class SavedCredential {
   }
 
   SavedCredential copyWith({
+    String? username,
     String? password,
     String? token,
     String? loginSource,
     String? userId,
     String? nickname,
     String? avatar,
+    String? accountId,
   }) => SavedCredential(
-    username: username,
+    username: username ?? this.username,
     password: password ?? this.password,
     token: token ?? this.token,
     loginSource: loginSource ?? this.loginSource,
     userId: userId ?? this.userId,
     nickname: nickname ?? this.nickname,
     avatar: avatar ?? this.avatar,
+    accountId: accountId ?? this.accountId,
   );
 }
 
@@ -143,6 +173,7 @@ class UserManager extends ChangeNotifier {
   static const _keyNickname = 'user_nickname';
   static const _keyAvatar = 'user_avatar';
   static const _keyUserId = 'user_id';
+  static const _keyAccountId = 'user_account_id';
   static const _keySavedUsername = 'saved_username';
   static const _keySavedPassword = 'saved_password';
   static const _keySavedCredentials = 'saved_credentials';
@@ -214,6 +245,7 @@ class UserManager extends ChangeNotifier {
   String? _nickname;
   String? _avatar;
   String? _userId;
+  String? _accountId;
   String? _savedUsername;
   String? _savedPassword;
   List<SavedCredential> _savedCredentials = [];
@@ -617,9 +649,11 @@ class UserManager extends ChangeNotifier {
           userId: _userId,
           nickname: _nickname,
           avatar: _avatar,
+          accountId: _accountId,
         );
 
   static const _profileKeys = [
+    _keyAccountId,
     _keyUserId,
     _keyUsername,
     _keyNickname,
@@ -635,6 +669,7 @@ class UserManager extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     for (final entry in {
       _keyUserId: credential.userId ?? '',
+      _keyAccountId: credential.accountId ?? '',
       _keyUsername: credential.username,
       _keyNickname: credential.nickname ?? '',
       _keyAvatar: credential.avatar ?? '',
@@ -651,22 +686,31 @@ class UserManager extends ChangeNotifier {
     required String source,
     required Future<Map<String, dynamic>> Function() authenticate,
     String? password,
+    bool syncCopyAccount = true,
   }) async {
     final revision = ++_accountRevision;
-    final copyRevision = source == 'copy' ? copyAccount.beginLogin() : null;
+    final copyRevision = source == 'copy' && syncCopyAccount
+        ? copyAccount.beginLogin()
+        : null;
     final result = await authenticate();
+    if (revision != _accountRevision ||
+        (copyRevision != null && copyRevision != copyAccount.revision)) {
+      return false;
+    }
+    final token = result['token'];
+    if (token is! String || token.trim().isEmpty) {
+      throw const FormatException('Login response lacks a valid token');
+    }
     final account = SavedCredential(
       username: result['username']?.toString().trim() ?? '',
       password: '',
-      token: result['token']?.toString().trim(),
+      token: token.trim(),
       loginSource: source,
       userId: result['user_id']?.toString().trim(),
       nickname: result['nickname']?.toString(),
       avatar: result['avatar']?.toString(),
+      accountId: result['account_id'] is String ? result['account_id'] : null,
     );
-    if (account.token?.isNotEmpty != true || !account.hasIdentity) {
-      throw const FormatException('Login response lacks account identity');
-    }
     return _serializeAccounts(
       () => _commitLogin(
         account,
@@ -709,6 +753,51 @@ class UserManager extends ChangeNotifier {
     );
   }
 
+  SavedCredential _resolveCopyCredential(SavedCredential account) {
+    final known = [
+      ?currentCredential,
+      ..._savedCredentials,
+    ].where((item) => item.sameAccount(account)).firstOrNull;
+    // Resolve before either domain writes: a pre-existing novel binding wins,
+    // even if a restored primary credential has another local handle.
+    final session = copyAccount.resolveSession(
+      CopyAccountSession(
+        token: account.token!,
+        accountId:
+            known?.accountId ??
+            (known == null
+                ? account.accountId
+                : CopyAccountSession.identityOf(
+                        userId: known.userId ?? '',
+                        username: known.username,
+                      ) ??
+                      account.accountId),
+        userId: account.userId?.isNotEmpty == true
+            ? account.userId!
+            : known?.userId ?? '',
+        username: account.username.isNotEmpty
+            ? account.username
+            : known?.username ?? '',
+        nickname: account.nickname?.isNotEmpty == true
+            ? account.nickname!
+            : known?.nickname ?? '',
+        avatar: account.avatar?.isNotEmpty == true
+            ? account.avatar!
+            : known?.avatar ?? '',
+      ),
+    );
+    return SavedCredential(
+      username: session.username,
+      password: account.password,
+      token: session.token,
+      loginSource: 'copy',
+      userId: session.userId,
+      nickname: session.nickname,
+      avatar: session.avatar,
+      accountId: session.id,
+    );
+  }
+
   Future<bool> _commitLogin(
     SavedCredential account, {
     required int revision,
@@ -719,9 +808,14 @@ class UserManager extends ChangeNotifier {
         revision == _accountRevision &&
         (copyRevision == null || copyRevision == copyAccount.revision);
     if (!isCurrent()) return false;
+    if (account.token?.trim().isNotEmpty != true ||
+        (account.source != 'copy' && !account.hasIdentity)) {
+      throw const FormatException('Invalid login account');
+    }
+    if (account.source == 'copy') account = _resolveCopyCredential(account);
     final retained = [..._savedCredentials];
     final current = currentCredential;
-    if (current != null && current.hasIdentity) {
+    if (current != null && current.hasAccountKey) {
       final idx = retained.indexWhere((item) => item.sameAccount(current));
       if (idx < 0) {
         retained.add(current);
@@ -764,6 +858,7 @@ class UserManager extends ChangeNotifier {
       _savedPassword = updated.password;
       _token = updated.token;
       _userId = updated.userId;
+      _accountId = updated.accountId;
       _username = updated.username;
       _nickname = updated.nickname;
       _avatar = updated.avatar;
@@ -797,6 +892,7 @@ class UserManager extends ChangeNotifier {
             username: updated.username,
             nickname: updated.nickname ?? '',
             avatar: updated.avatar ?? '',
+            accountId: updated.accountId,
           ),
           expectedRevision: copyRevision,
           isCurrent: isCurrent,
@@ -835,6 +931,7 @@ class UserManager extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       for (final key in [
         _keyToken,
+        _keyAccountId,
         _keyUserId,
         _keyUsername,
         _keyNickname,
@@ -845,11 +942,113 @@ class UserManager extends ChangeNotifier {
       ApiClient().user.clearAuthState();
       _token = null;
       _userId = null;
+      _accountId = null;
       _username = null;
       _nickname = null;
       _avatar = null;
       notifyListeners();
     });
+  }
+
+  /// 把官网登录表单里抓到的用户名/密码并回本机凭据。
+  ///
+  /// 官网 cookie 常常没有登录名，所以只对「用户名匹配、或用户名尚为空」的
+  /// 账号写入；写入失败只记日志，不影响已经完成的登录。
+  ///
+  /// [anchorToken] 用于自动填表登录：kira 侧明确知道提交的账号密码，登录
+  /// 成功后该 token 对应的账号就是本次登录的账号，直接按 token 锚定写入，
+  /// 不再要求用户名对得上（新落库的 token-only 账号用户名是空的）。
+  Future<void> saveLoginFormPasswords(
+    Map<String, String> passwords, {
+    String? anchorToken,
+  }) async {
+    if (passwords.isEmpty) return;
+    try {
+      await _serializeAccounts(() async {
+        var changed = false;
+        final next = <SavedCredential>[];
+        for (final credential in _savedCredentials) {
+          CopyWebLoginForm? match;
+          var anchored = false;
+          if (credential.source == 'copy') {
+            if (anchorToken != null && credential.token == anchorToken) {
+              anchored = true;
+              for (final entry in passwords.entries) {
+                if (entry.value.isNotEmpty) {
+                  match = CopyWebLoginForm(
+                    username: entry.key,
+                    password: entry.value,
+                  );
+                  break;
+                }
+              }
+            } else {
+              for (final entry in passwords.entries) {
+                final form = CopyWebLoginForm(
+                  username: entry.key,
+                  password: entry.value,
+                );
+                if (canApplyLoginForm(
+                  accountUsername: credential.username,
+                  accountNickname: credential.nickname ?? '',
+                  formUsername: form.username,
+                  password: form.password,
+                )) {
+                  match = form;
+                  break;
+                }
+              }
+            }
+          }
+          final form = match;
+          if (form == null) {
+            next.add(credential);
+            continue;
+          }
+          // 自动填表登录时表单里的账号名就是登录名，顺手补上，登录页与账号
+          // 中心才能按名字回填；已有登录名不覆盖，身份仍以 token 为准。
+          final fillsLoginName =
+              anchored &&
+              credential.username.isEmpty &&
+              form.username.isNotEmpty;
+          if (credential.password == form.password && !fillsLoginName) {
+            next.add(credential);
+            continue;
+          }
+          changed = true;
+          next.add(
+            credential.copyWith(
+              username: fillsLoginName ? form.username : null,
+              password: form.password,
+            ),
+          );
+        }
+        if (!changed) return;
+        await SecureCredentialStore().writeCredentials(next);
+        _savedCredentials = next;
+        final active = currentCredential;
+        if (active != null) {
+          for (final credential in next) {
+            if (credential.sameAccount(active) &&
+                credential.password.isNotEmpty) {
+              _savedPassword = credential.password;
+              // 自动重登读的是这个槽位，不写的话重启后就丢了。
+              await SecureCredentialStore().writePassword(credential.password);
+              break;
+            }
+          }
+        }
+        notifyListeners();
+      });
+    } catch (_, st) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          StateError('Unable to save COPY web login password'),
+          stackTrace: st,
+          source: 'user_manager.save_login_form',
+        ),
+      );
+    }
   }
 
   Future<void> saveCredentials(
@@ -917,7 +1116,7 @@ class UserManager extends ChangeNotifier {
   }
 
   Future<bool> switchToCredential(SavedCredential credential) {
-    if (credential.token?.isNotEmpty != true || !credential.hasIdentity) {
+    if (credential.token?.isNotEmpty != true || !credential.hasAccountKey) {
       return Future.value(false);
     }
     final revision = ++_accountRevision;
@@ -935,6 +1134,8 @@ class UserManager extends ChangeNotifier {
     String username, {
     String? loginSource,
     String? userId,
+    String? accountId,
+    String? token,
   }) {
     ++_accountRevision;
     final source = loginSource ?? _loginSource;
@@ -944,14 +1145,26 @@ class UserManager extends ChangeNotifier {
       loginSource: source,
       userId: userId,
     );
+    bool matches(SavedCredential item) {
+      if (source != item.source) return false;
+      if (source == 'copy' && accountId?.isNotEmpty == true) {
+        final key =
+            item.accountId ??
+            CopyAccountSession.identityOf(
+              userId: item.userId ?? '',
+              username: item.username,
+            );
+        return key == accountId ||
+            (token?.isNotEmpty == true && item.token == token);
+      }
+      return item.sameAccount(identity);
+    }
+
     return _serializeAccounts(() async {
-      final next = _savedCredentials
-          .where((item) => !item.sameAccount(identity))
-          .toList();
+      final next = _savedCredentials.where((item) => !matches(item)).toList();
       await SecureCredentialStore().writeCredentials(next);
       final selected = next.where(
-        (item) =>
-            item.username == _savedUsername && item.source == _loginSource,
+        (item) => currentCredential?.sameAccount(item) == true,
       );
       final replacement = selected.isNotEmpty
           ? selected.first
@@ -967,6 +1180,196 @@ class UserManager extends ChangeNotifier {
       await prefs.remove(_keySavedPassword);
       notifyListeners();
     });
+  }
+
+  /// Fetch and apply profile data for the exact stored COPY account. The
+  /// request does not change selection; late responses are discarded if either
+  /// account domain changes while it is in flight.
+  Future<bool> refreshCopyCredential(
+    CopyAccountSession credential, {
+    required UserApi api,
+  }) async {
+    final token = credential.token;
+    final id = credential.id;
+    if (token.isEmpty || id == null) return false;
+    final revision = _accountRevision;
+    final copyRevision = copyAccount.revision;
+    final info = await api.getCopyCredentialInfo(token);
+
+    return _serializeAccounts(() async {
+      if (revision != _accountRevision ||
+          copyRevision != copyAccount.revision) {
+        return false;
+      }
+      final stored = copyAccount.byId(id);
+      if (stored == null || stored.token != token) return false;
+
+      String field(String key, String oldValue) {
+        final value = info[key];
+        return value is String && value.trim().isNotEmpty
+            ? value.trim()
+            : oldValue;
+      }
+
+      String? nullableField(String key, String? oldValue) {
+        final value = info[key];
+        return value is String && value.trim().isNotEmpty
+            ? value.trim()
+            : oldValue;
+      }
+
+      final returnedId = field('user_id', '');
+      final returnedName = field('username', '');
+      final returnedNickname = nullableField('nickname', null);
+      final returnedAvatar = nullableField('avatar', null);
+      if (returnedId.isEmpty &&
+          returnedName.isEmpty &&
+          returnedNickname == null &&
+          returnedAvatar == null) {
+        return false;
+      }
+      if (returnedId.isNotEmpty &&
+          stored.userId.isNotEmpty &&
+          returnedId != stored.userId) {
+        return false;
+      }
+
+      final active = currentCredential;
+      final activeMatches = active?.source == 'copy' && active?.token == token;
+      final credentialIndex = _savedCredentials.indexWhere(
+        (item) => item.source == 'copy' && item.token == token,
+      );
+      final saved = credentialIndex >= 0
+          ? _savedCredentials[credentialIndex]
+          : activeMatches
+          ? active
+          : null;
+      if (saved != null &&
+          returnedId.isNotEmpty &&
+          saved.userId?.isNotEmpty == true &&
+          returnedId != saved.userId) {
+        return false;
+      }
+
+      SavedCredential? updatedPrimary;
+      final nextCredentials = [..._savedCredentials];
+      if (saved != null) {
+        updatedPrimary = SavedCredential(
+          username: field('username', saved.username),
+          password: saved.password.isNotEmpty
+              ? saved.password
+              : (activeMatches ? _savedPassword ?? '' : ''),
+          token: token,
+          loginSource: 'copy',
+          userId: returnedId.isNotEmpty ? returnedId : saved.userId,
+          nickname: returnedNickname ?? saved.nickname,
+          avatar: returnedAvatar ?? saved.avatar,
+          accountId: id,
+        );
+        if (credentialIndex >= 0) {
+          nextCredentials[credentialIndex] = updatedPrimary;
+        } else {
+          nextCredentials.insert(0, updatedPrimary);
+        }
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final previousProfile = {
+        for (final key in _profileKeys) key: prefs.getString(key),
+      };
+      final previousCredentials = _savedCredentials;
+      var credentialsTouched = false;
+      var profileTouched = false;
+
+      Future<void> restorePrimary() async {
+        if (credentialsTouched) {
+          await SecureCredentialStore().writeCredentials(previousCredentials);
+        }
+        if (profileTouched) {
+          for (final entry in previousProfile.entries) {
+            final value = entry.value;
+            await _requireAccountWrite(
+              value == null
+                  ? prefs.remove(entry.key)
+                  : prefs.setString(entry.key, value),
+            );
+          }
+        }
+      }
+
+      try {
+        if (updatedPrimary != null) {
+          credentialsTouched = true;
+          await SecureCredentialStore().writeCredentials(nextCredentials);
+          if (activeMatches) {
+            profileTouched = true;
+            await _persistProfile(updatedPrimary);
+          }
+        }
+        if (revision != _accountRevision) {
+          await restorePrimary();
+          return false;
+        }
+        final updated = await copyAccount.updateProfile(
+          id: id,
+          token: token,
+          profile: info,
+          expectedRevision: copyRevision,
+          isCurrent: () => revision == _accountRevision,
+          onCommitted: (_) {
+            _savedCredentials = nextCredentials;
+            if (activeMatches && updatedPrimary != null) {
+              _userId = updatedPrimary.userId;
+              _accountId = id;
+              _username = updatedPrimary.username;
+              _nickname = updatedPrimary.nickname;
+              _avatar = updatedPrimary.avatar;
+              _savedUsername = updatedPrimary.username;
+            }
+          },
+        );
+        if (!updated) {
+          await restorePrimary();
+          return false;
+        }
+        notifyListeners();
+        return true;
+      } catch (_) {
+        try {
+          await restorePrimary();
+        } catch (_) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              const CopyAccountStorageException(),
+              source: 'user_manager.restore_copy_profile',
+            ),
+          );
+        }
+        throw const CopyAccountStorageException();
+      }
+    });
+  }
+
+  /// Profile refresh after successful login is best-effort and never delays or
+  /// reverses authentication. Errors are logged without request details.
+  void refreshCopyCredentialInBackground(
+    CopyAccountSession credential, {
+    required UserApi api,
+  }) {
+    unawaited(
+      refreshCopyCredential(credential, api: api).then<void>(
+        (_) {},
+        onError: (Object _, StackTrace stackTrace) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              StateError('Background COPY profile refresh failed'),
+              stackTrace: stackTrace,
+              source: 'user_manager.copy_profile_refresh',
+            ),
+          );
+        },
+      ),
+    );
   }
 
   /// Refresh the clicked identity without changing any selection. A response

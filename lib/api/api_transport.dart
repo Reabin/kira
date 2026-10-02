@@ -107,7 +107,10 @@ class ApiTransport {
           return rejectIfBusinessError(response, handler);
         },
         onError: (error, handler) async {
-          if (error.response?.statusCode == 401 && user.autoLogin) {
+          if (error.response?.statusCode == 401 &&
+              user.autoLogin &&
+              error.requestOptions.headers['Authorization'] ==
+                  'Token ${user.token}') {
             final username = user.savedUsername;
             final password = user.savedPassword;
             if (username != null &&
@@ -122,17 +125,19 @@ class ApiTransport {
                 } else {
                   _autoLoginCompleter = Completer<bool>();
                   try {
-                    final result = user.loginSource == 'copy'
-                        ? await copyLoginHandler!(username, password)
-                        : await loginHandler!(username, password);
-                    await user.saveLogin(
-                      token: result['token'],
-                      userId: result['user_id'],
-                      username: result['username'],
-                      nickname: result['nickname'] ?? result['username'],
-                      avatar: result['avatar'] ?? '',
+                    final source = user.loginSource;
+                    final success = await user.authenticateAndLogin(
+                      source: source,
+                      syncCopyAccount: false,
+                      authenticate: () => source == 'copy'
+                          ? copyLoginHandler!(username, password)
+                          : loginHandler!(username, password),
                     );
-                    _autoLoginCompleter!.complete(true);
+                    _autoLoginCompleter!.complete(success);
+                    if (!success) {
+                      _autoLoginCompleter = null;
+                      return handler.next(error);
+                    }
                   } catch (e, stack) {
                     // 自动重登失败不能静默：用户只会看到原始 401，
                     // 无从判断是令牌过期还是重登本身出了问题。
