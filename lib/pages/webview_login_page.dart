@@ -242,7 +242,6 @@ String buildCopyLoginFillScript({
       setValue(targets.username, params.username);
       setValue(targets.password, params.password);
       targets.button.click();
-      report('submitted', '');
       watchErrors();
       setTimeout(function () { checkFieldErrors(); }, 2000);
     } else if (attempts * 300 >= 8000) {

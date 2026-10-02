@@ -50,16 +50,12 @@ class _LoginPageState extends State<LoginPage> {
     super.initState();
     _useCopyLogin = widget.copyOnly || _user.loginSource == 'copy';
     if (!_useCopyLogin) _loadHotCredentials();
-    _usernameCtrl.addListener(_onCredentialDraftChanged);
-    _usernameFocus.addListener(_onCredentialDraftChanged);
     _user.addListener(_onUserChanged);
   }
 
   @override
   void dispose() {
     _user.removeListener(_onUserChanged);
-    _usernameCtrl.removeListener(_onCredentialDraftChanged);
-    _usernameFocus.removeListener(_onCredentialDraftChanged);
     _usernameCtrl.dispose();
     _passwordCtrl.dispose();
     _usernameFocus.dispose();
@@ -68,10 +64,6 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _onUserChanged() {
-    if (mounted) setState(() {});
-  }
-
-  void _onCredentialDraftChanged() {
     if (mounted) setState(() {});
   }
 
@@ -97,16 +89,16 @@ class _LoginPageState extends State<LoginPage> {
 
   /// 当前登录源下已保存、且带登录名的账号，倒序展示（最近保存的靠前）。
   /// 没有登录名的账号无法回填，列出来也没用。
-  List<SavedCredential> _savedAccounts() =>
-      _user.savedCredentials
-          .where(
-            (credential) =>
-                _isCopyCredential(credential) == _useCopyLogin &&
-                credential.username.trim().isNotEmpty,
-          )
-          .toList()
-          .reversed
-          .toList();
+  List<SavedCredential> _savedAccounts() {
+    final accounts = _user.savedCredentials
+        .where(
+          (credential) =>
+              _isCopyCredential(credential) == _useCopyLogin &&
+              credential.username.trim().isNotEmpty,
+        )
+        .toList();
+    return accounts.reversed.toList();
+  }
 
   /// 一键回填已保存账号的账号与密码。
   void _fillFromSuggestion(SavedCredential credential) {
@@ -126,21 +118,6 @@ class _LoginPageState extends State<LoginPage> {
         onSelected: _fillFromSuggestion,
       ),
     ];
-  }
-
-  Widget _buildUsernameField(BuildContext context, AppLocalizations l10n) {
-    return TextField(
-      key: const ValueKey('login-username-field'),
-      controller: _usernameCtrl,
-      focusNode: _usernameFocus,
-      decoration: InputDecoration(
-        labelText: l10n.profileUsernameLabel,
-        prefixIcon: const Icon(Icons.person_outline),
-        border: OutlineInputBorder(borderRadius: AppRadius.mdR),
-      ),
-      textInputAction: TextInputAction.next,
-      onSubmitted: (_) => _passwordFocus.requestFocus(),
-    );
   }
 
   void _selectLoginSource(bool useCopyLogin) {
@@ -531,7 +508,18 @@ class _LoginPageState extends State<LoginPage> {
   }) {
     final l10n = AppLocalizations.of(context)!;
     return [
-      _buildUsernameField(context, l10n),
+      TextField(
+        key: const ValueKey('login-username-field'),
+        controller: _usernameCtrl,
+        focusNode: _usernameFocus,
+        decoration: InputDecoration(
+          labelText: l10n.profileUsernameLabel,
+          prefixIcon: const Icon(Icons.person_outline),
+          border: OutlineInputBorder(borderRadius: AppRadius.mdR),
+        ),
+        textInputAction: TextInputAction.next,
+        onSubmitted: (_) => _passwordFocus.requestFocus(),
+      ),
       const SizedBox(height: AppSpacing.lg),
       TextField(
         key: const ValueKey('login-password-field'),
