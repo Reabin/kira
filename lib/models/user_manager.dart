@@ -900,6 +900,31 @@ class UserManager extends ChangeNotifier {
           return false;
         }
       } else {
+        // No COPY revision: auto-relogin and manual comic selection must not
+        // switch the novel account. But an already stored identity has to
+        // follow its rotated token, or the independent list keeps the
+        // invalidated token while the primary moves on — 账号中心 then
+        // renders the same account twice and novel requests keep failing.
+        final copyId = updated.accountId;
+        if (updated.source == 'copy' &&
+            copyId != null &&
+            copyAccount.byId(copyId) != null) {
+          final synced = await copyAccount.syncSessionToken(
+            id: copyId,
+            session: CopyAccountSession(
+              token: updated.token!,
+              userId: updated.userId ?? '',
+              username: updated.username,
+              nickname: updated.nickname ?? '',
+              avatar: updated.avatar ?? '',
+            ),
+            isCurrent: isCurrent,
+          );
+          if (!synced) {
+            await restorePrimary();
+            return false;
+          }
+        }
         publishPrimary();
       }
       notifyListeners();

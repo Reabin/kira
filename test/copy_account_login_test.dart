@@ -646,10 +646,9 @@ void main() {
             profileBoundToToken: true,
           ),
         );
-        await user.saveLoginFormPasswords(
-          {'copy-user': 'copy-password'},
-          anchorToken: 'suggest-copy',
-        );
+        await user.saveLoginFormPasswords({
+          'copy-user': 'copy-password',
+        }, anchorToken: 'suggest-copy');
       });
 
       await pumpLogin(tester);
@@ -670,14 +669,18 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('login-username-field')))
+            .widget<TextField>(
+              find.byKey(const ValueKey('login-username-field')),
+            )
             .controller!
             .text,
         'copy-user',
       );
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('login-password-field')))
+            .widget<TextField>(
+              find.byKey(const ValueKey('login-password-field')),
+            )
             .controller!
             .text,
         'copy-password',
@@ -704,7 +707,9 @@ void main() {
       await tester.pump();
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('login-password-field')))
+            .widget<TextField>(
+              find.byKey(const ValueKey('login-password-field')),
+            )
             .controller!
             .text,
         'hot-password',
@@ -776,10 +781,7 @@ void main() {
       );
       expect(script, contains('var params = $payload;'));
       // 嵌入的字面量可被完整还原，特殊字符无转义损失。
-      expect(jsonDecode(payload), {
-        'username': username,
-        'password': password,
-      });
+      expect(jsonDecode(payload), {'username': username, 'password': password});
     });
   });
 
@@ -1574,15 +1576,15 @@ void main() {
           avatar: '',
         ),
       );
-      final tokenOnly = user.savedCredentials
-          .firstWhere((item) => item.token == 'auto-token');
+      final tokenOnly = user.savedCredentials.firstWhere(
+        (item) => item.token == 'auto-token',
+      );
       expect(tokenOnly.username, isEmpty);
 
       // token 对不上时不写入，防止把密码并到别的账号。
-      await user.saveLoginFormPasswords(
-        {'auto-user': 'auto-password'},
-        anchorToken: 'another-token',
-      );
+      await user.saveLoginFormPasswords({
+        'auto-user': 'auto-password',
+      }, anchorToken: 'another-token');
       expect(
         user.savedCredentials
             .firstWhere((item) => item.token == 'auto-token')
@@ -1590,10 +1592,9 @@ void main() {
         isEmpty,
       );
 
-      await user.saveLoginFormPasswords(
-        {'auto-user': 'auto-password'},
-        anchorToken: 'auto-token',
-      );
+      await user.saveLoginFormPasswords({
+        'auto-user': 'auto-password',
+      }, anchorToken: 'auto-token');
       expect(
         user.savedCredentials
             .firstWhere((item) => item.token == 'auto-token')
@@ -1608,10 +1609,9 @@ void main() {
         'auto-user',
       );
       // 已有登录名不被覆盖（密码相同则不产生变更）。
-      await user.saveLoginFormPasswords(
-        {'other-name': 'auto-password'},
-        anchorToken: 'auto-token',
-      );
+      await user.saveLoginFormPasswords({
+        'other-name': 'auto-password',
+      }, anchorToken: 'auto-token');
       expect(
         user.savedCredentials
             .firstWhere((item) => item.token == 'auto-token')
@@ -1632,6 +1632,92 @@ void main() {
             .password,
         'auto-password',
       );
+    },
+  );
+
+  test(
+    'repeated password logins of one account collapse into a single entry',
+    () async {
+      Map<String, Object?> results(String token) => {
+        'token': token,
+        'user_id': 'copy-id',
+        'username': 'copy-main',
+        'nickname': 'COPY main',
+        'avatar': 'user/cover/copymanga.png',
+      };
+      Future<bool> loginAs(String token) => user.authenticateAndLogin(
+        source: 'copy',
+        password: 'copy-password',
+        authenticate: () async => results(token),
+      );
+
+      expect(await loginAs('password-copy-1'), isTrue);
+      expect(await loginAs('password-copy-2'), isTrue);
+      expect(user.copyAccount.accounts, hasLength(1));
+      expect(user.copyAccount.activeId, 'u:copy-id');
+      expect(user.copyAccount.token, 'password-copy-2');
+      expect(
+        user.savedCredentials.where((item) => item.source == 'copy'),
+        hasLength(1),
+        reason: '主凭据列表同样不得重复同一身份',
+      );
+    },
+  );
+
+  test(
+    'primary COPY 401 auto-relogin follows the rotated token in the account list',
+    () async {
+      await user.setLoginSource('copy');
+      await user.setAutoLogin(true);
+      response = (_) => _jsonResponse({
+        'code': 200,
+        'results': {
+          'token': 'copy-token-1',
+          'user_id': 'copy-id',
+          'username': 'copy-main',
+        },
+      });
+      // 带密码登录：自动重登录依赖已保存的密码。
+      expect(
+        await user.authenticateAndLogin(
+          source: 'copy',
+          password: 'copy-password',
+          authenticate: () => api.copyLogin('same-username', 'copy-password'),
+        ),
+        isTrue,
+      );
+      expect(user.copyAccount.token, 'copy-token-1');
+
+      final started = Completer<void>();
+      final relogin = Completer<Map<String, dynamic>>();
+      expectedPrimaryRequests = 2;
+      expectedReLogins = 1;
+      transport.copyLoginHandler = (_, _) {
+        reLogins++;
+        started.complete();
+        return relogin.future;
+      };
+      primaryResponse = (_) => mainAdapter.requests.length == 1
+          ? _jsonResponse({'code': 401}, 401)
+          : _jsonResponse({'code': 200, 'results': <String, Object>{}});
+      final request = primaryDio.get<dynamic>(
+        'https://primary.test/needs-auth',
+      );
+      await started.future;
+      relogin.complete({
+        'token': 'copy-token-2',
+        'user_id': 'copy-id',
+        'username': 'copy-main',
+      });
+      await request;
+      expect(user.token, 'copy-token-2');
+      expect(
+        user.copyAccount.token,
+        'copy-token-2',
+        reason: '账号库 token 必须跟随轮换，否则同一账号在账号中心渲染两条',
+      );
+      expect(user.copyAccount.activeId, 'u:copy-id');
+      expect(user.copyAccount.accounts, hasLength(1));
     },
   );
 }

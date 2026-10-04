@@ -273,6 +273,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   bool _readingCredentials = false;
   String? _error;
 
+  /// 本次会话里钩到过真实的官网登录提交（见 [_loginFormScript]）。只有它
+  /// 能证明提取到的登录态是用户刚刚登录的结果，而不是进入页面前残留的
+  /// 旧会话。
+  bool _submittedLogin = false;
+
   /// 页面上自动识别出的、本机已保存过的账号；非 null 时展示选择栏而不是
   /// 直接完成登录。
   CopyWebCredentials? _knownAccount;
@@ -318,15 +323,17 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     if (arguments[2] != true) return;
     if (username.isEmpty || password.isEmpty) return;
     _loginFormPasswords[username] = password;
+    _submittedLogin = true;
   }
 
   /// 自动填表提交后轮询 cookie；页面跳转（onUpdateVisitedHistory/onLoadStop）
-  /// 会先一步完成登录，轮询只是兜底，最多跑 10 秒。
+  /// 会先一步完成登录，轮询只是兜底，最多跑 10 秒。提示条出现时轮询继续：
+  /// 自动填表可能随后把会话换成另一个账号，后续提取会覆盖提示条。
   void _startAutoFillPoll() {
     _autoFillPoll?.cancel();
     var tries = 0;
     _autoFillPoll = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!mounted || _completing || _knownAccount != null) {
+      if (!mounted || _completing) {
         timer.cancel();
         return;
       }
@@ -354,12 +361,16 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   /// 自动填表：页面加载到官网登录页时注入脚本，交由网页自己提交登录。
-  Future<void> _injectAutoFill(InAppWebViewController controller, WebUri? url) async {
+  Future<void> _injectAutoFill(
+    InAppWebViewController controller,
+    WebUri? url,
+  ) async {
     final fill = widget.autoFill;
     if (fill == null) return;
     final path = url?.toString() ?? '';
     final isLoginPage =
-        path.contains('/web/login/loginByAccount') || path.contains('/h5/login');
+        path.contains('/web/login/loginByAccount') ||
+        path.contains('/h5/login');
     if (!isLoginPage) return;
     try {
       await controller.evaluateJavascript(
@@ -480,7 +491,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   Future<void> _tryExtractAndFinish({bool manual = false}) async {
-    if (_completing || _readingCredentials || _knownAccount != null) return;
+    if (_completing || _readingCredentials) return;
     final l10n = AppLocalizations.of(context)!;
 
     _readingCredentials = true;
@@ -513,18 +524,22 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       return;
     }
 
-    // 官网登录页常带着上一次的登录态直接跳进旧账号。本机已保存过的账号不自动
-    // 完成，改为停在页面上让用户决定：清掉登录态去登另一个账号，或直接用这个。
-    if (!shouldAutoCompleteWebLogin(
+    // 残留的旧会话（打开页面时就带着的登录态）不是本次登录的结果，永不
+    // 自动完成：否则刚被登出/删除的账号会在用户输入新账号前被抢登回来。
+    // 只有钩到过真实登录提交、或用户手动点「我已完成登录」，才允许完成。
+    switch (disposeWebLoginCredentials(
       credentials: credentials,
       user: ref.read(userManagerProvider),
+      submittedLogin: _submittedLogin,
       manual: manual,
     )) {
-      setState(() => _knownAccount = credentials);
-      return;
+      case WebLoginDisposition.complete:
+        await _completeLogin(credentials);
+      case WebLoginDisposition.knownAccount:
+        setState(() => _knownAccount = credentials);
+      case WebLoginDisposition.ignore:
+        setState(() => _knownAccount = null);
     }
-
-    await _completeLogin(credentials);
   }
 
   Future<void> _completeLogin(CopyWebCredentials credentials) async {
@@ -551,10 +566,9 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         // h5）的表单体不一定解析得到，直接按本次登录的 token 锚定并回。
         final fill = widget.autoFill;
         if (fill != null) {
-          await user.saveLoginFormPasswords(
-            {fill.username: fill.password},
-            anchorToken: credentials.token,
-          );
+          await user.saveLoginFormPasswords({
+            fill.username: fill.password,
+          }, anchorToken: credentials.token);
         }
         if (!mounted) return;
         context.pop(true);
@@ -618,6 +632,8 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     setState(() {
       _error = null;
       _knownAccount = null;
+      // 会话已清空，重新开始观察本次的登录提交。
+      _submittedLogin = false;
     });
     await _controller?.loadUrl(urlRequest: URLRequest(url: _loginUri));
     if (mounted) showToast(context, l10n.profileWebLoginResetDone);

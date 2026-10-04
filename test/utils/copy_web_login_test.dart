@@ -352,31 +352,67 @@ void main() {
       );
     });
 
-    test('已保存账号不自动完成，手动提交才完成', () async {
+    test('已保存账号不自动完成，停在提示条上；手动提交才完成', () async {
       await user.copyAccount.saveSession(saved);
       final known = candidate(token: 'saved-token');
       expect(
-        shouldAutoCompleteWebLogin(credentials: known, user: user),
-        isFalse,
-      );
-      expect(
-        shouldAutoCompleteWebLogin(
+        disposeWebLoginCredentials(
           credentials: known,
           user: user,
+          submittedLogin: false,
+        ),
+        WebLoginDisposition.knownAccount,
+      );
+      expect(
+        disposeWebLoginCredentials(
+          credentials: known,
+          user: user,
+          submittedLogin: false,
           manual: true,
         ),
-        isTrue,
+        WebLoginDisposition.complete,
       );
     });
 
-    test('新账号仍然自动完成', () async {
+    test('未保存的残留会话（如刚被登出的账号）静默，不自动完成', () async {
       await user.copyAccount.saveSession(saved);
       expect(
-        shouldAutoCompleteWebLogin(
+        disposeWebLoginCredentials(
           credentials: candidate(token: 'other-token', username: 'other-user'),
           user: user,
+          submittedLogin: false,
         ),
-        isTrue,
+        WebLoginDisposition.ignore,
+      );
+    });
+
+    test('本次捕获到登录提交的新账号自动完成', () async {
+      await user.copyAccount.saveSession(saved);
+      expect(
+        disposeWebLoginCredentials(
+          credentials: candidate(token: 'other-token', username: 'other-user'),
+          user: user,
+          submittedLogin: true,
+        ),
+        WebLoginDisposition.complete,
+      );
+    });
+
+    test('本次登录到另一个已保存账号仍需确认', () async {
+      const other = CopyAccountSession(
+        token: 'other-saved-token',
+        userId: 'other-saved-id',
+        username: 'other-saved-user',
+      );
+      await user.copyAccount.saveSession(saved);
+      await user.copyAccount.saveSession(other);
+      expect(
+        disposeWebLoginCredentials(
+          credentials: candidate(token: 'other-saved-token'),
+          user: user,
+          submittedLogin: true,
+        ),
+        WebLoginDisposition.knownAccount,
       );
     });
   });

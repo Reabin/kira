@@ -37,6 +37,7 @@ class CopyAccountSession {
   });
 
   CopyAccountSession copyWith({
+    String? token,
     String? accountId,
     String? userId,
     String? username,
@@ -44,7 +45,7 @@ class CopyAccountSession {
     String? avatar,
     String? label,
   }) => CopyAccountSession(
-    token: token,
+    token: token ?? this.token,
     accountId: accountId ?? this.accountId,
     userId: userId ?? this.userId,
     username: username ?? this.username,
@@ -466,6 +467,59 @@ class CopyAccountStore extends ChangeNotifier {
         }
       } catch (_) {
         _logStorageFailure('refresh');
+        throw const CopyAccountStorageException();
+      }
+      if (!current()) return false;
+      _accounts = next;
+      _migrationHandled = true;
+      onCommitted?.call(updated);
+      notifyListeners();
+      return true;
+    });
+  }
+
+  /// Refreshes the stored token and profile of an already known account
+  /// without changing the active selection. Used by commits that run without a
+  /// COPY revision (auto-relogin, manual comic selection): the identity must
+  /// already be stored, so a background relogin can never add accounts or
+  /// override a manual novel selection. False means superseded or unknown id.
+  Future<bool> syncSessionToken({
+    required String id,
+    required CopyAccountSession session,
+    bool Function()? isCurrent,
+    void Function(CopyAccountSession session)? onCommitted,
+  }) {
+    final revision = ++_revision;
+    bool current() => revision == _revision && isCurrent?.call() != false;
+    String field(String value, String oldValue) =>
+        value.trim().isNotEmpty ? value.trim() : oldValue;
+    return _serialize(() async {
+      if (!current()) return false;
+      final existing = byId(id);
+      if (existing == null) return false;
+      final returnedId = field(session.userId, existing.userId);
+      if (existing.userId.isNotEmpty && returnedId != existing.userId) {
+        return false;
+      }
+      final updated = existing.copyWith(
+        token: field(session.token, existing.token),
+        userId: returnedId,
+        username: field(session.username, existing.username),
+        nickname: field(session.nickname, existing.nickname),
+        avatar: field(session.avatar, existing.avatar),
+      );
+      final next = [
+        for (final account in _accounts)
+          if (account.id == id) updated else account,
+      ];
+      try {
+        await _writeRecord(next, _activeId);
+        if (!current()) {
+          await _writeRecord(_accounts, _activeId);
+          return false;
+        }
+      } catch (_) {
+        _logStorageFailure('sync');
         throw const CopyAccountStorageException();
       }
       if (!current()) return false;

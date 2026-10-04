@@ -944,4 +944,77 @@ void main() {
       hasLength(1),
     );
   });
+
+  test(
+    'syncSessionToken rotates the stored token without changing active',
+    () async {
+      await store.saveSession(_copyA);
+      await store.saveSession(_copyB);
+      expect(store.activeId, 'u:copy-b-id');
+      final committed = <CopyAccountSession>[];
+      final synced = await store.syncSessionToken(
+        id: 'u:copy-id',
+        session: const CopyAccountSession(
+          token: 'copy-a-rotated',
+          userId: 'copy-id',
+          username: 'copy-user',
+          nickname: '新昵称',
+        ),
+        onCommitted: committed.add,
+      );
+      expect(synced, isTrue);
+      expect(committed.single.token, 'copy-a-rotated');
+      expect(store.byId('u:copy-id')?.token, 'copy-a-rotated');
+      expect(store.byId('u:copy-id')?.nickname, '新昵称');
+      // 空字段不覆盖已有资料。
+      expect(store.byId('u:copy-id')?.username, 'copy-user');
+      // 非活动账号的同步不得改写选中的轻小说账号。
+      expect(store.activeId, 'u:copy-b-id');
+      await store.init();
+      expect(store.byId('u:copy-id')?.token, 'copy-a-rotated');
+    },
+  );
+
+  test('syncSessionToken refuses unknown ids and identity conflicts', () async {
+    await store.saveSession(_copyA);
+    expect(
+      await store.syncSessionToken(
+        id: 'u:missing',
+        session: const CopyAccountSession(token: 'x'),
+      ),
+      isFalse,
+    );
+    expect(
+      await store.syncSessionToken(
+        id: 'u:copy-id',
+        session: const CopyAccountSession(
+          token: 'copy-a-rotated',
+          userId: 'someone-else',
+        ),
+      ),
+      isFalse,
+    );
+    expect(store.byId('u:copy-id')?.token, 'copy-a');
+  });
+
+  test(
+    'superseded syncSessionToken leaves the stored record untouched',
+    () async {
+      await store.saveSession(_copyA);
+      final before = await secure.readCopyAccountRecord();
+      final revision = store.revision;
+      final pending = store.syncSessionToken(
+        id: 'u:copy-id',
+        session: const CopyAccountSession(
+          token: 'late-rotation',
+          userId: 'copy-id',
+        ),
+      );
+      // selectAccount 的 ++_revision 在调用瞬间推进，排队中的 sync 据此失效。
+      await store.selectAccount('u:copy-id');
+      expect(await pending, isFalse);
+      expect(store.revision, isNot(revision));
+      expect(await secure.readCopyAccountRecord(), before);
+    },
+  );
 }

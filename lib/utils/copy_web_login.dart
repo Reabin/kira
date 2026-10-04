@@ -28,9 +28,9 @@ class CopyWebCredentials {
 
   /// 该凭证是否与本机已保存的某个拷贝账号是同一个。
   ///
-  /// WebView 里的登录态是持久的，所以官网登录页一打开就可能带着旧账号的
-  /// cookie/storage；只有「本机没保存过的账号」才允许自动完成登录，否则
-  /// 用户会被直接送进旧账号、没有机会切换到另一个账号。
+  /// WebView 里的登录态是持久的，官网登录页一打开就可能带着旧账号的
+  /// cookie/storage。用于区分「本机认识的账号」（停提示条确认）与
+  /// 「本次新登录的账号」。
   bool matchesSavedAccount(UserManager user) {
     final candidate = token.trim();
     if (candidate.isEmpty) return false;
@@ -49,16 +49,38 @@ class CopyWebCredentials {
   }
 }
 
-/// 官网登录页是否应当自动完成登录。
+/// WebView 提取到登录态后的处置动作。
+enum WebLoginDisposition {
+  /// 直接完成登录。
+  complete,
+
+  /// 停在提示条上让用户确认（已保存的账号）。
+  knownAccount,
+
+  /// 静默不动，把页面留给用户去登录别的账号。
+  ignore,
+}
+
+/// 决定 WebView 里提取到的登录态如何处置。
 ///
-/// 本机已保存的账号不自动登录：WebView 会一直带着旧账号的登录态，自动完成会
-/// 让用户没有机会切到另一个账号。用户点「我已完成登录」时走 [manual]，
-/// 表示这是明确意图，照常完成。
-bool shouldAutoCompleteWebLogin({
+/// 只有 [submittedLogin]（本次会话里钩到了一次真实的官网登录提交）才证明
+/// 这份登录态是用户刚刚登录的结果；没有它，提取到的只能是进入页面前残留
+/// 的旧会话。旧会话一律不自动完成——尤其该账号刚被登出/删除时，自动完成
+/// 会在用户输入新账号前把它抢登回来：已保存的停在提示条上让用户确认，
+/// 未保存的静默。用户点「我已完成登录」时走 [manual]，是明确意图，照常完成。
+WebLoginDisposition disposeWebLoginCredentials({
   required CopyWebCredentials credentials,
   required UserManager user,
+  required bool submittedLogin,
   bool manual = false,
-}) => manual || !credentials.matchesSavedAccount(user);
+}) {
+  if (manual) return WebLoginDisposition.complete;
+  final known = credentials.matchesSavedAccount(user);
+  if (known) return WebLoginDisposition.knownAccount;
+  return submittedLogin
+      ? WebLoginDisposition.complete
+      : WebLoginDisposition.ignore;
+}
 
 /// 官网登录页表单里抓到的账号密码。
 ///
