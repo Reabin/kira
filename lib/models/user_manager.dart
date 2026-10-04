@@ -164,7 +164,15 @@ class UserManager extends ChangeNotifier {
   static const defaultNavOrder = ThemeSettings.defaultNavOrder;
   static const defaultDisplayModeRefreshRate =
       ThemeSettings.defaultDisplayModeRefreshRate;
-  static const defaultUpdateMirrorPrefix = 'https://ghproxy.net/';
+
+  /// GitHub 下载镜像默认前缀，也用于提示条等处的「默认值」语义。
+  static const defaultUpdateMirrorPrefix = 'https://gh.zwy.one/';
+
+  /// 镜像源下拉可选项，第一项即默认；ghproxy.net 为旧版默认，保留供切换。
+  static const updateMirrorPrefixOptions = <String>[
+    defaultUpdateMirrorPrefix,
+    'https://ghproxy.net/',
+  ];
 
   static const appLogoPaths = ThemeSettings.appLogoPaths;
 

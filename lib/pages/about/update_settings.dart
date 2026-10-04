@@ -1,6 +1,9 @@
 part of '../about_page.dart';
 
 extension _AboutPageUpdateSettings on _AboutPageState {
+  /// 下拉里「自定义」项的哨兵值，正常镜像 URL 不会长这样。
+  static const _customMirrorOption = '__custom__';
+
   bool _isValidUpdateMirrorPrefix(String value) {
     final uri = Uri.tryParse(value);
     return uri != null &&
@@ -9,6 +12,7 @@ extension _AboutPageUpdateSettings on _AboutPageState {
         (uri.scheme == 'http' || uri.scheme == 'https');
   }
 
+  /// 自定义镜像输入框（保留原有能力），保存后即成为下拉当前项。
   Future<void> _editUpdateMirrorPrefix() async {
     final l10n = AppLocalizations.of(context)!;
     final formKey = GlobalKey<FormState>();
@@ -18,49 +22,32 @@ extension _AboutPageUpdateSettings on _AboutPageState {
     final mirrorPrefix = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
-        final cs = Theme.of(dialogContext).colorScheme;
-        final tt = Theme.of(dialogContext).textTheme;
-
         return TextControllerScope(
           initialText: _user.updateMirrorPrefix,
           builder: (dialogContext, controller) => AlertDialog(
             title: Text(l10n.aboutMirrorPrefixTitle),
             content: Form(
               key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.aboutMirrorPrefixDesc,
-                      style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: controller,
-                      autofocus: true,
-                      keyboardType: TextInputType.url,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                      ],
-                      decoration: InputDecoration(
-                        labelText: l10n.aboutMirrorPrefixLabel,
-                        hintText: UserManager.defaultUpdateMirrorPrefix,
-                        helperText: l10n.aboutMirrorPrefixHelper,
-                        border: const OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        final trimmed = value?.trim() ?? '';
-                        if (trimmed.isEmpty) return null;
-                        if (!_isValidUpdateMirrorPrefix(trimmed)) {
-                          return l10n.aboutInvalidMirrorPrefix;
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
+              child: TextFormField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                ],
+                decoration: InputDecoration(
+                  labelText: l10n.aboutMirrorPrefixLabel,
+                  helperText: l10n.aboutMirrorPrefixHelper,
+                  border: const OutlineInputBorder(),
                 ),
+                validator: (value) {
+                  final trimmed = value?.trim() ?? '';
+                  if (trimmed.isEmpty) return null;
+                  if (!_isValidUpdateMirrorPrefix(trimmed)) {
+                    return l10n.aboutInvalidMirrorPrefix;
+                  }
+                  return null;
+                },
               ),
             ),
             actions: [
@@ -93,6 +80,61 @@ extension _AboutPageUpdateSettings on _AboutPageState {
     await _user.setUpdateMirrorPrefix(mirrorPrefix);
     if (!mounted) return;
     showToast(context, l10n.aboutMirrorPrefixSavedToast);
+  }
+
+  /// 镜像源弹出菜单（对齐账号中心列表项的 trailing 菜单）：预设 + 当前存储值
+  /// （备份恢复的自定义值不在预设里时也要能显示保留）+ 自定义入口。按钮上只
+  /// 显示当前镜像主机名并限宽，避免把 ListTile 标题挤成多行。
+  Widget _buildUpdateMirrorDropdown(AppLocalizations l10n) {
+    final current = _user.updateMirrorPrefix;
+    final options = UserManager.updateMirrorPrefixOptions.contains(current)
+        ? UserManager.updateMirrorPrefixOptions
+        : [...UserManager.updateMirrorPrefixOptions, current];
+    return PopupMenuButton<String>(
+      tooltip: l10n.aboutMirrorPrefixTitle,
+      onSelected: (value) async {
+        if (value == _customMirrorOption) {
+          await _editUpdateMirrorPrefix();
+          return;
+        }
+        if (value == current) return;
+        await _user.setUpdateMirrorPrefix(value);
+        if (!mounted) return;
+        showToast(context, l10n.aboutMirrorPrefixSavedToast);
+      },
+      itemBuilder: (_) => [
+        for (final option in options)
+          PopupMenuItem(value: option, child: Text(option)),
+        PopupMenuItem(
+          value: _customMirrorOption,
+          child: Text(l10n.networkCopyLoginDomainCustom),
+        ),
+      ],
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Text(
+              _mirrorHostLabel(current),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Icon(
+            Icons.arrow_drop_down_rounded,
+            size: 20,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 按钮上的短标签：只取镜像地址的主机名，解析失败回退原串。
+  String _mirrorHostLabel(String prefix) {
+    final uri = Uri.tryParse(prefix);
+    return (uri?.host.isNotEmpty ?? false) ? uri!.host : prefix;
   }
 
   Widget _buildUpdateChannelChip(ColorScheme cs, AppLocalizations l10n) {
@@ -237,8 +279,7 @@ extension _AboutPageUpdateSettings on _AboutPageState {
         ListTile(
           leading: const Icon(Icons.public),
           title: Text(l10n.aboutMirrorPrefixTitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: _editUpdateMirrorPrefix,
+          trailing: _buildUpdateMirrorDropdown(l10n),
         ),
       ],
     );

@@ -180,6 +180,32 @@ void main() {
     );
   });
 
+  test('update mirror prefix defaults to gh.zwy.one and persists', () async {
+    final user = UserManager();
+    await user.init();
+
+    expect(UserManager.defaultUpdateMirrorPrefix, 'https://gh.zwy.one/');
+    expect(UserManager.updateMirrorPrefixOptions, [
+      'https://gh.zwy.one/',
+      'https://ghproxy.net/',
+    ]);
+
+    // 空值回落默认，合法地址补全尾斜杠。
+    expect(
+      UserManager.normalizeUpdateMirrorPrefix(''),
+      UserManager.defaultUpdateMirrorPrefix,
+    );
+    expect(
+      UserManager.normalizeUpdateMirrorPrefix('https://gh.zwy.one'),
+      'https://gh.zwy.one/',
+    );
+
+    await user.setUpdateMirrorPrefix('https://ghproxy.net');
+    expect(user.updateMirrorPrefix, 'https://ghproxy.net/');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('update_mirror_prefix'), 'https://ghproxy.net/');
+  });
+
   test('session survives a restart when secure storage was wiped and only the '
       'prefs mirror remains', () async {
     // Simulates the reported device: v1.7 moved the token out of prefs, the
