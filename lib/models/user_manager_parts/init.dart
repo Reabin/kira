@@ -166,7 +166,6 @@ extension UserManagerInitPart on UserManager {
     _updateChannel = prefs.getString(UserManager._keyUpdateChannel) == 'beta'
         ? 'beta'
         : 'stable';
-    _lastBetaAssetName = prefs.getString(UserManager._keyLastBetaAssetName);
     _useUpdateMirror = prefs.getBool(UserManager._keyUseUpdateMirror) ?? true;
     _autoLogin = prefs.getBool(UserManager._keyAutoLogin) ?? false;
     _disclaimerAccepted =

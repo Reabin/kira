@@ -192,6 +192,7 @@ extension _AboutPageUpdateSettings on _AboutPageState {
     if (result != null && result != _user.updateChannel) {
       await _user.setUpdateChannel(result);
       if (!mounted) return;
+      unawaited(AppUpdateService.checkAndPrompt(context));
       if (result == 'beta') {
         await showDialog<void>(
           context: context,

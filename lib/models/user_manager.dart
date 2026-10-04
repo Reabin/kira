@@ -215,7 +215,6 @@ class UserManager extends ChangeNotifier {
   static const _keySkippedUpdateVersion = 'skipped_update_version';
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
   static const _keyUpdateChannel = 'update_channel'; // stable | beta
-  static const _keyLastBetaAssetName = 'last_beta_asset_name';
   static const _keyUseUpdateMirror = 'use_update_mirror';
   static const _keyAutoLogin = 'auto_login';
   static const _keyDisclaimerAccepted = 'disclaimer_accepted';
@@ -288,7 +287,6 @@ class UserManager extends ChangeNotifier {
   String? _skippedUpdateVersion;
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
   String _updateChannel = 'stable'; // stable | beta
-  String? _lastBetaAssetName;
   bool _useUpdateMirror = true;
   bool _autoLogin = false;
   bool _disclaimerAccepted = false;
@@ -407,7 +405,6 @@ class UserManager extends ChangeNotifier {
   String get updateMirrorPrefix => _updateMirrorPrefix;
   String get updateChannel => _updateChannel;
   bool get isBetaUpdateChannel => _updateChannel == 'beta';
-  String? get lastBetaAssetName => _lastBetaAssetName;
   bool get useUpdateMirror => _useUpdateMirror;
   bool get autoLogin => _autoLogin;
   bool get disclaimerAccepted => _disclaimerAccepted;

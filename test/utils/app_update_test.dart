@@ -122,7 +122,6 @@ void main() {
       required String currentBuildNumber,
       required List<ReleaseAsset> assets,
       AssetPlatform platform = AssetPlatform.windows,
-      String? lastBetaAssetName,
     }) {
       return AppUpdateService.buildBetaUpdateInfo(
         currentVersion: '1.3.2',
@@ -133,7 +132,6 @@ void main() {
         releasePageUrl: '',
         assets: assets,
         currentPlatform: platform,
-        lastBetaAssetName: lastBetaAssetName,
       );
     }
 
@@ -183,9 +181,25 @@ void main() {
       expect(info.assets.first.platform, AssetPlatform.windows);
     });
 
-    test('auto check dedupes on the newest platform asset name', () {
+    test('repeated checks keep an uninstalled newer build available', () {
+      final assets = [
+        asset(
+          'kira-1.3.3+371-windows.exe',
+          platform: AssetPlatform.windows,
+          versionParts: [1, 3, 3, 371],
+        ),
+      ];
+      final first = check(currentBuildNumber: '370', assets: assets);
+      final second = check(currentBuildNumber: '370', assets: assets);
+      expect(first, isNotNull);
+      expect(second, isNotNull);
+      expect(first!.isCurrentVersion, isFalse);
+      expect(second!.isCurrentVersion, isFalse);
+    });
+
+    test('installed latest build reports current version', () {
       final info = check(
-        currentBuildNumber: '370',
+        currentBuildNumber: '371',
         assets: [
           asset(
             'kira-1.3.3+371-windows.exe',
@@ -193,12 +207,12 @@ void main() {
             versionParts: [1, 3, 3, 371],
           ),
         ],
-        lastBetaAssetName: 'kira-1.3.3+371-windows.exe',
       );
-      expect(info, isNull);
+      expect(info, isNotNull);
+      expect(info!.isCurrentVersion, isTrue);
     });
 
-    test('dedupe ignores non-platform asset names', () {
+    test('newer non-platform assets do not affect the selected build', () {
       final info = check(
         currentBuildNumber: '370',
         assets: [
@@ -213,9 +227,9 @@ void main() {
             versionParts: [1, 3, 3, 372],
           ),
         ],
-        lastBetaAssetName: 'kira-1.3.3+372-arm64-v8a.apk',
       );
       expect(info, isNotNull);
+      expect(info!.assets.first.name, 'kira-1.3.3+371-windows.exe');
     });
 
     test('no platform asset at all is not an update', () {

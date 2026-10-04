@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -42,11 +43,14 @@ class _AboutPageState extends State<AboutPage> {
   void initState() {
     super.initState();
     _user.addListener(_onChanged);
+    AppUpdateService.hasUnseenUpdate.addListener(
+      AppUpdateService.markUpdateBadgeSeen,
+    );
     // Entry dots (profile "About" + bottom-nav) clear on open; update card keeps state.
     AppUpdateService.markUpdateBadgeSeen();
     // If no check has run yet, silently fetch so the About page can show the
-    // current version's changelog (and surface an available update). auto=true
-    // keeps it badge-free and toast-free.
+    // current version's changelog (and surface an available update). The badge
+    // listener also marks results arriving while this page is open as seen.
     if (AppUpdateService.state.value.status == AppUpdateStatus.idle) {
       AppUpdateService.checkAndPrompt(context, auto: true);
     }
@@ -55,6 +59,9 @@ class _AboutPageState extends State<AboutPage> {
   @override
   void dispose() {
     _user.removeListener(_onChanged);
+    AppUpdateService.hasUnseenUpdate.removeListener(
+      AppUpdateService.markUpdateBadgeSeen,
+    );
     super.dispose();
   }
 

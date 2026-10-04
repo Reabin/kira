@@ -80,7 +80,12 @@ extension _UpdateCardActions on _UpdateCardState {
   Future<void> _skipVersion() async {
     final info = AppUpdateService.state.value.info;
     if (info == null) return;
-    await UserManager().setSkippedUpdateVersion(info.latestVersion);
+    if (info.isBetaChannel) {
+      await UserManager().setAutoCheckUpdate(false);
+    } else {
+      await UserManager().setSkippedUpdateVersion(info.latestVersion);
+    }
+    if (!identical(AppUpdateService.state.value.info, info)) return;
     // Clear so the card disappears and any entry dots stay off.
     AppUpdateService.state.value = const AppUpdateState.latest();
     AppUpdateService.markUpdateBadgeSeen();

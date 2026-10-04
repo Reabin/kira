@@ -38,18 +38,6 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setLastBetaAssetName(String? name) async {
-    if (_lastBetaAssetName == name) return;
-    _lastBetaAssetName = name;
-    final prefs = await SharedPreferences.getInstance();
-    if (name == null || name.isEmpty) {
-      await prefs.remove(UserManager._keyLastBetaAssetName);
-    } else {
-      await prefs.setString(UserManager._keyLastBetaAssetName, name);
-    }
-    _notifyListeners();
-  }
-
   Future<void> setUseUpdateMirror(bool value) async {
     if (_useUpdateMirror == value) return;
     _useUpdateMirror = value;

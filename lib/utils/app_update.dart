@@ -162,6 +162,13 @@ class AppUpdateService {
     ),
   );
 
+  @visibleForTesting
+  static Dio get dioForTesting => _dio;
+
+  // Only the most recently started check may publish a result. In particular,
+  // an old channel's slow response must not overwrite a channel switch.
+  static int _checkId = 0;
+
   /// App-wide observable update state. About page update card listens here.
   static final ValueNotifier<AppUpdateState> state = ValueNotifier(
     const AppUpdateState.idle(),
@@ -189,10 +196,10 @@ class AppUpdateService {
   static Future<AppUpdateInfo?> checkForUpdate({
     bool respectSkippedVersion = true,
   }) async {
-    final packageInfo = await PackageInfo.fromPlatform();
-    final currentVersion = packageInfo.version;
     final user = UserManager();
     final isBeta = user.isBetaUpdateChannel;
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = packageInfo.version;
     final url = isBeta ? _ciReleaseUrl : _latestReleaseUrl;
     final response = await _dio.get(url);
     final data = Map<String, dynamic>.from(response.data as Map);
@@ -208,8 +215,6 @@ class AppUpdateService {
     final currentPlatform = _currentPlatform();
 
     if (isBeta) {
-      // Manual checks (respectSkippedVersion == false) must not dedupe
-      // against the last-seen build, hence the null when auto.
       return buildBetaUpdateInfo(
         currentVersion: currentVersion,
         currentBuildNumber: packageInfo.buildNumber,
@@ -219,9 +224,6 @@ class AppUpdateService {
         releasePageUrl: releasePageUrl,
         assets: assets,
         currentPlatform: currentPlatform,
-        lastBetaAssetName: respectSkippedVersion
-            ? user.lastBetaAssetName
-            : null,
       );
     }
 
@@ -309,9 +311,9 @@ class AppUpdateService {
   }
 
   /// Beta channel points to the CI tag. New CI runs append assets.
-  /// Assets are sorted by internal build number descending, falling back to time.
-  /// Update checks compare build numbers and use the latest platform asset
-  /// name ([lastBetaAssetName], null on manual checks) to dedupe auto prompts.
+  /// Assets are sorted by version descending, falling back to time.
+  /// Update checks compare installed build numbers; merely discovering a build
+  /// must not hide it on subsequent checks before the user installs it.
   ///
   /// Only assets matching [currentPlatform] decide "is there an update" — a
   /// Windows install must not be prompted because a newer APK CI build landed.
@@ -325,7 +327,6 @@ class AppUpdateService {
     required String releasePageUrl,
     required List<ReleaseAsset> assets,
     required AssetPlatform currentPlatform,
-    String? lastBetaAssetName,
   }) {
     final platformAssets = assets
         .where((asset) => asset.platform == currentPlatform)
@@ -342,7 +343,7 @@ class AppUpdateService {
       );
     }
 
-    // Highest version is the latest build for comparison and auto-check dedupe.
+    // Highest version is the latest build for comparison.
     final newest = _maxByVersion(platformAssets);
 
     // Compare internal build number: current >= latest means no update.
@@ -362,10 +363,6 @@ class AppUpdateService {
           isCurrentVersion: true,
         );
       }
-    }
-
-    if (lastBetaAssetName == newest.name) {
-      return null;
     }
 
     assets.sort((a, b) {
@@ -480,9 +477,15 @@ class AppUpdateService {
     BuildContext context, {
     bool auto = false,
   }) async {
+    final checkId = ++_checkId;
+    final channel = UserManager().updateChannel;
+    bool isCurrentCheck() =>
+        checkId == _checkId && channel == UserManager().updateChannel;
+
     state.value = const AppUpdateState.checking();
     try {
       final updateInfo = await checkForUpdate(respectSkippedVersion: auto);
+      if (!isCurrentCheck()) return;
       if (updateInfo == null) {
         state.value = const AppUpdateState.latest();
         hasUnseenUpdate.value = false;
@@ -517,11 +520,6 @@ class AppUpdateService {
         return;
       }
 
-      // Record latest beta build to dedupe auto-check prompts.
-      if (updateInfo.isBetaChannel && updateInfo.assets.isNotEmpty) {
-        await UserManager().setLastBetaAssetName(updateInfo.assets.first.name);
-      }
-
       state.value = AppUpdateState.available(updateInfo);
       // Manual check is only triggered from About; keep the badge off so
       // leaving the page does not re-light a dot the user already saw.
@@ -532,6 +530,7 @@ class AppUpdateService {
         stackTrace: st,
         source: 'app_update',
       );
+      if (!isCurrentCheck()) return;
       // Open-source project: surface the raw error as-is. No need to dress
       // it up — the raw message (DioException includes status code, URL,
       // type) is the most useful thing to show.
