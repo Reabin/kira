@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../utils/app_logger.dart';
+import '../utils/app_storage.dart';
 import 'user_manager.dart';
 
 /// Manages secure storage of user credentials using platform keychain/keystore.
@@ -12,6 +15,17 @@ import 'user_manager.dart';
 /// On first launch after migration, transparently moves any plaintext
 /// credentials previously stored in SharedPreferences into secure storage
 /// and deletes the old entries.
+///
+/// Every entry is additionally mirrored into SharedPreferences under a
+/// `secure_mirror_` prefix (see [_mirrorPrefix]). Some Android devices lose
+/// secure-storage data or throw on reads (keystore invalidation, vendor
+/// cleanup, cloned-app spaces…); since v1.7 the session token lives only
+/// here, so a read failure used to log the user out on every restart. Reads
+/// prefer secure storage and fall back to the mirror, restoring secure
+/// storage best-effort when the mirror wins. The trade-off is plaintext
+/// credentials in prefs, accepted deliberately for availability: backup
+/// export is allowlist-based (mirrors never leave the device) and the cache
+/// management page masks the prefix as sensitive.
 ///
 /// In test environments, call [setInstance] with an in-memory override
 /// before running any code that accesses this store.
@@ -39,6 +53,13 @@ class SecureCredentialStore {
   static const _keyBackupRollbackKey = 'backup_rollback_key_v1';
   static const _keyCopyAccount = 'copy_account_v1';
 
+  /// Prefix of the SharedPreferences mirror keys. Kept distinct from the
+  /// legacy plaintext keys so the migration's removePref calls and
+  /// UserManager's own prefs cleanup never clobber the fallback copies.
+  static const _mirrorPrefix = 'secure_mirror_';
+
+  String _mirrorKey(String key) => '$_mirrorPrefix$key';
+
   // ── Read ───────────────────────────────────────────────────────────
 
   /// widget 测试里没有平台通道，`FlutterSecureStorage` 的 Future 既不完成也不
@@ -47,6 +68,12 @@ class SecureCredentialStore {
   /// 整个测试文件 10 分钟超时。
   static final bool _platformAvailable =
       Platform.environment['FLUTTER_TEST'] != 'true';
+
+  /// Whether the prefs mirror layer is active. False in widget tests, where
+  /// [InMemorySecureCredentialStore] stands in for the platform store and
+  /// SharedPreferences must stay untouched.
+  @protected
+  bool get mirrorEnabled => _platformAvailable;
 
   @protected
   Future<String?> doRead(String key) async {
@@ -78,25 +105,132 @@ class SecureCredentialStore {
     }
   }
 
-  Future<String?> readUsername() => doRead(_keyUsername);
-  // Empty is a logout tombstone, distinct from an unmigrated missing record.
-  Future<String?> readToken() => doRead(_keyToken);
-  Future<void> writeToken(String? value) => doWrite(_keyToken, value ?? '');
+  /// Reads [key] from secure storage, falling back to the prefs mirror when
+  /// secure storage throws or misses. A mirror hit restores secure storage
+  /// best-effort, so a wiped keystore heals instead of staying empty.
+  @protected
+  Future<String?> readWithFallback(String key) async {
+    String? value;
+    try {
+      value = await doRead(key);
+    } catch (error, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          StateError('Secure storage read failed for $key'),
+          stackTrace: stack,
+          source: 'secure_credential_store.fallback',
+        ),
+      );
+      value = null;
+    }
+    if (value != null) {
+      // Keep the mirror fresh so it can serve after a later secure outage.
+      final mirrored = await _mirrorRead(key);
+      if (mirrored != value) await _mirrorWrite(key, value);
+      return value;
+    }
+    final mirrored = await _mirrorRead(key);
+    if (mirrored == null) return null;
+    try {
+      await doWrite(key, mirrored);
+    } catch (error, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          StateError('Secure storage mirror restore failed for $key'),
+          stackTrace: stack,
+          source: 'secure_credential_store.fallback',
+        ),
+      );
+    }
+    return mirrored;
+  }
 
-  Future<String?> readPassword() => doRead(_keyPassword);
+  /// Writes [key] to secure storage and refreshes the prefs mirror. Secure
+  /// write failures still propagate — login commits and rollback depend on
+  /// them; the mirror is best-effort resilience only.
+  @protected
+  Future<void> writeWithMirror(String key, String value) async {
+    await doWrite(key, value);
+    await _mirrorWrite(key, value);
+  }
+
+  @protected
+  Future<void> deleteWithMirror(String key) async {
+    await doDelete(key);
+    await _mirrorDelete(key);
+  }
+
+  Future<void> _mirrorWrite(String key, String value) async {
+    if (!mirrorEnabled) return;
+    try {
+      final prefs = await AppStorage.sharedPreferences();
+      await prefs.setString(_mirrorKey(key), value);
+    } catch (error, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          error,
+          stackTrace: stack,
+          source: 'secure_credential_store.mirror_write',
+        ),
+      );
+    }
+  }
+
+  Future<String?> _mirrorRead(String key) async {
+    if (!mirrorEnabled) return null;
+    try {
+      final prefs = await AppStorage.sharedPreferences();
+      return prefs.getString(_mirrorKey(key));
+    } catch (error, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          error,
+          stackTrace: stack,
+          source: 'secure_credential_store.mirror_read',
+        ),
+      );
+      return null;
+    }
+  }
+
+  Future<void> _mirrorDelete(String key) async {
+    if (!mirrorEnabled) return;
+    try {
+      final prefs = await AppStorage.sharedPreferences();
+      await prefs.remove(_mirrorKey(key));
+    } catch (error, stack) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          error,
+          stackTrace: stack,
+          source: 'secure_credential_store.mirror_delete',
+        ),
+      );
+    }
+  }
+
+  Future<String?> readUsername() => readWithFallback(_keyUsername);
+  // Empty is a logout tombstone, distinct from an unmigrated missing record.
+  Future<String?> readToken() => readWithFallback(_keyToken);
+  Future<void> writeToken(String? value) =>
+      writeWithMirror(_keyToken, value ?? '');
+
+  Future<String?> readPassword() => readWithFallback(_keyPassword);
 
   Future<bool> credentialsMigrated() async =>
-      await doRead(_keyMigrated) == 'true';
+      await readWithFallback(_keyMigrated) == 'true';
 
-  Future<String?> readWebDavCredentials() => doRead(_keyWebDavCredentials);
-  Future<String?> readBackupPassword() => doRead(_keyBackupPassword);
-  Future<String?> readBackupRollbackKey() => doRead(_keyBackupRollbackKey);
-  Future<String?> readCopyAccountRecord() => doRead(_keyCopyAccount);
+  Future<String?> readWebDavCredentials() =>
+      readWithFallback(_keyWebDavCredentials);
+  Future<String?> readBackupPassword() => readWithFallback(_keyBackupPassword);
+  Future<String?> readBackupRollbackKey() =>
+      readWithFallback(_keyBackupRollbackKey);
+  Future<String?> readCopyAccountRecord() => readWithFallback(_keyCopyAccount);
 
   /// A null session must be encoded in the record, not deleted: it is the
   /// durable marker that prevents legacy primary COPY logins being reimported.
   Future<void> writeCopyAccountRecord(String value) =>
-      doWrite(_keyCopyAccount, value);
+      writeWithMirror(_keyCopyAccount, value);
 
   Future<void> writeWebDavCredentials(String? value) =>
       _writeOptional(_keyWebDavCredentials, value);
@@ -106,10 +240,10 @@ class SecureCredentialStore {
       _writeOptional(_keyBackupRollbackKey, value);
 
   Future<void> _writeOptional(String key, String? value) =>
-      value == null ? doDelete(key) : doWrite(key, value);
+      value == null ? deleteWithMirror(key) : writeWithMirror(key, value);
 
   Future<List<SavedCredential>> readCredentials() async {
-    final raw = await doRead(_keyCredentials);
+    final raw = await readWithFallback(_keyCredentials);
     if (raw == null || raw.isEmpty) return [];
     try {
       final decoded = jsonDecode(raw);
@@ -128,25 +262,25 @@ class SecureCredentialStore {
 
   Future<void> writeUsername(String? value) async {
     if (value == null || value.isEmpty) {
-      await doDelete(_keyUsername);
+      await deleteWithMirror(_keyUsername);
     } else {
-      await doWrite(_keyUsername, value);
+      await writeWithMirror(_keyUsername, value);
     }
   }
 
   Future<void> writePassword(String? value) async {
     if (value == null || value.isEmpty) {
-      await doDelete(_keyPassword);
+      await deleteWithMirror(_keyPassword);
     } else {
-      await doWrite(_keyPassword, value);
+      await writeWithMirror(_keyPassword, value);
     }
   }
 
   Future<void> writeCredentials(List<SavedCredential> credentials) async {
     if (credentials.isEmpty) {
-      await doDelete(_keyCredentials);
+      await deleteWithMirror(_keyCredentials);
     } else {
-      await doWrite(
+      await writeWithMirror(
         _keyCredentials,
         jsonEncode(credentials.map((e) => e.toJson()).toList()),
       );
@@ -156,14 +290,14 @@ class SecureCredentialStore {
   // ── Delete ─────────────────────────────────────────────────────────
 
   Future<void> deleteAll() async {
-    await doDelete(_keyToken);
-    await doDelete(_keyUsername);
-    await doDelete(_keyPassword);
-    await doDelete(_keyCredentials);
-    await doDelete(_keyWebDavCredentials);
-    await doDelete(_keyBackupPassword);
-    await doDelete(_keyBackupRollbackKey);
-    await doDelete(_keyCopyAccount);
+    await deleteWithMirror(_keyToken);
+    await deleteWithMirror(_keyUsername);
+    await deleteWithMirror(_keyPassword);
+    await deleteWithMirror(_keyCredentials);
+    await deleteWithMirror(_keyWebDavCredentials);
+    await deleteWithMirror(_keyBackupPassword);
+    await deleteWithMirror(_keyBackupRollbackKey);
+    await deleteWithMirror(_keyCopyAccount);
   }
 
   // ── Migration ──────────────────────────────────────────────────────
@@ -172,7 +306,7 @@ class SecureCredentialStore {
     Map<String, Object?> prefsMap,
     Future<void> Function(String key) removePref,
   ) async {
-    final alreadyMigrated = await doRead(_keyMigrated) == 'true';
+    final alreadyMigrated = await readWithFallback(_keyMigrated) == 'true';
     if (alreadyMigrated) return;
 
     final oldUsername = prefsMap[_keyUsername] as String?;
@@ -180,20 +314,20 @@ class SecureCredentialStore {
     final oldCredentialsRaw = prefsMap[_keyCredentials] as String?;
 
     if (oldUsername != null && oldUsername.isNotEmpty) {
-      await doWrite(_keyUsername, oldUsername);
+      await writeWithMirror(_keyUsername, oldUsername);
     }
     if (oldPassword != null && oldPassword.isNotEmpty) {
-      await doWrite(_keyPassword, oldPassword);
+      await writeWithMirror(_keyPassword, oldPassword);
     }
     if (oldCredentialsRaw != null && oldCredentialsRaw.isNotEmpty) {
-      await doWrite(_keyCredentials, oldCredentialsRaw);
+      await writeWithMirror(_keyCredentials, oldCredentialsRaw);
     }
 
     await removePref(_keyUsername);
     await removePref(_keyPassword);
     await removePref(_keyCredentials);
 
-    await doWrite(_keyMigrated, 'true');
+    await writeWithMirror(_keyMigrated, 'true');
   }
 }
 

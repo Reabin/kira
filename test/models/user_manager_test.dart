@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kira/models/secure_credential_store.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -178,4 +179,46 @@ void main() {
       UserManager.defaultDisplayModeRefreshRate,
     );
   });
+
+  test('session survives a restart when secure storage was wiped and only the '
+      'prefs mirror remains', () async {
+    // Simulates the reported device: v1.7 moved the token out of prefs, the
+    // keystore lost it, only the mirror is left. init() must restore the
+    // session from the mirror and heal the secure layer.
+    final store = _WipedSecureStore();
+    SecureCredentialStore.setInstance(store);
+    SharedPreferences.setMockInitialValues({
+      'login_source': 'copy',
+      'secure_mirror_user_token': 'copy-token',
+    });
+
+    final user = UserManager();
+    await user.init();
+
+    expect(user.isLoggedIn, isTrue);
+    expect(user.token, 'copy-token');
+    expect(store.secure['user_token'], 'copy-token');
+  });
+}
+
+/// Secure layer that starts wiped: reads see nothing until something writes,
+/// which is what a device with lost keystore data looks like at startup.
+class _WipedSecureStore extends InMemorySecureCredentialStore {
+  final secure = <String, String?>{};
+
+  @override
+  bool get mirrorEnabled => true;
+
+  @override
+  Future<String?> doRead(String key) async => secure[key];
+
+  @override
+  Future<void> doWrite(String key, String value) async {
+    secure[key] = value;
+  }
+
+  @override
+  Future<void> doDelete(String key) async {
+    secure.remove(key);
+  }
 }

@@ -13,7 +13,10 @@ extension _CacheEntryFormat on _CacheManagementPageState {
       return _CacheCategory.persistentCache;
     }
     if (_CacheManagementPageState._accountKeys.contains(key) ||
-        key.startsWith('user_')) {
+        key.startsWith('user_') ||
+        // SecureCredentialStore 的 prefs 兜底镜像（secure_mirror_*）：与账号
+        // 凭据同生命周期，不得混入可清理分区，统一按账号项展示并脱敏。
+        key.startsWith('secure_mirror_')) {
       return _CacheCategory.account;
     }
     if (key.startsWith('search_history_')) return _CacheCategory.searchHistory;
@@ -65,6 +68,7 @@ extension _CacheEntryFormat on _CacheManagementPageState {
   }
 
   bool _isSensitiveKey(String key) {
+    if (key.startsWith('secure_mirror_')) return true;
     final normalized = key.toLowerCase();
     return normalized.contains('password') ||
         normalized.contains('token') ||

@@ -3,8 +3,40 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/secure_credential_store.dart';
 import 'package:kira/models/user_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Secure layer backed by a controllable map: reads can be made to throw to
+/// simulate a broken keystore, and the mirror layer stays enabled so the
+/// prefs fallback can be exercised.
+class _MirrorableStore extends InMemorySecureCredentialStore {
+  final secure = <String, String?>{};
+  bool failSecureReads = false;
+
+  @override
+  bool get mirrorEnabled => true;
+
+  @override
+  Future<String?> doRead(String key) async {
+    if (failSecureReads) {
+      throw StateError('Injected secure read failure');
+    }
+    return secure[key];
+  }
+
+  @override
+  Future<void> doWrite(String key, String value) async {
+    secure[key] = value;
+  }
+
+  @override
+  Future<void> doDelete(String key) async {
+    secure.remove(key);
+  }
+}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late InMemorySecureCredentialStore store;
 
   setUp(() {
@@ -203,6 +235,113 @@ void main() {
         'saved_password',
         'saved_credentials',
       ]);
+    });
+  });
+
+  // ── Prefs mirror (dual-write fallback) ───────────────────────────────
+
+  group('prefs mirror', () {
+    late _MirrorableStore mirrorStore;
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      mirrorStore = _MirrorableStore();
+    });
+
+    test('writes are mirrored into prefs', () async {
+      await mirrorStore.writeToken('token-1');
+      await mirrorStore.writeUsername('alice');
+
+      expect(prefs.getString('secure_mirror_user_token'), 'token-1');
+      expect(prefs.getString('secure_mirror_saved_username'), 'alice');
+      expect(await mirrorStore.readToken(), 'token-1');
+      expect(await mirrorStore.readUsername(), 'alice');
+    });
+
+    test(
+      'read falls back to the mirror and heals secure storage after a wipe',
+      () async {
+        await mirrorStore.writeToken('token-1');
+        await mirrorStore.writePassword('pw');
+        mirrorStore.secure.clear();
+
+        expect(await mirrorStore.readToken(), 'token-1');
+        expect(await mirrorStore.readPassword(), 'pw');
+        // The mirror hit is written back so the primary layer recovers.
+        expect(mirrorStore.secure['user_token'], 'token-1');
+        expect(mirrorStore.secure['saved_password'], 'pw');
+      },
+    );
+
+    test('read falls back when secure storage throws', () async {
+      await mirrorStore.writeCredentials([
+        const SavedCredential(username: 'u', password: 'p'),
+      ]);
+      mirrorStore.failSecureReads = true;
+
+      final creds = await mirrorStore.readCredentials();
+      expect(creds.single.username, 'u');
+      expect(creds.single.password, 'p');
+    });
+
+    test(
+      'logout tombstone survives a secure wipe without resurrecting',
+      () async {
+        await mirrorStore.writeToken('token-1');
+        await mirrorStore.writeToken(null);
+        mirrorStore.secure.clear();
+
+        // The mirrored empty string is the logout marker: an empty secure
+        // layer must not bring the old token back.
+        expect(await mirrorStore.readToken(), '');
+      },
+    );
+
+    test('deletes clear the mirror', () async {
+      await mirrorStore.writePassword('pw');
+      await mirrorStore.writePassword(null);
+      mirrorStore.secure.clear();
+
+      expect(prefs.getString('secure_mirror_saved_password'), isNull);
+      expect(await mirrorStore.readPassword(), isNull);
+    });
+
+    test('deleteAll clears mirrors too', () async {
+      await mirrorStore.writeToken('token-1');
+      await mirrorStore.writeUsername('alice');
+      await mirrorStore.writePassword('pw');
+
+      await mirrorStore.deleteAll();
+      mirrorStore.secure.clear();
+
+      expect(await mirrorStore.readToken(), isNull);
+      expect(await mirrorStore.readUsername(), isNull);
+      expect(await mirrorStore.readPassword(), isNull);
+      expect(
+        prefs.getKeys().where((key) => key.startsWith('secure_mirror_')),
+        isEmpty,
+      );
+    });
+
+    test('migration seeds the mirrors', () async {
+      await mirrorStore.migrateFromSharedPreferences({
+        'saved_username': 'old_user',
+        'saved_password': 'old_pass',
+      }, (key) async {});
+
+      expect(prefs.getString('secure_mirror_saved_username'), 'old_user');
+      expect(prefs.getString('secure_mirror_saved_password'), 'old_pass');
+    });
+
+    test('mirror stays disabled for the in-memory store', () async {
+      await store.writeUsername('alice');
+
+      expect(
+        prefs.getKeys().where((key) => key.startsWith('secure_mirror_')),
+        isEmpty,
+      );
     });
   });
 }

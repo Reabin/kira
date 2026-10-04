@@ -161,6 +161,9 @@ Future<void> deleteAll();
 ### 当前状态：已启用
 `UserManager.init()` 会调用 `migrateFromSharedPreferences`，把 SharedPreferences 里的 `user_token` / `saved_username` / `saved_password` / `saved_credentials` 迁移到安全存储并删除旧键；迁移只在安全存储确认写入后删除明文，写入失败时保留旧数据（try/catch 后只记日志，不阻断启动）。**空 token 是登出墓碑**，与「尚未迁移的缺失记录」语义不同，读取时不能把两者混为一谈。
 
+### prefs 兜底镜像（双写）
+个别 Android 设备上 secure storage 会丢数据或读取抛错（keystore 失效、系统清理、双开空间等），而 1.7 起会话 token 只存 secure storage——曾表现为「每次重启都掉登录」。因此 `SecureCredentialStore` 的所有写入/删除都会同步在 SharedPreferences 维护一份 `secure_mirror_<key>` 兜底副本；读取优先 secure，读不到（抛错或缺失）时回退镜像并尽力回写 secure 自愈（日志 source `secure_credential_store.fallback`）。secure 写失败仍照常抛出——登录事务回滚依赖它，镜像只是尽力而为。明文落 prefs 的安全代价已明确接受：备份是白名单制，`secure_mirror_*` 天然不导出；缓存管理页把该前缀归入账号分区并整键脱敏。测试环境与 `InMemorySecureCredentialStore` 下镜像层关闭。
+
 > 新增敏感凭据（token、密码、API key 等）时：**不要**沿用 SharedPreferences 明文模式，也不要塞进普通设置备份。
 
 测试注意：`FLUTTER_TEST=true` 时 `doRead/doWrite/doDelete` 直接返回空结果，不走平台通道——flutter_secure_storage 在缺少平台实现时 Future 既不完成也不抛错，会让 await 它的 `UserManager.init()` 永久挂起。需要真实凭据行为的用例请显式注入 `InMemorySecureCredentialStore`（见 `test/backup/account_backup_storage_test.dart`）。
