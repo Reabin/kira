@@ -2502,7 +2502,7 @@
   "copyAccountSwitch": "切换拷贝账号",
   "copyAccountLogout": "退出拷贝账号",
   "copyAccountLogoutConfirm": "仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。",
-  "copyAccountStorageFailed": "无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。",
+  "copyAccountStorageFailed": "无法保存拷贝账号，请稍后重试；原账号保持不变。",
   "copyAccountLoginSuperseded": "账号状态已改变，本次登录已取消，请重试。",
   "accountCenterTitle": "账号中心",
   "accountCenterActiveLabel": "使用中的账号",

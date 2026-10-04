@@ -2,92 +2,32 @@ part of '../user_manager.dart';
 
 extension UserManagerInitPart on UserManager {
   Future<void> init({bool persistMigrations = true}) async {
-    ++_accountRevision;
+    final revision = ++_accountRevision;
+    await _pendingAccountMutation;
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(UserManager._keyToken);
+    if (revision != _accountRevision) return;
     _username = prefs.getString(UserManager._keyUsername);
     _nickname = prefs.getString(UserManager._keyNickname);
     _avatar = prefs.getString(UserManager._keyAvatar);
     _userId = prefs.getString(UserManager._keyUserId);
     final accountId = prefs.getString(UserManager._keyAccountId)?.trim();
     _accountId = accountId?.isNotEmpty == true ? accountId : null;
-    _savedUsername = prefs.getString(UserManager._keySavedUsername);
-    _savedPassword = prefs.getString(UserManager._keySavedPassword);
-    final savedCredentialsRaw = prefs.getString(
-      UserManager._keySavedCredentials,
-    );
-    _savedCredentials = [];
-    if (savedCredentialsRaw != null && savedCredentialsRaw.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(savedCredentialsRaw);
-        if (decoded is List) {
-          _savedCredentials = decoded
-              .whereType<Map>()
-              .map(
-                (e) => SavedCredential.fromJson(Map<String, dynamic>.from(e)),
-              )
-              .where((e) => e.hasAccountKey)
-              .toList();
-        }
-      } catch (_) {
-        _savedCredentials = [];
-      }
-    }
-    if (_savedCredentials.isEmpty &&
-        _savedUsername != null &&
-        _savedUsername!.isNotEmpty &&
-        _savedPassword != null) {
-      _savedCredentials = [
-        SavedCredential(username: _savedUsername!, password: _savedPassword!),
-      ];
-    }
-    // Migrate only after safe storage accepts the complete credential data.
-    // During an outage the legacy session remains usable, without deleting it.
+    // The credential store alone chooses current records versus legacy aliases.
+    // A read-only reload must use the same values without migrating anything.
     try {
-      final secure = SecureCredentialStore();
-      if (persistMigrations) {
-        await secure.migrateFromSharedPreferences(
-          {for (final key in prefs.getKeys()) key: prefs.get(key)},
-          (key) async {
-            await prefs.remove(key);
-          },
-        );
-      }
-      final secureToken = await secure.readToken();
-      if (secureToken != null) {
-        _token = secureToken.isEmpty ? null : secureToken;
-      } else if (_token != null && persistMigrations) {
-        await secure.writeToken(_token);
-      }
-      if (persistMigrations && (secureToken != null || _token != null)) {
-        await prefs.remove(UserManager._keyToken);
-      }
-      final migrated = await secure.credentialsMigrated();
-      final secureUsername = await secure.readUsername();
-      final securePassword = await secure.readPassword();
-      _savedUsername = migrated
-          ? secureUsername
-          : secureUsername ?? _savedUsername;
-      _savedPassword = migrated
-          ? securePassword
-          : securePassword ?? _savedPassword;
-      final credentials = await secure.readCredentials();
-      if (migrated || credentials.isNotEmpty) _savedCredentials = credentials;
-      if (_savedCredentials.isEmpty &&
-          _savedUsername?.isNotEmpty == true &&
-          _savedPassword != null) {
-        _savedCredentials = [
-          SavedCredential(username: _savedUsername!, password: _savedPassword!),
-        ];
-      }
-    } catch (_) {
+      await readAccountStorage(
+        () => _loadCredentials(prefs, persistMigrations, revision),
+      );
+    } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
-          StateError('Credential migration unavailable'),
+          error,
+          stackTrace: stack,
           source: 'user_manager.init_credentials',
         ),
       );
     }
+    if (revision != _accountRevision) return;
     _themeMode = ThemeMode.values[prefs.getInt(UserManager._keyThemeMode) ?? 0];
     final savedThemeColor = prefs.getString(UserManager._keyThemeColor);
     _themeColor = savedThemeColor == customThemeOptionId
@@ -294,6 +234,7 @@ extension UserManagerInitPart on UserManager {
     await theme.initFromPrefs(prefs, persistMigrations: persistMigrations);
     await network.initFromPrefs(prefs, persistMigrations: persistMigrations);
     // loginSource is loaded late above; never infer COPY from token presence.
+    if (revision != _accountRevision) return;
     await copyAccount.init(
       legacySession: _loginSource == 'copy' && isLoggedIn
           ? CopyAccountSession(
@@ -307,6 +248,7 @@ extension UserManagerInitPart on UserManager {
           : null,
       persistMigrations: persistMigrations,
     );
+    if (revision != _accountRevision) return;
 
     // Forward sub-store notifications so legacy listeners on UserManager
     // still rebuild when domain settings change. init() may run more than once
@@ -324,5 +266,59 @@ extension UserManagerInitPart on UserManager {
     copyAccount.addListener(_onSubStoreChanged);
 
     _notifyListeners();
+  }
+
+  /// Migration copies raw legacy values; loading and normalization never write
+  /// them back. A failed migration must not hide a current value or tombstone.
+  /// Publish a complete snapshot only while this initialization is still current.
+  Future<void> _loadCredentials(
+    SharedPreferences prefs,
+    bool persistMigrations,
+    int revision,
+  ) async {
+    if (revision != _accountRevision) return;
+    final secure = SecureCredentialStore();
+    if (persistMigrations) {
+      try {
+        await secure.migrateFromSharedPreferences(
+          {for (final key in prefs.getKeys()) key: prefs.get(key)},
+          (key) async {
+            try {
+              await _requireAccountWrite(prefs.remove(key));
+            } catch (error, stack) {
+              await prefs.reload();
+              Error.throwWithStackTrace(error, stack);
+            }
+          },
+        );
+      } catch (error, stack) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            error,
+            stackTrace: stack,
+            source: 'user_manager.migrate_credentials',
+          ),
+        );
+      }
+    }
+    if (revision != _accountRevision) return;
+    final token = await secure.readToken();
+    final username = await secure.readUsername();
+    final password = await secure.readPassword();
+    final credentials = await secure.readCredentials();
+    final hasCredentialsRecord = await secure.hasCredentialsRecord();
+    if (revision != _accountRevision) return;
+    _token = token?.isNotEmpty == true ? token : null;
+    _savedUsername = username;
+    _savedPassword = password;
+    _savedCredentials = credentials;
+    if (!hasCredentialsRecord &&
+        _savedCredentials.isEmpty &&
+        username?.isNotEmpty == true &&
+        password != null) {
+      _savedCredentials = [
+        SavedCredential(username: username!, password: password),
+      ];
+    }
   }
 }

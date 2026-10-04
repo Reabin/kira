@@ -12,8 +12,8 @@ abstract interface class BackupPreferences {
   Future<void> remove(String key);
 }
 
-/// Exposes the original portable account keys over their current storage
-/// backends. COPY sessions and other device-local secure records stay private.
+/// Exposes portable account keys through the credential-store contract, not its
+/// physical preference names. COPY and other device-local records stay private.
 class SharedBackupPreferences implements BackupPreferences {
   static const secureAccountKeys = {
     'user_token',
@@ -28,44 +28,41 @@ class SharedBackupPreferences implements BackupPreferences {
     : _secure = secure ?? SecureCredentialStore();
 
   @override
-  Future<Map<String, Object>> readAll() =>
-      UserManager().readAccountStorage(() async {
-        final prefs = await SharedPreferences.getInstance();
-        final keys = prefs.getKeys().toList()..sort();
-        final snapshot = <String, Object>{};
-        for (final key in keys) {
-          final value = prefs.get(key);
-          if (value != null) {
-            snapshot[key] = value is List<String>
-                ? List<String>.of(value)
-                : value;
-          }
+  Future<Map<String, Object>> readAll() => UserManager().readAccountStorage(
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().toList()..sort();
+      final snapshot = <String, Object>{};
+      for (final key in keys) {
+        final value = prefs.get(key);
+        if (value != null) {
+          snapshot[key] = value is List<String>
+              ? List<String>.of(value)
+              : value;
         }
+      }
 
-        // Missing secure tokens may still be unmigrated. Empty tokens are
-        // deliberate logout tombstones and must override stale legacy tokens.
-        final token = await _secure.readToken();
-        if (token != null) snapshot['user_token'] = token;
-        final migrated = await _secure.credentialsMigrated();
-        for (final entry in {
-          'saved_username': await _secure.readUsername(),
-          'saved_password': await _secure.readPassword(),
-        }.entries) {
-          if (migrated || entry.value != null) snapshot.remove(entry.key);
-          final value = entry.value;
-          if (value != null) snapshot[entry.key] = value;
-        }
-        final credentials = await _secure.readCredentials();
-        if (migrated || credentials.isNotEmpty) {
-          snapshot.remove('saved_credentials');
-          if (credentials.isNotEmpty) {
-            snapshot['saved_credentials'] = jsonEncode(
-              credentials.map((credential) => credential.toJson()).toList(),
-            );
-          }
-        }
-        return snapshot;
-      });
+      // Reads already resolve current records, empty logout values and legacy
+      // aliases. Never let a stale raw preference override that effective view,
+      // including an explicitly empty saved-account array before migration.
+      snapshot.removeWhere((key, _) => secureAccountKeys.contains(key));
+      for (final entry in {
+        'user_token': await _secure.readToken(),
+        'saved_username': await _secure.readUsername(),
+        'saved_password': await _secure.readPassword(),
+      }.entries) {
+        final value = entry.value;
+        if (value != null) snapshot[entry.key] = value;
+      }
+      final credentials = await _secure.readCredentials();
+      if (credentials.isNotEmpty || await _secure.hasCredentialsRecord()) {
+        snapshot['saved_credentials'] = jsonEncode(
+          credentials.map((credential) => credential.toJson()).toList(),
+        );
+      }
+      return snapshot;
+    },
+  );
 
   @override
   Future<void> write(String key, Object value) async {

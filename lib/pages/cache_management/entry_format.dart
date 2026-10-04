@@ -14,9 +14,8 @@ extension _CacheEntryFormat on _CacheManagementPageState {
     }
     if (_CacheManagementPageState._accountKeys.contains(key) ||
         key.startsWith('user_') ||
-        // SecureCredentialStore 的 prefs 兜底镜像（secure_mirror_*）：与账号
-        // 凭据同生命周期，不得混入可清理分区，统一按账号项展示并脱敏。
-        key.startsWith('secure_mirror_')) {
+        SecureCredentialStore.logicalKeyForPreference(key) != null ||
+        key.startsWith(SecureCredentialStore.preferencePrefix)) {
       return _CacheCategory.account;
     }
     if (key.startsWith('search_history_')) return _CacheCategory.searchHistory;
@@ -67,8 +66,20 @@ extension _CacheEntryFormat on _CacheManagementPageState {
     return settingPrefixes.any(key.startsWith);
   }
 
+  bool _isProtectedCredentialKey(
+    String key,
+  ) => switch (SecureCredentialStore.logicalKeyForPreference(key)) {
+    // Removing the rollback key strands a pending encrypted restore. Removing
+    // the migration marker can revive already-cleared legacy saved accounts.
+    'backup_rollback_key_v1' || 'credentials_migrated_to_secure' => true,
+    _ => false,
+  };
+
   bool _isSensitiveKey(String key) {
-    if (key.startsWith('secure_mirror_')) return true;
+    if (SecureCredentialStore.logicalKeyForPreference(key) != null ||
+        key.startsWith(SecureCredentialStore.preferencePrefix)) {
+      return true;
+    }
     final normalized = key.toLowerCase();
     return normalized.contains('password') ||
         normalized.contains('token') ||
@@ -134,9 +145,7 @@ extension _CacheEntryFormat on _CacheManagementPageState {
 
   Object? _maskSensitiveValue(Object? value, {String? entryKey}) {
     if (entryKey != null && _isSensitiveKey(entryKey)) {
-      if (value is String || value is num || value is bool || value == null) {
-        return '••••••';
-      }
+      return '••••••';
     }
     if (value is Map) {
       return value.map((key, child) {

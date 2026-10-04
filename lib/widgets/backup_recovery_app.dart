@@ -22,8 +22,8 @@ class _BackupRecoveryAppState extends State<BackupRecoveryApp> {
     try {
       await widget.onRetry();
     } catch (_) {
-      // Keep the recovery screen and encrypted journal intact; retrying after
-      // unlocking secure storage/freeing space is safe and idempotent.
+      // Keep the recovery screen and encrypted journal intact; retries must
+      // never discard a restore that has not been recovered.
       if (mounted) setState(() => _busy = false);
     }
   }

@@ -267,7 +267,7 @@ void main() {
   });
 
   test(
-    'version one account imports reach secure storage, not plaintext prefs',
+    'version one account imports use credential storage, not legacy preference keys',
     () async {
       final values = _accountValues(_importedAccount);
       final legacy = jsonEncode({

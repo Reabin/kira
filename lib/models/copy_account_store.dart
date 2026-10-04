@@ -118,16 +118,15 @@ class CopyAccountSession {
   int get hashCode => id?.hashCode ?? identityHashCode(this);
 }
 
-/// Deliberately excludes the platform exception, which may contain secrets.
+/// Deliberately excludes the underlying storage error, which may contain secrets.
 class CopyAccountStorageException implements Exception {
   const CopyAccountStorageException();
 
   @override
-  String toString() => 'COPY account secure storage unavailable';
+  String toString() => 'COPY account local storage unavailable';
 }
 
-/// Secure, independent COPY account list with a durable one-time migration
-/// marker.
+/// Independent COPY account list with a durable one-time migration marker.
 ///
 /// Every mutation is serialized. A revision is reserved *before* validation,
 /// so a late login result cannot undo a logout or a newer account selection.
@@ -141,6 +140,7 @@ class CopyAccountStore extends ChangeNotifier {
   List<CopyAccountSession> _accounts = [];
   String? _activeId;
   bool _migrationHandled = false;
+  bool _cleared = false;
   int _revision = 0;
   Future<void>? _pending;
 
@@ -234,40 +234,46 @@ class CopyAccountStore extends ChangeNotifier {
           cleared = decoded['cleared'] == true;
         }
         if (revision != _revision) return;
-        if (!handled && persistMigrations) {
-          // Prefer an existing record over legacy credentials, even if a
-          // future/older writer left its marker false.
-          accounts = raw == null && legacySession != null
-              ? [_resolveSession(legacySession, accounts)]
-              : accounts;
-          activeId = accounts.isEmpty ? null : accounts.first.id;
-          await _writeRecord(accounts, activeId);
-          if (revision != _revision) {
-            await _writeRecord(_accounts, _activeId);
-            return;
-          }
-          handled = true;
-        } else if (handled &&
+        // An explicit clear always wins. An existing unhandled record also
+        // wins over the primary, while a handled legacy-empty record may import
+        // a COPY primary that became available after an earlier HOT-first boot.
+        final importLegacy =
             !cleared &&
             accounts.isEmpty &&
             legacySession != null &&
-            persistMigrations) {
-          // An empty record left by an HOT-first init (or an older build) is
-          // not a user intent: once the primary is a live COPY session it may
-          // be imported. Only an explicit clear (「cleared」 tombstone) blocks
-          // re-import after the user deliberately emptied the list.
-          accounts = [_resolveSession(legacySession, accounts)];
-          activeId = accounts.first.id;
-          await _writeRecord(accounts, activeId);
-          if (revision != _revision) return;
+            (raw == null || handled);
+        if (persistMigrations && (!handled || importLegacy)) {
+          if (legacySession != null && importLegacy) {
+            accounts = [_resolveSession(legacySession, accounts)];
+          }
+          activeId = _reachable(activeId, accounts);
+          var persisted = false;
+          try {
+            if (cleared && accounts.isEmpty) {
+              await _writeClearedRecord();
+            } else {
+              await _writeRecord(accounts, activeId);
+            }
+            persisted = true;
+            handled = true;
+          } catch (_) {
+            // Migration is best-effort. A readable account stays usable even
+            // if its marker cannot be updated; the next init can retry.
+            _logStorageFailure('migrate');
+          }
+          if (revision != _revision) {
+            if (persisted) await _restorePublishedRecord();
+            return;
+          }
         }
         if (revision != _revision) return;
         _accounts = accounts;
         _activeId = _reachable(activeId, accounts);
         _migrationHandled = handled;
+        _cleared = cleared && accounts.isEmpty;
         notifyListeners();
       } catch (_) {
-        // Secure storage outages never block or clear the primary account.
+        // Storage failures never block or clear the primary account.
         _logStorageFailure('init');
       }
     });
@@ -397,7 +403,7 @@ class CopyAccountStore extends ChangeNotifier {
           // The write may have been in flight when logout/a newer validation
           // began. Restore the last published state before the next queued
           // operation runs, so a failed newer validation cannot revive it.
-          await _writeRecord(_accounts, _activeId);
+          await _restorePublishedRecord();
           return false;
         }
       } catch (_) {
@@ -408,6 +414,7 @@ class CopyAccountStore extends ChangeNotifier {
       _accounts = next;
       _activeId = entry.id;
       _migrationHandled = true;
+      _cleared = false;
       // A dual-domain login publishes the primary state before either set of
       // listeners observes this newly selected COPY identity.
       onCommitted?.call();
@@ -462,7 +469,7 @@ class CopyAccountStore extends ChangeNotifier {
       try {
         await _writeRecord(next, _activeId);
         if (!current()) {
-          await _writeRecord(_accounts, _activeId);
+          await _restorePublishedRecord();
           return false;
         }
       } catch (_) {
@@ -515,7 +522,7 @@ class CopyAccountStore extends ChangeNotifier {
       try {
         await _writeRecord(next, _activeId);
         if (!current()) {
-          await _writeRecord(_accounts, _activeId);
+          await _restorePublishedRecord();
           return false;
         }
       } catch (_) {
@@ -541,7 +548,7 @@ class CopyAccountStore extends ChangeNotifier {
       try {
         await _writeRecord(_accounts, id);
         if (revision != _revision) {
-          await _writeRecord(_accounts, _activeId);
+          await _restorePublishedRecord();
           return false;
         }
       } catch (_) {
@@ -604,6 +611,7 @@ class CopyAccountStore extends ChangeNotifier {
       _accounts = next;
       _activeId = activeId;
       _migrationHandled = true;
+      _cleared = next.isEmpty;
       notifyListeners();
     });
   }
@@ -627,9 +635,15 @@ class CopyAccountStore extends ChangeNotifier {
       _accounts = const [];
       _activeId = null;
       _migrationHandled = true;
+      _cleared = true;
       notifyListeners();
     });
   }
+
+  /// Restoring an empty list must retain an explicit logout tombstone, not
+  /// turn it into a legacy empty record that can re-import the primary account.
+  Future<void> _restorePublishedRecord() =>
+      _cleared ? _writeClearedRecord() : _writeRecord(_accounts, _activeId);
 
   Future<void> _writeRecord(
     List<CopyAccountSession> accounts,

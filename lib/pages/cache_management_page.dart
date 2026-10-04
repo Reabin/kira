@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../api/api_client.dart';
 import '../l10n/app_localizations.dart';
+import '../models/secure_credential_store.dart';
 import '../models/user_manager.dart';
 import '../repositories/novel_repository.dart';
 import '../theme/app_spacing.dart';
@@ -104,20 +105,28 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       await Future.wait([ReadingHistory.flush(), SearchHistory.flush()]);
       final prefs = await AppStorage.sharedPreferences();
       final entries =
-          prefs.getKeys().where((key) => !_isAiConfigKey(key)).map((key) {
-            final value = prefs.get(key);
-            return _CacheEntry(
-              key: key,
-              value: value,
-              category: _categoryOf(key),
-              sensitive: _isSensitiveKey(key),
-              sizeBytes: _estimateEntrySize(key, value),
-            );
-          }).toList()..sort((a, b) {
-            final category = a.category.order.compareTo(b.category.order);
-            if (category != 0) return category;
-            return a.key.compareTo(b.key);
-          });
+          prefs
+              .getKeys()
+              .where(
+                (key) =>
+                    !_isAiConfigKey(key) && !_isProtectedCredentialKey(key),
+              )
+              .map((key) {
+                final value = prefs.get(key);
+                return _CacheEntry(
+                  key: key,
+                  value: value,
+                  category: _categoryOf(key),
+                  sensitive: _isSensitiveKey(key),
+                  sizeBytes: _estimateEntrySize(key, value),
+                );
+              })
+              .toList()
+            ..sort((a, b) {
+              final category = a.category.order.compareTo(b.category.order);
+              if (category != 0) return category;
+              return a.key.compareTo(b.key);
+            });
 
       final sections = <_CacheSection>[];
       final cacheGroups = <String, List<_CacheEntry>>{};
@@ -205,8 +214,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
       if (entry.category == _CacheCategory.searchHistory) {
         await SearchHistory.flush();
       }
-      final prefs = await AppStorage.sharedPreferences();
-      await prefs.remove(entry.key);
+      await _deletePreferenceKeys([entry.key]);
       if (entry.category == _CacheCategory.account) {
         ApiClient().user.clearAuthState();
       }

@@ -6,6 +6,9 @@ import 'package:kira/backup/backup_schedule.dart';
 import 'package:kira/backup/backup_settings.dart';
 import 'package:kira/backup/webdav_config.dart';
 import 'package:kira/models/secure_credential_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../account_storage_test_support.dart';
 
 import 'backup_test_support.dart';
 
@@ -13,7 +16,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
-    'default encryption, no remembered password and secure-only credentials',
+    'default encryption keeps credentials outside portable settings',
     () async {
       final prefs = MemoryBackupPreferences();
       final secrets = InMemorySecureCredentialStore();
@@ -162,14 +165,136 @@ void main() {
     },
   );
 
-  test('resetting secure storage clears all new backup credentials', () async {
-    final secrets = InMemorySecureCredentialStore();
-    await secrets.writeWebDavCredentials('dav');
-    await secrets.writeBackupPassword('backup');
-    await secrets.writeBackupRollbackKey('rollback');
-    await secrets.deleteAll();
-    expect(await secrets.readWebDavCredentials(), isNull);
-    expect(await secrets.readBackupPassword(), isNull);
-    expect(await secrets.readBackupRollbackKey(), isNull);
+  group('default prefs-backed persistence', () {
+    late AccountPreferencesPlatform platform;
+
+    setUp(() {
+      platform = AccountPreferencesPlatform()..install();
+      SecureCredentialStore.resetInstance();
+    });
+    tearDown(() {
+      SecureCredentialStore.resetInstance();
+      platform.dispose();
+    });
+
+    test(
+      'WebDAV and remembered password survive repeated instance recreation',
+      () async {
+        final settings = BackupSettings();
+        await settings.saveConnection(
+          WebDavConfig(
+            serverUrl: 'https://dav.example/dav/',
+            directory: 'backups/',
+          ),
+          const WebDavCredentials(
+            username: 'dav-user',
+            password: ' dav-secret ',
+          ),
+        );
+        await settings.saveEncryption(
+          encrypted: true,
+          remember: true,
+          password: ' remembered-backup-secret ',
+        );
+        for (var start = 0; start < 2; start++) {
+          SharedPreferences.resetStatic();
+          SecureCredentialStore.resetInstance();
+          final restarted = BackupSettings();
+          final loaded = await restarted.load();
+          expect(loaded.webDavEnabled, isTrue);
+          expect(loaded.connection?.directory, 'backups/');
+          expect(loaded.credentials.username, 'dav-user');
+          expect(loaded.credentials.password, ' dav-secret ');
+          expect(loaded.rememberedPassword, ' remembered-backup-secret ');
+          expect(
+            await restarted.activePassword(),
+            ' remembered-backup-secret ',
+          );
+        }
+      },
+    );
+
+    test(
+      'forgetting password removes both names and only keeps current session in memory',
+      () async {
+        final settings = BackupSettings();
+        await settings.saveEncryption(
+          encrypted: true,
+          remember: true,
+          password: 'previous-backup-password',
+        );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('backup_password_v1', 'stale-password');
+        await settings.saveEncryption(
+          encrypted: true,
+          remember: false,
+          password: 'session-only-password',
+        );
+        expect(await settings.activePassword(), 'session-only-password');
+        expect((await settings.load()).rememberedPassword, isNull);
+        expect(
+          jsonEncode(platform.values),
+          isNot(contains('session-only-password')),
+        );
+        expect(prefs.containsKey('backup_password_v1'), isFalse);
+        expect(
+          prefs.containsKey(
+            '${SecureCredentialStore.preferencePrefix}backup_password_v1',
+          ),
+          isFalse,
+        );
+        SharedPreferences.resetStatic();
+        SecureCredentialStore.resetInstance();
+        expect(await BackupSettings().activePassword(), isNull);
+      },
+    );
+
+    test(
+      'clearing WebDAV removes legacy alias without clearing login or backup password',
+      () async {
+        final settings = BackupSettings();
+        final credentials = SecureCredentialStore();
+        await credentials.writeToken('primary-token');
+        await credentials.writeBackupPassword('backup-password');
+        await settings.saveConnection(
+          WebDavConfig(serverUrl: 'https://dav.example/'),
+          const WebDavCredentials(
+            username: 'dav-user',
+            password: 'dav-password',
+          ),
+        );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'backup_webdav_credentials_v1',
+          'stale-dav-record',
+        );
+        await settings.clearConnection();
+        SharedPreferences.resetStatic();
+        SecureCredentialStore.resetInstance();
+        final restarted = await BackupSettings().load();
+        expect(restarted.connection, isNull);
+        expect(restarted.credentials.password, isEmpty);
+        expect(await SecureCredentialStore().readWebDavCredentials(), isNull);
+        expect(
+          await SecureCredentialStore().readBackupPassword(),
+          'backup-password',
+        );
+        expect(await SecureCredentialStore().readToken(), 'primary-token');
+      },
+    );
   });
+
+  test(
+    'resetting credential storage clears all new backup credentials',
+    () async {
+      final secrets = InMemorySecureCredentialStore();
+      await secrets.writeWebDavCredentials('dav');
+      await secrets.writeBackupPassword('backup');
+      await secrets.writeBackupRollbackKey('rollback');
+      await secrets.deleteAll();
+      expect(await secrets.readWebDavCredentials(), isNull);
+      expect(await secrets.readBackupPassword(), isNull);
+      expect(await secrets.readBackupRollbackKey(), isNull);
+    },
+  );
 }

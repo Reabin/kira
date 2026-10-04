@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/secure_credential_store.dart';
 
-/// Call in setUp() for any test that triggers UserManager.init().
+/// Call in setUp() for isolated tests that trigger UserManager.init().
 ///
-/// Replaces the platform-backed SecureCredentialStore with an in-memory
-/// implementation so that unit tests don't require a real keychain/keystore.
+/// Replaces the prefs-backed SecureCredentialStore with an in-memory store
+/// that neither reads nor migrates legacy preferences. Persistence regressions
+/// must use the default store with mocked SharedPreferences instead.
 void setupSecureCredentialStoreForTest() {
   SecureCredentialStore.setInstance(InMemorySecureCredentialStore());
 }
 
-/// Call in tearDown() to restore the default platform instance.
+/// Call in tearDown() to restore the default prefs-backed instance.
 void teardownSecureCredentialStoreForTest() {
   SecureCredentialStore.resetInstance();
 }

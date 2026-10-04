@@ -17,8 +17,8 @@ abstract interface class BackupJournal {
   Future<void> clear();
 }
 
-/// A device-local write-ahead journal. Its random AES key is held in secure
-/// storage, NOT derived from (or changed with) the user's backup password.
+/// A device-local write-ahead journal. Its random AES key is held by the
+/// credential store (app-private prefs), independently of the backup password.
 /// An atomic rename publishes the flushed journal before any prefs are changed.
 class EncryptedBackupJournal implements BackupJournal {
   static const _magic = [75, 73, 82, 65, 82, 79, 76, 1]; // KIRAROL + v1

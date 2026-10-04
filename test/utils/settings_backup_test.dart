@@ -38,8 +38,8 @@ void main() {
 
   test('exports only portable app settings by default', () async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_token', 'token-1');
-    await prefs.setString('saved_password', 'password-1');
+    await SecureCredentialStore().writeToken('token-1');
+    await SecureCredentialStore().writePassword('password-1');
     await prefs.setString('zhipu_api_key', 'api-key-1');
     await prefs.setBool('auto_login', true);
     await prefs.setBool('image_viewer_auto_rotate_landscape', true);
@@ -81,8 +81,8 @@ void main() {
 
   test('exports sensitive settings only when requested', () async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_token', 'token-1');
-    await prefs.setString('saved_password', 'password-1');
+    await SecureCredentialStore().writeToken('token-1');
+    await SecureCredentialStore().writePassword('password-1');
     await prefs.setString('zhipu_api_key', 'api-key-1');
     await prefs.setString(
       'ai_providers',
@@ -203,7 +203,7 @@ void main() {
     'clearAllPreferences removes settings, reading history, and cache',
     () async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_token', 'token-1');
+      await SecureCredentialStore().writeToken('token-1');
       await prefs.setString('cache_home', '{"stale":false}');
       await ReadingHistory.save(
         pathWord: 'comic-c',

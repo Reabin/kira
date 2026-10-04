@@ -1,6 +1,48 @@
 part of '../cache_management_page.dart';
 
 extension _CacheSectionCleanup on _CacheManagementPageState {
+  /// All three delete entry points share credential semantics. Current token
+  /// and COPY records must retain logout markers instead of exposing aliases.
+  Future<void> _deletePreferenceKeys(Iterable<String> keys) async {
+    final prefs = await AppStorage.sharedPreferences();
+    final credentials = SecureCredentialStore();
+    Future<void> remove(String key) async {
+      if (!prefs.containsKey(key)) return;
+      if (!await prefs.remove(key)) {
+        await prefs.reload();
+        throw StateError('Preference deletion failed');
+      }
+    }
+
+    final logicalKeys = {
+      for (final key in keys)
+        if (!_isProtectedCredentialKey(key))
+          SecureCredentialStore.logicalKeyForPreference(key) ?? key,
+    };
+    for (final key in logicalKeys) {
+      switch (key) {
+        case 'user_token':
+          await credentials.writeToken(null);
+          await remove(key);
+        case 'saved_username':
+          await credentials.writeUsername(null);
+        case 'saved_password':
+          await credentials.writePassword(null);
+        case 'saved_credentials':
+          await credentials.writeCredentials([]);
+        case 'copy_account_v1':
+          await UserManager().copyAccount.clear();
+          await remove(key);
+        case 'backup_webdav_credentials_v1':
+          await credentials.writeWebDavCredentials(null);
+        case 'backup_password_v1':
+          await credentials.writeBackupPassword(null);
+        default:
+          await remove(key);
+      }
+    }
+  }
+
   void _toggleSelectionMode() {
     _setState(() {
       _selectionMode = !_selectionMode;
@@ -118,10 +160,7 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
 
     try {
       await SearchHistory.flush();
-      final prefs = await AppStorage.sharedPreferences();
-      if (keys.isNotEmpty) {
-        await Future.wait(keys.map(prefs.remove));
-      }
+      await _deletePreferenceKeys(keys);
       for (final section in imageSections) {
         await _clearImageCacheSection(section);
       }
@@ -304,9 +343,8 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
 
     try {
       await SearchHistory.flush();
-      final prefs = await AppStorage.sharedPreferences();
       final keys = section.entries.map((e) => e.key).toSet();
-      await Future.wait(keys.map(prefs.remove));
+      await _deletePreferenceKeys(keys);
       if (section.entries.any((e) => e.category == _CacheCategory.account)) {
         ApiClient().user.clearAuthState();
       }

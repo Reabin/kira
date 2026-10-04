@@ -56,6 +56,9 @@ class _ProfileApi implements UserApi {
 
 class _FailingSecureStore extends InMemorySecureCredentialStore {
   @override
+  bool get legacyPreferencesEnabled => true;
+
+  @override
   Future<void> doWrite(String key, String value) async {
     throw StateError('Secure storage unavailable');
   }
@@ -98,8 +101,18 @@ void main() {
   final originalApi = ApiClient();
   late _ProfileApi api;
   String? clipboard;
+  const secureChannel = MethodChannel(
+    'plugins.it_nomads.com/flutter_secure_storage',
+  );
+  final secureCalls = <MethodCall>[];
 
   setUp(() async {
+    secureCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureChannel, (call) async {
+          secureCalls.add(call);
+          throw PlatformException(code: 'unexpected_secure_storage_call');
+        });
     SharedPreferences.setMockInitialValues({
       'user_token': 'hot-token',
       'user_user_id': 'hot-id',
@@ -142,6 +155,9 @@ void main() {
         .setMockMethodCallHandler(SystemChannels.platform, null);
     ApiClient.setTestInstance(originalApi);
     teardownSecureCredentialStoreForTest();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureChannel, null);
+    expect(secureCalls, isEmpty, reason: 'Credentials must only use prefs');
   });
 
   Future<void> pump(WidgetTester tester) async {
@@ -424,12 +440,29 @@ void main() {
   });
 
   testWidgets(
-    'HOT accounts remain independently selectable after repeated restarts',
+    'HOT accounts remain selectable after three default-backend cold starts',
     (tester) async {
-      await user.switchToCredential(user.currentCredential!);
+      // Transfer the fixture into the actual prefs backend, then discard the
+      // credential store and preference cache at every simulated cold start.
+      final credentials = user.savedCredentials;
+      SecureCredentialStore.resetInstance();
+      final storage = SecureCredentialStore();
+      await storage.writeCredentials(credentials);
+      await storage.writeUsername(user.savedUsername);
+      await storage.writePassword(user.savedPassword);
+      await storage.writeToken(user.token);
       await user.init();
       await user.switchToCredential(_second);
-      await user.init();
+      for (var boot = 0; boot < 3; boot++) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.reload();
+        SharedPreferences.setMockInitialValues({
+          for (final key in prefs.getKeys()) key: prefs.get(key)!,
+        });
+        SecureCredentialStore.resetInstance();
+        await user.init();
+        expect(user.token, _second.token);
+      }
       await pump(tester);
       expect(
         find.byKey(const ValueKey('primary-hotmanga-hot-user')),

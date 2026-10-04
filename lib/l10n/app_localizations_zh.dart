@@ -4024,7 +4024,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyAccountLogoutConfirm => '仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。';
 
   @override
-  String get copyAccountStorageFailed => '无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。';
+  String get copyAccountStorageFailed => '无法保存拷贝账号，请稍后重试；原账号保持不变。';
 
   @override
   String get copyAccountLoginSuperseded => '账号状态已改变，本次登录已取消，请重试。';
@@ -8135,7 +8135,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get copyAccountLogoutConfirm => '僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。';
 
   @override
-  String get copyAccountStorageFailed => '無法儲存拷貝帳號，請檢查安全儲存後重試；原帳號保持不變。';
+  String get copyAccountStorageFailed => '無法儲存拷貝帳號，請稍後重試；原帳號保持不變。';
 
   @override
   String get copyAccountLoginSuperseded => '帳號狀態已改變，本次登入已取消，請重試。';

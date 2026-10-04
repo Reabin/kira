@@ -2471,7 +2471,7 @@
   "copyAccountSwitch": "切換拷貝帳號",
   "copyAccountLogout": "登出拷貝帳號",
   "copyAccountLogoutConfirm": "僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。",
-  "copyAccountStorageFailed": "無法儲存拷貝帳號，請檢查安全儲存後重試；原帳號保持不變。",
+  "copyAccountStorageFailed": "無法儲存拷貝帳號，請稍後重試；原帳號保持不變。",
   "copyAccountLoginSuperseded": "帳號狀態已改變，本次登入已取消，請重試。",
   "accountCenterTitle": "帳號中心",
   "accountCenterActiveLabel": "使用中的帳號",

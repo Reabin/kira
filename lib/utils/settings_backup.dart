@@ -11,6 +11,7 @@ import '../backup/backup_journal.dart';
 import '../backup/backup_preferences.dart';
 import '../backup/backup_runtime.dart';
 import '../models/secure_credential_store.dart';
+import '../models/user_manager.dart' show SavedCredential;
 import 'app_logger.dart';
 import 'search_history.dart';
 
@@ -78,7 +79,7 @@ class SettingsBackupService {
     _ensureAvailable();
     await _runtime.flush();
     // A restore can start while pending writes are being drained. Do not read
-    // secure credentials alongside a profile that is still being replaced.
+    // credentials alongside a profile that is still being replaced.
     _ensureAvailable();
     final snapshot = await _preferences.readAll();
     return _documentFrom(snapshot, BackupCategory.values.toSet());
@@ -209,8 +210,8 @@ class SettingsBackupService {
     final current = await _preferences.readAll();
     final keys = {
       ...current.keys,
-      // A migrated, absent credential can mask a stale plaintext key. Clear
-      // both backends even when that key was not in the effective snapshot.
+      // A migrated, absent credential can mask a stale legacy alias. Clear
+      // both names even when that key was not in the effective snapshot.
       if (document.categories.contains(BackupCategory.account))
         ...SharedBackupPreferences.secureAccountKeys,
     };
@@ -221,6 +222,27 @@ class SettingsBackupService {
     }
     for (final entry in document.preferences.entries) {
       await _preferences.write(entry.key, entry.value.value);
+    }
+    // Older backups stored only the remembered username/password. The clearing
+    // phase now writes an explicit [], so materialize that legacy account only
+    // when the source really omitted the list, never when it explicitly cleared it.
+    if (document.categories.contains(BackupCategory.account) &&
+        !document.preferences.containsKey('saved_credentials')) {
+      final username = document.preferences['saved_username']?.value;
+      final password = document.preferences['saved_password']?.value;
+      final source = document.preferences['login_source']?.value;
+      if (username is String && username.isNotEmpty && password is String) {
+        await _preferences.write(
+          'saved_credentials',
+          jsonEncode([
+            SavedCredential(
+              username: username,
+              password: password,
+              loginSource: source is String ? source : null,
+            ).toJson(),
+          ]),
+        );
+      }
     }
   }
 

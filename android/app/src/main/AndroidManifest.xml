@@ -10,9 +10,13 @@
     <!-- 漫画下载前台服务：Android 14+ 要求声明 dataSync 类型；FOREGROUND_SERVICE、
          WAKE_LOCK、POST_NOTIFICATIONS 由 flutter_foreground_task 插件清单自动合并。 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- 关闭系统自动备份：账号凭据以明文保存在应用私有 SharedPreferences，
+         不应随系统备份导出。迁移使用应用自带的本地/WebDAV 分类备份，
+         敏感分类需显式选择，并保留备份文件加密能力。 -->
     <application
         android:label="kira"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

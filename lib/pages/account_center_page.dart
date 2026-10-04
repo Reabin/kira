@@ -306,7 +306,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   }
 
-  /// 账号密码只在本机安全存储里；列表中的凭据不含密码（COPY 走令牌登录），
+  /// 账号密码保存在本机凭据存储；列表中的凭据不含密码（COPY 走令牌登录），
   /// 主账号需要回到 [_user.savedCredentials] 里按身份取回已保存的密码。
   String _savedPasswordFor(SavedCredential account) {
     if (account.source == 'copy') return '';

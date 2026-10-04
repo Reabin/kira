@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/copy_account_store.dart';
 import 'package:kira/models/secure_credential_store.dart';
@@ -11,6 +12,11 @@ class _MemorySecureStore extends InMemorySecureCredentialStore {
   bool failRead = false;
   bool failWrite = false;
   bool failAllWrites = false;
+  bool readLegacyPreferences = false;
+
+  @override
+  bool get legacyPreferencesEnabled => readLegacyPreferences;
+
   int writes = 0;
   Completer<void>? writeStarted;
   Completer<void>? releaseWrite;
@@ -73,8 +79,18 @@ void main() {
   late _MemorySecureStore secure;
   late CopyAccountStore store;
   final user = UserManager();
+  const secureChannel = MethodChannel(
+    'plugins.it_nomads.com/flutter_secure_storage',
+  );
+  final secureCalls = <MethodCall>[];
 
   setUp(() async {
+    secureCalls.clear();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureChannel, (call) async {
+          secureCalls.add(call);
+          throw PlatformException(code: 'unexpected_secure_storage_call');
+        });
     SharedPreferences.setMockInitialValues({
       'user_token': 'hot-token',
       'user_username': 'same-username',
@@ -102,6 +118,9 @@ void main() {
   tearDown(() {
     store.dispose();
     SecureCredentialStore.resetInstance();
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureChannel, null);
+    expect(secureCalls, isEmpty, reason: 'Credentials must only use prefs');
   });
 
   test(
@@ -196,6 +215,123 @@ void main() {
   );
 
   test(
+    'default prefs backend keeps COPY login and logout across cold starts',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      SecureCredentialStore.resetInstance();
+      store.dispose();
+      store = CopyAccountStore();
+      await store.init();
+      await store.saveSession(_copyA);
+      await store.saveSession(_copyB);
+      await store.selectAccount(_copyA.id);
+
+      Future<void> restart() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.reload();
+        final disk = {for (final key in prefs.getKeys()) key: prefs.get(key)!};
+        SharedPreferences.setMockInitialValues(disk);
+        SecureCredentialStore.resetInstance();
+        store.dispose();
+        store = CopyAccountStore();
+        await store.init(legacySession: _copyA);
+      }
+
+      for (var boot = 0; boot < 3; boot++) {
+        await restart();
+        expect(store.token, _copyA.token);
+        expect(store.accounts, hasLength(2));
+      }
+      await store.clear();
+      final clearedRecord = await SecureCredentialStore()
+          .readCopyAccountRecord();
+      for (var boot = 0; boot < 3; boot++) {
+        await restart();
+        expect(store.accounts, isEmpty);
+        expect(store.token, isNull);
+        expect(
+          await SecureCredentialStore().readCopyAccountRecord(),
+          clearedRecord,
+        );
+      }
+    },
+  );
+
+  for (final handled in [false, true]) {
+    for (final persistMigrations in [false, true]) {
+      test(
+        'current COPY clear beats legacy data, handled=$handled persist=$persistMigrations',
+        () async {
+          final clearedRecord = jsonEncode({
+            'migrationHandled': handled,
+            'cleared': true,
+            'accounts': <Object?>[],
+          });
+          final initial = <String, Object>{
+            'secure_mirror_copy_account_v1': clearedRecord,
+            'copy_account_v1': jsonEncode({
+              'migrationHandled': true,
+              'session': _copyB.toJson(),
+            }),
+          };
+          SharedPreferences.setMockInitialValues(initial);
+          SecureCredentialStore.resetInstance();
+          store.dispose();
+          store = CopyAccountStore();
+          await store.init(
+            legacySession: _copyA,
+            persistMigrations: persistMigrations,
+          );
+          expect(store.accounts, isEmpty);
+          if (!persistMigrations) {
+            final prefs = await SharedPreferences.getInstance();
+            expect({
+              for (final key in prefs.getKeys()) key: prefs.get(key),
+            }, initial);
+          }
+          SecureCredentialStore.resetInstance();
+          final restarted = CopyAccountStore();
+          addTearDown(restarted.dispose);
+          await restarted.init(legacySession: _copyA);
+          expect(restarted.accounts, isEmpty);
+          expect(
+            jsonDecode(
+              (await SecureCredentialStore().readCopyAccountRecord())!,
+            )['cleared'],
+            isTrue,
+          );
+        },
+      );
+    }
+  }
+
+  test(
+    'failed COPY marker migration still loads record and preserves selection',
+    () async {
+      final raw = jsonEncode({
+        'migrationHandled': false,
+        'accounts': [_copyB.toJson(), _copyA.toJson()],
+        'activeId': _copyA.id,
+      });
+      await secure.writeCopyAccountRecord(raw);
+      secure.failWrite = true;
+      await store.init(legacySession: _copyB);
+      expect(store.token, _copyA.token);
+      expect(store.accounts, hasLength(2));
+      expect(store.migrationHandled, isFalse);
+      expect(await secure.readCopyAccountRecord(), raw);
+      secure.failWrite = false;
+      await store.init(legacySession: _copyB);
+      expect(store.token, _copyA.token);
+      expect(store.migrationHandled, isTrue);
+      final restarted = CopyAccountStore(secureStore: secure);
+      addTearDown(restarted.dispose);
+      await restarted.init();
+      expect(restarted.token, _copyA.token);
+    },
+  );
+
+  test(
     'a later explicit primary COPY login syncs despite migration tombstone',
     () async {
       await user.setLoginSource('copy');
@@ -270,7 +406,9 @@ void main() {
     // 场景：升级后 secure 存储整体写入失败（failing fresh store），但 legacy
     // prefs 键仍在——init 不得因迁移失败而丢主账号，prefs 也不得被删，
     // 下次 init 仍可重试迁移。
-    final failedMigration = _MemorySecureStore()..failAllWrites = true;
+    final failedMigration = _MemorySecureStore()
+      ..readLegacyPreferences = true
+      ..failAllWrites = true;
     SecureCredentialStore.setInstance(failedMigration);
     SharedPreferences.setMockInitialValues({
       'user_token': 'hot-token',
@@ -450,6 +588,47 @@ void main() {
       expect(restarted.token, _copyA.token);
     },
   );
+
+  for (final clearMode in ['clear', 'logout', 'reload-cleared']) {
+    test(
+      'superseded save preserves $clearMode tombstone across restart',
+      () async {
+        await store.saveSession(_copyA);
+        if (clearMode == 'logout') {
+          await store.logout();
+        } else {
+          await store.clear();
+        }
+        if (clearMode == 'reload-cleared') {
+          store.dispose();
+          store = CopyAccountStore(secureStore: secure);
+          await store.init(legacySession: _copyA);
+        }
+        final clearedRecord = await secure.readCopyAccountRecord();
+        expect(jsonDecode(clearedRecord!)['cleared'], isTrue);
+        final started = Completer<void>();
+        final release = Completer<void>();
+        secure.writeStarted = started;
+        secure.releaseWrite = release;
+        final pending = store.saveSession(_copyB);
+        await started.future;
+        await expectLater(
+          store.login(() async => throw StateError('invalid')),
+          throwsStateError,
+        );
+        release.complete();
+
+        expect(await pending, isFalse);
+        expect(store.accounts, isEmpty);
+        expect(await secure.readCopyAccountRecord(), clearedRecord);
+        final restarted = CopyAccountStore(secureStore: secure);
+        addTearDown(restarted.dispose);
+        await restarted.init(legacySession: _copyA);
+        expect(restarted.accounts, isEmpty);
+        expect(restarted.isLoggedIn, isFalse);
+      },
+    );
+  }
 
   test(
     'logout survives a failed newer login while an older write is pending',

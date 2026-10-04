@@ -20,8 +20,8 @@ class FailingAccountSecureStore extends InMemorySecureCredentialStore {
   }
 }
 
-/// Exercise real SharedPreferences caching and success flags over a fake
-/// platform channel, instead of mocking BackupPreferences itself.
+/// Exercises the prefs-backed credential store and account/backup callers with
+/// real SharedPreferences caching and success flags over a fake platform channel.
 class AccountPreferencesPlatform {
   static const channel = MethodChannel('plugins.flutter.io/shared_preferences');
   final values = <String, Object>{};

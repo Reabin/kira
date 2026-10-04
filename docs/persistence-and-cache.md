@@ -1,6 +1,6 @@
 # 缓存与持久化存储指南
 
-> 本文件说明 kira 的三层数据存储（内存缓存 / 持久化业务缓存 / 用户偏好 / 敏感凭据）。
+> 本文件说明 kira 的数据存储（内存缓存 / 持久化业务缓存 / 用户偏好 / 敏感凭据）。
 > 做存储/缓存相关改动前先读此文件，避免选错后端或破坏键名约定。
 
 ## 总览：后端矩阵
@@ -9,11 +9,11 @@
 | ---- | ---------- | ---------- | ---------- |
 | 内存缓存 | 进程内 `Map` | 各自类持有 | 进程重启即失；部分带 TTL/FIFO 淘汰 |
 | 持久化业务缓存 | **SharedPreferences**（JSON 字符串） | `cache_` 键前缀 | `AppStorage.cache.clear*` / 缓存管理页 |
-| 用户偏好 | **SharedPreferences** | 无统一前缀，按域命名 | 不应被缓存清理误删；备份时过滤 `cache_` |
-| 敏感凭据 | `flutter_secure_storage`（平台 keychain/keystore） | 与 prefs 不同后端 | `SecureCredentialStore.deleteAll()` |
+| 用户偏好 | **SharedPreferences** | 无统一前缀，按域命名 | 不应被缓存清理误删；备份按显式白名单筛选 |
+| 敏感凭据 | **应用私有 SharedPreferences（明文）**，经 `SecureCredentialStore` | 正式键沿用 `secure_mirror_` 前缀，兼容旧裸键 | 不随普通缓存清理或普通设置备份导出；全量凭据删除用 `SecureCredentialStore.deleteAll()` |
 | 文件级 | `path_provider` 目录 | 目录路径 | 缓存管理页分类清理 |
 
-**关键事实**：除文件系统外，几乎所有 KV 数据都落在 SharedPreferences。无 Hive、无 SQLite。业务缓存与用户设置**共用同一个 SharedPreferences 实例**，仅靠 `cache_` 前缀隔离——这是清理逻辑和备份过滤的依据。
+**关键事实**：业务缓存、用户设置与凭据共用 SharedPreferences；`cache_` 和 `secure_mirror_` 只用于逻辑分类，后者不代表加密或独立安全后端。缓存清理需保护凭据，备份需按 `BackupSchema` 白名单筛选，不能把「不是 `cache_`」等同于「可导出」。
 
 > `AppStorage.sharedPreferences()` 直接委托 `SharedPreferences.getInstance()`，**不要在外面再缓存这个 Future**：测试用 `setMockInitialValues` 替换平台实现时会清掉插件自己的 completer，被缓存下来的旧 Future 会解析到过期 store，甚至永远不完成（曾导致测试里书架请求数为 0 且挂到 10 分钟超时）。
 
@@ -100,7 +100,7 @@ Future<T> load() async {
 
 ### 2.4 直接写 SharedPreferences 的业务数据（不走 `AppPersistentCache`）
 
-这些键**不带 `cache_` 前缀**，因此会被 `SettingsBackupService` 导出（除非命中 sensitive 规则）：
+这些键**不带 `cache_` 前缀**，但不因此自动进入备份；仅 `BackupSchema` 明确登记的记录（如阅读历史、阅读统计）可由 `SettingsBackupService` 按分类导出，其余默认排除：
 
 | 模块 | 前缀/键 | 文件 |
 | ---- | ---------- | ---- |
@@ -130,7 +130,7 @@ Future<T> load() async {
 | ThemeSettings | `lib/models/theme_settings.dart` | `theme_*`、`dark_mode_*`、`bottom_nav_*`、`*_font_*` |
 | NetworkSettings | `lib/models/network_settings.dart` | `api_route`、`network_*` |
 
-`AiSettings`（`lib/api/ai_api.dart:141`）独立，键名混用 `zhipu_` / `ai_` 前缀，**`zhipu_api_key` 明文存于 prefs，未走 secure storage**（注释自述）。
+`AiSettings`（`lib/api/ai_api.dart`）独立，键名混用 `zhipu_` / `ai_` 前缀；API key 与连接配置仍以明文存在 prefs，未纳入 `SecureCredentialStore`，备份归入需显式选择的敏感「AI 连接」分类。
 
 ### 键名前缀族（缓存管理页 `_looksLikeSettingKey` 用以区分设置 vs 缓存）
 `theme_` `custom_theme_` `dark_mode_` `bottom_nav_` `nav_` `last_nav_` `desktop_font_` `bookshelf_` `reader_` `image_` `comment_` `auto_check_` `skipped_update_` `disclaimer_` `api_route` `anime_feature_` `banner_` `anime_home_` `anime_skip_` `anime_playback_progress_` `download_` `danmaku_` `local_bookshelf_`（见 `cache_management_page.dart:702`）。
@@ -144,29 +144,52 @@ Future<T> load() async {
 
 ## 4. 敏感凭据存储
 
-### `SecureCredentialStore`（`lib/models/secure_credential_store.dart:16`）
-基于 `flutter_secure_storage`（平台 keychain/keystore）。接口：
+### 正式后端与兼容命名
+
+`SecureCredentialStore`（`lib/models/secure_credential_store.dart`）统一通过 `AppStorage.sharedPreferences()` 读写**应用私有 SharedPreferences 明文记录**。不再依赖 `flutter_secure_storage`，不调用 Keystore/Keychain，也没有双写、自愈镜像或单次安全插件调用超时。
+
+- `SecureCredentialStore` 类名和 `preferencePrefix = 'secure_mirror_'` 是历史兼容名称，**不表示加密**。旧版镜像键现在就是正式存储，不需要另换前缀或再复制一份。普通值仍为字符串；命中 Android prefs 保留前缀的字符串使用单元素 `StringList` 无损保存，读取同时兼容两种表示。
+- 逻辑键包括 `user_token`、`saved_username`、`saved_password`、`saved_credentials`、`credentials_migrated_to_secure`、`copy_account_v1`、`backup_webdav_credentials_v1`、`backup_password_v1`、`backup_rollback_key_v1`。例如 token 的正式键是 `secure_mirror_user_token`。
+- `logicalKeyForPreference(key)` 识别上述正式键与旧无前缀别名，返回逻辑键；它不是普通备份白名单，未知键返回 `null`。
+- 旧安装若只有加密存储中的凭据、没有可读的 prefs 记录，升级后可能需要重新登录一次；**登录成功并保存后，多次冷启动必须继续恢复会话，不能每次启动都要求登录**。这里不承诺绕过服务端令牌过期、用户主动退出或清除应用数据。
+
+主要接口保持不变：
 
 ```dart
 Future<String?> readToken();      Future<void> writeToken(String? v);
 Future<String?> readUsername();   Future<void> writeUsername(String? v);
 Future<String?> readPassword();   Future<void> writePassword(String? v);
 Future<List<SavedCredential>> readCredentials();  Future<void> writeCredentials(List<SavedCredential> v);
-Future<bool> credentialsMigrated();
+Future<bool> hasCredentialsRecord();  Future<bool> credentialsMigrated();
+Future<String?> readCopyAccountRecord();
+Future<void> writeCopyAccountRecord(String v);
 Future<void> deleteAll();
 ```
 
-键名常量：`user_token` / `saved_username` / `saved_password` / `saved_credentials` / `credentials_migrated_to_secure`，另有不进入普通备份的 `copy_account_v1`、WebDAV 凭据与备份口令。
+### 只读加载与退出标记
 
-### 当前状态：已启用
-`UserManager.init()` 会调用 `migrateFromSharedPreferences`，把 SharedPreferences 里的 `user_token` / `saved_username` / `saved_password` / `saved_credentials` 迁移到安全存储并删除旧键；迁移只在安全存储确认写入后删除明文，写入失败时保留旧数据（try/catch 后只记日志，不阻断启动）。**空 token 是登出墓碑**，与「尚未迁移的缺失记录」语义不同，读取时不能把两者混为一谈。
+- `read*` **只读、不迁移、不回写**：先读取正式记录，仅在缺失时读取同名旧裸键。正式记录里的空 token、空字符串、`[]` 和 COPY 清空记录仍是有效状态，不得用旧值覆盖。
+- `writeToken(null)` 写入空字符串作为退出标记，区别于「从未保存」；`writeCredentials([])` 持久化空数组，`hasCredentialsRecord()` 区分显式清空与旧单账号缺少列表，只有后者可从记住的用户名/密码合成账号。COPY 退出/清空通过记录内的 `cleared`、`migrationHandled` 等状态表达，不能直接删键后让旧会话复活。
+- 迁移标记 `credentials_migrated_to_secure == 'true'` 只阻止三个已清空保存字段（`saved_username`、`saved_password`、`saved_credentials`）重新读到旧值；不能据此屏蔽 token、COPY 或备份凭据的旧裸键。
+- `UserManager.init(persistMigrations: false)` 用于备份恢复后的只读重载：读取现有有效状态，不补写凭据、不移动旧键。COPY 初始化同样受 `persistMigrations` 控制。
 
-### prefs 兜底镜像（双写）
-个别 Android 设备上 secure storage 会丢数据或读取抛错（keystore 失效、系统清理、双开空间等），而 1.7 起会话 token 只存 secure storage——曾表现为「每次重启都掉登录」。因此 `SecureCredentialStore` 的所有写入/删除都会同步在 SharedPreferences 维护一份 `secure_mirror_<key>` 兜底副本；读取优先 secure，读不到（抛错或缺失）时回退镜像并尽力回写 secure 自愈（日志 source `secure_credential_store.fallback`）。secure 写失败仍照常抛出——登录事务回滚依赖它，镜像只是尽力而为。明文落 prefs 的安全代价已明确接受：备份是白名单制，`secure_mirror_*` 天然不导出；缓存管理页把该前缀归入账号分区并整键脱敏。测试环境与 `InMemorySecureCredentialStore` 下镜像层关闭。
+### 显式迁移与写入失败
 
-> 新增敏感凭据（token、密码、API key 等）时：**不要**沿用 SharedPreferences 明文模式，也不要塞进普通设置备份。
+正常启动由 `UserManager.init()` 调用 `migrateFromSharedPreferences(prefsMap, removePref)`，只迁移旧明文记录，不读取历史加密存储：
 
-测试注意：`FLUTTER_TEST=true` 时 `doRead/doWrite/doDelete` 直接返回空结果，不走平台通道——flutter_secure_storage 在缺少平台实现时 Future 既不完成也不抛错，会让 await 它的 `UserManager.init()` 永久挂起。需要真实凭据行为的用例请显式注入 `InMemorySecureCredentialStore`（见 `test/backup/account_backup_storage_test.dart`）。
+1. 保留已存在的正式值，包括退出/清空记录；只复制缺失且未被清空标记抑制的旧值。
+2. 直接复制原始字符串/JSON，保留本版本不认识的字段，不把解析后的列表重新序列化为迁移数据。
+3. 正式值及迁移标记成功落盘后，才删除旧别名；写入失败保留旧值以便重试。一次迁移失败不能遮蔽已经保存的正式会话。
+4. 生产迁移在串行队列内重新读取当前 prefs，避免调用方旧快照复活刚删除的账号；内存测试替身才使用传入的 `prefsMap`。
+
+写入/删除串行执行。SharedPreferences 返回 `false` 也视为失败：尝试补偿写回该键原值，再 `reload()`，最后向调用方抛错。原生 prefs 也可能先改内存再写磁盘，因此不能只靠 reload 回滚，重试删除也不能因缓存中缺键就跳过提交。删除凭据时先删旧裸键，再删正式键；`deleteAll()` 清除两种键名的凭据，但保留迁移标记。登录事务必须继续处理写入失败与回滚，不可吞错假报成功。
+
+### 备份、缓存与测试边界
+
+- 新凭据仍统一接入 `SecureCredentialStore`，不要散落到普通设置键；正式凭据和旧别名均应排除普通缓存清理，账号项默认整值脱敏。
+- Android 保留 `allowBackup="false"`，避免私有明文凭据随系统自动备份导出。应用自己的备份按白名单与分类选择导出（见 §7），备份文件加密能力不变。
+- 测试不再用 `FLUTTER_TEST=true` 让凭据操作静默返回空值。隔离用例显式注入 `InMemorySecureCredentialStore`，其 `legacyPreferencesEnabled == false`，不会读取、迁移或删除 prefs。
+- 持久化回归必须另用**默认 prefs 后端**与 Mock SharedPreferences/假平台通道，覆盖保存后重建单例、连续冷启动恢复、退出不复活旧值，以及平台写入返回 `false`/抛错。只测内存替身不足以证明不会重复掉登录。
 
 ## 5. 网络层缓存
 
@@ -196,16 +219,20 @@ Future<void> deleteAll();
 
 ## 7. 备份/恢复（设置迁移）
 
-`SettingsBackupService`(`lib/utils/settings_backup.dart:66`):
-- 导出:序列化所有**非 `cache_` 前缀**的 prefs key 为 JSON。
-- 敏感 key(`user_token` / `saved_username` / `saved_password` / `saved_credentials` / `zhipu_api_key` / `ai_providers`)在 `includeSensitive=false` 时跳过。
-- 导入:清空已存在 key 再写入。
+`SettingsBackupService`（`lib/utils/settings_backup.dart`）通过 `BackupSchema`（`lib/backup/backup_category.dart`）执行**键名与类型白名单**，不是导出所有非缓存键：
+
+- 分类包括设置、阅读历史、阅读统计、书签、账号和 AI 连接。默认只选择「设置」；账号与 AI 连接是敏感分类，须显式选择（兼容 API 的 `includeSensitive: true` 会加入这两类）。
+- `SharedBackupPreferences` 从 `SecureCredentialStore` 读取有效主账号凭据，映射回备份协议的逻辑键 `user_token`、`saved_username`、`saved_password`、`saved_credentials`；`user_account_id` 与其他主账号资料也在账号白名单中。导出不会迁移或补写原记录。
+- `secure_mirror_*` **物理键不直接导出**；普通设置备份也不导出上述主账号凭据。不能因为物理前缀未被登记，就认为显式选择「账号」时也不会导出主账号。
+- 独立 `copy_account_v1` 记录、WebDAV 凭据、备份口令、回滚密钥及迁移标记均不在白名单；它们的正式键和旧裸键都不直接导出。`cache_*`、下载路径/队列、AI 会话/总结、其他未登记键同样排除。
+- 导入只事务性替换选中的分类，不清空所有非缓存键。主账号凭据仍经 `SecureCredentialStore` 写入/清除，其他未选分类与独立 COPY 记录不得被改写。
+- 恢复先暂停并排空运行时写入，再保存加密回滚日志、替换分类、重载内存，最后清除日志作为提交点；失败回滚，启动时可恢复未完成事务。`BackupCodec` 的 PBKDF2 / AES-GCM 备份文件加密与加密日志保持不变，`crypto`、`cryptography`、`cryptography_flutter` 仍有用途。
 
 ### 导入 / 清除后必须重载内存单例
 
 导入只改 prefs,而多数单例用 `_loaded` / `_initialized` / 内存 `_cache` 守卫只在进程内加载一次——不重载就会「导入成功但不生效,重启才恢复」。
 
-`reloadRuntimeSettings()`(`lib/utils/settings_reload.dart`)统一处理:`UserManager`、`DownloadManager`、`AiSettings`、`AppLogger`、`ReadingStats`、`FontManager`、`BookmarkStore`,并重新把选中字体载入引擎。各步骤独立容错,单个失败只记日志。
+`reloadRuntimeSettings()`（`lib/utils/settings_reload.dart`）按分类重载 `UserManager`、`DownloadManager`、`AiSettings`、`AppLogger`、`ReadingStats`、`FontManager`、`BookmarkStore` 与 `NovelBookmarkStore`，并重新加载选中字体。普通重载各步骤独立容错；备份事务用 `strict: true` 把重载失败反馈给回滚流程。指定分类时账号初始化使用 `persistMigrations: false`，不能在恢复其他设置时顺带迁移或改写凭据。
 
 调用点:`general_page`(导入 / 重置应用)、`cache_management`(删除单条 / 批量 / 分区)。
 
@@ -231,5 +258,5 @@ Future<void> deleteAll();
 - 应用文档目录 `novel_downloads`（可改到自定义目录，键 `download_novel_save_directory`）：**永久下载**，与上面的可清理正文缓存是两套存储。带版本清单 `manifest_v1.json`，每卷保存同一版本的原始 TXT + 目录快照、书籍/卷元数据与插图 URL 映射。清单与快照校验通过才显示为已完成；缺失或摘要不符标为「待修复」。删除只作用于被索引、被校验过的文件。
 - `download_novel_queue_state_v1`：小说未完成下载队列（版本、暂停标记、任务列表）。完整成功后只删除任务记录，本地文件保留；启动时依据文件校验清理遗留完成记录，损坏转待修复，失败/暂停/部分完成任务保留。只持久化稳定来源标识（`CopyAccountSession.id`，游客为 `guest`）与主机，**不保存 token**；账号或线路变化后未完成任务暂停。`download_novel_concurrency` 控制并发（1–4）。
 - 清理边界：清正文缓存不动已下载内容；清下载不动阅读进度/历史/书签。退出账号不删除本机已下载内容。
-- `copy_account_v1`：`SecureCredentialStore` 中的独立拷贝会话及迁移/退出标记。不导出到普通设置备份；退出附加账号不得清除其他 secure key。通过认证但尚无资料的账号使用随机 `local:` 标识；`account_id` 固定后不随资料补全或 Token 更新变化。主账号的同一标识以 `user_account_id` 保存，归入敏感账号备份分类；它不是 Token 或 Token 指纹。
+- `secure_mirror_copy_account_v1`：`SecureCredentialStore` 在私有 prefs 中保存的独立拷贝会话及迁移/退出标记，兼容读取旧裸键 `copy_account_v1`。不导出到普通设置或账号分类备份；退出附加账号不得清除其他凭据键。通过认证但尚无资料的账号使用随机 `local:` 标识；`account_id` 固定后不随资料补全或 Token 更新变化。主账号的同一标识以 `user_account_id` 保存，归入敏感账号备份分类；它不是 Token 或 Token 指纹。
 - 详细阅读/鉴权/下载边界见 [轻小说](novel.md)。

@@ -113,7 +113,7 @@ Android is the only **released** target (`build_apk.ps1` + `.github/workflows/re
 ## Testing Guidelines
 
 - Use `flutter_test` for unit and widget coverage. Files: `*_test.dart`. Mirroring source paths is the rule for `lib/pages/**` (which has subdirectories); everything else (novel, copy-account, backup) sits flat at `test/` root. 119 files, ~1170 cases, full run ≈ 80 s.
-- `test/test_helpers.dart` is mandatory for widget tests: `wrapWithApp(child)` injects the `AppLocalizations` delegate — a bare `MaterialApp` makes `AppLocalizations.of(context)!` throw. Call `setupSecureCredentialStoreForTest()` in `setUp` and `teardownSecureCredentialStoreForTest()` in `tearDown` for anything that runs `UserManager.init()`; without it the platform channel hangs the test.
+- `test/test_helpers.dart` is mandatory for widget tests: `wrapWithApp(child)` injects the `AppLocalizations` delegate — a bare `MaterialApp` makes `AppLocalizations.of(context)!` throw. Call `setupSecureCredentialStoreForTest()` in `setUp` and `teardownSecureCredentialStoreForTest()` in `tearDown` to isolate account state. Persistence regressions must additionally exercise the default prefs-backed store across recreated instances.
 - For `CachedRepository` subclasses: override `loadFromCache`/`saveToCache` with in-memory maps to avoid SharedPreferences in tests.
 - New features and bug fixes should include tests when the behavior can be exercised outside platform-only code.
 - **不要擅自跑全量测试**：默认只跑与改动相关的测试文件（`flutter test test/xxx_test.dart …`）；全量 `flutter test` 耗时且输出量大，仅在用户明确要求时执行。
@@ -130,8 +130,9 @@ don't update `docs/CHANGELOG.md`
 ## Security
 
 - Do not commit signing material (`android/key.properties`, keystores).
-- Use `flutter_secure_storage` for credentials (token, password) — never SharedPreferences for secrets.
-- `SecureCredentialStore` wraps flutter_secure_storage; `InMemorySecureCredentialStore` for tests.
+- Credentials use `SecureCredentialStore`, backed by app-private SharedPreferences. The historical class name and `secure_mirror_*` prefix are compatibility names, not encryption guarantees; runtime Keystore/Keychain and `flutter_secure_storage` are no longer used.
+- Availability is the chosen trade-off: an upgrade may require one login when old credentials exist only in the encrypted store, but subsequent cold starts must retain the newly saved session. Preserve legacy plaintext migration, logout markers, write-failure handling, backup encryption, and credential exclusions from ordinary backups/cache cleanup. See `docs/persistence-and-cache.md` before changing this path.
+- Use `InMemorySecureCredentialStore` for isolated tests and the default prefs-backed store for persistence regressions.
 
 ## Persistence & Cache (on-demand)
 

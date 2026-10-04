@@ -29,8 +29,8 @@ class BackupSettingsData {
 }
 
 /// backup_* is local-only user configuration, not business cache.
-/// New secrets never enter SharedPreferences (existing account migration is
-/// deliberately outside the scope of this feature).
+/// Credentials use the app-private prefs-backed credential store and remain
+/// excluded from the portable backup whitelist.
 class BackupSettings {
   static const configKey = 'backup_webdav_config_v1';
   static const enabledKey = 'backup_webdav_enabled';
@@ -180,7 +180,7 @@ class BackupSettings {
   Future<void> markAutoBackup(DateTime at) =>
       _preferences.write(lastAutoBackupKey, at.millisecondsSinceEpoch);
 
-  /// 可用的备份密码：记在安全存储里的优先，其次是本次运行内输入过的。
+  /// 可用的备份密码：已持久化的优先，其次是本次运行内输入过的。
   Future<String?> activePassword() async =>
       (await _secrets.readBackupPassword()) ?? _sessionPassword;
 }

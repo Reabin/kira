@@ -7430,7 +7430,7 @@ abstract class AppLocalizations {
   /// No description provided for @copyAccountStorageFailed.
   ///
   /// In zh, this message translates to:
-  /// **'无法保存拷贝账号，请检查安全存储后重试；原账号保持不变。'**
+  /// **'无法保存拷贝账号，请稍后重试；原账号保持不变。'**
   String get copyAccountStorageFailed;
 
   /// No description provided for @copyAccountLoginSuperseded.
