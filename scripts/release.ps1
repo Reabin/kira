@@ -25,12 +25,13 @@ function Test-RemoteTagExists {
     return [bool]($out | Select-String -Quiet $Tag)
 }
 
-# 检查 release commit 是否已存在（按提交信息匹配）
+# 检查 release commit 是否已存在（按提交主题整行匹配并锚定版本号结尾，
+# 避免 "chore: release v1.7.1" 被历史提交 "chore: release v1.7.1-beta2" 挡住）
 function Test-ReleaseCommitExists {
     param([string]$Tag)
-    $msg = "chore: release $Tag"
-    $found = git log --oneline -10 --grep=$msg 2>$null
-    return ($found -ne $null -and $found.Count -gt 0)
+    $pattern = 'chore: release ' + [regex]::Escape($Tag) + '$'
+    $found = @(git log --pretty=%s -30 2>$null | Where-Object { "$_".Trim() -match $pattern })
+    return ($found.Count -gt 0)
 }
 
 # 检查 pubspec.yaml 版本号是否已更新
@@ -40,14 +41,18 @@ function Test-PubspecUpdated {
     return $content -match "(?m)^version: $([regex]::Escape($Version))\+"
 }
 
-# 检查 CHANGELOG.md 是否已包含该版本条目（通过匹配版本号字符串）
+# 检查 CHANGELOG.md 是否已处理过本次发布：
+# 1) 文件有未提交的修改 —— 发布者已编辑草稿，沿用；
+# 2) 最近一次涉及 CHANGELOG 的提交是本次 release commit —— 流程已完成。
+# 不能用「文件里是否出现版本号」判断：该文件整体就是当前版本的 notes，
+# beta 条目会让正式版（v1.7.1 含于 "v1.7.1-beta"）被误判为已更新。
 function Test-ChangelogUpdated {
     param([string]$Tag)
     if (-not (Test-Path 'docs/CHANGELOG.md')) { return $false }
-    $content = Get-Content 'docs/CHANGELOG.md' -Raw
-    # 匹配 "v1.3.1" 或 "1.3.1"（gen-commit 输出格式可能带或不带 v 前缀）
-    $ver = $Tag.TrimStart('v')
-    return $content -match [regex]::Escape($ver)
+    $dirty = git status --porcelain -- 'docs/CHANGELOG.md' 2>$null
+    if ($dirty) { return $true }
+    $last = "$((git log -1 --pretty=%s -- 'docs/CHANGELOG.md' 2>$null))".Trim()
+    return ($last -match ('chore: release ' + [regex]::Escape($Tag) + '$'))
 }
 
 # 安全执行 git 命令，失败时打印提示但不直接退出（用于可恢复的步骤）
@@ -173,18 +178,12 @@ try {
     # ========== 阶段 1: CHANGELOG ==========
 
     if (Test-ChangelogUpdated $newTag) {
-        Write-Host "`n[跳过] CHANGELOG.md 已包含 $newTag 条目" -ForegroundColor DarkGray
+        Write-Host "`n[跳过] CHANGELOG.md 已更新过" -ForegroundColor DarkGray
     }
     else {
-        Write-Host "`n正在更新 CHANGELOG.md..." -ForegroundColor Yellow
-        Invoke-RunCommand gen-commit @()
-
-        if (-not (Test-ChangelogUpdated $newTag)) {
-            Write-Host "警告: gen-commit 可能未生成 $newTag 的条目，请检查 CHANGELOG.md" -ForegroundColor Yellow
-        }
-        else {
-            Write-Host "CHANGELOG.md 已更新" -ForegroundColor Green
-        }
+        Write-Host "`n正在生成 CHANGELOG.md 草稿..." -ForegroundColor Yellow
+        Update-Changelog
+        Write-Host "CHANGELOG.md 草稿已生成" -ForegroundColor Green
 
         Write-Host "`n正在打开 CHANGELOG.md 供编辑..." -ForegroundColor Yellow
         try { Start-Process explorer.exe -ArgumentList 'docs\CHANGELOG.md' -ErrorAction Stop }
