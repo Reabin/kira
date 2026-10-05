@@ -114,6 +114,28 @@ void main() {
   );
 
   test(
+    'a native compatibility error falls back to the plugin mode list',
+    () async {
+      messenger.setMockMethodCallHandler(windowChannel, (call) async {
+        expect(call.method, 'getSupportedRefreshRates');
+        throw PlatformException(
+          code: 'display_mode_unavailable',
+          message: 'NoSuchMethodError: display API unavailable',
+        );
+      });
+      messenger.setMockMethodCallHandler(displayChannel, (call) async {
+        expect(call.method, 'getSupportedModes');
+        return [
+          {'id': 1, 'width': 1080, 'height': 2400, 'refreshRate': 60.0},
+          {'id': 2, 'width': 1080, 'height': 2400, 'refreshRate': 120.0},
+        ];
+      });
+
+      expect(await DisplayModePreference.loadRefreshRates(), [120, 90, 60]);
+    },
+  );
+
+  test(
     'a total read failure propagates so callers keep their last list',
     () async {
       messenger.setMockMethodCallHandler(displayChannel, (_) async {

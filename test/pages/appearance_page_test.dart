@@ -39,6 +39,7 @@ class _Display {
   int reads = 0;
   bool failActive = false;
   bool failSupported = false;
+  bool failNativeRates = false;
   Completer<Map<String, Object>>? pendingRead;
   final requests = <MethodCall>[];
 
@@ -55,6 +56,12 @@ class _Display {
         if (failSupported) throw PlatformException(code: 'unavailable');
         return [for (final rate in supportedRates) mode(rate)];
       case 'getSupportedRefreshRates':
+        if (failNativeRates) {
+          throw PlatformException(
+            code: 'display_mode_unavailable',
+            message: 'NoSuchMethodError: display API unavailable',
+          );
+        }
         if (failSupported) throw PlatformException(code: 'unavailable');
         return nativeRates ?? supportedRates;
       case 'getActiveMode':
@@ -274,6 +281,30 @@ void main() {
         find.descendant(of: _select, matching: find.text('自动')),
         findsOneWidget,
       );
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'native compatibility errors leave the page and refresh-rate picker usable',
+    (tester) async {
+      display.failNativeRates = true;
+      await _showPage(tester);
+      expect(find.text('自动 · 60Hz'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(display.requests, isEmpty);
+
+      await _openMenu(tester);
+      expect(find.text('120 Hz'), findsOneWidget);
+      expect(find.text('90 Hz'), findsOneWidget);
+      expect(find.text('60Hz（当前）'), findsOneWidget);
+      expect(find.text('165 Hz'), findsNothing);
+      await tester.tap(find.text('120 Hz'));
+      await tester.pumpAndSettle();
+      expect(UserManager().displayModeRefreshRate, 120);
+      expect(display.requests.last.method, 'setPreferredMode');
+      expect(display.requests.last.arguments, {'mode': 2});
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );

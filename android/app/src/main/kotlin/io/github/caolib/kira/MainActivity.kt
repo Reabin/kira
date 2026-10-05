@@ -130,14 +130,23 @@ class MainActivity : FlutterActivity() {
             "io.github.caolib.kira/display_mode"
         )
         displayModeChannel?.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "setPreferredRefreshRate" -> {
-                    val refreshRate = call.argument<Number>("refreshRate")?.toFloat() ?: 0f
-                    setWindowPreferredRefreshRate(refreshRate)
-                    result.success(null)
+            try {
+                when (call.method) {
+                    "setPreferredRefreshRate" -> {
+                        val refreshRate = call.argument<Number>("refreshRate")?.toFloat() ?: 0f
+                        setWindowPreferredRefreshRate(refreshRate)
+                        result.success(null)
+                    }
+                    "getSupportedRefreshRates" -> result.success(getSupportedRefreshRates())
+                    else -> result.notImplemented()
                 }
-                "getSupportedRefreshRates" -> result.success(getSupportedRefreshRates())
-                else -> result.notImplemented()
+            } catch (e: Exception) {
+                Log.w(TAG, "Display mode request failed: ${call.method}", e)
+                result.error("display_mode_unavailable", "${e.javaClass.simpleName}: ${e.message}", null)
+            } catch (e: LinkageError) {
+                // Missing framework APIs are Errors, not Exceptions; return to Dart's fallback.
+                Log.w(TAG, "Display mode API unavailable: ${call.method}", e)
+                result.error("display_mode_unavailable", "${e.javaClass.simpleName}: ${e.message}", null)
             }
         }
 
@@ -250,11 +259,16 @@ class MainActivity : FlutterActivity() {
         val rates = sortedSetOf<Double>()
         for (mode in display.supportedModes) {
             rates.add(mode.refreshRate.toDouble())
-            mode.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+            // Alternative rates were added in Android 12; ordinary modes work on older devices.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                mode.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+            }
         }
         val active = display.mode
         rates.add(active.refreshRate.toDouble())
-        active.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            active.alternativeRefreshRates?.forEach { rates.add(it.toDouble()) }
+        }
         return rates.toList()
     }
 
