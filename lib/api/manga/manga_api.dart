@@ -491,6 +491,20 @@ class MangaApi {
     return Comic.fromDetailJson(data);
   }
 
+  /// Look up region metadata using the same source as the recent list.
+  Future<Comic> getRecentComicDetail(
+    String pathWord, {
+    required bool isCopy,
+  }) async {
+    if (!isCopy) return getComicDetail(pathWord);
+    final data = await _copyGet(
+      '/api/v3/comic2/$pathWord',
+      params: {'platform': 3},
+      errorMessage: 'Failed to load COPY comic region',
+    );
+    return Comic.fromDetailJson(data);
+  }
+
   // 6. User status query
   Future<Map<String, dynamic>> getComicQuery(String pathWord) async {
     return _t.get('/api/v3/comic2/$pathWord/query');

@@ -2515,5 +2515,10 @@
   "accountViewTokenLabel": "權杖 (Token)",
   "accountViewNoToken": "無權杖",
   "accountViewCopiedToast": "已複製到剪貼簿",
-  "accountCenterNameNewTitle": "給新帳號起個備註名"
+  "accountCenterNameNewTitle": "給新帳號起個備註名",
+"homeRecentAll": "全部",
+  "homeRecentJapaneseOnly": "僅日漫",
+  "homeRecentUpdates": "最近更新",
+  "homeRecentEmpty": "目前最近更新中沒有符合篩選的漫畫",
+  "homeRecentJapaneseHint": "僅展示地區已確認為日本的漫畫，按更新時間排序"
 }

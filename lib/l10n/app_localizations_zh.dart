@@ -4119,6 +4119,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountCenterNameNewTitle => '给新账号起个备注名';
+
+  @override
+  String get homeRecentAll => '全部';
+
+  @override
+  String get homeRecentJapaneseOnly => '仅日漫';
+
+  @override
+  String get homeRecentUpdates => '最近更新';
+
+  @override
+  String get homeRecentEmpty => '当前最近更新中没有符合筛选的漫画';
+
+  @override
+  String get homeRecentJapaneseHint => '仅展示地区已确认为日本的漫画，按更新时间排序';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8236,4 +8251,19 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get accountCenterNameNewTitle => '給新帳號起個備註名';
+
+  @override
+  String get homeRecentAll => '全部';
+
+  @override
+  String get homeRecentJapaneseOnly => '僅日漫';
+
+  @override
+  String get homeRecentUpdates => '最近更新';
+
+  @override
+  String get homeRecentEmpty => '目前最近更新中沒有符合篩選的漫畫';
+
+  @override
+  String get homeRecentJapaneseHint => '僅展示地區已確認為日本的漫畫，按更新時間排序';
 }

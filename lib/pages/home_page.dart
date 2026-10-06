@@ -9,10 +9,12 @@ import 'package:material3_expressive_loading_indicator/material3_expressive_load
 
 import '../l10n/app_localizations.dart';
 import '../models/comic.dart' hide Theme;
+import '../models/recent_updates_settings.dart';
 import '../models/user_manager.dart';
 import '../providers/app_providers.dart';
 import '../providers/repository_providers.dart';
 import '../repositories/manga_home_repository.dart';
+import '../repositories/recent_updates_repository.dart';
 import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_radius.dart';
@@ -32,6 +34,7 @@ part 'home/home_banner.dart';
 part 'home/home_cards.dart';
 part 'home/home_copy_widgets.dart';
 part 'home/home_sections.dart';
+part 'home/home_recent_updates.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
@@ -88,6 +91,7 @@ class _HomePageState extends ConsumerState<HomePage>
   List<Comic> _rankingPreview = [];
   bool _loading = true;
   bool _refreshing = false;
+  int _recentRevision = 0;
   String? _error;
 
   @override
@@ -154,6 +158,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
+    if (forceRefresh) setState(() => _recentRevision++);
     if (_isCopySource) return _loadCopy(forceRefresh: forceRefresh);
     final hasData = _home != null;
     if (!hasData) {
@@ -427,6 +432,17 @@ class _HomePageState extends ConsumerState<HomePage>
       }
     }
 
+    slivers.insert(
+      1,
+      SliverToBoxAdapter(
+        child: _RecentUpdatesSection(
+          key: ValueKey('recent-updates-$isCopy'),
+          isCopy: isCopy,
+          revision: _recentRevision,
+          onTap: _openComic,
+        ),
+      ),
+    );
     slivers.add(const SliverPadding(padding: EdgeInsets.only(bottom: 88)));
 
     return Scaffold(

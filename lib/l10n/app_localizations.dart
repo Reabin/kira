@@ -7612,6 +7612,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'给新账号起个备注名'**
   String get accountCenterNameNewTitle;
+
+  /// No description provided for @homeRecentAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get homeRecentAll;
+
+  /// No description provided for @homeRecentJapaneseOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅日漫'**
+  String get homeRecentJapaneseOnly;
+
+  /// No description provided for @homeRecentUpdates.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新'**
+  String get homeRecentUpdates;
+
+  /// No description provided for @homeRecentEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前最近更新中没有符合筛选的漫画'**
+  String get homeRecentEmpty;
+
+  /// No description provided for @homeRecentJapaneseHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅展示地区已确认为日本的漫画，按更新时间排序'**
+  String get homeRecentJapaneseHint;
 }
 
 class _AppLocalizationsDelegate
