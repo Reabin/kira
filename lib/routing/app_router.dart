@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/comic.dart' hide Theme;
@@ -42,6 +41,7 @@ import '../pages/webview_login_page.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/novel_hero_tags.dart';
+import 'detail_page.dart';
 import 'dismiss_keyboard_observer.dart';
 import 'main_shell.dart';
 
@@ -268,7 +268,8 @@ GoRouter createAppRouter() {
         pageBuilder: (context, state) {
           final pathWord = state.pathParameters['pathWord']!;
           final extra = state.extra as ComicDetailExtra?;
-          return CustomTransitionPage(
+          return buildDetailPage(
+            context: context,
             key: state.pageKey,
             transitionDuration: ComicHeroTags.transitionDuration,
             reverseTransitionDuration: ComicHeroTags.reverseTransitionDuration,
@@ -279,13 +280,6 @@ GoRouter createAppRouter() {
               lastBrowseId: extra?.lastBrowseId,
               lastBrowseName: extra?.lastBrowseName,
             ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (animation.status == AnimationStatus.reverse) {
-                    return Opacity(opacity: 0, child: child);
-                  }
-                  return child;
-                },
           );
         },
       ),
@@ -324,7 +318,8 @@ GoRouter createAppRouter() {
         name: AppRoutes.novelDetail,
         pageBuilder: (context, state) {
           final extra = state.extra as NovelDetailExtra?;
-          return CustomTransitionPage(
+          return buildDetailPage(
+            context: context,
             key: state.pageKey,
             transitionDuration: NovelHeroTags.transitionDuration,
             reverseTransitionDuration: NovelHeroTags.reverseTransitionDuration,
@@ -333,13 +328,6 @@ GoRouter createAppRouter() {
               initialBook: extra?.initialBook,
               heroTagBase: extra?.heroTagBase,
             ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (animation.status == AnimationStatus.reverse) {
-                    return Opacity(opacity: 0, child: child);
-                  }
-                  return child;
-                },
           );
         },
       ),
