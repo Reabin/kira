@@ -4134,6 +4134,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get homeRecentJapaneseHint => '仅展示地区已确认为日本的漫画，按更新时间排序';
+
+  @override
+  String get homeRecentJapan => '日漫';
+
+  @override
+  String get homeRecentKorea => '韩漫';
+
+  @override
+  String get homeRecentWestern => '美漫';
+
+  @override
+  String get homeRecentRegions => '关注地区';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8266,4 +8278,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get homeRecentJapaneseHint => '僅展示地區已確認為日本的漫畫，按更新時間排序';
+
+  @override
+  String get homeRecentJapan => '日漫';
+
+  @override
+  String get homeRecentKorea => '韓漫';
+
+  @override
+  String get homeRecentWestern => '美漫';
+
+  @override
+  String get homeRecentRegions => '關注地區';
 }

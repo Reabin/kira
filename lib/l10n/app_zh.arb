@@ -2551,5 +2551,9 @@
   "homeRecentJapaneseOnly": "仅日漫",
   "homeRecentUpdates": "最近更新",
   "homeRecentEmpty": "当前最近更新中没有符合筛选的漫画",
-  "homeRecentJapaneseHint": "仅展示地区已确认为日本的漫画，按更新时间排序"
+  "homeRecentJapaneseHint": "仅展示地区已确认为日本的漫画，按更新时间排序",
+  "homeRecentJapan": "日漫",
+  "homeRecentKorea": "韩漫",
+  "homeRecentWestern": "美漫",
+  "homeRecentRegions": "关注地区"
 }

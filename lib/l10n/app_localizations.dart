@@ -7642,6 +7642,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'仅展示地区已确认为日本的漫画，按更新时间排序'**
   String get homeRecentJapaneseHint;
+
+  /// No description provided for @homeRecentJapan.
+  ///
+  /// In zh, this message translates to:
+  /// **'日漫'**
+  String get homeRecentJapan;
+
+  /// No description provided for @homeRecentKorea.
+  ///
+  /// In zh, this message translates to:
+  /// **'韩漫'**
+  String get homeRecentKorea;
+
+  /// No description provided for @homeRecentWestern.
+  ///
+  /// In zh, this message translates to:
+  /// **'美漫'**
+  String get homeRecentWestern;
+
+  /// No description provided for @homeRecentRegions.
+  ///
+  /// In zh, this message translates to:
+  /// **'关注地区'**
+  String get homeRecentRegions;
 }
 
 class _AppLocalizationsDelegate

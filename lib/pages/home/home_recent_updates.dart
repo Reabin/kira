@@ -73,13 +73,13 @@ class _RecentUpdatesSectionState extends State<_RecentUpdatesSection> {
     try {
       final repository = RecentUpdatesRepository(
         isCopy: widget.isCopy,
-        japaneseOnly: _settings.japaneseOnly,
+        regions: _settings.regions,
       );
       if (refresh) await repository.invalidateCache();
       final data = await repository.load();
       if (!mounted || generation != _generation) return;
       setState(() {
-        _comics = data.comics;
+        _comics = data.comics.take(12).toList();
         _loading = false;
       });
     } catch (error, stack) {
@@ -96,9 +96,9 @@ class _RecentUpdatesSectionState extends State<_RecentUpdatesSection> {
     }
   }
 
-  Future<void> _select(bool value) async {
+  Future<void> _select(Set<int> value) async {
     try {
-      await _settings.setJapaneseOnly(value);
+      await _settings.setRegions(value);
       if (!mounted) return;
       await _reload();
     } catch (error, stack) {
@@ -124,38 +124,25 @@ class _RecentUpdatesSectionState extends State<_RecentUpdatesSection> {
             child: SectionHeader(
               title: l10n.homeRecentUpdates,
               icon: Icons.update,
-              trailing: IconButton(
-                tooltip: l10n.retryButton,
-                onPressed: _loading ? null : () => _reload(refresh: true),
-                icon: const Icon(Icons.refresh),
-              ),
+              onMore: () async {
+                await context.pushNamed(
+                  AppRoutes.recentUpdates,
+                  queryParameters: {'source': widget.isCopy ? 'copy' : 'hot'},
+                );
+                if (!mounted) return;
+                await _settings.load();
+                if (mounted) await _reload();
+              },
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: SegmentedButton<bool>(
-              segments: [
-                ButtonSegment(
-                  value: true,
-                  label: Text(l10n.homeRecentJapaneseOnly),
-                ),
-                ButtonSegment(value: false, label: Text(l10n.homeRecentAll)),
-              ],
-              selected: {_settings.japaneseOnly},
-              onSelectionChanged: _loading
-                  ? null
-                  : (values) => _select(values.first),
+            child: RecentRegionFilter(
+              regions: _settings.regions,
+              onChanged: _select,
+              enabled: !_loading,
             ),
           ),
-          const SizedBox(height: AppSpacing.sm),
-          if (_settings.japaneseOnly)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Text(
-                l10n.homeRecentJapaneseHint,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
           const SizedBox(height: AppSpacing.sm),
           if (_loading)
             const Padding(

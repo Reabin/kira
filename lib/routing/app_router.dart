@@ -34,6 +34,7 @@ import '../pages/novel_reader_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/ranking_page.dart';
 import '../pages/reader_page.dart';
+import '../pages/recent_updates_page.dart';
 import '../pages/recommend_page.dart';
 import '../pages/search_page.dart';
 import '../pages/stats_page.dart';
@@ -66,6 +67,7 @@ final class AppRoutes {
   static const novelHistory = 'novel_history';
   static const recommend = 'recommend';
   static const ranking = 'ranking';
+  static const recentUpdates = 'recentUpdates';
   static const copyMangaList = 'copy_manga_list';
   static const copyTopics = 'copy_topics';
   static const copyTopicDetail = 'copy_topic_detail';
@@ -375,6 +377,13 @@ GoRouter createAppRouter() {
         path: '/recommend',
         name: AppRoutes.recommend,
         builder: (_, _) => const RecommendPage(),
+      ),
+      GoRoute(
+        path: '/recent-updates',
+        name: AppRoutes.recentUpdates,
+        builder: (_, state) => RecentUpdatesPage(
+          isCopy: state.uri.queryParameters['source'] == 'copy',
+        ),
       ),
       GoRoute(
         path: '/ranking',

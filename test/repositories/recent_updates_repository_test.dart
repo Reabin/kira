@@ -17,6 +17,53 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test(
+    'Multi-region results keep every item before the next pagination cursor',
+    () async {
+      final repo = RecentUpdatesRepository(
+        isCopy: true,
+        regions: {0, 1},
+        fetchPage: (offset) async => (
+          list: List.generate(
+            21,
+            (i) => comic('item${offset + i}', i.isEven ? '日本' : '韩国'),
+          ),
+          total: 42,
+        ),
+      );
+      final first = await repo.load();
+      expect(first.comics, hasLength(21));
+      expect(first.nextOffset, 21);
+      expect(first.hasMore, isTrue);
+      final restored = RecentUpdatesData.fromJson(first.toJson());
+      expect(restored.nextOffset, 21);
+      final second = await RecentUpdatesRepository(
+        isCopy: true,
+        regions: {1, 0},
+        offset: first.nextOffset,
+        fetchPage: (offset) async =>
+            (list: [comic('item$offset', '韩国'), comic('us', '美国')], total: 23),
+      ).load();
+      expect(second.comics.map((c) => c.pathWord), ['item21']);
+      expect(second.hasMore, isFalse);
+    },
+  );
+
+  test(
+    'Migrates previous all/Japanese choices and rejects empty selection',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        RecentUpdatesSettings.legacyKey: false,
+      });
+      final settings = RecentUpdatesSettings();
+      await settings.load();
+      expect(settings.regions, {0, 1, 2});
+      await expectLater(settings.setRegions({}), throwsArgumentError);
+      expect(settings.regions, {0, 1, 2});
+      settings.dispose();
+    },
+  );
+
+  test(
     'Recognizes the live detail API display field without treating absent regions as Japan',
     () {
       expect(
@@ -51,7 +98,7 @@ void main() {
       final offsets = <int>[];
       final repo = RecentUpdatesRepository(
         isCopy: true,
-        japaneseOnly: true,
+        regions: const {0},
         fetchPage: (offset) async {
           offsets.add(offset);
           return (
@@ -76,7 +123,7 @@ void main() {
       RecentUpdatesRepository repository(bool isCopy) =>
           RecentUpdatesRepository(
             isCopy: isCopy,
-            japaneseOnly: true,
+            regions: const {0},
             fetchPage: (_) async =>
                 (list: [comic('jp'), comic('unknown')], total: 2),
             fetchDetail: (id) async {
@@ -104,13 +151,13 @@ void main() {
       );
       await RecentUpdatesRepository(
         isCopy: true,
-        japaneseOnly: true,
+        regions: const {0},
         fetchPage: page,
         fetchDetail: (id) async => comic(id),
       ).load();
       final all = RecentUpdatesRepository(
         isCopy: true,
-        japaneseOnly: false,
+        regions: const {0, 1, 2},
         fetchPage: page,
         fetchDetail: (_) async => throw StateError('No detail'),
       );
@@ -126,7 +173,7 @@ void main() {
     var pages = 0;
     final repo = RecentUpdatesRepository(
       isCopy: false,
-      japaneseOnly: true,
+      regions: const {0},
       fetchPage: (offset) async {
         pages++;
         return (list: [comic('kr$offset', '韩国')], total: 1000);
@@ -141,13 +188,13 @@ void main() {
     () async {
       final settings = RecentUpdatesSettings();
       await settings.load();
-      expect(settings.japaneseOnly, isTrue);
-      await settings.setJapaneseOnly(false);
+      expect(settings.regions, {0});
+      await settings.setRegions({0, 1});
       settings.dispose();
       await AppStorage.cache.removeByPrefix('');
       final restored = RecentUpdatesSettings();
       await restored.load();
-      expect(restored.japaneseOnly, isFalse);
+      expect(restored.regions, {0, 1});
       restored.dispose();
     },
   );
