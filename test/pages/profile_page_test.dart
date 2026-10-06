@@ -9,6 +9,7 @@ import 'package:kira/pages/about_page.dart' show AboutPage;
 import 'package:kira/pages/profile_page.dart';
 import 'package:kira/utils/app_update.dart';
 import 'package:kira/utils/remote_notice_service.dart';
+import 'package:kira/widgets/account_avatar.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -62,23 +63,23 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('account entry keeps its settings icon and current username', (
-    tester,
-  ) async {
+  testWidgets('account entry shows nickname and avatar', (tester) async {
     await pumpProfilePage(tester);
     final tile = tester.widget<ListTile>(
       find.byKey(const ValueKey('profile-account-entry')),
     );
-    expect(find.byIcon(Icons.manage_accounts_rounded), findsOneWidget);
-    expect(find.byType(CircleAvatar), findsNothing);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(tester.widget<AccountAvatar>(find.byType(AccountAvatar)).radius, 12);
+    expect(find.byIcon(Icons.manage_accounts_rounded), findsNothing);
+    expect(find.byType(CircleAvatar), findsOneWidget);
     expect(tile.subtitle, isNull);
     expect(tile.trailing, isNull);
     expect(tile.onTap, isNotNull);
     expect(find.text('账号中心'), findsNothing);
-    expect(find.text('Alice'), findsNothing);
-    expect(find.text('alice'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('alice'), findsNothing);
     expect(
-      tester.getTopLeft(find.text('alice')).dy,
+      tester.getTopLeft(find.text('Alice')).dy,
       lessThan(tester.getTopLeft(find.text('通用')).dy),
     );
   });
@@ -96,8 +97,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.manage_accounts_rounded), findsOneWidget);
-    expect(find.text('alice'), findsOneWidget);
+    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('alice'), findsNothing);
     expect(find.text('copy-user'), findsNothing);
     await UserManager().logout();
     await tester.pumpAndSettle();

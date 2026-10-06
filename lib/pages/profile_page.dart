@@ -19,6 +19,7 @@ import '../utils/reading_history.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/screen_layout.dart';
 
+import '../widgets/account_avatar.dart';
 import '../widgets/setting_tile_group.dart';
 part 'profile/profile_cards.dart';
 

@@ -8,7 +8,7 @@ extension _ProfileCards on _ProfilePageState {
       children: [
         ListTile(
           key: const ValueKey('profile-account-entry'),
-          leading: const _SettingIcon(icon: Icons.manage_accounts_rounded),
+          leading: AccountAvatar(avatar: _user.avatar, radius: 12),
           title: Text(
             _accountDisplayName(l10n),
             maxLines: 1,
@@ -255,7 +255,7 @@ extension _ProfileCards on _ProfilePageState {
     if (!_user.isLoggedIn) return l10n.notLoggedInTitle;
     final nickname = _user.nickname?.trim() ?? '';
     final username = _user.username?.trim() ?? '';
-    if (username.isNotEmpty) return username;
-    return nickname.isEmpty ? l10n.accountProfileMissing : nickname;
+    if (nickname.isNotEmpty) return nickname;
+    return username.isEmpty ? l10n.accountProfileMissing : username;
   }
 }
