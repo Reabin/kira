@@ -189,8 +189,8 @@ class _ReaderImageViewerState extends State<_ReaderImageViewer> {
   Future<void> _saveImage() async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      final hasAccess = await Gal.hasAccess();
-      if (!hasAccess && !await Gal.requestAccess()) {
+      final hasAccess = await Gal.hasAccess(toAlbum: true);
+      if (!hasAccess && !await Gal.requestAccess(toAlbum: true)) {
         if (mounted) {
           showToast(
             context,

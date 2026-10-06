@@ -20,7 +20,7 @@ extension _ReaderChapterData on _ReaderPageState {
   }
 
   Future<void> _setVolumeIntercept(bool enabled) async {
-    if (!_volumeChannelAvailable) return;
+    if (!Platform.isAndroid || !_volumeChannelAvailable) return;
     try {
       await _ReaderPageState._volumeChannel.invokeMethod(
         enabled ? 'enable' : 'disable',

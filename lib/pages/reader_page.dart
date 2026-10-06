@@ -344,9 +344,11 @@ class _ReaderPageState extends State<ReaderPage> {
     _user.addListener(_onUserSettingsChanged);
     _loadChapter();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
-    _updateVolumeIntercept();
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+      _updateVolumeIntercept();
+    }
   }
 
   @override
@@ -354,8 +356,10 @@ class _ReaderPageState extends State<ReaderPage> {
     // 进度保存是防抖的，离开阅读页必须立刻落盘，否则最后几页会丢。
     unawaited(ReadingHistory.flush());
     _setVolumeIntercept(false);
-    _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(null);
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(null);
+    }
     _bookmarks.removeListener(_onBookmarksChanged);
     _user.removeListener(_onUserSettingsChanged);
     _scrollZoomController.removeListener(_onScrollZoomControllerChanged);

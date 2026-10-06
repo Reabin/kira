@@ -1,0 +1,47 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ios-port]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      PUB_HOSTED_URL: https://pub.flutter-io.cn
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: true
+      - name: Use CocoaPods for existing native plugins
+        run: flutter config --no-enable-swift-package-manager
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - name: Reader and sharing regression tests
+        run: flutter test test/utils/kira_links_test.dart test/widgets/reader_status_settings_test.dart test/models/reader_settings_test.dart
+      - name: Validate iOS metadata
+        run: plutil -lint ios/Runner/Info.plist ios/Flutter/AppFrameworkInfo.plist
+      - name: Build unsigned device app
+        run: flutter build ios --release --no-codesign
+      - name: Package for local signing
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          mkdir -p build/ios/sideload/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/sideload/Payload/
+          cd build/ios/sideload
+          zip -qry kira-ios-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v6
+        with:
+          name: kira-ios-unsigned
+          path: build/ios/sideload/kira-ios-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
