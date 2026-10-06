@@ -12,7 +12,7 @@ iOS 使用与 Android 相同的 `lib/`、资源及依赖，包含当前漫画和
 4. 用 Windows AltServer / AltStore Classic 和自己的 Apple 账号重新签名安装。
    IPA 未签名，不能直接点击安装。普通免费账号需要定期刷新签名。
 
-工作流使用 macOS、Flutter 3.44.2 和 CocoaPods，先进行静态检查及相关测试，
+工作流使用 macOS、Xcode 26.3、Flutter 3.44.2 和 CocoaPods，先进行静态检查及相关测试，
 再编译真机 Release 应用。不会上传 Apple 账号、证书或发布 App Store。
 
 ## iOS 平台行为

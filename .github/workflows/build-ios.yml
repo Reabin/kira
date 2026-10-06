@@ -14,8 +14,13 @@ jobs:
     timeout-minutes: 45
     env:
       PUB_HOSTED_URL: https://pub.flutter-io.cn
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - uses: actions/checkout@v6
+      - name: Verify Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.44.2'
