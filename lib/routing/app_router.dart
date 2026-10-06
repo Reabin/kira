@@ -15,6 +15,8 @@ import '../pages/browse_history_page.dart';
 import '../pages/cache_management_page.dart';
 import '../pages/comic_detail_page.dart';
 import '../pages/copy_manga_list_page.dart';
+import '../pages/copy_topic_detail_page.dart';
+import '../pages/copy_topic_list_page.dart';
 import '../pages/disclaimer_page.dart' show DisclaimerPage;
 import '../pages/download_center_page.dart';
 import '../pages/general_page.dart';
@@ -65,6 +67,8 @@ final class AppRoutes {
   static const recommend = 'recommend';
   static const ranking = 'ranking';
   static const copyMangaList = 'copy_manga_list';
+  static const copyTopics = 'copy_topics';
+  static const copyTopicDetail = 'copy_topic_detail';
   static const localComics = 'local_comics';
   static const localComicDetail = 'local_comic_detail';
   static const localNovels = 'local_novels';
@@ -408,6 +412,17 @@ GoRouter createAppRouter() {
           );
           return CopyMangaListPage(kind: kind);
         },
+      ),
+      GoRoute(
+        path: '/copy-topics',
+        name: AppRoutes.copyTopics,
+        builder: (_, _) => const CopyTopicListPage(),
+      ),
+      GoRoute(
+        path: '/copy-topic/:pathWord',
+        name: AppRoutes.copyTopicDetail,
+        builder: (_, state) =>
+            CopyTopicDetailPage(pathWord: state.pathParameters['pathWord']!),
       ),
       GoRoute(
         path: '/local-comics',

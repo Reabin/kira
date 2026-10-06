@@ -391,6 +391,18 @@ abstract class AppLocalizations {
   /// **'已完结'**
   String get copyFinished;
 
+  /// No description provided for @copyTopics.
+  ///
+  /// In zh, this message translates to:
+  /// **'专题'**
+  String get copyTopics;
+
+  /// No description provided for @copyTopicComics.
+  ///
+  /// In zh, this message translates to:
+  /// **'专题漫画'**
+  String get copyTopicComics;
+
   /// No description provided for @switchToHotHome.
   ///
   /// In zh, this message translates to:

@@ -85,6 +85,9 @@ Future<T> load() async {
 | ---- | ---------- | ---- | ---- | ---------- |
 | MangaHomeRepository (HOT) | `manga_home_v1` | 1h | 否 | `cache_manga_home_v1` |
 | MangaHomeRepository (COPY) | `manga_home_copy_v1` | 1h | 否 | `cache_manga_home_copy_v1` |
+| CopyTopicRepository（专题列表） | `copy_topics_v1_<limit>_<offset>` | 1d | 是 | `cache_copy_topics_v1_*` |
+| CopyTopicRepository（专题介绍） | `copy_topic_info_v1_<pathWord>` | 7d | 是 | `cache_copy_topic_info_v1_*` |
+| CopyTopicRepository（专题漫画） | `copy_topic_comics_v1_<pathWord>_<limit>_<offset>` | 3d | 是 | `cache_copy_topic_comics_v1_*` |
 | AnimeHomeRepository | `anime_home_v1` | **无** | 否 | `cache_anime_home_v1` |
 | ComicBookshelfRepository | `bookshelf_comic` | 30min | 是 | `cache_bookshelf_comic` |
 | NovelBookshelfRepository | `bookshelf_novel_v2_<scope>_<ordering>` | 30min | 是 | `cache_bookshelf_novel_v2_*` |

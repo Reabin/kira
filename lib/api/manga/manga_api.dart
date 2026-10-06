@@ -55,6 +55,62 @@ class MangaApi {
     return CopyMangaHome.fromJson(data);
   }
 
+  /// COPY topic list. Only comic topics (`type == 1`) are exposed.
+  Future<({List<MangaTopic> list, int total})> getCopyTopics({
+    int limit = 18,
+    int offset = 0,
+  }) async {
+    final data = await _copyGet(
+      '/api/v3/topics',
+      params: {'type': 1, 'limit': limit, 'offset': offset, 'platform': 3},
+      errorMessage: 'Failed to load COPY topics',
+    );
+    final list = _mapList(
+      data,
+      'list',
+      MangaTopic.fromJson,
+    ).where((topic) => topic.type == 1).toList();
+    return (list: list, total: _copyTotal(data, list.length));
+  }
+
+  /// COPY topic detail.
+  Future<MangaTopic> getCopyTopic(String pathWord) async {
+    final data = await _copyGet(
+      '/api/v3/topic/${Uri.encodeComponent(pathWord)}',
+      params: {'platform': 3},
+      errorMessage: 'Failed to load COPY topic',
+    );
+    return MangaTopic.fromJson(data);
+  }
+
+  /// Comics belonging to a COPY topic. The API and client both restrict this
+  /// endpoint to comic contents ([type] == 1).
+  Future<({List<Comic> list, int total})> getCopyTopicComics(
+    String pathWord, {
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final data = await _copyGet(
+      '/api/v3/topic/${Uri.encodeComponent(pathWord)}/contents',
+      params: {'type': 1, 'limit': limit, 'offset': offset, 'platform': 3},
+      errorMessage: 'Failed to load COPY topic comics',
+    );
+    final rawList = data['list'];
+    final list = rawList is List
+        ? rawList
+              .whereType<Map>()
+              .where((entry) {
+                final rawType = entry['type'];
+                return rawType is num
+                    ? rawType == 1
+                    : rawType?.toString() == '1';
+              })
+              .map((entry) => Comic.fromJson(Map<String, dynamic>.from(entry)))
+              .toList()
+        : <Comic>[];
+    return (list: list, total: _copyTotal(data, list.length));
+  }
+
   /// More COPY recommendations.
   Future<({List<Comic> list, int total})> getCopyRecommendations({
     int limit = 21,

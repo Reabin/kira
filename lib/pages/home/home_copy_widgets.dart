@@ -133,6 +133,59 @@ class _CopyCollapsibleSectionState extends State<_CopyCollapsibleSection> {
   }
 }
 
+class _CopyTopicEntry extends StatelessWidget {
+  final String title;
+  final double hp;
+  final VoidCallback onTap;
+
+  const _CopyTopicEntry({
+    required this.title,
+    required this.hp,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(hp, 0, hp, 12),
+      child: Material(
+        color: cs.surfaceBright,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.smR,
+          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.72)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Icon(Icons.topic_outlined, size: 20, color: cs.primary),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                Icon(Icons.chevron_right, size: 22, color: cs.onSurfaceVariant),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CopyHorizontalComicList extends StatelessWidget {
   final List<Comic> items;
   final void Function(Comic, String) onTap;

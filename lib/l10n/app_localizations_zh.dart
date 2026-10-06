@@ -158,6 +158,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyFinished => '已完结';
 
   @override
+  String get copyTopics => '专题';
+
+  @override
+  String get copyTopicComics => '专题漫画';
+
+  @override
   String get switchToHotHome => '切换到 HOT 首页';
 
   @override
@@ -4267,6 +4273,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get copyFinished => '已完結';
+
+  @override
+  String get copyTopics => '專題';
+
+  @override
+  String get copyTopicComics => '專題漫畫';
 
   @override
   String get switchToHotHome => '切換到 HOT 首頁';

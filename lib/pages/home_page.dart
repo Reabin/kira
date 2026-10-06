@@ -581,6 +581,15 @@ class _HomePageState extends ConsumerState<HomePage>
       ),
     );
 
+    final topicSection = _CopyTopicEntry(
+      title: l10n.copyTopics,
+      hp: hp,
+      onTap: () => context.pushNamed(AppRoutes.copyTopics),
+    );
+    // 专题是独立入口，不参与普通板块的展开/收起。
+    secondarySections.add(topicSection);
+    sections.add(topicSection);
+
     final slivers = <Widget>[];
     if (sections.isEmpty) {
       slivers.addAll(bannerSlivers);
