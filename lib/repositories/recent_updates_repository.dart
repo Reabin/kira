@@ -45,7 +45,12 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
   final Future<Comic> Function(String pathWord)? _fetchDetail;
 
   static bool isJapanese(Comic comic) {
-    final name = jsonString(comic.region, 'name').trim().toLowerCase();
+    // The detail API uses {value: 0, display: 日本}; some lists use name.
+    final display = jsonString(comic.region, 'display');
+    final name =
+        (display.isNotEmpty ? display : jsonString(comic.region, 'name'))
+            .trim()
+            .toLowerCase();
     return const {
       '日本',
       '日漫',
@@ -57,7 +62,10 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
   }
 
   Future<Comic> _withRegion(Comic comic) async {
-    if (jsonString(comic.region, 'name').isNotEmpty) return comic;
+    bool hasRegion(Comic value) =>
+        jsonString(value.region, 'name').isNotEmpty ||
+        jsonString(value.region, 'display').isNotEmpty;
+    if (hasRegion(comic)) return comic;
     final key = 'recent_region_v1_${isCopy ? 'copy' : 'hot'}_${comic.pathWord}';
     final cached = await AppStorage.cache.get(key);
     if (cached is Map) {
@@ -65,11 +73,9 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
     }
     final detail =
         await (_fetchDetail?.call(comic.pathWord) ??
-            ApiClient().manga.getRecentComicDetail(
-              comic.pathWord,
-              isCopy: isCopy,
-            ));
-    if (detail.region != null && jsonString(detail.region, 'name').isNotEmpty) {
+            // Use the app's working detail route, also used when opening COPY cards.
+            ApiClient().manga.getComicDetail(comic.pathWord));
+    if (detail.region != null && hasRegion(detail)) {
       await AppStorage.cache.put(
         key,
         detail.region,

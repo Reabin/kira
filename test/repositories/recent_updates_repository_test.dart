@@ -17,6 +17,35 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test(
+    'Recognizes the live detail API display field without treating absent regions as Japan',
+    () {
+      expect(
+        RecentUpdatesRepository.isJapanese(
+          Comic.fromJson({
+            'name': 'Japanese',
+            'path_word': 'jp',
+            'cover': '',
+            'region': {'value': 0, 'display': '日本'},
+          }),
+        ),
+        isTrue,
+      );
+      expect(
+        RecentUpdatesRepository.isJapanese(
+          Comic.fromJson({
+            'name': 'Korean',
+            'path_word': 'kr',
+            'cover': '',
+            'region': {'value': 1, 'display': '韩国'},
+          }),
+        ),
+        isFalse,
+      );
+      expect(RecentUpdatesRepository.isJapanese(comic('unknown')), isFalse);
+    },
+  );
+
+  test(
     'Japanese filter paginates, deduplicates and preserves update order',
     () async {
       final offsets = <int>[];
