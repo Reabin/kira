@@ -2524,5 +2524,11 @@
   "homeRecentJapan": "日漫",
   "homeRecentKorea": "韓漫",
   "homeRecentWestern": "美漫",
-  "homeRecentRegions": "關注地區"
+  "homeRecentRegions": "關注地區",
+  "networkIOSProxyStatusUnknown": "未取得系統 HTTP 代理位址，VPN 狀態無法確認",
+  "networkIOSManagedNetwork": "由 iOS 管理網路（VPN 狀態無法確認）",
+  "networkIOSSystemHint": "VPN 隧道可能不提供 HTTP 代理位址。未偵測到位址不代表 VPN 未生效；測速使用目前網路路徑，是否經過 VPN 取決於系統及代理軟體的分流規則。",
+  "networkIOSDirectActive": "不使用應用層代理",
+  "networkIOSDirectHint": "此模式繞過應用層 HTTP/SOCKS 代理；系統 VPN 仍可能接管連線。",
+  "networkIOSLatencySuggestion": "連線耗時較高或無法連線，請檢查網路、VPN 分流規則及所選節點"
 }

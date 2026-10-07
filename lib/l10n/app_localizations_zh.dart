@@ -4146,6 +4146,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get homeRecentRegions => '关注地区';
+
+  @override
+  String get networkIOSProxyStatusUnknown => '未取得系统 HTTP 代理地址，VPN 状态无法确认';
+
+  @override
+  String get networkIOSManagedNetwork => '由 iOS 管理网络（VPN 状态无法确认）';
+
+  @override
+  String get networkIOSSystemHint =>
+      'VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。';
+
+  @override
+  String get networkIOSDirectActive => '不使用应用层代理';
+
+  @override
+  String get networkIOSDirectHint => '此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。';
+
+  @override
+  String get networkIOSLatencySuggestion => '连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8290,4 +8309,23 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get homeRecentRegions => '關注地區';
+
+  @override
+  String get networkIOSProxyStatusUnknown => '未取得系統 HTTP 代理位址，VPN 狀態無法確認';
+
+  @override
+  String get networkIOSManagedNetwork => '由 iOS 管理網路（VPN 狀態無法確認）';
+
+  @override
+  String get networkIOSSystemHint =>
+      'VPN 隧道可能不提供 HTTP 代理位址。未偵測到位址不代表 VPN 未生效；測速使用目前網路路徑，是否經過 VPN 取決於系統及代理軟體的分流規則。';
+
+  @override
+  String get networkIOSDirectActive => '不使用應用層代理';
+
+  @override
+  String get networkIOSDirectHint => '此模式繞過應用層 HTTP/SOCKS 代理；系統 VPN 仍可能接管連線。';
+
+  @override
+  String get networkIOSLatencySuggestion => '連線耗時較高或無法連線，請檢查網路、VPN 分流規則及所選節點';
 }

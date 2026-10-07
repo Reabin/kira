@@ -68,6 +68,7 @@ extension _NetworkActions on _NetworkPageState {
   }
 
   Future<void> _testLatency() async {
+    if (_testingLatency) return;
     final api = ApiClient();
     final pendingResults = <int, Map<String, int?>>{};
     final pendingHosts = <String>{};
@@ -158,6 +159,11 @@ extension _NetworkActions on _NetworkPageState {
         _testingLatency = false;
         _pendingLatencyHosts = {};
       });
+    } finally {
+      if (mounted && _retestAfterResume) {
+        _retestAfterResume = false;
+        unawaited(_testLatency());
+      }
     }
   }
 
@@ -169,7 +175,7 @@ extension _NetworkActions on _NetworkPageState {
     final l10n = AppLocalizations.of(context)!;
     _showToast(
       proxy == null
-          ? l10n.networkNoSystemProxyDetected
+          ? NetworkProxy.systemProxyDescription(l10n)
           : l10n.networkSystemProxyDetected(proxy.label),
     );
   }

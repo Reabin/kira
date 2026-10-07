@@ -7666,6 +7666,42 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关注地区'**
   String get homeRecentRegions;
+
+  /// No description provided for @networkIOSProxyStatusUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未取得系统 HTTP 代理地址，VPN 状态无法确认'**
+  String get networkIOSProxyStatusUnknown;
+
+  /// No description provided for @networkIOSManagedNetwork.
+  ///
+  /// In zh, this message translates to:
+  /// **'由 iOS 管理网络（VPN 状态无法确认）'**
+  String get networkIOSManagedNetwork;
+
+  /// No description provided for @networkIOSSystemHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。'**
+  String get networkIOSSystemHint;
+
+  /// No description provided for @networkIOSDirectActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'不使用应用层代理'**
+  String get networkIOSDirectActive;
+
+  /// No description provided for @networkIOSDirectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。'**
+  String get networkIOSDirectHint;
+
+  /// No description provided for @networkIOSLatencySuggestion.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点'**
+  String get networkIOSLatencySuggestion;
 }
 
 class _AppLocalizationsDelegate

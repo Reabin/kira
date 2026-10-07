@@ -31,7 +31,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - name: Reader and sharing regression tests
-        run: flutter test test/utils/kira_links_test.dart test/widgets/reader_status_settings_test.dart test/models/reader_settings_test.dart test/routing/detail_page_test.dart test/routing/main_shell_focus_test.dart test/repositories/recent_updates_repository_test.dart test/widgets/recent_region_filter_test.dart test/widgets/recent_updates_page_test.dart
+        run: flutter test test/utils/kira_links_test.dart test/widgets/reader_status_settings_test.dart test/models/reader_settings_test.dart test/routing/detail_page_test.dart test/routing/main_shell_focus_test.dart test/repositories/recent_updates_repository_test.dart test/widgets/recent_region_filter_test.dart test/widgets/recent_updates_page_test.dart test/utils/network_proxy_test.dart test/api/network_probe_test.dart
       - name: Validate iOS metadata
         run: plutil -lint ios/Runner/Info.plist ios/Flutter/AppFrameworkInfo.plist
       - name: Build unsigned device app

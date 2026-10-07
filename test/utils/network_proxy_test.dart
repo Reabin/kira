@@ -1,14 +1,46 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kira/l10n/app_localizations_zh.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/utils/network_proxy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../test_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    setupSecureCredentialStoreForTest();
   });
+  tearDown(() {
+    debugDefaultTargetPlatformOverride = null;
+    teardownSecureCredentialStoreForTest();
+  });
+
+  test(
+    'iOS missing HTTP proxy reports unknown VPN status, not inactive VPN',
+    () async {
+      final user = UserManager();
+      await user.init();
+      await user.setNetworkProxyMode(NetworkProxyMode.system);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final l10n = AppLocalizationsZh();
+      expect(
+        NetworkProxy.activeProxyDescription(l10n),
+        l10n.networkIOSManagedNetwork,
+      );
+      expect(
+        NetworkProxy.systemProxyDescription(l10n),
+        l10n.networkIOSProxyStatusUnknown,
+      );
+      await user.setNetworkProxyMode(NetworkProxyMode.direct);
+      expect(
+        NetworkProxy.activeProxyDescription(l10n),
+        l10n.networkIOSDirectActive,
+      );
+    },
+  );
 
   test('proxy endpoint rule does not fall back to direct connection', () {
     const httpProxy = NetworkProxyEndpoint(

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../models/network_proxy_types.dart';
 import '../../utils/app_dio.dart';
 import '../../utils/network_error.dart';
 import '../../utils/network_proxy.dart';
@@ -84,6 +85,10 @@ class NetworkApi {
     List<String> hosts, {
     void Function(String host, int? latency)? onHostResult,
   }) async {
+    // A VPN / Wi-Fi proxy may have changed since the last app activation.
+    if (_t.user.networkProxyMode == NetworkProxyMode.system) {
+      await NetworkProxy.refreshSystemProxy();
+    }
     final results = <String, int?>{};
     await Future.wait(
       hosts.map((host) async {
@@ -95,10 +100,9 @@ class NetworkApi {
           final sw = Stopwatch()..start();
           // openUrl 在连接建立（含代理隧道与 TLS 握手）后完成；
           // 随即 abort，不发送任何请求，测得纯连通耗时。
-          final request = await client.openUrl(
-            'HEAD',
-            Uri.parse('https://$host'),
-          );
+          final request = await client
+              .openUrl('HEAD', Uri.parse('https://$host'))
+              .timeout(const Duration(seconds: 5));
           sw.stop();
           latency = sw.elapsedMilliseconds;
           request.abort();
