@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -137,9 +138,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     WidgetsBinding.instance.addObserver(this);
     // 与漫画阅读器一致：阅读期间窗口允许延伸进刘海/挖孔区（SHORT_EDGES）。
     // 否则沉浸模式下挖孔区域不随窗口扩展，露出一条纯黑的窗口背景。
-    const MethodChannel(
-      'io.github.caolib.kira/volume',
-    ).invokeMethod('enableImmersive').catchError((_) {});
+    if (Platform.isAndroid) {
+      const MethodChannel(
+        'io.github.caolib.kira/volume',
+      ).invokeMethod('enableImmersive').catchError((_) {});
+    }
     _beginSession();
   }
 
@@ -266,7 +269,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   /// 高亮锚点与某段落是否同一位置。
   bool _isSameAnchor(NovelReaderAnchor? a, NovelReaderAnchor b) =>
-      a != null && a.entryIndex == b.entryIndex && a.paragraphIndex == b.paragraphIndex;
+      a != null &&
+      a.entryIndex == b.entryIndex &&
+      a.paragraphIndex == b.paragraphIndex;
 
   void _beginSession() {
     final session = ++_session;
@@ -648,10 +653,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (volume == _volumeId && _document != null) {
         _jumpTo(NovelReaderAnchor(entryIndex: entry));
       } else {
-        await _loadVolume(
-          volume,
-          anchor: NovelReaderAnchor(entryIndex: entry),
-        );
+        await _loadVolume(volume, anchor: NovelReaderAnchor(entryIndex: entry));
       }
     }
   }
@@ -711,9 +713,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         last != null &&
         last.entry.entryIndex == paragraph.entry.entryIndex &&
         last.paragraphIndex == paragraph.paragraphIndex;
-    if (lastAt != null &&
-        same &&
-        now.isBefore(lastAt.add(_doubleTapWindow))) {
+    if (lastAt != null && same && now.isBefore(lastAt.add(_doubleTapWindow))) {
       _lastParagraphTap = null;
       _lastParagraphTapAt = null;
       unawaited(_showParagraphMenu(paragraph, position));
@@ -972,9 +972,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       overlays: SystemUiOverlay.values,
     );
     // 恢复默认的刘海区避让模式。
-    const MethodChannel(
-      'io.github.caolib.kira/volume',
-    ).invokeMethod('disableImmersive').catchError((_) {});
+    if (Platform.isAndroid) {
+      const MethodChannel(
+        'io.github.caolib.kira/volume',
+      ).invokeMethod('disableImmersive').catchError((_) {});
+    }
     super.dispose();
   }
 

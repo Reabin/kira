@@ -221,6 +221,10 @@ extension _ComicDetailActions on _ComicDetailPageState {
   Future<void> _shareComic() async {
     final l10n = AppLocalizations.of(context)!;
     final name = _comic?.name ?? widget.pathWord;
+    final renderObject = context.findRenderObject();
+    final shareOrigin = renderObject is RenderBox && renderObject.hasSize
+        ? renderObject.localToGlobal(Offset.zero) & renderObject.size
+        : null;
     // 分享面板关闭时 app 恢复前台会触发剪贴板检测；先把自己分享的链接
     // 记为已处理，避免分享者收到自己刚分享的提示。
     unawaited(SharedLinkRecord.markHandled(widget.pathWord));
@@ -232,6 +236,7 @@ extension _ComicDetailActions on _ComicDetailPageState {
             KiraLinks.comicShareUrl(widget.pathWord),
           ),
           subject: name,
+          sharePositionOrigin: shareOrigin,
         ),
       );
     } catch (e, stack) {

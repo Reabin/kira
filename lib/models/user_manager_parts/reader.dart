@@ -19,12 +19,7 @@ extension UserManagerReaderPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setReaderVolumeKey(bool enabled) async {
-    _readerVolumeKey = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderVolumeKey, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderVolumeKey(bool enabled) => reader.setVolumeKey(enabled);
 
   Future<void> setReaderInstantPageTurn(bool enabled) async {
     _readerInstantPageTurn = enabled;

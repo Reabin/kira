@@ -2546,5 +2546,20 @@
   "accountViewTokenLabel": "令牌 (Token)",
   "accountViewNoToken": "无令牌",
   "accountViewCopiedToast": "已复制到剪贴板",
-  "accountCenterNameNewTitle": "给新账号起个备注名"
+  "accountCenterNameNewTitle": "给新账号起个备注名",
+"homeRecentAll": "全部",
+  "homeRecentJapaneseOnly": "仅日漫",
+  "homeRecentUpdates": "最近更新",
+  "homeRecentEmpty": "当前最近更新中没有符合筛选的漫画",
+  "homeRecentJapaneseHint": "仅展示地区已确认为日本的漫画，按更新时间排序",
+  "homeRecentJapan": "日漫",
+  "homeRecentKorea": "韩漫",
+  "homeRecentWestern": "美漫",
+  "homeRecentRegions": "关注地区",
+  "networkIOSProxyStatusUnknown": "未取得系统 HTTP 代理地址，VPN 状态无法确认",
+  "networkIOSManagedNetwork": "由 iOS 管理网络（VPN 状态无法确认）",
+  "networkIOSSystemHint": "VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。",
+  "networkIOSDirectActive": "不使用应用层代理",
+  "networkIOSDirectHint": "此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。",
+  "networkIOSLatencySuggestion": "连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点"
 }

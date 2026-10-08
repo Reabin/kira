@@ -57,6 +57,22 @@ void main() {
     },
   );
 
+  test(
+    'volume switch shares its store and preserves existing preference',
+    () async {
+      SharedPreferences.setMockInitialValues({'reader_volume_key': false});
+      final user = UserManager();
+      await user.init();
+      expect(user.readerVolumeKey, isFalse);
+      await user.setReaderVolumeKey(true);
+      expect(user.reader.volumeKey, isTrue);
+      await user.reader.setVolumeKey(false);
+      expect(user.readerVolumeKey, isFalse);
+      await user.init();
+      expect(user.readerVolumeKey, isFalse);
+    },
+  );
+
   test('image viewer auto-rotate settings persist', () async {
     final user = UserManager();
     await user.init();

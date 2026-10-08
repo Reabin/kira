@@ -7612,6 +7612,96 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'给新账号起个备注名'**
   String get accountCenterNameNewTitle;
+
+  /// No description provided for @homeRecentAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get homeRecentAll;
+
+  /// No description provided for @homeRecentJapaneseOnly.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅日漫'**
+  String get homeRecentJapaneseOnly;
+
+  /// No description provided for @homeRecentUpdates.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近更新'**
+  String get homeRecentUpdates;
+
+  /// No description provided for @homeRecentEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前最近更新中没有符合筛选的漫画'**
+  String get homeRecentEmpty;
+
+  /// No description provided for @homeRecentJapaneseHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅展示地区已确认为日本的漫画，按更新时间排序'**
+  String get homeRecentJapaneseHint;
+
+  /// No description provided for @homeRecentJapan.
+  ///
+  /// In zh, this message translates to:
+  /// **'日漫'**
+  String get homeRecentJapan;
+
+  /// No description provided for @homeRecentKorea.
+  ///
+  /// In zh, this message translates to:
+  /// **'韩漫'**
+  String get homeRecentKorea;
+
+  /// No description provided for @homeRecentWestern.
+  ///
+  /// In zh, this message translates to:
+  /// **'美漫'**
+  String get homeRecentWestern;
+
+  /// No description provided for @homeRecentRegions.
+  ///
+  /// In zh, this message translates to:
+  /// **'关注地区'**
+  String get homeRecentRegions;
+
+  /// No description provided for @networkIOSProxyStatusUnknown.
+  ///
+  /// In zh, this message translates to:
+  /// **'未取得系统 HTTP 代理地址，VPN 状态无法确认'**
+  String get networkIOSProxyStatusUnknown;
+
+  /// No description provided for @networkIOSManagedNetwork.
+  ///
+  /// In zh, this message translates to:
+  /// **'由 iOS 管理网络（VPN 状态无法确认）'**
+  String get networkIOSManagedNetwork;
+
+  /// No description provided for @networkIOSSystemHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。'**
+  String get networkIOSSystemHint;
+
+  /// No description provided for @networkIOSDirectActive.
+  ///
+  /// In zh, this message translates to:
+  /// **'不使用应用层代理'**
+  String get networkIOSDirectActive;
+
+  /// No description provided for @networkIOSDirectHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。'**
+  String get networkIOSDirectHint;
+
+  /// No description provided for @networkIOSLatencySuggestion.
+  ///
+  /// In zh, this message translates to:
+  /// **'连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点'**
+  String get networkIOSLatencySuggestion;
 }
 
 class _AppLocalizationsDelegate

@@ -1,10 +1,17 @@
 part of '../home_page.dart';
 
 class _MangaHorizontalList extends StatelessWidget {
+  final bool showUpdateTime;
+  final String scope;
   final List<Comic> items;
   final void Function(Comic, String) onTap;
 
-  const _MangaHorizontalList({required this.items, required this.onTap});
+  const _MangaHorizontalList({
+    required this.items,
+    required this.onTap,
+    this.scope = 'home-recommend',
+    this.showUpdateTime = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +35,12 @@ class _MangaHorizontalList extends StatelessWidget {
             itemBuilder: (_, i) {
               final comic = items[i];
               final heroTagBase = ComicHeroTags.base(
-                scope: 'home-recommend',
+                scope: scope,
                 pathWord: comic.pathWord,
                 index: i,
               );
               return _MangaCard(
+                showUpdateTime: showUpdateTime,
                 comic: comic,
                 width: cardWidth,
                 heroTagBase: heroTagBase,
@@ -47,12 +55,14 @@ class _MangaHorizontalList extends StatelessWidget {
 }
 
 class _MangaCard extends StatelessWidget {
+  final bool showUpdateTime;
   final Comic comic;
   final double width;
   final String? heroTagBase;
   final VoidCallback onTap;
 
   const _MangaCard({
+    this.showUpdateTime = false,
     required this.comic,
     required this.width,
     this.heroTagBase,
@@ -100,33 +110,45 @@ class _MangaCard extends StatelessWidget {
               style: tt.bodySmall,
             ),
             const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(Icons.local_fire_department, size: 12, color: cs.primary),
-                const SizedBox(width: 2),
-                Text(
-                  ComicCard.formatPopular(comic.popular, l10n),
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
+            if (showUpdateTime && comic.datetimeUpdated != null)
+              Text(
+                TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+              )
+            else
+              Row(
+                children: [
+                  Icon(
+                    Icons.local_fire_department,
+                    size: 12,
+                    color: cs.primary,
                   ),
-                ),
-                if (comic.authors.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      comic.authors.map((a) => a.name).join(' / '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.labelSmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
+                  const SizedBox(width: 2),
+                  Text(
+                    ComicCard.formatPopular(comic.popular, l10n),
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 12,
                     ),
                   ),
+                  if (comic.authors.isNotEmpty) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        comic.authors.map((a) => a.name).join(' / '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tt.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
+              ),
           ],
         ),
       ),

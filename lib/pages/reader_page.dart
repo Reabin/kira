@@ -32,6 +32,7 @@ import '../utils/chapter_summary_cache.dart';
 import '../utils/download_manager.dart';
 import '../utils/fling_brake_tap_guard.dart';
 import '../utils/image_load_stats.dart';
+import '../utils/ios_reader_volume.dart';
 import '../utils/network_error.dart';
 import '../utils/reading_history.dart';
 import '../utils/reading_stats.dart';
@@ -218,6 +219,7 @@ class _ReaderPageState extends State<ReaderPage> {
   double _instantTurnDragDelta = 0;
   bool _instantTurnCommitted = false;
   bool _volumeChannelAvailable = true;
+  IOSReaderVolume? _iosVolume;
   int _scrollModeInitialIndex = 0;
   // 列表因裁剪重建时保留当前可见项在视口中的相对位置，避免突然顶对齐。
   double _scrollModeInitialAlignment = 0.0;
@@ -328,6 +330,13 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    if (Platform.isIOS) {
+      _iosVolume = IOSReaderVolume(
+        onButton: (call) {
+          if (mounted) unawaited(_handleVolumeMethod(call));
+        },
+      );
+    }
     _currentUuid = widget.chapterUuid;
     _bookmarks.addListener(_onBookmarksChanged);
     unawaited(_bookmarks.ensureLoaded());
@@ -344,18 +353,29 @@ class _ReaderPageState extends State<ReaderPage> {
     _user.addListener(_onUserSettingsChanged);
     _loadChapter();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+    }
     _updateVolumeIntercept();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _iosVolume?.attach(ModalRoute.of(context));
   }
 
   @override
   void dispose() {
     // 进度保存是防抖的，离开阅读页必须立刻落盘，否则最后几页会丢。
     unawaited(ReadingHistory.flush());
+    _iosVolume?.dispose();
     _setVolumeIntercept(false);
-    _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(null);
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(null);
+    }
     _bookmarks.removeListener(_onBookmarksChanged);
     _user.removeListener(_onUserSettingsChanged);
     _scrollZoomController.removeListener(_onScrollZoomControllerChanged);

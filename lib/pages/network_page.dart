@@ -43,7 +43,7 @@ class NetworkPage extends StatefulWidget {
 }
 
 class _NetworkPageState extends State<NetworkPage>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   /// extension part 文件里的成员不是 State 子类成员，不能直接调用受保护的
   /// [setState]，统一经由这个转发方法。
   void _setState(VoidCallback fn) => setState(fn);
@@ -55,6 +55,7 @@ class _NetworkPageState extends State<NetworkPage>
   final _customLoginHostController = TextEditingController();
 
   bool _testingLatency = false;
+  bool _retestAfterResume = false;
   bool _refreshingSystemProxy = false;
   bool _autoFillingCopySettings = false;
   bool _advancedExpanded = false;
@@ -77,6 +78,7 @@ class _NetworkPageState extends State<NetworkPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _proxyAddressController.text = _manualProxyAddress;
     _copyApiHostController.text = _user.copyApiHost;
     _copyAppVersionController.text = _user.copyAppVersion;
@@ -91,7 +93,24 @@ class _NetworkPageState extends State<NetworkPage>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshAfterResume());
+  }
+
+  Future<void> _refreshAfterResume() async {
+    await NetworkProxy.refreshSystemProxy();
+    if (!mounted) return;
+    if (_testingLatency) {
+      _retestAfterResume = true;
+    } else {
+      setState(() => _latencyResults = {});
+      await _testLatency();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _breathController.dispose();
     _user.removeListener(_onChanged);
     _proxyAddressController.dispose();
@@ -197,7 +216,9 @@ class _NetworkPageState extends State<NetworkPage>
         secondary = _statusSecondaryWarn(l10n);
       case _HealthLevel.bad:
         primary = l10n.networkStatusBad;
-        secondary = l10n.networkHighLatencyProxySuggestion;
+        secondary = NetworkProxy.isIOS
+            ? l10n.networkIOSLatencySuggestion
+            : l10n.networkHighLatencyProxySuggestion;
       case _HealthLevel.busy:
         primary = l10n.networkStatusBusy;
         secondary = l10n.networkTestingNodes;
@@ -273,7 +294,9 @@ class _NetworkPageState extends State<NetworkPage>
     final ms = _bestNumericLatency();
     return ms != null
         ? l10n.networkStatusWarnHint(ms)
-        : l10n.networkHighLatencyProxySuggestion;
+        : (NetworkProxy.isIOS
+              ? l10n.networkIOSLatencySuggestion
+              : l10n.networkHighLatencyProxySuggestion);
   }
 
   /// 当前可用的最低数值延迟（ms），用于状态卡副文案；无数据返回 null。

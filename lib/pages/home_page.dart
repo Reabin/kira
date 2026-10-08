@@ -9,10 +9,12 @@ import 'package:material3_expressive_loading_indicator/material3_expressive_load
 
 import '../l10n/app_localizations.dart';
 import '../models/comic.dart' hide Theme;
+import '../models/recent_updates_settings.dart';
 import '../models/user_manager.dart';
 import '../providers/app_providers.dart';
 import '../providers/repository_providers.dart';
 import '../repositories/manga_home_repository.dart';
+import '../repositories/recent_updates_repository.dart';
 import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_radius.dart';
@@ -26,11 +28,13 @@ import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/cover_placeholder.dart';
 import '../widgets/error_retry_view.dart';
+import '../widgets/recent_region_filter.dart';
 import '../widgets/section_header.dart';
 
 part 'home/home_banner.dart';
 part 'home/home_cards.dart';
 part 'home/home_copy_widgets.dart';
+part 'home/home_recent_updates.dart';
 part 'home/home_sections.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -88,6 +92,7 @@ class _HomePageState extends ConsumerState<HomePage>
   List<Comic> _rankingPreview = [];
   bool _loading = true;
   bool _refreshing = false;
+  int _recentRevision = 0;
   String? _error;
 
   @override
@@ -154,6 +159,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Future<void> _load({bool forceRefresh = false}) async {
+    if (forceRefresh) setState(() => _recentRevision++);
     if (_isCopySource) return _loadCopy(forceRefresh: forceRefresh);
     final hasData = _home != null;
     if (!hasData) {
@@ -287,6 +293,10 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
             )
           : null;
+      if (bannerCarousel != null) {
+        slivers.add(SliverToBoxAdapter(child: bannerCarousel));
+      }
+      slivers.add(_recentUpdatesSliver(false));
       // 宽屏：推荐（左）与排行榜（右）并排，避免纵向叠加留大片空白。
       final twoPane =
           screenWidth >= 720 &&
@@ -308,14 +318,6 @@ class _HomePageState extends ConsumerState<HomePage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 宽屏下 banner 与推荐同栏同宽（半栏 16:9），不再整行居中。
-                            if (bannerCarousel != null) ...[
-                              _PaneScope(
-                                width: halfWidth,
-                                child: bannerCarousel,
-                              ),
-                              const SizedBox(height: 12),
-                            ],
                             _SectionHeader(
                               title: AppLocalizations.of(context)!.hotRecommend,
                               icon: Icons.auto_awesome,
@@ -363,9 +365,6 @@ class _HomePageState extends ConsumerState<HomePage>
           ),
         );
       } else if (home.recommendations.isNotEmpty) {
-        if (!twoPane && bannerCarousel != null) {
-          slivers.add(SliverToBoxAdapter(child: bannerCarousel));
-        }
         slivers.add(
           _MangaSection(
             title: AppLocalizations.of(context)!.hotRecommend,
@@ -378,9 +377,6 @@ class _HomePageState extends ConsumerState<HomePage>
             ),
           ),
         );
-      }
-      if (!twoPane && bannerCarousel != null && home.recommendations.isEmpty) {
-        slivers.add(SliverToBoxAdapter(child: bannerCarousel));
       }
       if (!twoPane && _rankingPreview.isNotEmpty) {
         slivers.add(
@@ -458,6 +454,15 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   /// COPY 首页各板块
+  Widget _recentUpdatesSliver(bool isCopy) => SliverToBoxAdapter(
+    child: _RecentUpdatesSection(
+      key: ValueKey('recent-updates-$isCopy'),
+      isCopy: isCopy,
+      revision: _recentRevision,
+      onTap: _openComic,
+    ),
+  );
+
   List<Widget> _buildCopySlivers(CopyMangaHome home, double hp) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
@@ -590,9 +595,8 @@ class _HomePageState extends ConsumerState<HomePage>
     secondarySections.add(topicSection);
     sections.add(topicSection);
 
-    final slivers = <Widget>[];
+    final slivers = <Widget>[...bannerSlivers, _recentUpdatesSliver(true)];
     if (sections.isEmpty) {
-      slivers.addAll(bannerSlivers);
       slivers.add(
         SliverFillRemaining(
           hasScrollBody: false,
@@ -614,14 +618,7 @@ class _HomePageState extends ConsumerState<HomePage>
       );
     } else if (MediaQuery.sizeOf(context).width >= 720) {
       // 宽屏：左窄栏放 banner + 推荐 + 排行榜，右宽栏放其余板块（2:3）。
-      final left = <Widget>[
-        if (bannerCarousel != null)
-          Padding(
-            padding: EdgeInsets.fromLTRB(hp, 8, hp, 12),
-            child: bannerCarousel,
-          ),
-        ...primarySections,
-      ];
+      final left = <Widget>[...primarySections];
       final right = secondarySections;
       slivers.add(
         SliverToBoxAdapter(
@@ -638,7 +635,6 @@ class _HomePageState extends ConsumerState<HomePage>
     } else {
       // 竖屏：banner 在顶部全宽，板块逐块纵向叠放。
       // _CopyCollapsibleSection 已是普通盒子组件，需各自包 SliverToBoxAdapter。
-      slivers.addAll(bannerSlivers);
       slivers.addAll([
         for (final section in sections) SliverToBoxAdapter(child: section),
       ]);

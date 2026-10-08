@@ -319,17 +319,18 @@ class _ReaderSettingsPanelState extends State<_ReaderSettingsPanel> {
               // 翻页设置
               if (isPageMode) ...[
                 _buildSectionHeader(l10n.readerPageSection, cs, tt),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.readerVolumeKeyPageTurn),
-                  subtitle: Text(l10n.readerVolumeKeyPageTurnDesc),
-                  value: _user.readerVolumeKey,
-                  onChanged: (v) {
-                    _user.setReaderVolumeKey(v);
-                    setState(() {});
-                    widget.onChanged();
-                  },
-                ),
+                if (Platform.isAndroid || Platform.isIOS)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(l10n.readerVolumeKeyPageTurn),
+                    subtitle: Text(l10n.readerVolumeKeyPageTurnDesc),
+                    value: _user.readerVolumeKey,
+                    onChanged: (v) {
+                      _user.setReaderVolumeKey(v);
+                      setState(() {});
+                      widget.onChanged();
+                    },
+                  ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(l10n.readerInstantPageTurn),
