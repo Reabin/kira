@@ -103,6 +103,12 @@ class IOSReaderVolume with WidgetsBindingObserver, RouteAware {
     readerVolumeRouteObserver.unsubscribe(this);
     WidgetsBinding.instance.removeObserver(this);
     _sync();
-    if (_owner == this) _channel.setMethodCallHandler(null);
+    if (_owner == this) {
+      _channel.setMethodCallHandler(null);
+      _commands = _commands.then((_) {
+        if (_owner == this) _owner = null;
+      });
+    }
+    _route = null;
   }
 }
