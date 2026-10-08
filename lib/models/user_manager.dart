@@ -197,7 +197,6 @@ class UserManager extends ChangeNotifier {
   static const _keyBookshelfOrdering = 'bookshelf_ordering';
   static const _keyReaderScrollDirection = 'reader_scroll_direction';
   static const _keyReaderImageGap = 'reader_image_gap';
-  static const _keyReaderVolumeKey = 'reader_volume_key';
   static const _keyReaderInstantPageTurn = 'reader_instant_page_turn';
   static const _keyReaderPageRTL = 'reader_page_rtl';
   static const _keyReaderPageVertical = 'reader_page_vertical';
@@ -271,7 +270,6 @@ class UserManager extends ChangeNotifier {
   String _bookshelfOrdering = ApiOrdering.datetimeUpdated;
   int _readerScrollDirection = 2;
   double _readerImageGap = 0.0;
-  bool _readerVolumeKey = true;
   bool _readerInstantPageTurn = false;
   bool _readerPageRTL = false;
   bool _readerPageVertical = false;
@@ -382,7 +380,7 @@ class UserManager extends ChangeNotifier {
   int get readerMode => reader.mode;
   int get readerScrollDirection => _readerScrollDirection;
   double get readerImageGap => _readerImageGap;
-  bool get readerVolumeKey => _readerVolumeKey;
+  bool get readerVolumeKey => reader.volumeKey;
   bool get readerInstantPageTurn => _readerInstantPageTurn;
   bool get readerPageRTL => _readerPageRTL;
   bool get readerPageVertical => _readerPageVertical;

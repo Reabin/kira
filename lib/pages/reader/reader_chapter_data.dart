@@ -9,6 +9,7 @@ extension _ReaderChapterData on _ReaderPageState {
 
   void _updateVolumeIntercept() {
     final should = _isPageMode && _user.readerVolumeKey;
+    _iosVolume?.setEnabled(should);
     _setVolumeIntercept(should);
   }
 

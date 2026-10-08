@@ -1,8 +1,12 @@
 import Flutter
 import UIKit
+import AVFoundation
+import MediaPlayer
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var readerVolume: IOSReaderVolumeController?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -13,6 +17,7 @@ import UIKit
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     let messenger = engineBridge.applicationRegistrar.messenger()
+    readerVolume = IOSReaderVolumeController(messenger: messenger)
     let channel = FlutterMethodChannel(
       name: "io.github.caolib.kira/app_icon",
       binaryMessenger: messenger
@@ -37,5 +42,162 @@ import UIKit
         result(FlutterMethodNotImplemented)
       }
     }
+  }
+}
+
+/// iOS exposes output-volume changes rather than hardware key events.
+/// Keep this session strictly scoped to a foreground, uncovered reader.
+private final class IOSReaderVolumeController {
+  private let channel: FlutterMethodChannel
+  private let session = AVAudioSession.sharedInstance()
+  private var observation: NSKeyValueObservation?
+  private var notifications: [NSObjectProtocol] = []
+  private var volumeView: MPVolumeView?
+  private var slider: UISlider?
+  private var wanted = false
+  private var interrupted = false
+  private var active = false
+  private var generation = 0
+  private var originalVolume: Float?
+  private var baseline: Float = 0.5
+  private var suppress = false
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(
+      name: "io.github.caolib.kira/ios_reader_volume", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self = self else { result(nil); return }
+      switch call.method {
+      case "enable":
+        self.wanted = true
+        do { try self.start(); result(nil) }
+        catch {
+          self.stop()
+          result(FlutterError(code: "volume_session", message: error.localizedDescription, details: nil))
+        }
+      case "disable":
+        self.wanted = false
+        self.stop()
+        result(nil)
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
+    watch(UIApplication.willResignActiveNotification) { $0.stop() }
+    watch(UIApplication.didBecomeActiveNotification) { $0.resume() }
+    watch(AVAudioSession.interruptionNotification) { controller, note in
+      let value = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+      if value == AVAudioSession.InterruptionType.began.rawValue {
+        controller.interrupted = true
+        controller.stop()
+      } else if value == AVAudioSession.InterruptionType.ended.rawValue {
+        controller.interrupted = false
+        controller.resume()
+      }
+    }
+    watch(AVAudioSession.mediaServicesWereResetNotification) { controller in
+      controller.stop()
+      controller.resume()
+    }
+  }
+
+  private func watch(_ name: Notification.Name, action: @escaping (IOSReaderVolumeController) -> Void) {
+    watch(name) { controller, _ in action(controller) }
+  }
+
+  private func watch(_ name: Notification.Name,
+                     action: @escaping (IOSReaderVolumeController, Notification) -> Void) {
+    notifications.append(NotificationCenter.default.addObserver(
+      forName: name, object: nil, queue: .main) { [weak self] note in
+        guard let self = self else { return }
+        action(self, note)
+      })
+  }
+
+  private func resume() {
+    guard wanted, !interrupted, UIApplication.shared.applicationState == .active else { return }
+    do { try start() } catch { stop() }
+  }
+
+  private func start() throws {
+    guard wanted, !interrupted, UIApplication.shared.applicationState == .active else { return }
+    // Native lifecycle notifications tear down the old session before resume.
+    if active { return }
+    stop()
+    try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+    try session.setActive(true)
+    guard let window = UIApplication.shared.connectedScenes
+      .compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows })
+      .first(where: { $0.isKeyWindow }) else {
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
+      throw NSError(domain: "ReaderVolume", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "No active reader window"])
+    }
+    let view = MPVolumeView(frame: CGRect(x: -1000, y: -1000, width: 100, height: 40))
+    view.showsRouteButton = false
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    guard let control = view.subviews.compactMap({ $0 as? UISlider }).first else {
+      view.removeFromSuperview()
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
+      throw NSError(domain: "ReaderVolume", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Volume control unavailable"])
+    }
+    volumeView = view
+    slider = control
+    originalVolume = session.outputVolume
+    baseline = min(0.9, max(0.1, session.outputVolume))
+    active = true
+    suppress = true
+    let token = generation
+    observation = session.observe(\.outputVolume, options: [.old, .new]) { [weak self] _, change in
+      DispatchQueue.main.async {
+        guard let self = self, self.generation == token, self.active,
+              !self.suppress, let old = change.oldValue, let new = change.newValue,
+              abs(new - old) > 0.0001 else { return }
+        self.channel.invokeMethod(new > old ? "volumeUp" : "volumeDown", arguments: nil)
+        self.resetVolume(token: token)
+      }
+    }
+    // The system control needs a run-loop turn before it can set volume.
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+      guard let self = self, self.generation == token, self.active else { return }
+      self.resetVolume(token: token)
+    }
+  }
+
+  private func resetVolume(token: Int) {
+    guard active, generation == token, let slider = slider else { return }
+    suppress = true
+    slider.setValue(baseline, animated: false)
+    slider.sendActions(for: .valueChanged)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+      guard let self = self, self.generation == token, self.active else { return }
+      self.suppress = false
+    }
+  }
+
+  private func stop() {
+    let wasActive = active
+    generation += 1
+    observation?.invalidate()
+    observation = nil
+    active = false
+    suppress = false
+    if let original = originalVolume, let slider = slider {
+      slider.setValue(original, animated: false)
+      slider.sendActions(for: .valueChanged)
+    }
+    originalVolume = nil
+    slider = nil
+    volumeView?.removeFromSuperview()
+    volumeView = nil
+    if wasActive {
+      try? session.setActive(false, options: .notifyOthersOnDeactivation)
+    }
+  }
+
+  deinit {
+    notifications.forEach { NotificationCenter.default.removeObserver($0) }
+    observation?.invalidate()
   }
 }

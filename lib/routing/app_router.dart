@@ -39,6 +39,7 @@ import '../pages/recommend_page.dart';
 import '../pages/search_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/webview_login_page.dart';
+import '../utils/ios_reader_volume.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/novel_hero_tags.dart';
@@ -189,7 +190,7 @@ class RankingExtra {
 GoRouter createAppRouter() {
   return GoRouter(
     initialLocation: '/',
-    observers: [DismissKeyboardObserver()],
+    observers: [DismissKeyboardObserver(), readerVolumeRouteObserver],
     routes: [
       StatefulShellRoute(
         navigatorContainerBuilder: buildMainShellNavigatorContainer,

@@ -55,7 +55,6 @@ extension UserManagerInitPart on UserManager {
     _readerScrollDirection =
         prefs.getInt(UserManager._keyReaderScrollDirection) ?? 2;
     _readerImageGap = prefs.getDouble(UserManager._keyReaderImageGap) ?? 0.0;
-    _readerVolumeKey = prefs.getBool(UserManager._keyReaderVolumeKey) ?? true;
     _readerInstantPageTurn =
         prefs.getBool(UserManager._keyReaderInstantPageTurn) ?? false;
     _readerPageRTL = prefs.getBool(UserManager._keyReaderPageRTL) ?? false;
