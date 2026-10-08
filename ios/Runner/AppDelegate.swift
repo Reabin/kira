@@ -50,6 +50,7 @@ import MediaPlayer
 private final class IOSReaderVolumeController {
   private let channel: FlutterMethodChannel
   private let session = AVAudioSession.sharedInstance()
+  private var volumePoll: Timer?
   private var observation: NSKeyValueObservation?
   private var notifications: [NSObjectProtocol] = []
   private var volumeView: MPVolumeView?
@@ -123,7 +124,7 @@ private final class IOSReaderVolumeController {
     // Native lifecycle notifications tear down the old session before resume.
     if active { return }
     stop()
-    try session.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+    try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
     try session.setActive(true)
     guard let window = UIApplication.shared.connectedScenes
       .compactMap({ $0 as? UIWindowScene }).flatMap({ $0.windows })
@@ -150,19 +151,33 @@ private final class IOSReaderVolumeController {
     suppress = true
     let token = generation
     observation = session.observe(\.outputVolume, options: [.old, .new]) { [weak self] _, change in
+      guard let self = self, let new = change.newValue else { return }
       DispatchQueue.main.async {
-        guard let self = self, self.generation == token, self.active,
-              !self.suppress, let old = change.oldValue, let new = change.newValue,
-              abs(new - old) > 0.0001 else { return }
-        self.channel.invokeMethod(new > old ? "volumeUp" : "volumeDown", arguments: nil)
-        self.resetVolume(token: token)
+        self.handleVolume(new, token: token)
       }
     }
+    // Some iOS versions cache outputVolume across session reactivation.
+    // MPVolumeView's live slider is a second public control-based signal.
+    let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+      guard let self = self, let slider = self.slider else { return }
+      self.handleVolume(slider.value, token: token)
+    }
+    volumePoll = timer
+    RunLoop.main.add(timer, forMode: .common)
     // The system control needs a run-loop turn before it can set volume.
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
       guard let self = self, self.generation == token, self.active else { return }
       self.resetVolume(token: token)
     }
+  }
+
+  private func handleVolume(_ value: Float, token: Int) {
+    guard active, generation == token, !suppress,
+          UIApplication.shared.applicationState == .active,
+          abs(value - baseline) > 0.001 else { return }
+    // A reset back to baseline is our own write, never a reverse page turn.
+    channel.invokeMethod(value > baseline ? "volumeUp" : "volumeDown", arguments: nil)
+    resetVolume(token: token)
   }
 
   private func resetVolume(token: Int) {
@@ -179,6 +194,8 @@ private final class IOSReaderVolumeController {
   private func stop() {
     let wasActive = active
     generation += 1
+    volumePoll?.invalidate()
+    volumePoll = nil
     observation?.invalidate()
     observation = nil
     active = false
@@ -197,6 +214,7 @@ private final class IOSReaderVolumeController {
   }
 
   deinit {
+    volumePoll?.invalidate()
     notifications.forEach { NotificationCenter.default.removeObserver($0) }
     observation?.invalidate()
   }
