@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/reader_settings.dart';
+import 'package:kira/utils/app_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -81,6 +82,32 @@ void main() {
   });
 
   // ── Persistence ──────────────────────────────────────────────────────
+
+  test('chapter sorting defaults to forward order', () {
+    expect(settings.chapterReversed, isFalse);
+  });
+
+  test(
+    'chapter sort persists both directions across reload and cache clearing',
+    () async {
+      await settings.setChapterReversed(true);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('comic_chapter_reversed'), isTrue);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(ReaderSettings().chapterReversed, isTrue);
+      await AppStorage.cache.put('sort_test', {'test': true});
+      await AppStorage.cache.removeByPrefix('');
+      expect(await AppStorage.cache.containsKey('sort_test'), isFalse);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.chapterReversed, isTrue);
+      await settings.setChapterReversed(false);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.chapterReversed, isFalse);
+    },
+  );
 
   group('persistence', () {
     test('mode persists after re-init', () async {

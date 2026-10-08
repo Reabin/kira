@@ -11,6 +11,7 @@ import '../l10n/app_localizations.dart';
 import '../models/chapter.dart';
 import '../models/comic.dart' as comic_model;
 import '../models/comic.dart' hide Theme;
+import '../models/reader_settings.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
@@ -102,7 +103,8 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   // In-session chapter page cache; destroyed with State.
   final Map<String, ({List<Chapter> list, int total})> _chapterPageCache = {};
   bool _briefExpanded = false;
-  bool _reversed = false;
+  final _readerSettings = ReaderSettings();
+  bool get _reversed => _readerSettings.chapterReversed;
   bool _isCollected = false;
   bool _selectionMode = false;
   Chapter? _nextBrowseChapter;
@@ -133,12 +135,14 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
     _officialLastBrowseName = widget.lastBrowseName;
     _lastBrowseId = widget.lastBrowseId;
     _lastBrowseName = widget.lastBrowseName;
+    _readerSettings.addListener(_handleReaderSettingsChanged);
     _downloads.addListener(_handleDownloadChanged);
     unawaited(_initializePage());
   }
 
   @override
   void dispose() {
+    _readerSettings.removeListener(_handleReaderSettingsChanged);
     _downloads.removeListener(_handleDownloadChanged);
     super.dispose();
   }
@@ -163,6 +167,10 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         ),
       );
     }
+  }
+
+  void _handleReaderSettingsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _handleDownloadChanged() {

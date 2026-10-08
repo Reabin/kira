@@ -14,6 +14,7 @@ class ReaderSettings extends PrefsStore {
   // ── Preference keys ────────────────────────────────────────────────
 
   static const _keyMode = 'reader_mode';
+  static const _keyChapterReversed = 'comic_chapter_reversed';
   static const _keyScrollDirection = 'reader_scroll_direction';
   static const _keyImageGap = 'reader_image_gap';
   static const _keyVolumeKey = 'reader_volume_key';
@@ -73,6 +74,7 @@ class ReaderSettings extends PrefsStore {
   // ── Fields ─────────────────────────────────────────────────────────
 
   int _mode = 0;
+  bool _chapterReversed = false;
   int _scrollDirection = 2;
   double _imageGap = 0.0;
   bool _volumeKey = true;
@@ -122,6 +124,10 @@ class ReaderSettings extends PrefsStore {
   int get mode => _mode;
   int get scrollDirection => _scrollDirection;
   double get imageGap => _imageGap;
+
+  /// Shared chapter display order across comic detail pages.
+  bool get chapterReversed => _chapterReversed;
+
   bool get volumeKey => _volumeKey;
   bool get instantPageTurn => _instantPageTurn;
   bool get longPressZoomEnabled => _longPressZoomEnabled;
@@ -170,6 +176,7 @@ class ReaderSettings extends PrefsStore {
     _scrollDirection = prefs.getInt(_keyScrollDirection) ?? 2;
     _imageGap = prefs.getDouble(_keyImageGap) ?? 0.0;
     _volumeKey = prefs.getBool(_keyVolumeKey) ?? true;
+    _chapterReversed = prefs.getBool(_keyChapterReversed) ?? false;
     _instantPageTurn = prefs.getBool(_keyInstantPageTurn) ?? false;
     _longPressZoomEnabled = prefs.getBool(_keyLongPressZoomEnabled) ?? true;
     _longPressZoomPanSensitivity =
@@ -238,6 +245,11 @@ class ReaderSettings extends PrefsStore {
   Future<void> setImageGap(double value) async {
     _imageGap = value;
     await setDouble(_keyImageGap, value);
+  }
+
+  Future<void> setChapterReversed(bool value) async {
+    _chapterReversed = value;
+    await setBool(_keyChapterReversed, value);
   }
 
   Future<void> setVolumeKey(bool value) async {

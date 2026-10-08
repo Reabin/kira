@@ -38,7 +38,10 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
 
   Widget _buildSortButton(ColorScheme cs) {
     return FilledButton.tonal(
-      onPressed: () => _setState(() => _reversed = !_reversed),
+      onPressed: () {
+        unawaited(_readerSettings.setChapterReversed(!_reversed));
+        _setState(() {});
+      },
       style: FilledButton.styleFrom(
         minimumSize: const Size(38, 38),
         maximumSize: const Size(38, 38),
