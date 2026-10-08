@@ -1546,6 +1546,14 @@ packages:
       url: "https://pub.flutter-io.cn"
     source: hosted
     version: "15.2.0"
+  volume_button_override:
+    dependency: "direct main"
+    description:
+      name: volume_button_override
+      sha256: "368926d2fea5b802e9286d98bb47a93e26667521288e8fff60e53b1fcaf2fb1b"
+      url: "https://pub.flutter-io.cn"
+    source: hosted
+    version: "0.0.1"
   wakelock_plus:
     dependency: "direct main"
     description:

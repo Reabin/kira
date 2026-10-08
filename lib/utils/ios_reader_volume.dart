@@ -9,8 +9,7 @@ final readerVolumeRouteObserver = RouteObserver<ModalRoute<dynamic>>();
 class IOSReaderVolume with WidgetsBindingObserver, RouteAware {
   IOSReaderVolume({required this.onButton, MethodChannel? channel})
     : _channel =
-          channel ??
-          const MethodChannel('io.github.caolib.kira/ios_reader_volume') {
+          channel ?? const MethodChannel('com.volume_button_override/channel') {
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -78,7 +77,17 @@ class IOSReaderVolume with WidgetsBindingObserver, RouteAware {
     if (_active) {
       _owner = this;
       _channel.setMethodCallHandler((call) async {
-        if (_owner == this && _active) onButton(call);
+        if (_owner != this ||
+            !_active ||
+            call.method != 'onVolumeButtonPressed') {
+          return;
+        }
+        final args = call.arguments;
+        if (args is! Map) return;
+        final action = args['action'];
+        if (action == 'volumeUp' || action == 'volumeDown') {
+          onButton(MethodCall(action as String));
+        }
       });
     } else if (_owner != this) {
       return;
@@ -88,7 +97,14 @@ class IOSReaderVolume with WidgetsBindingObserver, RouteAware {
       // A covered/disposed reader must never disable its newer replacement.
       if (_owner != this || (enable && !_active)) return;
       try {
-        await _channel.invokeMethod<void>(enable ? 'enable' : 'disable');
+        // Match HaKa's controller: tear down before every fresh start.
+        await _channel.invokeMethod<void>('stopListening');
+        if (enable && _owner == this && _active) {
+          await _channel.invokeMethod<Object?>('startListening', {
+            'volumeUpAction': 'volumeUp',
+            'volumeDownAction': 'volumeDown',
+          });
+        }
       } on PlatformException catch (error) {
         debugPrint('iOS volume listener: $error');
       } on MissingPluginException {

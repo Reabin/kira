@@ -5,7 +5,7 @@ import 'package:kira/utils/ios_reader_volume.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const channel = MethodChannel('io.github.caolib.kira/ios_reader_volume');
+  const channel = MethodChannel('com.volume_button_override/channel');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late List<String> commands;
@@ -15,7 +15,9 @@ void main() {
   Future<void> press(String method) async {
     await messenger.handlePlatformMessage(
       channel.name,
-      const StandardMethodCodec().encodeMethodCall(MethodCall(method)),
+      const StandardMethodCodec().encodeMethodCall(
+        MethodCall('onVolumeButtonPressed', {'action': method}),
+      ),
       (_) {},
     );
   }
@@ -25,7 +27,13 @@ void main() {
     buttons = [];
     messenger.setMockMethodCallHandler(channel, (call) async {
       commands.add(call.method);
-      return null;
+      if (call.method == 'startListening') {
+        expect(call.arguments, {
+          'volumeUpAction': 'volumeUp',
+          'volumeDownAction': 'volumeDown',
+        });
+      }
+      return true;
     });
     reader = IOSReaderVolume(onButton: (call) => buttons.add(call.method));
     reader.didChangeAppLifecycleState(AppLifecycleState.resumed);
@@ -51,7 +59,14 @@ void main() {
       reader.didChangeAppLifecycleState(AppLifecycleState.resumed);
       await reader.pending;
       await press('volumeUp');
-      expect(commands, ['enable', 'disable', 'disable', 'enable']);
+      expect(commands, [
+        'stopListening',
+        'startListening',
+        'stopListening',
+        'stopListening',
+        'stopListening',
+        'startListening',
+      ]);
       expect(buttons, ['volumeDown', 'volumeUp']);
     },
   );
@@ -72,7 +87,15 @@ void main() {
       reader.didChangeAppLifecycleState(AppLifecycleState.resumed);
       await reader.pending;
       await press('volumeDown');
-      expect(commands, ['enable', 'disable', 'enable', 'disable', 'disable']);
+      expect(commands, [
+        'stopListening',
+        'startListening',
+        'stopListening',
+        'stopListening',
+        'startListening',
+        'stopListening',
+        'stopListening',
+      ]);
       expect(buttons, ['volumeDown']);
     },
   );
@@ -91,11 +114,16 @@ void main() {
       reader.dispose();
       await replacement.pending;
       await press('volumeUp');
-      expect(commands, ['enable', 'enable']);
+      expect(commands, [
+        'stopListening',
+        'startListening',
+        'stopListening',
+        'startListening',
+      ]);
       expect(buttons, ['new:volumeUp']);
       replacement.dispose();
       await replacement.pending;
-      expect(commands.last, 'disable');
+      expect(commands.last, 'stopListening');
     },
   );
 
@@ -103,12 +131,12 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (call) async {
       commands.add(call.method);
       if (commands.length == 1) throw PlatformException(code: 'interrupted');
-      return null;
+      return true;
     });
     reader.setEnabled(true);
     await reader.pending;
     reader.didChangeAppLifecycleState(AppLifecycleState.resumed);
     await reader.pending;
-    expect(commands, ['enable', 'enable']);
+    expect(commands, ['stopListening', 'stopListening', 'startListening']);
   });
 }
