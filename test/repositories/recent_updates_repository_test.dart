@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/comic.dart';
 import 'package:kira/models/recent_updates_settings.dart';
@@ -15,6 +16,75 @@ Comic comic(String id, [String? region]) => Comic.fromJson({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  test(
+    'Workers refill without batch barriers and emit only update-ordered results',
+    () async {
+      final pending = List.generate(6, (_) => Completer<Comic>());
+      final started = <int>[];
+      final previews = <List<String>>[];
+      final repo = RecentUpdatesRepository(
+        isCopy: true,
+        regions: {0},
+        fetchPage: (_) async =>
+            (list: List.generate(6, (i) => comic('$i')), total: 6),
+        fetchDetail: (id) {
+          final i = int.parse(id);
+          started.add(i);
+          return pending[i].future;
+        },
+        onProgress: (items) =>
+            previews.add(items.map((c) => c.pathWord).toList()),
+      );
+      final loading = repo.load();
+      Future<void> drain() async {
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+
+      await drain();
+      expect(started, [0, 1, 2, 3]);
+      pending[1].complete(comic('1', '日本'));
+      await drain();
+      expect(started, [0, 1, 2, 3, 4]);
+      expect(previews, isEmpty);
+      pending[0].complete(comic('0', '日本'));
+      await drain();
+      expect(started, [0, 1, 2, 3, 4, 5]);
+      expect(previews.first, ['0', '1']);
+      for (var i = 2; i < 6; i++) {
+        pending[i].complete(comic('$i', '日本'));
+      }
+      expect((await loading).comics.map((c) => c.pathWord), [
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+      ]);
+    },
+  );
+
+  test(
+    'Reuses a previously opened comic detail without fetching region again',
+    () async {
+      await AppStorage.cache.put('comic_detail_jp', {
+        'comic': comic('jp', '日本').toJson(),
+      });
+      final repo = RecentUpdatesRepository(
+        isCopy: true,
+        regions: {0},
+        fetchPage: (_) async => (list: [comic('jp')], total: 1),
+        fetchDetail: (_) async => throw StateError('Detail already cached'),
+      );
+      expect((await repo.load()).comics.single.pathWord, 'jp');
+      await repo.invalidateCache();
+      expect(await repo.loadFromCache(), isNull);
+      expect((await repo.loadPreviewFromCache())?.comics.single.pathWord, 'jp');
+    },
+  );
 
   test(
     'Multi-region results keep every item before the next pagination cursor',

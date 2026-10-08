@@ -40,6 +40,7 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
     required this.isCopy,
     required Set<int> regions,
     this.offset = 0,
+    this.onProgress,
     Future<RecentComicPage> Function(int offset)? fetchPage,
     Future<Comic> Function(String pathWord)? fetchDetail,
   }) : regions = Set.unmodifiable(regions),
@@ -57,9 +58,33 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
   final bool isCopy;
   final Set<int> regions;
   final int offset;
+  final void Function(List<Comic>)? onProgress;
   bool get allRegions => regions.containsAll(RecentUpdatesSettings.allRegions);
   final Future<RecentComicPage> Function(int offset)? _fetchPage;
   final Future<Comic> Function(String pathWord)? _fetchDetail;
+
+  String get _previewKey => 'recent_preview_$cacheKey';
+
+  Future<RecentUpdatesData?> loadPreviewFromCache() async {
+    final fresh = await loadFromCache();
+    if (fresh != null) return fresh;
+    final cached = await AppStorage.cache.get(_previewKey);
+    return cached is Map
+        ? RecentUpdatesData.fromJson(Map<String, dynamic>.from(cached))
+        : null;
+  }
+
+  @override
+  Future<void> saveToCache(RecentUpdatesData data) async {
+    await super.saveToCache(data);
+    if (offset == 0) {
+      await AppStorage.cache.put(
+        _previewKey,
+        data.toJson(),
+        ttl: const Duration(hours: 1),
+      );
+    }
+  }
 
   @override
   Future<void> invalidateCache() => AppStorage.cache.removeByPrefix(
@@ -115,6 +140,23 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
     if (cached is Map) {
       return comic.copyWith(region: Map<String, dynamic>.from(cached));
     }
+    // Opening a comic may already have cached its region in the detail repository.
+    final detailCache = await AppStorage.cache.get(
+      'comic_detail_${comic.pathWord}',
+    );
+    if (detailCache is Map) {
+      final cachedComic = jsonMap(
+        Map<String, dynamic>.from(detailCache),
+        'comic',
+      );
+      final region = cachedComic == null
+          ? null
+          : jsonMap(cachedComic, 'region');
+      if (region != null) {
+        final resolved = comic.copyWith(region: region);
+        if (hasRegion(resolved)) return resolved;
+      }
+    }
     final detail =
         await (_fetchDetail?.call(comic.pathWord) ??
             // Use the app's working detail route, also used when opening COPY cards.
@@ -158,15 +200,31 @@ class RecentUpdatesRepository extends CachedRepository<RecentUpdatesData> {
             (comic) => comic.pathWord.isNotEmpty && seen.add(comic.pathWord),
           )
           .toList();
-      for (var start = 0; start < unique.length; start += 4) {
-        final chunk = unique.skip(start).take(4);
-        final comics = !allRegions
-            ? await Future.wait(chunk.map(_withRegion))
-            : chunk.toList();
-        result.addAll(
-          comics.where(
-            (comic) => allRegions || regions.contains(regionOf(comic)),
-          ),
+      if (allRegions) {
+        result.addAll(unique);
+        onProgress?.call(List.unmodifiable(result));
+      } else {
+        final resolved = List<Comic?>.filled(unique.length, null);
+        var next = 0;
+        var emitted = 0;
+        Future<void> worker() async {
+          while (next < unique.length) {
+            final index = next++;
+            resolved[index] = await _withRegion(unique[index]);
+            // Emit only a contiguous prefix so update ordering never changes.
+            final before = result.length;
+            while (emitted < resolved.length && resolved[emitted] != null) {
+              final comic = resolved[emitted++]!;
+              if (regions.contains(regionOf(comic))) result.add(comic);
+            }
+            if (result.length != before) {
+              onProgress?.call(List.unmodifiable(result));
+            }
+          }
+        }
+
+        await Future.wait(
+          List.generate(unique.length < 4 ? unique.length : 4, (_) => worker()),
         );
       }
       nextOffset += batch.list.length;

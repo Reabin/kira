@@ -68,13 +68,22 @@ class _RecentUpdatesSectionState extends State<_RecentUpdatesSection> {
     setState(() {
       _loading = true;
       _failed = false;
-      _comics = [];
+      if (!refresh) _comics = [];
     });
     try {
       final repository = RecentUpdatesRepository(
         isCopy: widget.isCopy,
         regions: _settings.regions,
+        onProgress: (comics) {
+          if (!mounted || generation != _generation) return;
+          setState(() => _comics = comics.take(12).toList());
+        },
       );
+      final cached = await repository.loadPreviewFromCache();
+      if (!mounted || generation != _generation) return;
+      if (cached != null) {
+        setState(() => _comics = cached.comics.take(12).toList());
+      }
       if (refresh) await repository.invalidateCache();
       final data = await repository.load();
       if (!mounted || generation != _generation) return;
@@ -114,57 +123,79 @@ class _RecentUpdatesSectionState extends State<_RecentUpdatesSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    Future<void> openMore() async {
+      await context.pushNamed(
+        AppRoutes.recentUpdates,
+        queryParameters: {'source': widget.isCopy ? 'copy' : 'hot'},
+      );
+      if (!mounted) return;
+      await _settings.load();
+      if (mounted) await _reload();
+    }
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RecentRegionFilter(
+          regions: _settings.regions,
+          onChanged: _select,
+          enabled: !_loading,
+        ),
+        if (_loading && _comics.isNotEmpty)
+          const LinearProgressIndicator(minHeight: 2),
+        const SizedBox(height: AppSpacing.sm),
+        if (_loading && _comics.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            child: Center(child: ExpressiveLoadingIndicator()),
+          )
+        else if (_comics.isNotEmpty)
+          widget.isCopy
+              ? _CopyTwoRowComicGrid(
+                  items: _comics,
+                  onTap: widget.onTap,
+                  scope: 'copy-recent',
+                )
+              : _MangaHorizontalList(
+                  showUpdateTime: true,
+                  items: _comics,
+                  onTap: widget.onTap,
+                  scope: 'hot-recent',
+                ),
+        if (_failed)
+          ErrorRetryView(onRetry: () => _reload(refresh: true))
+        else if (!_loading && _comics.isEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: SectionHeader(
-              title: l10n.homeRecentUpdates,
-              icon: Icons.update,
-              onMore: () async {
-                await context.pushNamed(
-                  AppRoutes.recentUpdates,
-                  queryParameters: {'source': widget.isCopy ? 'copy' : 'hot'},
-                );
-                if (!mounted) return;
-                await _settings.load();
-                if (mounted) await _reload();
-              },
-            ),
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Text(l10n.homeRecentEmpty),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-            child: RecentRegionFilter(
-              regions: _settings.regions,
-              onChanged: _select,
-              enabled: !_loading,
-            ),
+      ],
+    );
+    if (widget.isCopy) {
+      return _CopyCollapsibleSection(
+        storageKey: 'copy-recent',
+        title: l10n.homeRecentUpdates,
+        icon: Icons.update,
+        hp: 16,
+        topPadding: 8,
+        onMore: openMore,
+        child: content,
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SectionHeader(
+            title: l10n.homeRecentUpdates,
+            icon: Icons.update,
+            onMore: openMore,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.all(AppSpacing.lg),
-              child: Center(child: ExpressiveLoadingIndicator()),
-            )
-          else if (_failed)
-            ErrorRetryView(onRetry: () => _reload(refresh: true))
-          else if (_comics.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Text(l10n.homeRecentEmpty),
-            )
-          else
-            _MangaHorizontalList(
-              showUpdateTime: true,
-              items: _comics,
-              onTap: widget.onTap,
-              scope: 'home-recent-${widget.isCopy}',
-            ),
-        ],
-      ),
+        ),
+        content,
+        const SizedBox(height: 12),
+      ],
     );
   }
 }
