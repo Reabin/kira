@@ -56,7 +56,7 @@ extension _ProfileCards on _ProfilePageState {
       l10n.continueReadingPageLabel(record.page),
     ].where((s) => s.trim().isNotEmpty).toList();
     return ListTile(
-      leading: const _SettingIcon(icon: Icons.auto_stories_rounded),
+      leading: const _SettingIcon(icon: Icons.menu_book_rounded),
       title: Text(l10n.continueReadingComic),
       subtitle: parts.isEmpty
           ? null
@@ -88,7 +88,7 @@ extension _ProfileCards on _ProfilePageState {
       progress.chapterName.trim(),
     ].where((s) => s.trim().isNotEmpty).toList();
     return ListTile(
-      leading: const _SettingIcon(icon: Icons.menu_book_rounded),
+      leading: const _SettingIcon(icon: Icons.auto_stories_rounded),
       title: Text(l10n.continueReadingNovel),
       subtitle: parts.isEmpty
           ? null
