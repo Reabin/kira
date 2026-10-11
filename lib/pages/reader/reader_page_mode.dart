@@ -120,7 +120,7 @@ extension _ReaderPageMode on _ReaderPageState {
         );
         return;
       }
-      // 已经是最后一话：跳转到末尾空白页（触发返回目录）
+      // 最后一话：跳转到末尾空白页（触发返回目录）
       if (_isPageMode && _pageController.hasClients) {
         final blankPageIndex = _chainImageCount;
         if (_user.readerInstantPageTurn) {

@@ -2001,7 +2001,7 @@
   "readerRefresh": "刷新本话",
   "readerAlreadyFirstChapter": "已经是第一章",
   "readerContinuePageNextChapter": "继续翻页进入下一话",
-  "readerAlreadyLastChapter": "已经是最后一话",
+  "readerAlreadyLastChapter": "当前已无下一话",
   "readerContinueScrollOrTapNextChapter": "继续下滑或点击按钮进入下一话",
   "readerImagePathCopied": "图片路径已复制到剪贴板",
   "readerImageUrlCopied": "图片链接已复制到剪贴板",

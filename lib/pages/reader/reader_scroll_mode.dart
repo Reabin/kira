@@ -173,7 +173,7 @@ extension _ReaderScrollMode on _ReaderPageState {
     return false;
   }
 
-  /// 滚动模式：最后一话时，"已经是最后一话"组件滚动到屏幕约 3/5 位置则返回目录。
+  /// 滚动模式：最后一话时，"当前已无下一话"组件顶边滚到屏幕约 1/4 处则返回目录。
   /// 横向滚动的末尾空白页较窄（不足视口 3/5），改为完全进入视口后仍继续
   /// 向前滑（含到头后的 overscroll）才返回目录。
   bool _shouldScrollToCatalog(ScrollNotification notification) {
@@ -194,8 +194,9 @@ extension _ReaderScrollMode on _ReaderPageState {
         }
         return false;
       }
-      // 尾部组件滚动到屏幕约 3/5 高度位置时触发跳转
-      if (p.itemLeadingEdge <= 0.4) {
+      // 尾部组件顶边滚到屏幕高度约 1/4 处时触发跳转。阈值调小会让末尾卡
+      // 需要多滚一截才退出，降低误触返回详情页的概率。
+      if (p.itemLeadingEdge <= 0.25) {
         return true;
       }
       break;

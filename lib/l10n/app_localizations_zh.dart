@@ -3040,7 +3040,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerContinuePageNextChapter => '继续翻页进入下一话';
 
   @override
-  String get readerAlreadyLastChapter => '已经是最后一话';
+  String get readerAlreadyLastChapter => '当前已无下一话';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '继续下滑或点击按钮进入下一话';
@@ -7157,7 +7157,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerContinuePageNextChapter => '繼續翻頁進入下一話';
 
   @override
-  String get readerAlreadyLastChapter => '已經是最後一話';
+  String get readerAlreadyLastChapter => '當前已無下一話';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '繼續下滑或點擊按鈕進入下一話';

@@ -5564,7 +5564,7 @@ abstract class AppLocalizations {
   /// No description provided for @readerAlreadyLastChapter.
   ///
   /// In zh, this message translates to:
-  /// **'已经是最后一话'**
+  /// **'当前已无下一话'**
   String get readerAlreadyLastChapter;
 
   /// No description provided for @readerContinueScrollOrTapNextChapter.

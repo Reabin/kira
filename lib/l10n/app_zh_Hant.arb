@@ -1948,7 +1948,7 @@
   "readerRefresh": "重新整理本話",
   "readerAlreadyFirstChapter": "已經是第一章",
   "readerContinuePageNextChapter": "繼續翻頁進入下一話",
-  "readerAlreadyLastChapter": "已經是最後一話",
+  "readerAlreadyLastChapter": "當前已無下一話",
   "readerContinueScrollOrTapNextChapter": "繼續下滑或點擊按鈕進入下一話",
   "readerImagePathCopied": "圖片路徑已複製到剪貼簿",
   "readerImageUrlCopied": "圖片連結已複製到剪貼簿",
