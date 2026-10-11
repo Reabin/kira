@@ -348,10 +348,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
       context.pushNamed(
         AppRoutes.novelDetail,
         pathParameters: {'pathWord': book.pathWord},
-        extra: NovelDetailExtra(
-          initialBook: book,
-          heroTagBase: heroTagBase,
-        ),
+        extra: NovelDetailExtra(initialBook: book, heroTagBase: heroTagBase),
       );
 
   List<FilterChipOption> _themeOptions(AppLocalizations l10n) => [
@@ -656,23 +653,23 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                               context,
                               screenWidth - hp * 2,
                             ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final book = _visible.items[index];
-                                final heroTagBase = NovelHeroTags.base(
-                                  scope: 'novel-search',
-                                  pathWord: book.pathWord,
-                                  index: index,
-                                );
-                                return NovelBookCard(
-                                  book: book,
-                                  heroTagBase: heroTagBase,
-                                  onTap: () =>
-                                      unawaited(_openBook(book, heroTagBase)),
-                                );
-                              },
-                              childCount: _visible.items.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final book = _visible.items[index];
+                              final heroTagBase = NovelHeroTags.base(
+                                scope: 'novel-search',
+                                pathWord: book.pathWord,
+                                index: index,
+                              );
+                              return NovelBookCard(
+                                book: book,
+                                heroTagBase: heroTagBase,
+                                onTap: () =>
+                                    unawaited(_openBook(book, heroTagBase)),
+                              );
+                            }, childCount: _visible.items.length),
                           ),
                         ),
                       ],

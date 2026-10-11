@@ -266,7 +266,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   /// 高亮锚点与某段落是否同一位置。
   bool _isSameAnchor(NovelReaderAnchor? a, NovelReaderAnchor b) =>
-      a != null && a.entryIndex == b.entryIndex && a.paragraphIndex == b.paragraphIndex;
+      a != null &&
+      a.entryIndex == b.entryIndex &&
+      a.paragraphIndex == b.paragraphIndex;
 
   void _beginSession() {
     final session = ++_session;
@@ -648,10 +650,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (volume == _volumeId && _document != null) {
         _jumpTo(NovelReaderAnchor(entryIndex: entry));
       } else {
-        await _loadVolume(
-          volume,
-          anchor: NovelReaderAnchor(entryIndex: entry),
-        );
+        await _loadVolume(volume, anchor: NovelReaderAnchor(entryIndex: entry));
       }
     }
   }
@@ -711,9 +710,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         last != null &&
         last.entry.entryIndex == paragraph.entry.entryIndex &&
         last.paragraphIndex == paragraph.paragraphIndex;
-    if (lastAt != null &&
-        same &&
-        now.isBefore(lastAt.add(_doubleTapWindow))) {
+    if (lastAt != null && same && now.isBefore(lastAt.add(_doubleTapWindow))) {
       _lastParagraphTap = null;
       _lastParagraphTapAt = null;
       unawaited(_showParagraphMenu(paragraph, position));

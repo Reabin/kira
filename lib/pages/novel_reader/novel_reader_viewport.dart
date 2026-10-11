@@ -130,7 +130,9 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         }
       }
       // 可见项里没有正文时按目录顺序向外找（先向前）。
-      center = fallback ?? _nearestTextItemAway(center.index, center.itemLeadingEdge);
+      center =
+          fallback ??
+          _nearestTextItemAway(center.index, center.itemLeadingEdge);
       if (center == null) return null;
     }
     final extent = center.itemTrailingEdge - center.itemLeadingEdge;

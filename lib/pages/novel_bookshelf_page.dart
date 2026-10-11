@@ -390,10 +390,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     await context.pushNamed(
       AppRoutes.novelDetail,
       pathParameters: {'pathWord': book.pathWord},
-      extra: NovelDetailExtra(
-        initialBook: book,
-        heroTagBase: heroTagBase,
-      ),
+      extra: NovelDetailExtra(initialBook: book, heroTagBase: heroTagBase),
     );
     // Also update browse ordering / update badges after returning from reading.
     // Collection notifications already started their own refresh, even empty.

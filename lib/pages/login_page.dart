@@ -113,10 +113,7 @@ class _LoginPageState extends State<LoginPage> {
     if (accounts.isEmpty) return const [];
     return [
       const SizedBox(height: AppSpacing.lg),
-      _SavedAccountList(
-        options: accounts,
-        onSelected: _fillFromSuggestion,
-      ),
+      _SavedAccountList(options: accounts, onSelected: _fillFromSuggestion),
     ];
   }
 

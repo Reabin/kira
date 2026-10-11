@@ -467,9 +467,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
       : _comments.items.where(_isCommentVisible).toList(growable: false);
 
   /// 已加载评论中被屏蔽隐藏的条数，用于标题栏「显示数/总数|屏蔽数」。
-  int get _blockedCount => !_hasBlockFilters
-      ? 0
-      : _comments.items.length - _visibleComments.length;
+  int get _blockedCount =>
+      !_hasBlockFilters ? 0 : _comments.items.length - _visibleComments.length;
 
   /// 评论区计数文案，与漫画评论区一致：全部加载且无屏蔽时显示「N 条」；
   /// 有屏蔽时为「显示数/总数|屏蔽数」，屏蔽为 0 则不显示 |屏蔽数。
@@ -763,9 +762,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
           ? [
               ...current.replies,
               ...page.list.where(
-                (item) => !current.replies.any(
-                  (existing) => existing.id == item.id,
-                ),
+                (item) =>
+                    !current.replies.any((existing) => existing.id == item.id),
               ),
             ]
           : [...page.list];

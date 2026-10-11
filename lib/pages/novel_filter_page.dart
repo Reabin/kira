@@ -170,7 +170,8 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                               label: l10n.updateOrder,
                               value: ApiOrdering.datetimeUpdated,
                               icon: Icons.schedule,
-                              selected: _ordering == ApiOrdering.datetimeUpdated,
+                              selected:
+                                  _ordering == ApiOrdering.datetimeUpdated,
                             ),
                           ],
                           onTap: (option) =>
@@ -219,29 +220,29 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                         padding: EdgeInsets.symmetric(horizontal: hp),
                         sliver: SliverGrid(
                           gridDelegate: grid,
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final book = _books.items[index];
-                              final heroTagBase = NovelHeroTags.base(
-                                scope: 'novel-filter',
-                                pathWord: book.pathWord,
-                                index: index,
-                              );
-                              return NovelBookCard(
-                                book: book,
-                                heroTagBase: heroTagBase,
-                                onTap: () => context.pushNamed(
-                                  AppRoutes.novelDetail,
-                                  pathParameters: {'pathWord': book.pathWord},
-                                  extra: NovelDetailExtra(
-                                    initialBook: book,
-                                    heroTagBase: heroTagBase,
-                                  ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final book = _books.items[index];
+                            final heroTagBase = NovelHeroTags.base(
+                              scope: 'novel-filter',
+                              pathWord: book.pathWord,
+                              index: index,
+                            );
+                            return NovelBookCard(
+                              book: book,
+                              heroTagBase: heroTagBase,
+                              onTap: () => context.pushNamed(
+                                AppRoutes.novelDetail,
+                                pathParameters: {'pathWord': book.pathWord},
+                                extra: NovelDetailExtra(
+                                  initialBook: book,
+                                  heroTagBase: heroTagBase,
                                 ),
-                              );
-                            },
-                            childCount: _books.items.length,
-                          ),
+                              ),
+                            );
+                          }, childCount: _books.items.length),
                         ),
                       ),
                     ],

@@ -38,11 +38,7 @@ Future<void> showDownloadSettingsSheet(
 class DownloadSettingsSheet extends StatefulWidget {
   final DownloadManager? downloads;
   final NovelDownloadManager? novelDownloads;
-  const DownloadSettingsSheet({
-    super.key,
-    this.downloads,
-    this.novelDownloads,
-  });
+  const DownloadSettingsSheet({super.key, this.downloads, this.novelDownloads});
 
   @override
   State<DownloadSettingsSheet> createState() => _DownloadSettingsSheetState();
@@ -181,7 +177,8 @@ class _DownloadSettingsSheetState extends State<DownloadSettingsSheet> {
               ),
             ],
             if (widget.novelDownloads case final novels?) ...[
-              if (widget.downloads != null) const Divider(height: AppSpacing.xl),
+              if (widget.downloads != null)
+                const Divider(height: AppSpacing.xl),
               SectionHeader(
                 title: l10n.novelDownloadSection,
                 icon: Icons.auto_stories_outlined,

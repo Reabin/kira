@@ -319,8 +319,10 @@ Color? paragraphForeground(WidgetTester tester, Finder paragraph) =>
 /// 「paragraph 7」误匹配「paragraph 70」之类的前缀包含问题）。
 Finder paragraphText(String text) => find.byWidgetPredicate((widget) {
   if (widget is! Text) return false;
-  final plain =
-      (widget.data ?? widget.textSpan?.toPlainText())?.replaceAll('\uFFFC', '');
+  final plain = (widget.data ?? widget.textSpan?.toPlainText())?.replaceAll(
+    '\uFFFC',
+    '',
+  );
   return plain == text;
 });
 
@@ -944,10 +946,7 @@ void main() {
         find.byKey(const ValueKey('novel-paragraph-marker-0-0')),
         findsOneWidget,
       );
-      await _doubleTap(
-        tester,
-        paragraphText('v1 entry 0 paragraph 0'),
-      );
+      await _doubleTap(tester, paragraphText('v1 entry 0 paragraph 0'));
       await tester.tap(find.text('书签'));
       await _settle(tester);
       expect(_bookmarks.bookmarks, isEmpty);
@@ -1048,15 +1047,14 @@ void main() {
       // 按钮打的是视口中点段落，不是顶部首段。
       final center = _centerLocation(tester).anchor;
       expect(center.paragraphIndex, greaterThan(0));
-      final marked = paragraphText('v1 entry 0 paragraph ${center.paragraphIndex}');
+      final marked = paragraphText(
+        'v1 entry 0 paragraph ${center.paragraphIndex}',
+      );
       final foreground = paragraphForeground(tester, marked);
       final topBefore = tester.getTopLeft(marked).dy;
       await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
       await _settle(tester);
-      expect(
-        _bookmarks.bookmarks.single.paragraphIndex,
-        center.paragraphIndex,
-      );
+      expect(_bookmarks.bookmarks.single.paragraphIndex, center.paragraphIndex);
       expect(
         find.ancestor(of: marked, matching: highlightBand(foreground)),
         findsOneWidget,
@@ -1091,10 +1089,9 @@ void main() {
         findsOneWidget,
       );
       // 书签段落定位到视口中部（阅读习惯），绝不贴顶。
-      final height =
-          tester.getRect(
-            find.byKey(const ValueKey('novel-reader-surface')),
-          ).height;
+      final height = tester
+          .getRect(find.byKey(const ValueKey('novel-reader-surface')))
+          .height;
       final top = tester.getTopLeft(paragraph).dy;
       expect(top, greaterThan(height * 0.25));
       expect(top, lessThan(height * 0.75));
@@ -1223,7 +1220,10 @@ void main() {
       expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
       // 点在页边空白（非段落文字），只切工具栏，不进入段落双击识别。
       await tester.tapAt(
-        Offset(tester.getRect(surface).left + 8, tester.getRect(surface).center.dy),
+        Offset(
+          tester.getRect(surface).left + 8,
+          tester.getRect(surface).center.dy,
+        ),
       );
       await tester.pump();
       final before = _location(tester);
@@ -1253,7 +1253,9 @@ void main() {
 
       for (var toggle = 0; toggle < 6; toggle++) {
         // Use the reading surface gutter, not the removed top-right hide action.
-        await tester.tapAt(Offset(viewportRect.left + 8, viewportRect.center.dy));
+        await tester.tapAt(
+          Offset(viewportRect.left + 8, viewportRect.center.dy),
+        );
         await tester.pump();
         // A final settled anchor alone would miss the one-frame jump/restore.
         expectStablePosition();
@@ -1289,9 +1291,14 @@ void main() {
     expect(_location(tester).anchor.paragraphIndex, 40);
     await tester.tapAt(
       Offset(
-        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).left +
+        tester
+                .getRect(find.byKey(const ValueKey('novel-reader-surface')))
+                .left +
             8,
-        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center.dy,
+        tester
+            .getRect(find.byKey(const ValueKey('novel-reader-surface')))
+            .center
+            .dy,
       ),
     );
     await _settle(tester);
@@ -1303,9 +1310,14 @@ void main() {
     // 状态组件默认关闭时，点正文即可恢复工具栏。
     await tester.tapAt(
       Offset(
-        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).left +
+        tester
+                .getRect(find.byKey(const ValueKey('novel-reader-surface')))
+                .left +
             8,
-        tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center.dy,
+        tester
+            .getRect(find.byKey(const ValueKey('novel-reader-surface')))
+            .center
+            .dy,
       ),
     );
     await _settle(tester);
