@@ -1,0 +1,2 @@
+# Git hooks are executed by sh; CRLF would break the shebang.
+scripts/git-hooks/* text eol=lf

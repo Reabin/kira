@@ -125,7 +125,7 @@ Emoji-prefixed Conventional Commit types with concise Chinese summaries:
 - `✨ feat: 添加检查更新功能`
 - `🐛 fix: 登录过期后提醒用户登录`
 
-`.git/hooks/pre-commit`（本地钩子，不随仓库分发）提交前会跑 `scripts/update_version_code.ps1`，把 `pubspec.yaml` 的 versionCode 改成「HEAD 提交数 + 1」并自动 `git add` —— 每次提交都会带上这处改动，属预期行为，不要当成误提交回退。
+`scripts/git-hooks/pre-commit` 提交前会跑 `scripts/update_version_code.ps1`，把 `pubspec.yaml` 的 versionCode 改成「HEAD 提交数 + 1」并自动 `git add` —— 每次提交都会带上这处改动，属预期行为，不要当成误提交回退。新克隆的仓库需先执行一次 `git config core.hooksPath scripts/git-hooks` 才会启用。
 
 don't update `docs/CHANGELOG.md`
 
