@@ -16,6 +16,7 @@ import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart'
     show FilterChipOption, FilterChipRow, InlineRetryNotice;
 import '../widgets/load_more_footer.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_paged_controller.dart';
 import '../widgets/novel_widgets.dart';
@@ -268,7 +269,8 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
             if (_canScrollUp)
               Positioned(
                 right: AppSpacing.lg,
-                bottom: AppSpacing.lg,
+                // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+                bottom: AppSpacing.lg + NavBarInset.of(context),
                 child: BackToTopButton(onPressed: _scrollToTop),
               ),
           ],

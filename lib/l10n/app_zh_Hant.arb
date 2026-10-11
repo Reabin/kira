@@ -411,6 +411,8 @@
   "appearanceNavOrderDragHint": "長按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑動切換頁面",
   "appearanceNavSwipeDesc": "關閉後只能點擊底部導覽按鈕切換頁面",
+  "appearanceFloatingNavTitle": "懸浮底部導覽列",
+  "appearanceFloatingNavDesc": "關閉後導覽列固定在頁面底部",
   "appearanceAppIcon": "應用圖示",
   "appearanceAppIconRestartHint": "更換後重啟應用生效",
   "appearanceRefreshRateTitle": "螢幕重新整理率",

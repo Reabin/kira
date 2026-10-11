@@ -19,6 +19,7 @@ import '../utils/remote_notice_service.dart';
 import '../utils/screen_layout.dart';
 
 import '../widgets/account_avatar.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/setting_tile_group.dart';
 part 'profile/profile_cards.dart';
 
@@ -176,6 +177,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       ],
                     ),
             ),
+          ),
+          // 悬浮底栏浮在内容之上，末尾补一段底栏高度的留白，否则最底下的
+          // 「关于」卡片会被盖住。
+          const SliverToBoxAdapter(
+            child: BranchBottomSlack(extra: AppSpacing.md),
           ),
         ],
       ),

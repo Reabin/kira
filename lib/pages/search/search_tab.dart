@@ -571,8 +571,10 @@ class _SearchTabState extends State<_SearchTab>
                             ),
                           ),
                       ],
-                      // 底部留白：给右下角回到顶部按钮让位。
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                      // 底部留白：让开悬浮底栏，并给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(
+                        child: BranchBottomSlack(extra: 72),
+                      ),
                     ],
                   ),
                 ),
@@ -583,11 +585,9 @@ class _SearchTabState extends State<_SearchTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.lg + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

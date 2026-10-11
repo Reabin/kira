@@ -411,6 +411,8 @@
   "appearanceNavOrderDragHint": "长按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑动切换页面",
   "appearanceNavSwipeDesc": "关闭后只能点击底部导航按钮切换页面",
+  "appearanceFloatingNavTitle": "悬浮底部导航栏",
+  "appearanceFloatingNavDesc": "关闭后导航栏固定在页面底部",
   "appearanceAppIcon": "应用图标",
   "appearanceAppIconRestartHint": "更换后重启应用生效",
   "appearanceRefreshRateTitle": "屏幕刷新率",

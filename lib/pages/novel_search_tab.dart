@@ -17,9 +17,11 @@ import '../utils/app_logger.dart';
 import '../utils/screen_layout.dart';
 import '../utils/search_history.dart';
 import '../widgets/back_to_top_button.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/load_more_footer.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_paged_controller.dart';
 import '../widgets/novel_widgets.dart';
@@ -687,8 +689,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             horizontalPadding: hp,
                           ),
                         ),
-                      // 底部留白：给右下角回到顶部按钮让位。
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                      // 底部留白：让开悬浮底栏，并给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(
+                        child: BranchBottomSlack(extra: 72),
+                      ),
                     ],
                   ),
                 ),
@@ -699,11 +703,9 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.lg + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

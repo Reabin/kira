@@ -49,6 +49,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     await settings.initFromPrefs(prefs);
+    // 「始终显示文字」只在非悬浮下可选（悬浮会把它降为选中项显示）。
+    await settings.setFloatingNavEnabled(false);
 
     await settings.setBottomNavLabelMode(BottomNavLabelMode.hidden);
     expect(settings.bottomNavLabelMode, BottomNavLabelMode.hidden);
@@ -74,6 +76,56 @@ void main() {
 
     await settings.initFromPrefs(prefs);
     expect(settings.navSwipeEnabled, isFalse);
+  });
+
+  test('floating nav defaults to enabled and persists when toggled', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await settings.initFromPrefs(prefs);
+
+    expect(settings.floatingNavEnabled, isTrue);
+
+    await settings.setFloatingNavEnabled(false);
+    expect(settings.floatingNavEnabled, isFalse);
+    expect(prefs.getBool('nav_floating_enabled'), isFalse);
+
+    await settings.initFromPrefs(prefs);
+    expect(settings.floatingNavEnabled, isFalse);
+  });
+
+  test('开启悬浮会把「始终显示文字」降为选中项显示', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await settings.initFromPrefs(prefs);
+
+    await settings.setFloatingNavEnabled(false);
+    await settings.setBottomNavLabelMode(BottomNavLabelMode.always);
+    expect(settings.bottomNavLabelMode, BottomNavLabelMode.always);
+
+    await settings.setFloatingNavEnabled(true);
+    expect(settings.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+    expect(prefs.getString('bottom_nav_label_mode'), 'selectedOnly');
+  });
+
+  test('悬浮开着时选「始终显示文字」会被降级', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await settings.initFromPrefs(prefs);
+
+    expect(settings.floatingNavEnabled, isTrue);
+    await settings.setBottomNavLabelMode(BottomNavLabelMode.always);
+    expect(settings.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+  });
+
+  test('旧数据同时存着悬浮与「始终显示文字」时按互斥规则加载', () async {
+    SharedPreferences.setMockInitialValues({
+      'nav_floating_enabled': true,
+      'bottom_nav_label_mode': 'always',
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await settings.initFromPrefs(prefs);
+
+    expect(settings.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
   });
 
   test('back exit confirm defaults to enabled and persists', () async {

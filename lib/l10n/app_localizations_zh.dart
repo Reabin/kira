@@ -696,6 +696,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceNavSwipeDesc => '关闭后只能点击底部导航按钮切换页面';
 
   @override
+  String get appearanceFloatingNavTitle => '悬浮底部导航栏';
+
+  @override
+  String get appearanceFloatingNavDesc => '关闭后导航栏固定在页面底部';
+
+  @override
   String get appearanceAppIcon => '应用图标';
 
   @override
@@ -4801,6 +4807,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceNavSwipeDesc => '關閉後只能點擊底部導覽按鈕切換頁面';
+
+  @override
+  String get appearanceFloatingNavTitle => '懸浮底部導覽列';
+
+  @override
+  String get appearanceFloatingNavDesc => '關閉後導覽列固定在頁面底部';
 
   @override
   String get appearanceAppIcon => '應用圖示';

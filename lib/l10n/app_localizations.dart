@@ -1363,6 +1363,18 @@ abstract class AppLocalizations {
   /// **'关闭后只能点击底部导航按钮切换页面'**
   String get appearanceNavSwipeDesc;
 
+  /// No description provided for @appearanceFloatingNavTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'悬浮底部导航栏'**
+  String get appearanceFloatingNavTitle;
+
+  /// No description provided for @appearanceFloatingNavDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后导航栏固定在页面底部'**
+  String get appearanceFloatingNavDesc;
+
   /// No description provided for @appearanceAppIcon.
   ///
   /// In zh, this message translates to:

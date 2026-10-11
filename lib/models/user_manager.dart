@@ -1485,16 +1485,29 @@ class UserManager extends ChangeNotifier {
   /// Prefer the new string key; fall back to the legacy bool for upgrades.
   static BottomNavLabelMode _loadBottomNavLabelMode(SharedPreferences prefs) {
     final saved = prefs.getString(_keyBottomNavLabelMode);
+    var mode = BottomNavLabelMode.selectedOnly;
     if (saved != null) {
-      for (final mode in BottomNavLabelMode.values) {
-        if (mode.name == saved) return mode;
+      for (final candidate in BottomNavLabelMode.values) {
+        if (candidate.name == saved) {
+          mode = candidate;
+          break;
+        }
       }
+    } else {
+      // Upgrades: old "show labels" becomes the new capsule selected-only
+      // mode so users pick up the new bar without staying on classic always.
+      final legacy = prefs.getBool(_keyBottomNavShowLabels);
+      mode = legacy == false
+          ? BottomNavLabelMode.hidden
+          : BottomNavLabelMode.selectedOnly;
     }
-    // Upgrades: old "show labels" becomes the new capsule selected-only
-    // mode so users pick up the new bar without staying on classic always.
-    final legacy = prefs.getBool(_keyBottomNavShowLabels);
-    if (legacy == false) return BottomNavLabelMode.hidden;
-    return BottomNavLabelMode.selectedOnly;
+    // 悬浮底栏是浮在内容上的胶囊，与「始终显示文字」的满宽不透明条互斥；
+    // 旧数据可能两者同时开着，这里按 setter 的规则降到选中项显示。
+    if (mode == BottomNavLabelMode.always &&
+        (prefs.getBool('nav_floating_enabled') ?? true)) {
+      return BottomNavLabelMode.selectedOnly;
+    }
+    return mode;
   }
 
   static int _normalizeDisplayModeRefreshRate(int? refreshRate) {

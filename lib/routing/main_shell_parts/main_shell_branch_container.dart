@@ -192,6 +192,9 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
       ? _logicalBranch
       : widget.currentIndex;
 
+  /// 当前接收交互的分支序号；MainShell 据此过滤隐藏分支（预热/保活）的滚动通知。
+  int get activeBranchIndex => _uiBranch;
+
   double _visiblePos(int branchIndex) {
     final navKey = _navKeyToBranchIndex.entries
         .where((entry) => entry.value == branchIndex)

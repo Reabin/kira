@@ -23,6 +23,7 @@ import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/back_to_top_button.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/load_more_footer.dart';
@@ -631,7 +632,9 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
                     horizontalPadding: hp,
                   ),
                 ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+              const SliverToBoxAdapter(
+                child: BranchBottomSlack(extra: AppSpacing.xxl),
+              ),
             ],
           ),
         ),

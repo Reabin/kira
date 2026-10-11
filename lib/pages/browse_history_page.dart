@@ -27,6 +27,7 @@ import '../widgets/comic_hero_tags.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_widgets.dart';
 import '../widgets/shimmer_skeleton.dart';
 
@@ -1140,11 +1141,9 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.md + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

@@ -350,6 +350,17 @@ class _AppearancePageState extends State<AppearancePage>
           onChanged: (value) =>
               unawaited(_user.theme.setNavSwipeEnabled(value)),
         ),
+        SwitchListTile(
+          secondary: Icon(Icons.layers_outlined, color: cs.onSurfaceVariant),
+          title: Text(l10n.appearanceFloatingNavTitle),
+          subtitle: Text(
+            l10n.appearanceFloatingNavDesc,
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          value: _user.theme.floatingNavEnabled,
+          onChanged: (value) =>
+              unawaited(_user.theme.setFloatingNavEnabled(value)),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Column(

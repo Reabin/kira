@@ -715,7 +715,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                       horizontalPadding: hp,
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                const SliverToBoxAdapter(child: BranchBottomSlack(extra: 72)),
               ],
             ),
           ),
@@ -723,11 +723,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.md + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:google_nav_bar/google_nav_bar.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
 import '../utils/adaptive_motion.dart';
@@ -15,9 +17,11 @@ import '../utils/dialog_width.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/toast.dart';
+import '../widgets/nav_bar_inset.dart';
 import 'branch_activation.dart';
 
 part 'main_shell_parts/main_shell_badges.dart';
+part 'main_shell_parts/main_shell_bottom_inset.dart';
 part 'main_shell_parts/main_shell_branch_container.dart';
 
 // Navigation key → branch index mapping.
@@ -75,6 +79,10 @@ class _MainShellState extends State<MainShell>
   static const _backExitWindow = Duration(seconds: 2);
 
   final _user = UserManager();
+
+  /// 底栏实际占用高度（含安全区与悬浮留白），用于把页面 FAB 顶到底栏上方。
+  final _navBarHeight = ValueNotifier<double>(0);
+
   bool _didAutoCheckUpdate = false;
   bool _didCheckDisclaimer = false;
   bool _didCheckRemoteNotice = false;
@@ -92,6 +100,7 @@ class _MainShellState extends State<MainShell>
   @override
   void dispose() {
     _user.removeListener(handleSettingsChanged);
+    _navBarHeight.dispose();
     super.dispose();
   }
 
@@ -109,6 +118,7 @@ class _MainShellState extends State<MainShell>
     _user.navOrder.join('\u0000'),
     _user.showNovel,
     _user.theme.navSwipeEnabled,
+    _user.theme.floatingNavEnabled,
     _user.theme.backExitConfirm,
   );
 
@@ -293,6 +303,24 @@ class _MainShellState extends State<MainShell>
     // 宽 > 高且 ≥600 的横屏/宽窗口用左侧 NavigationRail，释放纵向空间；
     // 竖屏维持底部导航（含 capsule 样式与标签模式设置）。
     final useSideNav = size.width > size.height && size.width >= 600;
+    final floatingNav = !useSideNav && _user.theme.floatingNavEnabled;
+
+    final bar = useSideNav
+        ? null
+        : labelMode == BottomNavLabelMode.always
+        ? _buildClassicNavBar(
+            orderedKeys: orderedKeys,
+            selectedIndex: selectedIndex,
+            l10n: l10n,
+            floating: floatingNav,
+          )
+        : _buildCapsuleNavBar(
+            orderedKeys: orderedKeys,
+            selectedIndex: selectedIndex,
+            l10n: l10n,
+            showSelectedLabel: labelMode == BottomNavLabelMode.selectedOnly,
+            floating: floatingNav,
+          );
 
     // canPop=false 只作用于 shell 路由本身：分支内已 push 的页面、根导航栈上
     // 的顶层页面各自先处理返回，走不到这里。
@@ -303,38 +331,41 @@ class _MainShellState extends State<MainShell>
         _handleBackAttempt();
       },
       child: Scaffold(
-        body: useSideNav
-            ? Row(
-                children: [
-                  _buildSideNavRail(
-                    orderedKeys: orderedKeys,
-                    selectedIndex: selectedIndex,
-                    l10n: l10n,
-                  ),
-                  VerticalDivider(
-                    width: 1,
-                    thickness: 1,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outlineVariant.withValues(alpha: 0.6),
-                  ),
-                  Expanded(child: _buildBranchArea(orderedKeys)),
-                ],
-              )
-            : _buildBranchArea(orderedKeys),
-        bottomNavigationBar: useSideNav
+        // 悬浮模式必须让页面内容延伸到导航栏下方，否则底栏四周露出的是
+        // Scaffold 背景色，看起来就成了「矩形里套一个胶囊」而非悬浮。
+        extendBody: floatingNav,
+        body: ValueListenableBuilder<double>(
+          valueListenable: _navBarHeight,
+          builder: (_, barHeight, _) => _BottomInsetForNestedFab(
+            // 只在悬浮模式下让位：固定模式底栏不覆盖内容，页面 Scaffold 的
+            // contentBottom 已减掉底栏高度，再补一次会让 FAB 抬高两次。
+            barHeight: floatingNav ? barHeight : 0,
+            child: useSideNav
+                ? Row(
+                    children: [
+                      _buildSideNavRail(
+                        orderedKeys: orderedKeys,
+                        selectedIndex: selectedIndex,
+                        l10n: l10n,
+                      ),
+                      VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outlineVariant.withValues(alpha: 0.6),
+                      ),
+                      Expanded(child: _buildBranchArea(orderedKeys)),
+                    ],
+                  )
+                : _buildBranchArea(orderedKeys),
+          ),
+        ),
+        bottomNavigationBar: bar == null
             ? null
-            : labelMode == BottomNavLabelMode.always
-            ? _buildClassicNavBar(
-                orderedKeys: orderedKeys,
-                selectedIndex: selectedIndex,
-                l10n: l10n,
-              )
-            : _buildCapsuleNavBar(
-                orderedKeys: orderedKeys,
-                selectedIndex: selectedIndex,
-                l10n: l10n,
-                showSelectedLabel: labelMode == BottomNavLabelMode.selectedOnly,
+            : _MeasureHeight(
+                onHeight: (height) => _navBarHeight.value = height,
+                child: bar,
               ),
       ),
     );
@@ -405,11 +436,12 @@ class _MainShellState extends State<MainShell>
     required List<String> orderedKeys,
     required int selectedIndex,
     required AppLocalizations l10n,
+    required bool floating,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return Material(
-      color: cs.surfaceContainer,
-      elevation: 3,
+    final bar = Material(
+      color: floating ? Colors.transparent : cs.surfaceContainer,
+      elevation: floating ? 0 : 3,
       shadowColor: AppShadows.floatingTint(),
       child: SafeArea(
         top: false,
@@ -427,6 +459,8 @@ class _MainShellState extends State<MainShell>
         ),
       ),
     );
+    if (!floating) return bar;
+    return _FloatingBarShell(cs: cs, child: bar);
   }
 
   NavigationDestination _buildClassicDestination({
@@ -454,6 +488,7 @@ class _MainShellState extends State<MainShell>
     required int selectedIndex,
     required AppLocalizations l10n,
     required bool showSelectedLabel,
+    required bool floating,
   }) {
     final cs = Theme.of(context).colorScheme;
     // icon scales with text size; padding caps at 1.2 so large-text users
@@ -467,9 +502,9 @@ class _MainShellState extends State<MainShell>
     final vPad = 12.0 * cappedScale;
     final gap = showSelectedLabel ? 8.0 * cappedScale : 0.0;
     final reducedMotion = prefersReducedMotion(context);
-    return Material(
-      color: cs.surfaceContainer,
-      elevation: 3,
+    final bar = Material(
+      color: floating ? Colors.transparent : cs.surfaceContainer,
+      elevation: floating ? 0 : 3,
       shadowColor: AppShadows.floatingTint(),
       child: SafeArea(
         top: false,
@@ -510,6 +545,8 @@ class _MainShellState extends State<MainShell>
         ),
       ),
     );
+    if (!floating) return bar;
+    return _FloatingBarShell(cs: cs, child: bar);
   }
 
   GButton _buildGButton({
@@ -526,6 +563,39 @@ class _MainShellState extends State<MainShell>
       icon: item.selectedIcon,
       text: label,
       leading: _NoticeBadgeIcon(child: Icon(item.selectedIcon, size: iconSize)),
+    );
+  }
+}
+
+/// 悬浮底栏外壳：在安全区内四周留边，配圆角、投影与近实底色，
+/// 让底栏浮在页面内容之上（Scaffold extendBody 时内容从其下方滚过）。
+class _FloatingBarShell extends StatelessWidget {
+  const _FloatingBarShell({required this.cs, required this.child});
+
+  final ColorScheme cs;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md,
+          0,
+          AppSpacing.md,
+          AppSpacing.sm,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: cs.surfaceContainer.withValues(alpha: 0.97),
+            borderRadius: AppRadius.fullR,
+            border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+            boxShadow: AppShadows.lg(cs),
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }
