@@ -238,12 +238,14 @@ class _UpdateCardState extends State<_UpdateCard> {
     _useMirror = UserManager().useUpdateMirror;
     AppUpdateService.state.addListener(_onStateChanged);
     InAppInstaller.instance.state.addListener(_onInstallStateChanged);
+    InAppInstaller.instance.mirrorFallbackCount.addListener(_onStateChanged);
   }
 
   @override
   void dispose() {
     AppUpdateService.state.removeListener(_onStateChanged);
     InAppInstaller.instance.state.removeListener(_onInstallStateChanged);
+    InAppInstaller.instance.mirrorFallbackCount.removeListener(_onStateChanged);
     super.dispose();
   }
 

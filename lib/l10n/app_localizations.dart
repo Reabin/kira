@@ -5705,6 +5705,12 @@ abstract class AppLocalizations {
   /// **'下载失败，请稍后重试'**
   String get updateDownloadFailed;
 
+  /// No description provided for @updateDownloadFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载源切换中（第 {count} 个备用源）'**
+  String updateDownloadFallback(int count);
+
   /// No description provided for @updateInstallFailed.
   ///
   /// In zh, this message translates to:

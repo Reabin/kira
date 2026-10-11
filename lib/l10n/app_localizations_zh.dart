@@ -3120,6 +3120,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateDownloadFailed => '下载失败，请稍后重试';
 
   @override
+  String updateDownloadFallback(int count) {
+    return '下载源切换中（第 $count 个备用源）';
+  }
+
+  @override
   String get updateInstallFailed => '无法启动安装，请改用浏览器下载';
 
   @override
@@ -7231,6 +7236,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get updateDownloadFailed => '下載失敗，請稍後重試';
+
+  @override
+  String updateDownloadFallback(int count) {
+    return '下載源切換中（第 $count 個備用源）';
+  }
 
   @override
   String get updateInstallFailed => '無法啟動安裝，請改用瀏覽器下載';

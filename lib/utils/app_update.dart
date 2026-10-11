@@ -90,6 +90,12 @@ class ReleaseAsset {
 
   /// 文件名是否带 [abi] 标识（如 arm64-v8a / x86_64）。
   bool matchesAbi(String abi) => name.toLowerCase().contains(abi.toLowerCase());
+
+  /// 用 [mirrorPrefix] 拼出的镜像下载地址。下载时的兜底链需要按前缀
+  /// 现场拼，不能只用解析资产时定下的 [mirrorUrl]（那一个绑死了当时
+  /// 选中的前缀）。
+  String mirrorUrlFor(String mirrorPrefix) =>
+      '${UserManager.normalizeUpdateMirrorPrefix(mirrorPrefix)}$downloadUrl';
 }
 
 class AppUpdateInfo {
@@ -729,12 +735,39 @@ class InAppInstaller with WidgetsBindingObserver {
     const InstallState.idle(),
   );
 
+  /// 已发生的镜像回退次数（0 = 选中的源直接成功）。更新卡片据此提示
+  /// 「已切换备用源」，而不是让用户以为下载毫无波折。
+  final ValueNotifier<int> mirrorFallbackCount = ValueNotifier(0);
+
   bool _busy = false;
 
   /// 记在权限跳设置页期间的待装任务：用户授权返回后自动续跑，
   /// 避免下载完才被权限打断、需要重新下载。
   ReleaseAsset? _pendingPermissionAsset;
   bool _pendingPermissionUseMirror = false;
+
+  /// 应用内下载的候选地址，按尝试顺序排列。
+  ///
+  /// 勾选镜像：选中的镜像 → 其余已添加镜像 → GitHub 直链兜底；
+  /// 未勾选：只有直链。纯函数，便于测试。
+  @visibleForTesting
+  static List<String> downloadCandidates(
+    ReleaseAsset asset, {
+    required bool useMirror,
+  }) {
+    if (!useMirror) return [asset.downloadUrl];
+
+    final urls = <String>[];
+    for (final prefix in UserManager.updateMirrorFallbackChain(
+      UserManager().updateMirrorPrefix,
+    )) {
+      final url = asset.mirrorUrlFor(prefix);
+      if (!urls.contains(url)) urls.add(url);
+    }
+    // 镜像全挂时退回 GitHub 直链（走代理，见 NetworkProxy 的直连白名单）。
+    if (!urls.contains(asset.downloadUrl)) urls.add(asset.downloadUrl);
+    return urls;
+  }
 
   /// Formats a byte count as a human-readable size.
   static String formatSize(int bytes) {
@@ -787,28 +820,49 @@ class InAppInstaller with WidgetsBindingObserver {
 
   /// 授权后的实际 下载 → 安装 流水线。Re-entrant calls are ignored
   /// while a task is in flight.
+  ///
+  /// 勾选了「使用镜像」时按 [downloadCandidates] 依次尝试：选中的镜像 →
+  /// 其余已添加镜像 → GitHub 直链，任一源成功即停止；全失败才报错。
+  /// 未勾选镜像时只走直链，不做任何回退。
   Future<void> _downloadAndInstallNow(
     ReleaseAsset asset,
     bool useMirror,
   ) async {
     if (_busy) return;
     _busy = true;
+    mirrorFallbackCount.value = 0;
     state.value = InstallState.preparing(asset.name);
     try {
-      final path = await ApkInstaller.downloadToCache(
-        useMirror ? asset.mirrorUrl : asset.downloadUrl,
-        asset.name,
-        onProgress: (received, total) {
-          state.value = InstallState.downloading(
+      final candidates = downloadCandidates(asset, useMirror: useMirror);
+      for (var i = 0; i < candidates.length; i++) {
+        try {
+          final path = await ApkInstaller.downloadToCache(
+            candidates[i],
             asset.name,
-            received: received,
-            total: total,
+            onProgress: (received, total) {
+              state.value = InstallState.downloading(
+                asset.name,
+                received: received,
+                total: total,
+              );
+            },
           );
-        },
-      );
-      state.value = InstallState.installing(asset.name);
-      await ApkInstaller.install(path);
-      state.value = const InstallState.done();
+          state.value = InstallState.installing(asset.name);
+          await ApkInstaller.install(path);
+          state.value = const InstallState.done();
+          return;
+        } catch (e, st) {
+          final isLast = i == candidates.length - 1;
+          await AppLogger.instance.recordWarning(
+            'update download source failed (${candidates[i]}): $e',
+            stackTrace: st,
+            source: 'app_update',
+          );
+          if (isLast) rethrow;
+          mirrorFallbackCount.value = i + 1;
+          // 失败的源不会留下可安装文件；下载前会重设状态，这里不必清理。
+        }
+      }
     } catch (e, st) {
       await AppLogger.instance.recordWarning(
         'in-app update install failed: $e',
@@ -844,6 +898,7 @@ class InAppInstaller with WidgetsBindingObserver {
   void reset() {
     if (state.value.isBusy) return;
     _pendingPermissionAsset = null;
+    mirrorFallbackCount.value = 0;
     state.value = const InstallState.idle();
   }
 }

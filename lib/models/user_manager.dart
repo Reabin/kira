@@ -166,13 +166,25 @@ class UserManager extends ChangeNotifier {
       ThemeSettings.defaultDisplayModeRefreshRate;
 
   /// GitHub 下载镜像默认前缀，也用于提示条等处的「默认值」语义。
-  static const defaultUpdateMirrorPrefix = 'https://gh.zwy.one/';
+  static const defaultUpdateMirrorPrefix = 'https://gh-proxy.com/';
 
-  /// 镜像源下拉可选项，第一项即默认；ghproxy.net 为旧版默认，保留供切换。
+  /// 镜像源下拉可选项，第一项即默认；其余为备选，下载失败时按顺序兜底。
   static const updateMirrorPrefixOptions = <String>[
     defaultUpdateMirrorPrefix,
     'https://ghproxy.net/',
   ];
+
+  /// 应用内下载的镜像兜底顺序：选中的镜像优先，其余镜像依次尝试。
+  /// 自定义镜像不在预设里时也排在最前（它就是用户当前选中的那个）。
+  static List<String> updateMirrorFallbackChain(String selected) {
+    final first = normalizeUpdateMirrorPrefix(selected);
+    final chain = <String>[first];
+    for (final option in updateMirrorPrefixOptions) {
+      final normalized = normalizeUpdateMirrorPrefix(option);
+      if (!chain.contains(normalized)) chain.add(normalized);
+    }
+    return chain;
+  }
 
   static const appLogoPaths = ThemeSettings.appLogoPaths;
 

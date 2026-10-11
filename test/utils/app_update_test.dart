@@ -248,4 +248,27 @@ void main() {
       expect(info.isBetaChannel, isTrue);
     });
   });
+
+  group('downloadCandidates', () {
+    final apk = asset(
+      'kira-1.5.0-arm64-v8a.apk',
+      platform: AssetPlatform.android,
+    );
+
+    test('direct download when the mirror checkbox is off', () {
+      expect(InAppInstaller.downloadCandidates(apk, useMirror: false), [
+        'https://example.com/kira-1.5.0-arm64-v8a.apk',
+      ]);
+    });
+
+    test('mirror chain falls back through mirrors then the direct URL', () {
+      // 未 init 的 UserManager 用默认前缀（gh-proxy.com），
+      // 顺序应为：默认镜像 → 备选镜像 → GitHub 直链。
+      expect(InAppInstaller.downloadCandidates(apk, useMirror: true), [
+        'https://gh-proxy.com/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://ghproxy.net/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://example.com/kira-1.5.0-arm64-v8a.apk',
+      ]);
+    });
+  });
 }

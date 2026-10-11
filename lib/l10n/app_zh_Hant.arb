@@ -2002,6 +2002,14 @@
     }
   },
   "updateDownloadFailed": "下載失敗，請稍後重試",
+  "updateDownloadFallback": "下載源切換中（第 {count} 個備用源）",
+  "@updateDownloadFallback": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "updateInstallFailed": "無法啟動安裝，請改用瀏覽器下載",
   "updateInstallPermissionNeeded": "需要「安裝未知應用」權限才能安裝更新",
   "updateDownloadPreparing": "準備下載…",
