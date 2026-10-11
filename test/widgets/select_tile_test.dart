@@ -58,4 +58,68 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('appearance overrides tint the pill and icon without a border '
+      'by default', (tester) async {
+    const fg = Color(0xFFFF6F00);
+    const bg = Color(0x24FFC107);
+    const accent = Color(0xFFFFC107);
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<String>(
+            value: 'beta',
+            foregroundColor: fg,
+            backgroundColor: bg,
+            borderSide: const BorderSide(color: accent),
+            leadingIcon: Icons.science_outlined,
+            items: const [SelectItem('beta', 'beta')],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final material = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(SelectTile<String>),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(material.color, bg);
+    final shape = material.shape as RoundedRectangleBorder;
+    expect(shape.side.color, accent);
+
+    expect(find.byIcon(Icons.science_outlined), findsOneWidget);
+    final label = tester.widget<Text>(find.text('beta'));
+    expect(label.style?.color, fg);
+    final arrow = tester.widget<Icon>(find.byIcon(Icons.keyboard_arrow_down));
+    expect(arrow.color, fg);
+  });
+
+  testWidgets('without overrides the pill keeps its pre-existing colouring', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<int>(
+            value: 0,
+            items: const [SelectItem(0, '自动')],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    final cs = Theme.of(
+      tester.element(find.byType(SelectTile<int>)),
+    ).colorScheme;
+    expect(
+      tester.widget<Icon>(find.byIcon(Icons.keyboard_arrow_down)).color,
+      cs.onSurfaceVariant,
+    );
+    expect(find.byIcon(Icons.science_outlined), findsNothing);
+  });
 }

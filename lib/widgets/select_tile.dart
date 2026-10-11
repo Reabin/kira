@@ -22,11 +22,27 @@ final class SelectTile<T> extends StatefulWidget {
   final List<SelectItem<T>> items;
   final ValueChanged<T> onChanged;
 
+  /// 胶囊前景色;null 用默认正文色。
+  final Color? foregroundColor;
+
+  /// 胶囊背景色;null 用 tonal 叠色(容器色 + 8% primary)。
+  final Color? backgroundColor;
+
+  /// 胶囊描边;null 无边框。
+  final BorderSide? borderSide;
+
+  /// 胶囊左侧图标(可选),用于保留渠道徽标那种带图标的外观。
+  final IconData? leadingIcon;
+
   const SelectTile({
     super.key,
     required this.value,
     required this.items,
     required this.onChanged,
+    this.foregroundColor,
+    this.backgroundColor,
+    this.borderSide,
+    this.leadingIcon,
   });
 
   @override
@@ -160,16 +176,24 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
             .map((i) => i.pillLabel)
             .firstOrNull ??
         '';
+    // 可选外观覆盖:默认仍是 tonal 叠色胶囊,调用方可换成带图标/描边的徽标样式。
+    final background =
+        widget.backgroundColor ??
+        Color.alphaBlend(
+          cs.primary.withValues(alpha: 0.08),
+          cs.surfaceContainerHighest,
+        );
+    final foreground = widget.foregroundColor ?? tt.bodyMedium?.color;
 
     return CompositedTransformTarget(
       link: _layerLink,
       child: Material(
         // tonalElevation 4 的近似：容器色上叠一层低透明度 primary。
-        color: Color.alphaBlend(
-          cs.primary.withValues(alpha: 0.08),
-          cs.surfaceContainerHighest,
+        color: background,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.fullR,
+          side: widget.borderSide ?? BorderSide.none,
         ),
-        borderRadius: AppRadius.fullR,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: _toggle,
@@ -179,13 +203,17 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (widget.leadingIcon != null) ...[
+                  Icon(widget.leadingIcon, size: 18, color: foreground),
+                  const SizedBox(width: 6),
+                ],
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 168),
                   child: Text(
                     label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: tt.bodyMedium,
+                    style: tt.bodyMedium?.copyWith(color: foreground),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -197,7 +225,9 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                         ? Icons.keyboard_arrow_up
                         : Icons.keyboard_arrow_down,
                     size: 18,
-                    color: cs.onSurfaceVariant,
+                    // 未传 foregroundColor 时保持改造前的 onSurfaceVariant,只
+                    // 有显式覆盖(如渠道 Beta 徽标)才换成前景色。
+                    color: widget.foregroundColor ?? cs.onSurfaceVariant,
                   ),
                 ),
               ],

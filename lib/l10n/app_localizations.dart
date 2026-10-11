@@ -3217,53 +3217,29 @@ abstract class AppLocalizations {
   /// **'稳定版'**
   String get aboutStableChannelShort;
 
-  /// No description provided for @aboutUpdateChannelTitle.
+  /// No description provided for @aboutBetaChannelConfirmTitle.
   ///
   /// In zh, this message translates to:
-  /// **'更新渠道'**
-  String get aboutUpdateChannelTitle;
+  /// **'是否切换?'**
+  String get aboutBetaChannelConfirmTitle;
 
-  /// No description provided for @aboutStableChannelTitle.
+  /// No description provided for @aboutBetaChannelNote.
   ///
   /// In zh, this message translates to:
-  /// **'稳定版 (Stable)'**
-  String get aboutStableChannelTitle;
+  /// **'预览版更新更快,问题也可能更多'**
+  String get aboutBetaChannelNote;
 
-  /// No description provided for @aboutStableChannelDesc.
+  /// No description provided for @aboutBetaChannelArm64Only.
   ///
   /// In zh, this message translates to:
-  /// **'仅检查正式发布版本'**
-  String get aboutStableChannelDesc;
+  /// **'仅限 Android arm64 设备。'**
+  String get aboutBetaChannelArm64Only;
 
-  /// No description provided for @aboutBetaChannelTitle.
+  /// No description provided for @aboutBetaChannelDevice.
   ///
   /// In zh, this message translates to:
-  /// **'预览版（Beta）'**
-  String get aboutBetaChannelTitle;
-
-  /// No description provided for @aboutBetaChannelDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'从最新提交构建的版本，可能不稳定'**
-  String get aboutBetaChannelDesc;
-
-  /// No description provided for @aboutBetaChannelSwitchedTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'已切换到预览版'**
-  String get aboutBetaChannelSwitchedTitle;
-
-  /// No description provided for @aboutBetaChannelSwitchedContent.
-  ///
-  /// In zh, this message translates to:
-  /// **'预览版一般用于测试新功能或修复问题，可能存在更多问题。'**
-  String get aboutBetaChannelSwitchedContent;
-
-  /// No description provided for @aboutGotItButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'知道了'**
-  String get aboutGotItButton;
+  /// **'当前设备:{os} {arch}。'**
+  String aboutBetaChannelDevice(String os, String arch);
 
   /// No description provided for @aboutRepositoryLabel.
   ///

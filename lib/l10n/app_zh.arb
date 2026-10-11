@@ -1010,14 +1010,16 @@
   "aboutSaveButton": "保存",
   "aboutMirrorPrefixSavedToast": "镜像源已保存",
   "aboutStableChannelShort": "稳定版",
-  "aboutUpdateChannelTitle": "更新渠道",
-  "aboutStableChannelTitle": "稳定版 (Stable)",
-  "aboutStableChannelDesc": "仅检查正式发布版本",
-  "aboutBetaChannelTitle": "预览版（Beta）",
-  "aboutBetaChannelDesc": "从最新提交构建的版本，可能不稳定",
-  "aboutBetaChannelSwitchedTitle": "已切换到预览版",
-  "aboutBetaChannelSwitchedContent": "预览版一般用于测试新功能或修复问题，可能存在更多问题。",
-  "aboutGotItButton": "知道了",
+  "aboutBetaChannelConfirmTitle": "是否切换?",
+  "aboutBetaChannelNote": "预览版更新更快,问题也可能更多",
+  "aboutBetaChannelArm64Only": "仅限 Android arm64 设备。",
+  "aboutBetaChannelDevice": "当前设备:{os} {arch}。",
+  "@aboutBetaChannelDevice": {
+    "placeholders": {
+      "os": { "type": "String" },
+      "arch": { "type": "String" }
+    }
+  },
   "aboutRepositoryLabel": "仓库",
   "aboutFeedbackLabel": "反馈",
   "aboutCheckUpdateTitle": "检查更新",

@@ -137,120 +137,99 @@ extension _AboutPageUpdateSettings on _AboutPageState {
     return (uri?.host.isNotEmpty ?? false) ? uri!.host : prefix;
   }
 
-  Widget _buildUpdateChannelChip(ColorScheme cs, AppLocalizations l10n) {
+  Widget _buildUpdateChannelSelect(ColorScheme cs, AppLocalizations l10n) {
     final isBeta = _user.isBetaUpdateChannel;
-    final fg = isBeta ? Colors.amber.shade900 : cs.onSurfaceVariant;
-    return InkWell(
-      onTap: _showUpdateChannelDialog,
-      borderRadius: AppRadius.xlR,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color: isBeta
-              ? Colors.amber.withValues(alpha: 0.14)
-              : cs.surfaceContainerHighest,
-          borderRadius: AppRadius.xlR,
-          border: Border.all(color: isBeta ? Colors.amber : cs.outlineVariant),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isBeta ? Icons.science_outlined : Icons.flag_outlined,
-              size: 14,
-              color: fg,
-            ),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              isBeta ? 'Beta' : l10n.aboutStableChannelShort,
-              style: TextStyle(
-                color: fg,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
+    // 设备吃不下 beta(非 Android 或非 arm64)时,徽标改为警告色 + 警告图标,
+    // 与提示文案里的红色警示对应。
+    final unsupported = isBeta && !isBetaChannelSupported();
+    final Color fg;
+    final Color border;
+    if (unsupported) {
+      // 用错误红而非警告橙:与提示文案里的红色警示保持一致。
+      fg = AppStatusColors.danger(cs);
+      border = AppStatusColors.danger(cs);
+    } else if (isBeta) {
+      fg = AppStatusColors.onBetaAccent;
+      border = AppStatusColors.betaAccent;
+    } else {
+      fg = cs.onSurfaceVariant;
+      border = cs.outlineVariant;
+    }
+    final Color background = isBeta
+        ? AppStatusColors.fill(border, alpha: 0.14)
+        : cs.surfaceContainerHighest;
+    return SelectTile<String>(
+      value: _user.updateChannel,
+      foregroundColor: fg,
+      backgroundColor: background,
+      borderSide: BorderSide(color: border),
+      leadingIcon: unsupported
+          ? Icons.error_outline_rounded
+          : (isBeta ? Icons.science_outlined : Icons.flag_outlined),
+      items: [
+        SelectItem('stable', l10n.aboutStableChannelShort),
+        const SelectItem('beta', 'beta'),
+      ],
+      onChanged: _onUpdateChannelSelected,
     );
   }
 
-  Future<void> _showUpdateChannelDialog() async {
+  Future<void> _onUpdateChannelSelected(String value) async {
+    if (value == _user.updateChannel) return;
     final l10n = AppLocalizations.of(context)!;
-    var selected = _user.updateChannel;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (ctx, setState) {
-            return AlertDialog(
-              title: Text(l10n.aboutUpdateChannelTitle),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RadioGroup<String>(
-                    groupValue: selected,
-                    onChanged: (value) {
-                      // 必须用 StatefulBuilder 的 setState 重建对话框本身；
-                      // 误用页面的 _setState 会导致 radio 选中态不刷新。
-                      if (value != null) setState(() => selected = value);
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          value: 'stable',
-                          title: Text(l10n.aboutStableChannelTitle),
-                          subtitle: Text(l10n.aboutStableChannelDesc),
-                        ),
-                        RadioListTile<String>(
-                          contentPadding: EdgeInsets.zero,
-                          value: 'beta',
-                          title: Text(l10n.aboutBetaChannelTitle),
-                          subtitle: Text(l10n.aboutBetaChannelDesc),
-                        ),
-                      ],
+    final cs = Theme.of(context).colorScheme;
+    // 切到预览版:先确认(说明 beta 的风险与仅 arm64 APK),取消则保持原渠道。
+    if (value == 'beta') {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(l10n.aboutBetaChannelConfirmTitle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.aboutBetaChannelNote),
+              // 仅当设备不支持(非 Android 或非 arm64)时补一条红色警示;
+              // 支持的设备不显示,避免多余噪音。
+              if (!isBetaChannelSupported()) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  l10n.aboutBetaChannelArm64Only,
+                  style: TextStyle(color: AppStatusColors.danger(cs)),
+                ),
+                // 探测到当前系统与架构时补一行;探测失败(返回 null)就整行不显示,
+                // 不影响提示的其余部分。
+                if (deviceEnvironment() case final environment?) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    l10n.aboutBetaChannelDevice(
+                      environment.os,
+                      environment.arch ?? '?',
                     ),
+                    style: TextStyle(color: AppStatusColors.danger(cs)),
                   ),
                 ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(l10n.cancelButton),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(ctx, selected),
-                  child: Text(l10n.confirmButton),
-                ),
               ],
-            );
-          },
-        );
-      },
-    );
-
-    if (result != null && result != _user.updateChannel) {
-      await _user.setUpdateChannel(result);
-      if (!mounted) return;
-      unawaited(AppUpdateService.checkAndPrompt(context));
-      if (result == 'beta') {
-        await showDialog<void>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text(l10n.aboutBetaChannelSwitchedTitle),
-            content: Text(l10n.aboutBetaChannelSwitchedContent),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(l10n.aboutGotItButton),
-              ),
             ],
           ),
-        );
-      }
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.cancelButton),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.confirmButton),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
     }
+    await _user.setUpdateChannel(value);
+    if (!mounted) return;
+    // 切渠道后立刻按新渠道复查一次,避免卡片还停留在旧渠道的结果上。
+    unawaited(AppUpdateService.checkAndPrompt(context));
   }
 
   /// 更新设置卡：检查更新 / 自动检查 / 更新镜像。
@@ -263,7 +242,7 @@ extension _AboutPageUpdateSettings on _AboutPageState {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildUpdateChannelChip(cs, l10n),
+              _buildUpdateChannelSelect(cs, l10n),
               const SizedBox(width: AppSpacing.xs),
               const Icon(Icons.chevron_right),
             ],

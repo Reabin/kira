@@ -981,14 +981,16 @@
   "aboutSaveButton": "儲存",
   "aboutMirrorPrefixSavedToast": "鏡像源已儲存",
   "aboutStableChannelShort": "穩定版",
-  "aboutUpdateChannelTitle": "更新渠道",
-  "aboutStableChannelTitle": "穩定版 (Stable)",
-  "aboutStableChannelDesc": "僅檢查正式發布版本",
-  "aboutBetaChannelTitle": "預覽版（Beta）",
-  "aboutBetaChannelDesc": "從最新提交建置的版本，可能不穩定",
-  "aboutBetaChannelSwitchedTitle": "已切換到預覽版",
-  "aboutBetaChannelSwitchedContent": "預覽版一般用於測試新功能或修復問題，可能存在更多問題。",
-  "aboutGotItButton": "知道了",
+  "aboutBetaChannelConfirmTitle": "是否切換?",
+  "aboutBetaChannelNote": "預覽版更新更快,問題也可能更多",
+  "aboutBetaChannelArm64Only": "僅限 Android arm64 裝置。",
+  "aboutBetaChannelDevice": "目前裝置：{os} {arch}。",
+  "@aboutBetaChannelDevice": {
+    "placeholders": {
+      "os": { "type": "String" },
+      "arch": { "type": "String" }
+    }
+  },
   "aboutRepositoryLabel": "倉庫",
   "aboutFeedbackLabel": "回饋",
   "aboutCheckUpdateTitle": "檢查更新",

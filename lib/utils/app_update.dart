@@ -41,6 +41,14 @@ String? deviceAndroidAbi() {
   return null;
 }
 
+/// 预览版(Beta)渠道只发布 Android arm64-v8a 包,当前设备是否吃得下。
+///
+/// 非 Android 设备一律返回 false —— 桌面端虽在测试架构内,但 CI 的 beta
+/// 预发布不含桌面安装包,切到 beta 会落在「无可用安装包」上。这样「红色
+/// 提示」与「警告色 Beta 徽标」同时覆盖「平台不对」和「架构不对」两种。
+bool isBetaChannelSupported() =>
+    Platform.isAndroid && deviceAndroidAbi() == 'arm64-v8a';
+
 class ReleaseAsset {
   final String name;
   final String downloadUrl;

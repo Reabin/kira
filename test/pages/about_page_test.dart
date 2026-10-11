@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/about_page.dart';
+import 'package:kira/theme/app_status_colors.dart';
 import 'package:kira/utils/app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -260,18 +261,36 @@ void main() {
       expect(requests.single.$1.path, endsWith('/releases/latest'));
 
       await tester.tap(find.text('稳定版'));
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text('预览版（Beta）'));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('beta'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('是否切换?'), findsOneWidget);
+      expect(find.text('预览版更新更快,问题也可能更多'), findsOneWidget);
+      // 测试宿主是 Windows(非 Android arm64),arm64 提示应标成警告色。
+      final danger = AppStatusColors.danger(
+        Theme.of(tester.element(find.byType(AboutPage))).colorScheme,
+      );
+      expect(
+        tester.widget<Text>(find.text('仅限 Android arm64 设备。')).style?.color,
+        danger,
+      );
+      // 探测到设备环境时补一行「当前设备:...」,同样是警示色。
+      final deviceLine = find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').startsWith('当前设备:'),
+      );
+      expect(deviceLine, findsOneWidget);
+      expect(tester.widget<Text>(deviceLine).style?.color, danger);
       await tester.tap(find.text('确认'));
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 300));
       await waitForRequest(tester, 1);
       expect(requests.last.$1.path, endsWith('/releases/tags/CI'));
       respond(1, beta: true);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('知道了'));
+      expect(AppUpdateService.state.value.info!.isBetaChannel, isTrue);
       await tester.pumpAndSettle();
       expect(AppUpdateService.state.value.info!.isBetaChannel, isTrue);
+      // 不支持的设备上,Beta 徽标换成警告图标(与红色提示一致)。
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
 
       // The stale stable-channel response completes late; it must not
       // replace the fresh beta result — success or failure alike.
@@ -287,11 +306,9 @@ void main() {
       expect(AppUpdateService.hasUnseenUpdate.value, isFalse);
 
       // The reverse switch also replaces the old card and rechecks at once.
-      await tester.tap(find.text('Beta'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('稳定版 (Stable)'));
-      await tester.pump();
-      await tester.tap(find.text('确认'));
+      await tester.tap(find.text('beta'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('稳定版'));
       await tester.pump(const Duration(milliseconds: 400));
       await waitForRequest(tester, 2);
       expect(AppUpdateService.state.value.status, AppUpdateStatus.checking);

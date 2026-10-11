@@ -1714,28 +1714,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutStableChannelShort => '稳定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切换?';
 
   @override
-  String get aboutStableChannelTitle => '稳定版 (Stable)';
+  String get aboutBetaChannelNote => '预览版更新更快,问题也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '仅检查正式发布版本';
+  String get aboutBetaChannelArm64Only => '仅限 Android arm64 设备。';
 
   @override
-  String get aboutBetaChannelTitle => '预览版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '从最新提交构建的版本，可能不稳定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切换到预览版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '预览版一般用于测试新功能或修复问题，可能存在更多问题。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '当前设备:$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '仓库';
@@ -5831,28 +5821,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutStableChannelShort => '穩定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切換?';
 
   @override
-  String get aboutStableChannelTitle => '穩定版 (Stable)';
+  String get aboutBetaChannelNote => '預覽版更新更快,問題也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '僅檢查正式發布版本';
+  String get aboutBetaChannelArm64Only => '僅限 Android arm64 裝置。';
 
   @override
-  String get aboutBetaChannelTitle => '預覽版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '從最新提交建置的版本，可能不穩定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切換到預覽版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '預覽版一般用於測試新功能或修復問題，可能存在更多問題。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '目前裝置：$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '倉庫';
