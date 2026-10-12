@@ -26,6 +26,10 @@ typedef LoginHostProbe =
 /// 拷贝来源显示当前拷贝登录域名。进入页面即后台探测（切换来源时结果
 /// 立即可用），让用户在登录前就能看出当前网络是否可达。
 /// 延迟阈值与配色与网络诊断页保持一致（≤800 绿、≤2000 橙、其余红、超时红）。
+///
+/// 延迟较差时只有小字变红不够醒目，所以分级强调（不新增文案，仍用
+/// 「超时」/「N ms」）：较差（>800ms）给数值加状态色胶囊底；严重（超时或
+/// >2000ms）再加描边，并把行首圆点换成警示图标。
 class LoginNodeStatusCard extends StatefulWidget {
   const LoginNodeStatusCard({super.key, required this.useCopyLogin});
 
@@ -125,6 +129,8 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
+    final row = _displayRow(l10n);
+    final tone = _toneFor(row.$2, cs);
 
     return Container(
       decoration: BoxDecoration(
@@ -134,6 +140,10 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
           cs.surface,
         ),
         borderRadius: AppRadius.mdR,
+        // 严重级别时给整卡加一道状态色描边，卡片本身就是警示信号。
+        border: tone.alert
+            ? Border.all(color: tone.color.withValues(alpha: 0.7), width: 1.5)
+            : null,
         // 与登录页其余卡片（已保存账号卡）同款阴影。
         boxShadow: AppShadows.md(cs),
       ),
@@ -143,7 +153,7 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
           children: [
             Icon(Icons.lan_outlined, size: 16, color: cs.onSurfaceVariant),
             const SizedBox(width: AppSpacing.xs),
-            Expanded(child: _buildHostRow(_displayRow(l10n), l10n, cs)),
+            Expanded(child: _buildHostRow(row, tone, l10n, cs)),
             // 探测中/空闲占同一 48x48 槽位，行高恒定，卡片不跳动。
             IconButton(
               tooltip: l10n.networkTestLatencyShort,
@@ -162,8 +172,43 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
     );
   }
 
+  /// 当前展示节点的状态色与强调级别。未探测时中性、无强调。
+  ({Color color, bool emphasize, bool alert}) _toneFor(
+    String host,
+    ColorScheme cs,
+  ) {
+    if (!_results.containsKey(host)) {
+      return (
+        color: AppStatusColors.neutral(cs),
+        emphasize: false,
+        alert: false,
+      );
+    }
+    final latency = _results[host];
+    // 超时：无法连接，最严重。
+    if (latency == null) {
+      return (color: AppStatusColors.danger(cs), emphasize: true, alert: true);
+    }
+    if (latency <= 800) {
+      return (
+        color: AppStatusColors.success(cs),
+        emphasize: false,
+        alert: false,
+      );
+    }
+    if (latency <= 2000) {
+      return (
+        color: AppStatusColors.warning(cs),
+        emphasize: true,
+        alert: false,
+      );
+    }
+    return (color: AppStatusColors.danger(cs), emphasize: true, alert: true);
+  }
+
   Widget _buildHostRow(
     (String, String) row,
+    ({Color color, bool emphasize, bool alert}) tone,
     AppLocalizations l10n,
     ColorScheme cs,
   ) {
@@ -171,30 +216,29 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
     final tt = Theme.of(context).textTheme;
     final pending = !_results.containsKey(host);
     final latency = _results[host];
-    final Color color;
-    if (pending) {
-      color = AppStatusColors.neutral(cs);
-    } else if (latency == null) {
-      color = AppStatusColors.danger(cs);
-    } else if (latency <= 800) {
-      color = AppStatusColors.success(cs);
-    } else if (latency <= 2000) {
-      color = AppStatusColors.warning(cs);
-    } else {
-      color = AppStatusColors.danger(cs);
-    }
-
     final valueText = pending
         ? l10n.networkTesting
         : (latency == null ? l10n.networkTimeout : '$latency ms');
+    // 严重级别用警示图标替换行首圆点：圆点太小，超时只靠变红容易被忽略。
+    final badgeIcon = tone.alert
+        ? (latency == null
+              ? Icons.cloud_off_rounded
+              : Icons.warning_amber_rounded)
+        : null;
 
     return Row(
       children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        if (badgeIcon == null)
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: tone.color,
+              shape: BoxShape.circle,
+            ),
+          )
+        else
+          Icon(badgeIcon, size: 16, color: tone.color),
         const SizedBox(width: AppSpacing.sm),
         Expanded(
           child: Text(
@@ -204,11 +248,20 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
             style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
-        Text(
-          valueText,
-          style: tt.bodyMedium?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w800,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: tone.emphasize
+                ? AppStatusColors.fill(tone.color, alpha: 0.16)
+                : null,
+            borderRadius: AppRadius.xsR,
+          ),
+          child: Text(
+            valueText,
+            style: tt.bodyMedium?.copyWith(
+              color: tone.color,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
