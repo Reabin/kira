@@ -122,4 +122,47 @@ void main() {
     );
     expect(find.byIcon(Icons.science_outlined), findsNothing);
   });
+
+  testWidgets('menuMaxCharacters caps the menu width to that many characters', (
+    tester,
+  ) async {
+    const long = '一二三四五六七八九十一二三四五六七八九十';
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<String>(
+            value: 'short',
+            menuMaxCharacters: 15,
+            items: const [
+              SelectItem('long', long),
+              SelectItem('short', '短名字'),
+            ],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    // 胶囊仍然贴合当前选中项（这里是很短的「短名字」），不被上限撑开。
+    final pillWidth = tester.getSize(find.byType(SelectTile<String>)).width;
+
+    await tester.tap(find.byType(SelectTile<String>));
+    await tester.pumpAndSettle();
+    final menuItem = find.ancestor(
+      of: find.text(long).last,
+      matching: find.byType(InkWell),
+    );
+    final menuWidth = tester.getSize(menuItem).width;
+
+    // 菜单正好按「15 个字符」定宽（左右各 16 内边距）。
+    final style = Theme.of(
+      tester.element(find.byType(SelectTile<String>)),
+    ).textTheme.bodyMedium;
+    final painter = TextPainter(
+      text: TextSpan(text: '0' * 15, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    expect(menuWidth, closeTo(painter.size.width + 32, 0.5));
+    expect(menuWidth, greaterThan(pillWidth));
+  });
 }

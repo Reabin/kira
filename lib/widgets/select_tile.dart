@@ -1,6 +1,42 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
+
+/// 「最多显示 N 个字符」对应的宽度上限。
+///
+/// 用数字量：数字是常见字体里最宽的一类字形，按它封顶能保证同长度的文字都
+/// 放得下。按字符数而非固定像素，是因为同一段文字在不同字体/字号下宽度差很
+/// 多，而「最多显示几个字」才是要保证的观感。
+double _maxCharactersWidth(
+  BuildContext context,
+  int characters,
+  TextStyle? style,
+) {
+  final painter = TextPainter(
+    text: TextSpan(text: '0' * characters, style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  return painter.size.width;
+}
+
+/// 标签文本宽度（单行，不折行）。
+double _labelTextWidth(
+  BuildContext context,
+  String text,
+  TextStyle? style,
+) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  return painter.size.width;
+}
 
 /// RikkaHub `Select` 的 Flutter 版：胶囊形触发器（tonal 叠色）+ 箭头随
 /// 展开/收起上下翻转，点击弹出与触发器等宽的下拉菜单（Overlay 跟随
@@ -34,6 +70,13 @@ final class SelectTile<T> extends StatefulWidget {
   /// 胶囊左侧图标(可选),用于保留渠道徽标那种带图标的外观。
   final IconData? leadingIcon;
 
+  /// 下拉菜单（以及胶囊标签）最多显示的字符数；null 表示不限，跟随触发器宽度。
+  ///
+  /// 菜单默认与触发器等宽，长账号名会把菜单撑得很宽，所以需要限制的场景（如
+  /// 账号中心）传一个字符数，超出部分省略号截断。胶囊宽度按同一上限收窄，
+  /// 菜单最多比它宽出左右内边距。
+  final int? menuMaxCharacters;
+
   const SelectTile({
     super.key,
     required this.value,
@@ -43,6 +86,7 @@ final class SelectTile<T> extends StatefulWidget {
     this.backgroundColor,
     this.borderSide,
     this.leadingIcon,
+    this.menuMaxCharacters,
   });
 
   @override
@@ -67,9 +111,39 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
   double? _menuWidth;
   bool _expanded = false;
 
+  /// 菜单里最长标签的实测宽度，作为菜单宽度上限；null 表示不限。
+  double? _labelWidth;
+
+  /// 量一次最长标签。不能用当前标签量：宽度会随选中项变化，切换账号时菜单
+  /// 和胶囊会跟着忽宽忽窄。样式变化（字号/字体）也要重新量。
+  void _measureLabelWidth() {
+    final maxCharacters = widget.menuMaxCharacters;
+    if (maxCharacters == null) {
+      _labelWidth = null;
+      return;
+    }
+    final style = Theme.of(context).textTheme.bodyMedium;
+    var widest = 0.0;
+    for (final item in widget.items) {
+      final width = _labelTextWidth(context, item.label, style);
+      if (width > widest) widest = width;
+    }
+    // 过长标签会被省略号截断，所以同时按「最多 N 个字符」封顶，保证胶囊和
+    // 菜单都不会被超长账号名撑开。
+    final cap = _maxCharactersWidth(context, maxCharacters, style);
+    _labelWidth = widest < cap ? widest : cap;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _measureLabelWidth();
+  }
+
   @override
   void didUpdateWidget(covariant SelectTile<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _measureLabelWidth();
     if (_menuEntry == null) return;
     // Refresh labels/selection and measure the capsule after its new layout.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -110,7 +184,11 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
             link: _layerLink,
             targetAnchor: Alignment.bottomLeft,
             child: SizedBox(
-              width: _menuWidth,
+              // 默认与触发器等宽；设了字符上限时按「最长标签（封顶后）」定宽，
+              // 但不比触发器窄，短列表仍保持原有的等宽观感。
+              width: _labelWidth == null
+                  ? _menuWidth
+                  : math.max(_menuWidth ?? 0, _labelWidth! + 32),
               child: Material(
                 elevation: 4,
                 borderRadius: BorderRadius.circular(12),

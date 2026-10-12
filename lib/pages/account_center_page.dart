@@ -143,6 +143,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       child: SelectTile<String>(
         key: const ValueKey('comic-account-select'),
         value: selected,
+        // 账号名可能很长，下拉最多显示 15 个字符，超出省略。
+        menuMaxCharacters: 15,
         items: [
           if (current == null)
             SelectItem('none', l10n.accountCenterNotLoggedIn),
@@ -182,6 +184,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       child: SelectTile<String>(
         key: const ValueKey('novel-account-select'),
         value: selected == null ? 'none' : _copyKey(selected),
+        // 账号名可能很长，下拉最多显示 15 个字符，超出省略。
+        menuMaxCharacters: 15,
         items: [
           if (selected == null)
             SelectItem('none', l10n.accountCenterNotLoggedIn),
