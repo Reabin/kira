@@ -91,8 +91,14 @@ class SavedCredential {
           accountId?.trim().isNotEmpty == true &&
           token?.trim().isNotEmpty == true);
 
+  /// 登录名在同一登录源内唯一，是账号的身份键：两侧都有登录名时只比登录名。
+  /// 令牌、accountId、userId 只在登录名缺失（令牌登录的新账号还没拿到资料）
+  /// 时兜底，否则同一账号换个 userId 就会被拆成两条。
   bool sameAccount(SavedCredential other) {
     if (source != other.source) return false;
+    if (username.isNotEmpty && other.username.isNotEmpty) {
+      return username == other.username;
+    }
     if (source == 'copy') {
       if (token?.isNotEmpty == true && token == other.token) return true;
       if (accountId?.isNotEmpty == true &&
@@ -102,9 +108,6 @@ class SavedCredential {
       if (userId?.isNotEmpty == true && other.userId?.isNotEmpty == true) {
         return userId == other.userId;
       }
-    }
-    if (username.isNotEmpty && other.username.isNotEmpty) {
-      return username == other.username;
     }
     return userId?.isNotEmpty == true && userId == other.userId;
   }
@@ -696,14 +699,16 @@ class UserManager extends ChangeNotifier {
     }
   }
 
-  /// All explicit logins share one commit path: COPY selects both domains;
-  /// HOT selects comics only. Reserve revisions before network work so an old
-  /// response cannot undo a newer login, logout or manual account selection.
+  /// All explicit logins share one commit path: COPY adds to both domains;
+  /// HOT adds to comics only. A login never takes over an already selected
+  /// domain (see [_commitLogin]). Reserve revisions before network work so an
+  /// old response cannot undo a newer login, logout or manual selection.
   Future<bool> authenticateAndLogin({
     required String source,
     required Future<Map<String, dynamic>> Function() authenticate,
     String? password,
     bool syncCopyAccount = true,
+    bool fillOnlyIfEmpty = true,
   }) async {
     final revision = ++_accountRevision;
     final copyRevision = source == 'copy' && syncCopyAccount
@@ -734,6 +739,7 @@ class UserManager extends ChangeNotifier {
         revision: revision,
         copyRevision: copyRevision,
         password: password,
+        fillOnlyIfEmpty: fillOnlyIfEmpty,
       ),
     );
   }
@@ -747,6 +753,7 @@ class UserManager extends ChangeNotifier {
     bool syncCopyAccount = false,
     int? copyAccountRevision,
     String? loginSource,
+    bool fillOnlyIfEmpty = true,
   }) async {
     final revision = ++_accountRevision;
     final source = loginSource ?? _loginSource;
@@ -766,6 +773,7 @@ class UserManager extends ChangeNotifier {
         ),
         revision: revision,
         copyRevision: copyRevision,
+        fillOnlyIfEmpty: fillOnlyIfEmpty,
       ),
     );
   }
@@ -820,6 +828,7 @@ class UserManager extends ChangeNotifier {
     required int revision,
     int? copyRevision,
     String? password,
+    bool fillOnlyIfEmpty = false,
   }) async {
     bool isCurrent() =>
         revision == _accountRevision &&
@@ -832,6 +841,14 @@ class UserManager extends ChangeNotifier {
     if (account.source == 'copy') account = _resolveCopyCredential(account);
     final retained = [..._savedCredentials];
     final current = currentCredential;
+    // 登录（fillOnlyIfEmpty）不抢占已经选好的漫画/轻小说账号：新账号只进列表，
+    // 只有当前没选中时才接管。同一个账号重新登录（含 401 自动重登）不算抢占，
+    // 仍要就地轮换令牌，否则凭据列表会留着已失效的旧令牌。
+    // 显式选择（账号中心下拉、_useCopyAsPrimary）走 fillOnlyIfEmpty: false，
+    // 永远切换。
+    final selectPrimary =
+        !fillOnlyIfEmpty || current == null || current.sameAccount(account);
+    final selectNovel = !fillOnlyIfEmpty || copyAccount.activeId == null;
     if (current != null && current.hasAccountKey) {
       final idx = retained.indexWhere((item) => item.sameAccount(current));
       if (idx < 0) {
@@ -871,6 +888,8 @@ class UserManager extends ChangeNotifier {
 
     void publishPrimary() {
       _savedCredentials = next;
+      // 已登录的漫画账号不被新登录顶掉：新账号只入库，保持当前选择。
+      if (!selectPrimary) return;
       _savedUsername = updated.username;
       _savedPassword = updated.password;
       _token = updated.token;
@@ -885,10 +904,14 @@ class UserManager extends ChangeNotifier {
 
     try {
       await secure.writeCredentials(next);
-      await secure.writeUsername(updated.username);
-      await secure.writePassword(updated.password);
-      await secure.writeToken(updated.token);
-      await _persistProfile(updated);
+      // 只入库不切换时，主账号的令牌与资料槽位保持原样，自动重登才会继续
+      // 用当前选中的账号。
+      if (selectPrimary) {
+        await secure.writeUsername(updated.username);
+        await secure.writePassword(updated.password);
+        await secure.writeToken(updated.token);
+        await _persistProfile(updated);
+      }
       for (final key in [
         _keyToken,
         _keySavedCredentials,
@@ -913,6 +936,7 @@ class UserManager extends ChangeNotifier {
           ),
           expectedRevision: copyRevision,
           isCurrent: isCurrent,
+          select: selectNovel,
           onCommitted: publishPrimary,
         );
         if (!saved) {

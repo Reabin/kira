@@ -522,18 +522,33 @@ void main() {
         source: 'copy',
         authenticate: () async => {'token': 'unknown-b'},
       );
-      final b = user.copyAccount.session!;
+      // 登录不接管已选中的轻小说账号：第二个账号只入库。
+      final b = user.copyAccount.accounts.firstWhere(
+        (account) => account.token == 'unknown-b',
+      );
+      expect(user.copyAccount.activeId, a.id);
       String label(CopyAccountSession account) =>
           '已登录（未获取资料） · ${account.id!.substring(account.id!.length - 6)}';
       await pump(tester);
       expect(find.byKey(ValueKey('copy-${a.id}')), findsOneWidget);
       expect(find.byKey(ValueKey('copy-${b.id}')), findsOneWidget);
-      expect(find.text(label(a)), findsOneWidget);
+      // 标签同时出现在「已保存账号」列表行与当前选中账号的下拉胶囊里，
+      // 所以按出现次数断言而不是 findsOneWidget。
+      expect(find.text(label(a)), findsWidgets);
+      expect(find.text(label(b)), findsWidgets);
       expect(find.text('unknown-a'), findsNothing);
       expect(find.text('unknown-b'), findsNothing);
+      // 漫画下拉把拷贝账号当主账号用，只切漫画，不动轻小说选择。
       await tester.tap(find.byKey(const ValueKey('comic-account-select')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(label(a)).last);
+      await tester.pumpAndSettle();
+      expect(user.token, a.token);
+      expect(user.copyToken, a.token);
+      // 轻小说下拉才切换轻小说账号。
+      await tester.tap(find.byKey(const ValueKey('novel-account-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label(b)).last);
       await tester.pumpAndSettle();
       expect(user.token, a.token);
       expect(user.copyToken, b.token);

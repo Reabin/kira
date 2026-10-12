@@ -1011,7 +1011,7 @@ void main() {
   );
 
   test(
-    'matching usernames cannot merge conflicting server identities',
+    'matching usernames merge into one account regardless of server ids',
     () async {
       await store.saveSession(
         const CopyAccountSession(
@@ -1020,6 +1020,7 @@ void main() {
           username: 'same',
         ),
       );
+      final first = store.activeId;
       await store.saveSession(
         const CopyAccountSession(
           token: 'b-token',
@@ -1027,9 +1028,10 @@ void main() {
           username: 'same',
         ),
       );
-      expect(store.accounts, hasLength(2));
-      expect(store.byId('u:a-id')?.token, 'a-token');
-      expect(store.byId('u:b-id')?.token, 'b-token');
+      // 登录名唯一：同名即同一账号，服务端换发 user_id 不得拆成两条。
+      expect(store.accounts, hasLength(1));
+      expect(store.byId(first)?.token, 'b-token');
+      expect(store.byId(first)?.username, 'same');
       await store.saveSession(
         const CopyAccountSession(
           token: 'a-new-token',
@@ -1037,9 +1039,31 @@ void main() {
           username: 'same',
         ),
       );
-      expect(store.accounts, hasLength(2));
-      expect(store.activeId, 'u:a-id');
-      expect(store.byId('u:b-id')?.token, 'b-token');
+      expect(store.accounts, hasLength(1));
+      expect(store.activeId, first);
+      expect(store.byId(first)?.token, 'a-new-token');
+    },
+  );
+
+  test(
+    'the same username in another source stays a separate account',
+    () async {
+      await store.saveSession(
+        const CopyAccountSession(
+          token: 'a-token',
+          userId: 'a-id',
+          username: 'same',
+        ),
+      );
+      // 热辣侧同名账号由主凭据列表持有，与拷贝库互不合并。
+      const primary = SavedCredential(
+        username: 'same',
+        password: 'hot-password',
+        loginSource: 'hotmanga',
+      );
+      expect(primary.sameAccount(user.currentCredential!), isFalse);
+      expect(store.accounts, hasLength(1));
+      expect(store.session?.username, 'same');
     },
   );
 

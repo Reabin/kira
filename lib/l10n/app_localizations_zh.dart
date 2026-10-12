@@ -613,6 +613,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileHotCredentialLabel => '热辣漫画';
 
   @override
+  String get accountAddedToast => '账号已添加';
+
+  @override
   String get accountSwitchedToast => '账号已切换';
 
   @override
@@ -4729,6 +4732,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get profileHotCredentialLabel => '熱辣漫畫';
+
+  @override
+  String get accountAddedToast => '帳號已新增';
 
   @override
   String get accountSwitchedToast => '帳號已切換';

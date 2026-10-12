@@ -126,9 +126,12 @@ class ApiTransport {
                   _autoLoginCompleter = Completer<bool>();
                   try {
                     final source = user.loginSource;
+                    // 自动重登是在刷新当前账号的令牌，不是用户新增账号，
+                    // 所以照旧切换（否则轮换后的新令牌落不到选中的账号上）。
                     final success = await user.authenticateAndLogin(
                       source: source,
                       syncCopyAccount: false,
+                      fillOnlyIfEmpty: false,
                       authenticate: () => source == 'copy'
                           ? copyLoginHandler!(username, password)
                           : loginHandler!(username, password),

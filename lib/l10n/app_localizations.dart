@@ -1201,6 +1201,12 @@ abstract class AppLocalizations {
   /// **'热辣漫画'**
   String get profileHotCredentialLabel;
 
+  /// No description provided for @accountAddedToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号已添加'**
+  String get accountAddedToast;
+
   /// No description provided for @accountSwitchedToast.
   ///
   /// In zh, this message translates to:

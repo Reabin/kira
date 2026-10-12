@@ -333,12 +333,11 @@ class CopyAccountStore extends ChangeNotifier {
           .firstOrNull;
     }
     if (known == null && candidate.username.trim().isNotEmpty) {
+      // 登录名唯一，直接按登录名归属；不再要求一侧 userId 为空，否则同一
+      // 账号两次登录带回不同 user_id 时会各建一条。
       known = accounts
           .where(
-            (account) =>
-                account.username.trim() == candidate.username.trim() &&
-                (account.userId.trim().isEmpty ||
-                    candidate.userId.trim().isEmpty),
+            (account) => account.username.trim() == candidate.username.trim(),
           )
           .firstOrNull;
     }
@@ -378,14 +377,18 @@ class CopyAccountStore extends ChangeNotifier {
     return saveSession(session, expectedRevision: revision);
   }
 
-  /// Adds (or replaces) an account and makes it the active COPY account.
-  /// Persists before notifying. False means a newer operation superseded this
-  /// login. Invalid data never modifies the stored accounts.
+  /// Adds (or replaces) an account. Persists before notifying. False means a
+  /// newer operation superseded this login. Invalid data never modifies the
+  /// stored accounts.
+  ///
+  /// [select] 为 false 时只入库不改选中：登录不再抢占已选好的轻小说账号，
+  /// 只有当前没有选中账号时才由调用方置为 true。
   Future<bool> saveSession(
     CopyAccountSession session, {
     int? expectedRevision,
     bool Function()? isCurrent,
     void Function()? onCommitted,
+    bool select = true,
   }) {
     final validated = CopyAccountSession.fromJson(session.toJson());
     final revision = expectedRevision ?? beginLogin();
@@ -397,8 +400,12 @@ class CopyAccountStore extends ChangeNotifier {
         entry,
         ..._accounts.where((account) => account.id != entry.id),
       ];
+      // select 为 false 时保留当前选中（与 _commitLogin 判断「是否已选中」
+      // 用的是同一个 getter）；确实没有选中时才落到新账号。
+      final selectedId = activeId;
+      final nextActiveId = select ? entry.id : (selectedId ?? entry.id);
       try {
-        await _writeRecord(next, entry.id);
+        await _writeRecord(next, nextActiveId);
         if (superseded()) {
           // The write may have been in flight when logout/a newer validation
           // began. Restore the last published state before the next queued
@@ -412,7 +419,7 @@ class CopyAccountStore extends ChangeNotifier {
       }
       if (superseded()) return false;
       _accounts = next;
-      _activeId = entry.id;
+      _activeId = nextActiveId;
       _migrationHandled = true;
       _cleared = false;
       // A dual-domain login publishes the primary state before either set of

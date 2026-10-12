@@ -377,6 +377,7 @@
   "closeButton": "关闭",
   "profileCopyCredentialLabel": "拷贝漫画",
   "profileHotCredentialLabel": "热辣漫画",
+  "accountAddedToast": "账号已添加",
   "accountSwitchedToast": "账号已切换",
   "switchAccountTitle": "切换账号",
   "addAccountButton": "添加账号",

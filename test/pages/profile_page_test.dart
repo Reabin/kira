@@ -111,6 +111,8 @@ void main() {
     tester,
   ) async {
     await pumpProfilePage(tester);
+    // 漫画未登录时，令牌登录才会接管主账号并成为「我的」页显示的身份。
+    await UserManager().logout();
     await UserManager().authenticateAndLogin(
       source: 'copy',
       authenticate: () async => {'token': 'token-only-profile'},
@@ -119,6 +121,20 @@ void main() {
     expect(find.text('已登录（未获取资料）'), findsOneWidget);
     expect(find.text('未登录'), findsNothing);
     expect(find.text('token-only-profile'), findsNothing);
+  });
+
+  testWidgets('a new comic login does not replace the profile identity', (
+    tester,
+  ) async {
+    await pumpProfilePage(tester);
+    await UserManager().authenticateAndLogin(
+      source: 'copy',
+      authenticate: () async => {'token': 'token-only-profile'},
+    );
+    await tester.pumpAndSettle();
+    // 已有漫画账号 alice 时，登录只入库，不接管「我的」页身份。
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('已登录（未获取资料）'), findsNothing);
   });
 
   testWidgets('profile page shows general settings entry', (tester) async {

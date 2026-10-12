@@ -417,13 +417,30 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   }
 
+  /// 登录页返回后按实际结果提示：新账号只在原来未登录时才接管当前选择，
+  /// 已有选择时只是入库，说「账号已切换」会误导用户。
   Future<void> _login({bool copyOnly = false}) async {
-    final switched = AppLocalizations.of(context)!.accountSwitchedToast;
+    final l10n = AppLocalizations.of(context)!;
     final result = await context.pushNamed<bool>(
       AppRoutes.login,
       queryParameters: copyOnly ? {'copyOnly': 'true'} : const {},
     );
-    if (result == true) _toast(switched);
+    if (result != true) return;
+    final String? name;
+    if (copyOnly) {
+      final session = _user.copyAccount.session;
+      name = session == null ? null : _copyName(session);
+    } else {
+      final credential = _user.currentCredential;
+      name = credential == null ? null : _credentialName(credential);
+    }
+    _toast(
+      name == null
+          ? l10n.accountAddedToast
+          : (copyOnly
+                ? l10n.accountCenterNovelBoundToast(name)
+                : l10n.accountSwitchedToast),
+    );
   }
 
   Future<void> _copyToken(String? token) => _guard(() async {

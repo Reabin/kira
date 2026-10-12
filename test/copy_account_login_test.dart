@@ -522,10 +522,16 @@ void main() {
       await tester.tap(find.text('热辣漫画'));
       await tester.pumpAndSettle();
       await submitToken(tester, token: 'valid-hot-only');
-      expect(user.token, 'valid-hot-only');
-      expect(user.loginSource, 'hotmanga');
+      // 漫画已登录（setUp 的 hot-token）→ 保持，但热辣来源照样记进列表。
+      expect(user.token, 'hot-token');
       expect(user.copyToken, 'old-copy');
       expect(copyAdapter.requests, isEmpty);
+      expect(
+        user.savedCredentials.any(
+          (item) => item.source == 'hotmanga' && item.token == 'valid-hot-only',
+        ),
+        isTrue,
+      );
       await tester.runAsync(() async {
         // A missing record also models startup when secure migration could
         // not run before this login. Persisted HOT provenance must stay safe.
@@ -556,8 +562,8 @@ void main() {
       );
       await pumpLogin(tester, copyOnly: false);
       await submitToken(tester, token: 'validated-copy');
-      expect(user.token, 'validated-copy');
-      expect(user.loginSource, 'copy');
+      // 漫画已登录（setUp 的 hot-token）→ 保持不动。
+      expect(user.token, 'hot-token');
       expect(user.copyToken, 'validated-copy');
       expect(user.copyAccount.activeId, 'u:validated-id');
       expect(
@@ -569,7 +575,7 @@ void main() {
   );
 
   test(
-    'legacy COPY password authentication explicitly synchronizes the independent account',
+    'legacy COPY password authentication fills the unselected novel domain',
     () async {
       await user.setLoginSource('copy');
       response = (_) => _jsonResponse({
@@ -582,9 +588,9 @@ void main() {
         },
       });
       expect(await authenticateCopyPassword(), isTrue);
-      expect(user.token, 'authenticated-copy');
-      expect(user.loginSource, 'copy');
       expect(user.copyToken, 'authenticated-copy');
+      // 漫画已登录，登录只入库不接管。
+      expect(user.token, 'hot-token');
       expect(copyAdapter.requests.single.uri.path, '/api/kb/web/login');
     },
   );
@@ -845,7 +851,7 @@ void main() {
   );
 
   test(
-    'legacy COPY password authentication selects comics and novels without losing HOT',
+    'legacy COPY password authentication fills only the unselected novel domain',
     () async {
       response = (_) => _jsonResponse({
         'code': 200,
@@ -858,8 +864,9 @@ void main() {
       });
       expect(await authenticateCopyPassword(), isTrue);
       expect(user.copyToken, 'password-copy');
-      expect(user.token, 'password-copy');
-      expect(user.loginSource, 'copy');
+      // 漫画已经登录（setUp 里的 hot-token），登录不抢占，只进列表。
+      expect(user.token, 'hot-token');
+      expect(user.loginSource, 'hotmanga');
       expect(
         user.savedCredentials.where((item) => item.username == 'same-username'),
         hasLength(2),
@@ -873,7 +880,7 @@ void main() {
       expect(copyAdapter.requests, hasLength(1));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getString('user_token'), isNull);
-      expect(await secure.readToken(), 'password-copy');
+      expect(await secure.readToken(), 'hot-token');
       expect(
         prefs.getKeys().any((key) => key.startsWith('copy_account')),
         isFalse,
@@ -913,8 +920,8 @@ void main() {
       await submitToken(tester);
       expect(user.copyToken, 'candidate-copy');
       expect(user.copyAccount.activeId, 'u:candidate-id');
-      expect(user.token, 'candidate-copy');
-      expect(user.loginSource, 'copy');
+      expect(user.token, 'hot-token');
+      expect(user.loginSource, 'hotmanga');
       expect(
         copyAdapter.requests.first.headers['Authorization'],
         'Token candidate-copy',
@@ -954,15 +961,15 @@ void main() {
   });
 
   test(
-    'COPY password response without profile still binds both using the authenticated login name',
+    'COPY password response without profile still binds the novel domain by login name',
     () async {
       response = (_) => _jsonResponse({
         'code': 200,
         'results': {'token': 'minimal-copy'},
       });
       expect(await authenticateCopyPassword(), isTrue);
-      expect(user.token, 'minimal-copy');
       expect(user.copyToken, 'minimal-copy');
+      expect(user.token, 'hot-token');
       expect(user.copyAccount.session?.username, 'same-username');
       expect(user.copyAccount.activeId, isNotNull);
     },
@@ -1012,7 +1019,7 @@ void main() {
 
   for (final copyOnly in [false, true]) {
     testWidgets(
-      'unknown valid COPY token in copyOnly=$copyOnly logs in without profile',
+      'unknown valid COPY token in copyOnly=$copyOnly is stored without profile',
       (tester) async {
         await tester.runAsync(() => user.copyAccount.saveSession(_oldSession));
         await pumpLogin(tester, copyOnly: copyOnly);
@@ -1021,19 +1028,25 @@ void main() {
           await tester.pumpAndSettle();
         }
         await submitToken(tester, token: 'unknown-valid-token');
-        expect(user.token, 'unknown-valid-token');
-        expect(user.copyToken, 'unknown-valid-token');
-        expect(user.copyAccount.session?.hasIdentity, isFalse);
-        final id = user.copyAccount.activeId;
-        expect(id, startsWith('local:'));
-        expect(user.currentCredential?.accountId, id);
+        // 轻小说已选中旧账号 → 登录只入库，不接管。
+        expect(user.copyToken, 'old-copy');
+        expect(user.token, 'hot-token');
+        final added = user.copyAccount.accounts.firstWhere(
+          (account) => account.token == 'unknown-valid-token',
+        );
+        expect(added.hasIdentity, isFalse);
+        expect(added.id, startsWith('local:'));
         expect(find.byType(AlertDialog), findsNothing);
         expect(find.text('test-home'), findsOneWidget);
         await tester.runAsync(() => user.init());
-        expect(user.token, 'unknown-valid-token');
-        expect(user.copyToken, 'unknown-valid-token');
-        expect(user.currentCredential?.accountId, id);
-        expect(user.copyAccount.activeId, id);
+        expect(user.copyToken, 'old-copy');
+        expect(user.token, 'hot-token');
+        expect(
+          user.copyAccount.accounts.any(
+            (account) => account.token == 'unknown-valid-token',
+          ),
+          isTrue,
+        );
         expect(copyAdapter.requests, hasLength(1));
         expect(
           copyAdapter.requests.single.path,
@@ -1108,34 +1121,38 @@ void main() {
     },
   );
 
-  test('COPY login listeners observe both selections together', () async {
-    final observations = <({String? comic, String? novel})>[];
-    void listener() =>
-        observations.add((comic: user.token, novel: user.copyToken));
-    user.addListener(listener);
-    try {
+  test(
+    'COPY login adds the novel account and leaves the selected comic account alone',
+    () async {
+      final observations = <({String? comic, String? novel})>[];
+      void listener() =>
+          observations.add((comic: user.token, novel: user.copyToken));
+      user.addListener(listener);
+      try {
+        expect(
+          await user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => {
+              'token': 'new-copy',
+              'username': 'new-copy-user',
+              'user_id': 'new-copy-id',
+            },
+          ),
+          isTrue,
+        );
+      } finally {
+        user.removeListener(listener);
+      }
+      expect(observations, isNotEmpty);
+      // 漫画已登录（setUp 的 hot-token）→ 保持不动；轻小说未登录 → 接管。
       expect(
-        await user.authenticateAndLogin(
-          source: 'copy',
-          authenticate: () async => {
-            'token': 'new-copy',
-            'username': 'new-copy-user',
-            'user_id': 'new-copy-id',
-          },
+        observations.every(
+          (item) => item.comic == 'hot-token' && item.novel == 'new-copy',
         ),
         isTrue,
       );
-    } finally {
-      user.removeListener(listener);
-    }
-    expect(observations, isNotEmpty);
-    expect(
-      observations.every(
-        (item) => item.comic == 'new-copy' && item.novel == 'new-copy',
-      ),
-      isTrue,
-    );
-  });
+    },
+  );
 
   Future<bool> webTokenLogin(String token) => completeCopyWebLogin(
     user: user,
@@ -1160,9 +1177,9 @@ void main() {
 
       expect(await webTokenLogin('profile-after-login'), isTrue);
       final accountId = user.copyAccount.session!.id;
-      expect(user.currentCredential?.hasIdentity, isFalse);
+      expect(user.copyAccount.session?.hasIdentity, isFalse);
       await profileStarted.future;
-      expect(user.token, 'profile-after-login');
+      expect(user.token, 'hot-token');
       expect(user.copyToken, 'profile-after-login');
       expect(user.copyAccount.activeId, accountId);
 
@@ -1184,13 +1201,11 @@ void main() {
       ) {
         await Future<void>.delayed(const Duration(milliseconds: 1));
       }
-      expect(user.token, 'profile-after-login');
+      expect(user.token, 'hot-token');
       expect(user.copyToken, 'profile-after-login');
       expect(user.copyAccount.activeId, accountId);
       expect(user.copyAccount.session?.userId, 'loaded-profile-id');
       expect(user.copyAccount.session?.nickname, '已获取昵称');
-      expect(user.currentCredential?.accountId, accountId);
-      expect(user.currentCredential?.username, 'loaded-profile-user');
     },
   );
 
@@ -1200,25 +1215,18 @@ void main() {
       expect(await webTokenLogin('unknown-web-token'), isTrue);
       final id = user.copyAccount.activeId;
       expect(id, matches(r'^local:[0-9a-f]{32}$'));
-      expect(user.currentCredential?.accountId, id);
-      expect(user.currentCredential?.hasIdentity, isFalse);
-      expect(user.currentCredential?.hasAccountKey, isTrue);
-      expect(user.username, isEmpty);
-      expect(user.userId, isEmpty);
-      expect(user.savedPassword, isEmpty);
-      expect(
-        user.savedCredentials
-            .singleWhere((item) => item.source == 'copy')
-            .password,
-        isEmpty,
-      );
+      final stored = user.copyAccount.session!;
+      expect(stored.accountId, id);
+      expect(stored.hasIdentity, isFalse);
+      // 漫画保持 setUp 的热辣账号，令牌登录只补轻小说。
+      expect(user.token, 'hot-token');
+      expect(user.copyToken, 'unknown-web-token');
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('user_account_id'), id);
+      expect(prefs.getString('user_account_id'), isNull);
       expect(prefs.getString('user_token'), isNull);
       await user.init();
-      expect(user.token, 'unknown-web-token');
-      expect(user.copyToken, user.token);
-      expect(user.currentCredential?.accountId, id);
+      expect(user.token, 'hot-token');
+      expect(user.copyToken, 'unknown-web-token');
       expect(user.copyAccount.activeId, id);
       expect(
         user.savedCredentials.where((item) => item.source == 'copy'),
@@ -1231,20 +1239,41 @@ void main() {
     'token-only accounts deduplicate, switch and remove by exact handle',
     () async {
       await webTokenLogin('unknown-a');
-      final a = user.currentCredential!;
+      final a = user.copyAccount.session!;
       await webTokenLogin('unknown-b');
-      final b = user.currentCredential!;
-      expect(a.sameAccount(b), isFalse);
+      // 登录不再接管已选中的轻小说账号，新账号只在列表里。
+      final b = user.copyAccount.accounts.firstWhere(
+        (account) => account.token == 'unknown-b',
+      );
+      expect(user.copyAccount.activeId, a.id);
+      expect(await user.copyAccount.selectAccount(b.id), isTrue);
+      expect(user.copyAccount.activeId, b.id);
       await webTokenLogin('unknown-a');
-      expect(user.currentCredential?.accountId, a.accountId);
       expect(user.copyAccount.accounts, hasLength(2));
       expect(
         user.savedCredentials.where((item) => item.source == 'copy'),
         hasLength(2),
       );
-      expect(await user.switchToCredential(b), isTrue);
+      // 显式选择仍然切换轻小说账号（账号中心下拉就是走这条路）。
+      expect(await user.copyAccount.selectAccount(b.id), isTrue);
+      expect(user.copyAccount.activeId, b.id);
+      expect(
+        await user.switchToCredential(
+          SavedCredential(
+            username: b.username,
+            password: '',
+            token: b.token,
+            loginSource: 'copy',
+            userId: b.userId,
+            nickname: b.nickname,
+            avatar: b.avatar,
+            accountId: b.id,
+          ),
+        ),
+        isTrue,
+      );
       expect(user.token, b.token);
-      expect(user.copyToken, a.token);
+      expect(user.copyToken, b.token);
       await user.removeSavedCredential(
         '',
         loginSource: 'copy',
@@ -1265,11 +1294,8 @@ void main() {
   test(
     'stale cookie and unbound storage profile cannot overwrite another account',
     () async {
-      await user.authenticateAndLogin(
-        source: 'copy',
-        password: 'old-password',
-        authenticate: () async => _oldSession.toJson(),
-      );
+      // 先让轻小说选中旧账号，之后的登录都不该改写它的资料与令牌。
+      await user.copyAccount.saveSession(_oldSession);
       final candidates = [
         parseCopyWebCookies({
           'token': 'new-cookie-token',
@@ -1296,22 +1322,18 @@ void main() {
           ),
           isTrue,
         );
-        expect(user.currentCredential?.hasIdentity, isFalse);
-        expect(user.savedPassword, isEmpty);
+        expect(user.copyAccount.session?.hasIdentity, isTrue);
+        // 登录不改写当前选中账号（这里是旧账号），密码槽位也不会被顶掉。
+        expect(user.savedPassword, 'hot-password');
         expect(user.copyAccount.byId(_oldSession.id)?.token, _oldSession.token);
-        expect(
-          user.savedCredentials
-              .singleWhere((item) => item.token == _oldSession.token)
-              .password,
-          'old-password',
-        );
       }
+      // 两个候选各自入库；旧账号的身份没有被它们的 cookie 资料污染。
       expect(user.copyAccount.accounts, hasLength(3));
     },
   );
 
   test(
-    'profile enrichment keeps the token-only account handle in both domains',
+    'profile enrichment keeps the token-only account handle in the novel domain',
     () async {
       await webTokenLogin('unknown-a');
       final id = user.copyAccount.activeId;
@@ -1330,12 +1352,11 @@ void main() {
         ),
         isTrue,
       );
-      expect(user.currentCredential?.hasIdentity, isTrue);
-      expect(user.currentCredential?.accountId, id);
+      expect(user.copyAccount.session?.hasIdentity, isTrue);
+      expect(user.copyAccount.session?.accountId, id);
       expect(user.copyAccount.activeId, id);
       expect(user.copyAccount.accounts, hasLength(1));
       await user.init();
-      expect(user.currentCredential?.accountId, id);
       expect(user.copyAccount.activeId, id);
     },
   );
@@ -1370,16 +1391,18 @@ void main() {
           accountId: 'local:primary',
         ),
       ]);
-      final novelRecord = await secure.readCopyAccountRecord();
       await user.init(persistMigrations: false);
-      expect(user.currentCredential?.accountId, 'local:primary');
-      expect(await secure.readCopyAccountRecord(), novelRecord);
+      // 令牌登录同一账号：轻小说已有的句柄胜出，主凭据被并成一条。
       expect(await webTokenLogin('shared-token'), isTrue);
-      expect(user.currentCredential?.accountId, 'local:novel');
       expect(user.copyAccount.activeId, 'local:novel');
       expect(user.savedCredentials, hasLength(1));
+      expect(
+        user.savedCredentials.single.accountId,
+        'local:novel',
+        reason: '轻小说侧的已有句柄必须保留，否则同一账号会渲染两条',
+      );
       await user.init();
-      expect(user.currentCredential?.accountId, 'local:novel');
+      expect(user.copyAccount.activeId, 'local:novel');
     },
   );
 
@@ -1473,15 +1496,15 @@ void main() {
       });
       await rejected;
       expect(_mainSnapshot(user), before);
-      expect(user.loginSource, 'copy');
+      expect(user.loginSource, 'hotmanga');
       expect(user.copyToken, 'new-copy-token');
       await user.init();
-      expect(user.token, 'new-copy-token');
+      expect(user.token, 'hot-token');
     },
   );
 
   test(
-    'WebView official login validates then selects COPY in both domains',
+    'WebView official login stores a new novel account without switching',
     () async {
       await user.copyAccount.saveSession(_oldSession);
       final saved = await completeCopyWebLogin(
@@ -1496,17 +1519,19 @@ void main() {
         ),
       );
       expect(saved, isTrue);
-      expect(user.copyToken, 'web-copy-token');
-      expect(user.token, 'web-copy-token');
-      expect(user.loginSource, 'copy');
-      expect(user.copyAccount.activeId, 'u:web-id');
+      // 漫画已登录 → 保持；轻小说已选中旧账号 → 也保持，只入库。
+      expect(user.copyToken, 'old-copy');
+      expect(user.token, 'hot-token');
+      expect(user.loginSource, 'hotmanga');
+      expect(user.copyAccount.activeId, _oldSession.id);
+      expect(user.copyAccount.accounts, hasLength(2));
       expect(
         user.savedCredentials.any((item) => item.token == 'hot-token'),
         isTrue,
       );
       await user.init();
-      expect(user.token, 'web-copy-token');
-      expect(user.copyToken, 'web-copy-token');
+      expect(user.token, 'hot-token');
+      expect(user.copyToken, 'old-copy');
       expect(
         user.savedCredentials.any((item) => item.userId == 'web-id'),
         isTrue,
@@ -1544,7 +1569,8 @@ void main() {
             .password,
         'form-password',
       );
-      expect(user.savedPassword, 'form-password');
+      // 漫画保持 setUp 的热辣账号，密码槽位不动。
+      expect(user.savedPassword, 'hot-password');
 
       await user.init();
       expect(
@@ -1553,7 +1579,7 @@ void main() {
             .password,
         'form-password',
       );
-      expect(user.savedPassword, 'form-password');
+      expect(user.savedPassword, 'hot-password');
     },
   );
 
