@@ -5,6 +5,21 @@ import '../api/user/user_api.dart';
 import '../models/user_manager.dart';
 import 'app_logger.dart';
 
+/// 官网各端登录接口路径。
+///
+/// 桌面站（`/web/login/loginByAccount`）打 `/api/kb/web/login`，h5 站
+/// （`/h5/login`）打 `/api/v3/login`（实测其前端配置 `VUE_APP_CORE_URL` 为
+/// `api.copy4000.com`），旧版站点打 `/api/v1/login`。只认这些路径，避免把
+/// 注册/找回密码的请求当成登录。
+///
+/// `/api/v3/login` 是 `/api/v3/login/mobile` 的前缀，但手机登录的表单体是
+/// `mobile`/`region`/`code`，解析层取不到 username + password 会直接丢弃。
+const copyLoginSubmitPaths = [
+  '/api/kb/web/login',
+  '/api/v3/login',
+  '/api/v1/login',
+];
+
 /// 从拷贝官网 cookie 或 storage 中提取的候选登录凭证。
 class CopyWebCredentials {
   final String token;
@@ -63,18 +78,28 @@ enum WebLoginDisposition {
 
 /// 决定 WebView 里提取到的登录态如何处置。
 ///
-/// 只有 [submittedLogin]（本次会话里钩到了一次真实的官网登录提交）才证明
-/// 这份登录态是用户刚刚登录的结果；没有它，提取到的只能是进入页面前残留
-/// 的旧会话。旧会话一律不自动完成——尤其该账号刚被登出/删除时，自动完成
-/// 会在用户输入新账号前把它抢登回来：已保存的停在提示条上让用户确认，
-/// 未保存的静默。用户点「我已完成登录」时走 [manual]，是明确意图，照常完成。
+/// 两个入口的性质不同，判定要分开：
+///
+/// - **登录页填好账号后自动登录**（[resumeSession] 为 false）：整个过程是用户
+///   在应用里发起的，提取到什么就是他要的账号，[submittedLogin] 一旦为真直接
+///   完成，不中途停下——否则界面显示「登录成功」却停在提示条上，看起来没生效。
+/// - **右上角地球按钮手动进官网**（[resumeSession] 为 true）：页面一打开就可能
+///   带着上次的登录态，而用户进来往往正是为了换账号。此时即便钩到本次登录提交，
+///   只要落回本机已保存的账号也停在提示条上等他确认，免得来不及切换就被抢登
+///   回来。换成另一个账号（未保存）或点 [manual] 则照常完成。
+///
+/// 没有 [submittedLogin] 时，提取到的只能是进入页面前残留的旧会话，一律不自动
+/// 完成——尤其该账号刚被登出/删除时，自动完成会在用户输入新账号前把它抢登
+/// 回来：已保存的停在提示条上让用户确认，未保存的静默。
 WebLoginDisposition disposeWebLoginCredentials({
   required CopyWebCredentials credentials,
   required UserManager user,
   required bool submittedLogin,
   bool manual = false,
+  bool resumeSession = false,
 }) {
   if (manual) return WebLoginDisposition.complete;
+  if (submittedLogin && !resumeSession) return WebLoginDisposition.complete;
   final known = credentials.matchesSavedAccount(user);
   if (known) return WebLoginDisposition.knownAccount;
   return submittedLogin
@@ -272,8 +297,20 @@ String? _storageToken(Map<dynamic, dynamic> map) {
   return token.isEmpty ? null : token;
 }
 
-String _profileField(Map<dynamic, dynamic> map, String key) =>
-    map[key]?.toString().trim() ?? '';
+/// 官网两端的账号字段名不一致：桌面站的 cookie 用 `user_id`，h5 站
+/// localStorage 里的 `user` 对象用 **`userid`**（无下划线，见 h5 站
+/// `localStorage.setItem("user", ...)`）。两个都要认，否则手机端登录提取到的
+/// 凭证会丢掉唯一身份，同一账号每次登录（官网每次都会轮换 token）都被当成
+/// 新账号，账号中心就堆出重复卡片。
+const _userIdKeys = ['user_id', 'userid'];
+
+String _profileField(Map<dynamic, dynamic> map, String key) {
+  for (final candidate in key == 'user_id' ? _userIdKeys : [key]) {
+    final value = map[candidate]?.toString().trim();
+    if (value != null && value.isNotEmpty) return value;
+  }
+  return '';
+}
 
 Iterable<Map<dynamic, dynamic>> _storageMaps(
   Object? node,

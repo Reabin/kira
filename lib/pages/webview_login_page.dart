@@ -25,19 +25,29 @@ import '../utils/toast.dart';
 /// 层，从真实的登录请求里解出账号密码，通过 `copyLoginForm` 桥回 Flutter。
 ///
 /// 依据（取自官网静态资源，非猜测）：
-/// - 页面是 Vue + Element UI，使用 **axios** 且通过 `XMLHttpRequest` 发包；
-/// - 登录接口 `POST /api/kb/web/login`，表单体为
-///   `username=<账号>&password=<base64(密码-salt)>&salt=<6位随机>&platform=2…`；
+/// - 页面是 Vue + Element UI（桌面站）或 Vant（h5 站），都使用 **axios** 且
+///   通过 `XMLHttpRequest` 发包；
+/// - 登录接口见 [copyLoginSubmitPaths]，表单体为
+///   `username=<账号>&password=<base64(密码-salt)>&salt=<随机>&platform=…`；
 /// - 密码框默认明文（源码 `visiablePassword: true`），DOM 上没有 type=password，
 ///   所以不靠 DOM 结构识别。
 ///
 /// 只有从真实网络请求里解出的凭据才会回报，因此不存在「把没提交的输入框内容
 /// 当登录」的问题。官网改版导致钩子失效时脚本静默退出（只是不再保存密码），
 /// 不影响登录本身。
-const _loginFormScript = r'''
+final _loginFormScript = buildCopyLoginFormScript();
+
+/// 官网登录凭据抓包脚本（见上方说明）。独立成公开函数便于离线测试。
+String buildCopyLoginFormScript() => r'''
 (function () {
   if (window.__copyLoginProbe) return;
   window.__copyLoginProbe = true;
+
+  // 自动填表脚本每次导航都会重新注入，同一账号可能被提交两次（自动填表先点
+  // 了一次、用户随后又手点一次）。解除上报去重，让第二次提交也能被看到。
+  window.__copyLoginProbeReset = function () {
+    window.__copyLoginReported = null;
+  };
 
   function report(username, password) {
     if (!username || !password) return;
@@ -51,10 +61,15 @@ const _loginFormScript = r'''
   }
 
   // 只认登录接口，避免把注册/找回密码的请求当成登录。
+  var loginPaths = ''' + jsonEncode(copyLoginSubmitPaths) + r''';
+
   function isLoginUrl(url) {
     if (!url) return false;
     var s = String(url);
-    return s.indexOf('/api/kb/web/login') >= 0 || s.indexOf('/api/v1/login') >= 0;
+    for (var i = 0; i < loginPaths.length; i++) {
+      if (s.indexOf(loginPaths[i]) >= 0) return true;
+    }
+    return false;
   }
 
   function decodeBody(body) {
@@ -140,19 +155,40 @@ const _loginFormScript = r'''
 ///   `--plain`，不会混淆）。
 ///
 /// 两者都是 Vue（Element UI / Vant）+ v-model，需要 native setter + input
-/// 事件才能让框架感知输入。脚本自身用 `__copyAutoLoginInjected` 防重入，
-/// 重复注入无效。登录被拒时通过 `copyAutoLogin` 桥回报错误文案（Element 的
-/// `.el-message--error` 与 Vant 的 `.van-toast`，后者无法从 class 区分类型，
-/// 靠「成功」字样过滤）。
+/// 事件才能让框架感知输入。
+///
+/// 脚本**可重复注入**：官网 h5 站是 history 路由 SPA，首次进入会被强制送到
+/// 线路选择页 `/h5/init`，用户选完线路才 `replace` 回 `/h5/login`（不重新加载
+/// 文档），所以要等登录表单真的出现才注入；而表单可能比 8 秒更晚出现，单次
+/// 注入超时后就没机会了。因此每次调用都重置脚本状态并重新计时，只有表单已经
+/// 填过、且仍在等待结果时才跳过（[skipFilled]）。登录被拒时通过 `copyAutoLogin`
+/// 桥回报错误文案（Element 的 `.el-message--error` 与 Vant 的 `.van-toast`，
+/// 后者无法从 class 区分类型，靠「成功」字样过滤）。
 String buildCopyLoginFillScript({
   required String username,
   required String password,
+  bool skipFilled = false,
 }) {
   final payload = jsonEncode({'username': username, 'password': password});
+  final skipFilledLiteral = skipFilled ? 'true' : 'false';
   return '''
 (function () {
-  if (window.__copyAutoLoginInjected) return;
+  var skipFilled = $skipFilledLiteral;
+  var filled = window.__copyAutoLoginFilled;
+  if (filled) {
+    // 已填过：默认不重复点击（用户可能正在改密码），仍在等结果时也不重复。
+    if (!skipFilled) return;
+    if (window.__copyAutoLoginPending) return;
+    window.__copyAutoLoginPending = true;
+  }
   window.__copyAutoLoginInjected = true;
+
+  // 每次注入都从干净状态开始，用户选完线路回到登录页后能重新识别表单。
+  if (window.__copyAutoLoginTimer) clearInterval(window.__copyAutoLoginTimer);
+  if (window.__copyAutoLoginObserver) window.__copyAutoLoginObserver.disconnect();
+  if (window.__copyLoginProbeReset) window.__copyLoginProbeReset();
+  window.__copyAutoLoginFilled = false;
+
   var params = $payload;
 
   function report(event, detail) {
@@ -165,6 +201,7 @@ String buildCopyLoginFillScript({
   function finish(event, detail) {
     if (reported) return;
     reported = true;
+    window.__copyAutoLoginPending = false;
     report(event, detail);
   }
 
@@ -222,6 +259,7 @@ String buildCopyLoginFillScript({
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+    window.__copyAutoLoginObserver = observer;
     // 登录结果只会出现在提交后的短时间内，之后停止观察。
     setTimeout(function () { observer.disconnect(); }, 15000);
   }
@@ -234,18 +272,23 @@ String buildCopyLoginFillScript({
   }
 
   var attempts = 0;
-  var timer = setInterval(function () {
+  window.__copyAutoLoginTimer = setInterval(function () {
     attempts++;
     var targets = findTargets();
     if (targets) {
-      clearInterval(timer);
+      clearInterval(window.__copyAutoLoginTimer);
+      window.__copyAutoLoginTimer = null;
+      window.__copyAutoLoginFilled = true;
+      window.__copyAutoLoginPending = true;
       setValue(targets.username, params.username);
       setValue(targets.password, params.password);
       targets.button.click();
       watchErrors();
       setTimeout(function () { checkFieldErrors(); }, 2000);
-    } else if (attempts * 300 >= 8000) {
-      clearInterval(timer);
+    } else if (attempts * 300 >= 30000) {
+      clearInterval(window.__copyAutoLoginTimer);
+      window.__copyAutoLoginTimer = null;
+      window.__copyAutoLoginPending = false;
       finish('form_not_found', '');
     }
   }, 300);
@@ -261,6 +304,15 @@ class WebViewLoginPage extends ConsumerStatefulWidget {
   /// 非空时页面加载完成后自动填表并触发登录；失败时用户仍可在网页里
   /// 手动改密码重试。
   final ({String username, String password})? autoFill;
+
+  /// 本页是否可能带着上次的官网会话进入。
+  ///
+  /// 右上角地球按钮手动进官网（[autoFill] 为空）时为真：页面一打开就可能已经
+  /// 登录着上次的账号，用户进来往往正是为了换账号，所以即便本次真的提交了登录，
+  /// 只要落回本机已保存的账号也要停下来等他确认（见
+  /// [disposeWebLoginCredentials] 的 `resumeSession`）。从登录页填好账号进来的
+  /// 自动登录（[autoFill] 非空）为假，整个过程自动完成、不中途停下。
+  bool get resumeSession => autoFill == null;
 
   @override
   ConsumerState<WebViewLoginPage> createState() => _WebViewLoginPageState();
@@ -278,9 +330,16 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   /// 旧会话。
   bool _submittedLogin = false;
 
+  /// 自动填表提交后被官网明确拒绝（错误提示条）。此时不再自动重填，把页面
+  /// 留给用户改密码，避免在页面导航时反复提交同一个错误密码。
+  bool _autoFillRejected = false;
+
   /// 页面上自动识别出的、本机已保存过的账号；非 null 时展示选择栏而不是
   /// 直接完成登录。
   CopyWebCredentials? _knownAccount;
+
+  /// 本页是否可能带着上次的官网会话进入。见 [WebViewLoginPage.resumeSession]。
+  bool get _resumeSession => widget.autoFill == null;
 
   /// 表单抓取到的密码，按用户名暂存，登录完成时一并落到对应账号上。
   final _loginFormPasswords = <String, String>{};
@@ -327,9 +386,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   /// 自动填表提交后轮询 cookie；页面跳转（onUpdateVisitedHistory/onLoadStop）
-  /// 会先一步完成登录，轮询只是兜底，最多跑 10 秒。提示条出现时轮询继续：
-  /// 自动填表可能随后把会话换成另一个账号，后续提取会覆盖提示条。
-  void _startAutoFillPoll() {
+  /// 会先一步完成登录，轮询只是兜底。提示条出现时轮询继续：自动填表可能随后
+  /// 把会话换成另一个账号，后续提取会覆盖提示条。
+  ///
+  /// 窗口按「h5 站的登录请求是 XHR、成功后不跳路由」放宽：单次提取可能早于
+  /// cookie/localStorage 写入，必须留够重试时间（官网配置的请求超时是 10 秒）。
+  void _startCredentialPoll() {
     _autoFillPoll?.cancel();
     var tries = 0;
     _autoFillPoll = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -337,7 +399,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         timer.cancel();
         return;
       }
-      if (++tries > 20) {
+      if (++tries > 80) {
         timer.cancel();
         return;
       }
@@ -349,6 +411,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   void _onAutoLoginEvent(List<dynamic> arguments) {
     if (arguments.isEmpty || arguments.first is! String) return;
     if (arguments.first as String != 'error') return;
+    _autoFillRejected = true;
     final detail = arguments.length > 1 ? (arguments[1]?.toString() ?? '') : '';
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
@@ -360,26 +423,35 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     });
   }
 
-  /// 自动填表：页面加载到官网登录页时注入脚本，交由网页自己提交登录。
+  /// 自动填表：只要当前地址是官网登录页就（重新）注入脚本，交由网页自己提交
+  /// 登录。
+  ///
+  /// h5 站是 history 路由 SPA：首次进入会被强制送到线路选择页 `/h5/init`，
+  /// 用户选完线路才 `replace` 回 `/h5/login`（不重新加载文档）。所以既要在
+  /// `onLoadStop` 注入，也要在 `onUpdateVisitedHistory`（SPA 导航）注入；脚本
+  /// 自身负责「表单已填过就不重复点、找不到表单就继续等」。
   Future<void> _injectAutoFill(
     InAppWebViewController controller,
     WebUri? url,
   ) async {
     final fill = widget.autoFill;
     if (fill == null) return;
+    // 已被官网拒绝时不再自动重填，把页面留给用户改密码重试。
+    if (_autoFillRejected && _submittedLogin) return;
     final path = url?.toString() ?? '';
     final isLoginPage =
-        path.contains('/web/login/loginByAccount') ||
-        path.contains('/h5/login');
+        path.contains('/web/login/loginByAccount') || path.contains('/h5/login');
     if (!isLoginPage) return;
     try {
       await controller.evaluateJavascript(
         source: buildCopyLoginFillScript(
           username: fill.username,
           password: fill.password,
+          // 用户手动改密码重试时，已填过也要重新填一遍新密码。
+          skipFilled: _submittedLogin,
         ),
       );
-      _startAutoFillPoll();
+      _startCredentialPoll();
     } catch (_, st) {
       unawaited(
         AppLogger.instance.recordWarning(
@@ -396,6 +468,22 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     if (_loginFormPasswords.isEmpty) return;
     final pending = Map<String, String>.from(_loginFormPasswords);
     _loginFormPasswords.clear();
+    // 一次成功的提交就足以锚定账号；清掉钩子侧的去重，让用户改密码后的
+    // 下一次提交也能被看到。
+    _autoFillRejected = false;
+    try {
+      await _controller?.evaluateJavascript(
+        source: 'window.__copyLoginProbeReset && window.__copyLoginProbeReset();',
+      );
+    } catch (_, st) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          'Unable to reset COPY login probe',
+          stackTrace: st,
+          source: 'webview_login.reset_probe',
+        ),
+      );
+    }
     await user.saveLoginFormPasswords(pending);
   }
 
@@ -524,14 +612,15 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       return;
     }
 
-    // 残留的旧会话（打开页面时就带着的登录态）不是本次登录的结果，永不
-    // 自动完成：否则刚被登出/删除的账号会在用户输入新账号前被抢登回来。
-    // 只有钩到过真实登录提交、或用户手动点「我已完成登录」，才允许完成。
+    // 处置规则见 disposeWebLoginCredentials：手动按钮 → 直接完成；从登录页
+    // 填好账号进来的自动登录 → 不中途停下；地球按钮手动进官网 → 落回已保存
+    // 账号时停下等确认，避免来不及换账号就被抢登回去。
     switch (disposeWebLoginCredentials(
       credentials: credentials,
       user: ref.read(userManagerProvider),
       submittedLogin: _submittedLogin,
       manual: manual,
+      resumeSession: _resumeSession,
     )) {
       case WebLoginDisposition.complete:
         await _completeLogin(credentials);
@@ -634,6 +723,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       _knownAccount = null;
       // 会话已清空，重新开始观察本次的登录提交。
       _submittedLogin = false;
+      _autoFillRejected = false;
     });
     await _controller?.loadUrl(urlRequest: URLRequest(url: _loginUri));
     if (mounted) showToast(context, l10n.profileWebLoginResetDone);
@@ -749,8 +839,13 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                     _tryExtractAndFinish();
                     _injectAutoFill(controller, url);
                   },
-                  onUpdateVisitedHistory: (controller, url, isReload) =>
-                      _tryExtractAndFinish(),
+                  // h5 站登录成功后只写 cookie/localStorage、不跳路由，此时
+                  // 只能靠上面的轮询；这里覆盖桌面站的整页跳转，以及用户手动
+                  // 改完密码后 h5 站可能发生的 SPA 导航（顺带重新注入脚本）。
+                  onUpdateVisitedHistory: (controller, url, isReload) {
+                    _tryExtractAndFinish();
+                    _injectAutoFill(controller, url);
+                  },
                 ),
               ),
             ],

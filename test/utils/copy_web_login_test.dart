@@ -58,6 +58,21 @@ void main() {
       expect(credentials?.profileBoundToToken, isTrue);
     });
 
+    test('h5 localStorage uses userid, not user_id', () {
+      // 官网 h5 站写的是 localStorage["user"] = {"token":..,"userid":..}
+      // （无下划线）。漏掉这个键名会丢掉唯一身份，同一账号每次登录（官网
+      // 每次轮换 token）都被当成新账号，账号中心就堆出重复卡片。
+      final credentials = parseCopyWebStorage({
+        'ls': {
+          'user': '{"token":"h5-token","userid":"h5-user-id"}',
+        },
+        'ss': {'init': 'true'},
+      });
+      expect(credentials?.token, 'h5-token');
+      expect(credentials?.userId, 'h5-user-id');
+      expect(credentials?.profileBoundToToken, isTrue);
+    });
+
     test('accepts profile nested inside its token authentication object', () {
       final credentials = parseCopyWebStorage({
         'ss': {
@@ -398,7 +413,7 @@ void main() {
       );
     });
 
-    test('本次登录到另一个已保存账号仍需确认', () async {
+    test('本次登录到另一个已保存账号仍需确认，不自动切走', () async {
       const other = CopyAccountSession(
         token: 'other-saved-token',
         userId: 'other-saved-id',
@@ -411,8 +426,74 @@ void main() {
           credentials: candidate(token: 'other-saved-token'),
           user: user,
           submittedLogin: true,
+          resumeSession: true,
         ),
         WebLoginDisposition.knownAccount,
+      );
+    });
+
+    test('重复登录同一个已保存账号停在提示条上，等用户确认', () async {
+      // 地球按钮进来时页面可能带着上次会话，用户往往正想换账号，所以不替他
+      // 完成。要完成只有点提示条的「使用该账号」或右上角手动登录。
+      await user.copyAccount.saveSession(saved);
+      final known = candidate(token: 'saved-token');
+      expect(
+        disposeWebLoginCredentials(
+          credentials: known,
+          user: user,
+          submittedLogin: true,
+          resumeSession: true,
+        ),
+        WebLoginDisposition.knownAccount,
+      );
+      expect(
+        disposeWebLoginCredentials(
+          credentials: known,
+          user: user,
+          submittedLogin: true,
+          manual: true,
+        ),
+        WebLoginDisposition.complete,
+      );
+    });
+
+    test('登录页填好账号的自动登录不停在提示条上，即便账号已保存', () async {
+      // 从登录页填好账号进来（resumeSession=false）时，整个过程是用户在应用里
+      // 发起的，钩到本次登录提交就直接完成，不中途停下。
+      await user.copyAccount.saveSession(saved);
+      expect(
+        disposeWebLoginCredentials(
+          credentials: candidate(token: 'saved-token'),
+          user: user,
+          submittedLogin: true,
+        ),
+        WebLoginDisposition.complete,
+      );
+    });
+
+    test('地球按钮进官网时落回已保存账号要停下，给用户留出换账号的时间', () async {
+      // 地球按钮进来（resumeSession=true）时页面可能已带着上次会话，用户往往
+      // 正是为了换账号，所以即便本次提交了登录也要停在提示条上等确认。
+      await user.copyAccount.saveSession(saved);
+      final known = candidate(token: 'saved-token');
+      expect(
+        disposeWebLoginCredentials(
+          credentials: known,
+          user: user,
+          submittedLogin: true,
+          resumeSession: true,
+        ),
+        WebLoginDisposition.knownAccount,
+      );
+      // 换成另一个未保存的账号则直接完成。
+      expect(
+        disposeWebLoginCredentials(
+          credentials: candidate(token: 'other-token', username: 'other-user'),
+          user: user,
+          submittedLogin: true,
+          resumeSession: true,
+        ),
+        WebLoginDisposition.complete,
       );
     });
   });

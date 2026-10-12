@@ -777,6 +777,38 @@ void main() {
       expect(script, contains('form_not_found'));
     });
 
+    test('can be re-injected after an SPA navigation to the login page', () {
+      final script = buildCopyLoginFillScript(
+        username: 'user',
+        password: 'pass',
+      );
+      // 官网 h5 站是 history 路由 SPA：用户选完线路才 replace 回 /h5/login，
+      // 表单出现可能晚于首次注入，所以每次注入都要重置状态并重新计时。
+      expect(script, contains('window.__copyAutoLoginTimer'));
+      expect(script, contains('clearInterval(window.__copyAutoLoginTimer)'));
+      expect(script, contains('window.__copyLoginProbeReset'));
+      // 已填过时默认不重复点击，只有显式要求才重填。
+      expect(script, contains('window.__copyAutoLoginFilled'));
+      expect(script, contains('var skipFilled = false;'));
+    });
+
+    test('skipFilled refills a password the user corrected', () {
+      final script = buildCopyLoginFillScript(
+        username: 'user',
+        password: 'pass',
+        skipFilled: true,
+      );
+      expect(script, contains('var skipFilled = true;'));
+    });
+
+    test('watches the h5 login endpoint as well as the desktop one', () {
+      // 桌面站打 /api/kb/web/login，h5 站打 /api/v3/login。
+      expect(copyLoginSubmitPaths, contains('/api/kb/web/login'));
+      expect(copyLoginSubmitPaths, contains('/api/v3/login'));
+      final script = buildCopyLoginFormScript();
+      expect(script, contains(jsonEncode(copyLoginSubmitPaths)));
+    });
+
     test('embeds credentials as a legal JSON literal', () {
       const username = 'user"1</script>\n';
       const password = r"pass'2\3${}";
@@ -1166,6 +1198,61 @@ void main() {
   );
 
   test(
+    'h5 web logins of one account collapse into a single card',
+    () async {
+      // 手机端官网把登录态写在 localStorage["user"]，字段名是 userid（无下划线）。
+      // 旧解析漏掉这个键，提取到的凭证没有身份，而官网每次登录都轮换 token，
+      // 于是同一账号每次都新建一条，账号中心堆出重复卡片。
+      CopyWebCredentials? creds;
+      void extract(String token, String userId) {
+        creds = parseCopyWebStorage({
+          'ls': {
+            'user': '{"token":"$token","userid":"$userId"}',
+          },
+        });
+      }
+
+      extract('h5-token-1', 'h5-user-id');
+      expect(creds?.userId, 'h5-user-id');
+      expect(
+        await completeCopyWebLogin(
+          user: user,
+          api: api,
+          credentials: creds!,
+        ),
+        isTrue,
+      );
+
+      // 第二次登录：官网轮换了 token，身份不变。
+      extract('h5-token-2', 'h5-user-id');
+      expect(
+        await completeCopyWebLogin(
+          user: user,
+          api: api,
+          credentials: creds!,
+        ),
+        isTrue,
+      );
+
+      expect(
+        user.copyAccount.accounts,
+        hasLength(1),
+        reason: '同一账号两次手机端登录只能有一张卡片',
+      );
+      expect(user.copyAccount.accounts.single.userId, 'h5-user-id');
+      expect(
+        user.copyAccount.token,
+        'h5-token-2',
+        reason: '卡片上的令牌必须跟着轮换',
+      );
+      expect(
+        user.savedCredentials.where((item) => item.source == 'copy'),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
     'successful token login returns before its optional profile request completes',
     () async {
       final profileStarted = Completer<void>();
@@ -1538,6 +1625,19 @@ void main() {
       );
     },
   );
+
+  test('地球按钮进官网会带着上次会话，登录页填表的自动登录不会', () {
+    // 判据是入口：地球按钮 push 时不带 extra（autoFill 为空）→ 页面可能已
+    // 登录着上次的账号，要停下来等确认；登录页填好账号 push 时带 extra →
+    // 全程自动完成。
+    expect(const WebViewLoginPage().resumeSession, isTrue);
+    expect(
+      const WebViewLoginPage(
+        autoFill: (username: 'u', password: 'p'),
+      ).resumeSession,
+      isFalse,
+    );
+  });
 
   test(
     'web login form password is stored for the matching account only',
