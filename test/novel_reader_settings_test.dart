@@ -57,6 +57,9 @@ void main() {
       expect(defaults.darkThemeId, 'dark');
       expect(defaults.customThemes, isEmpty);
       expect(defaults.keepScreenOn, isTrue);
+      expect(defaults.mode, NovelReaderMode.scroll);
+      expect(defaults.instantPageTurn, isFalse);
+      expect(defaults.volumeKey, isTrue);
       expect(
         await NovelReaderSettings.load(prefs: Future.value(prefs)),
         defaults,
@@ -64,6 +67,56 @@ void main() {
       expect(prefs.containsKey(NovelReaderSettings.storageKey), isFalse);
     },
   );
+
+  test('page mode, instant turn and volume key round-trip', () {
+    const settings = NovelReaderSettings(
+      mode: NovelReaderMode.paged,
+      instantPageTurn: true,
+      volumeKey: false,
+    );
+    expect(settings.mode, NovelReaderMode.paged);
+    expect(NovelReaderSettings.fromJson(settings.toJson()), settings);
+    expect(settings.toJson()['mode'], 'paged');
+    expect(settings.toJson()['instantPageTurn'], isTrue);
+    expect(settings.toJson()['volumeKey'], isFalse);
+    final copied = settings.copyWith(
+      mode: NovelReaderMode.scroll,
+      instantPageTurn: false,
+      volumeKey: true,
+    );
+    expect(copied.mode, NovelReaderMode.scroll);
+    expect(copied.instantPageTurn, isFalse);
+    expect(copied.volumeKey, isTrue);
+    expect(settings.mode, NovelReaderMode.paged);
+    expect(settings.instantPageTurn, isTrue);
+    expect(settings.volumeKey, isFalse);
+  });
+
+  test('unknown reading mode and malformed toggles fall back safely', () {
+    final unknown = NovelReaderSettings.fromJson(const {
+      'mode': 'curl',
+      'instantPageTurn': 'yes',
+      'volumeKey': 1,
+    });
+    expect(unknown.mode, NovelReaderMode.scroll);
+    expect(unknown.instantPageTurn, isFalse);
+    expect(unknown.volumeKey, isTrue);
+    final legacy = NovelReaderSettings.fromJson(const {'fontSize': 22});
+    expect(legacy.mode, NovelReaderMode.scroll);
+    expect(legacy.instantPageTurn, isFalse);
+    expect(legacy.volumeKey, isTrue);
+  });
+
+  test('reading mode participates in equality and hashCode', () {
+    const scroll = NovelReaderSettings();
+    const paged = NovelReaderSettings(mode: NovelReaderMode.paged);
+    expect(scroll == paged, isFalse);
+    expect(scroll.hashCode == paged.hashCode, isFalse);
+    expect(
+      paged.copyWith(mode: NovelReaderMode.scroll) == scroll,
+      isTrue,
+    );
+  });
 
   test('named themes, bindings, and false keepScreenOn round-trip', () async {
     const custom = NovelReaderCustomTheme(

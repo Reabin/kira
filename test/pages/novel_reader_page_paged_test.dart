@@ -1,0 +1,560 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:kira/api/novel/novel_api.dart';
+import 'package:kira/l10n/app_localizations.dart';
+import 'package:kira/models/novel.dart';
+import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reading_progress.dart';
+import 'package:kira/pages/novel_reader/novel_reader_document.dart';
+import 'package:kira/pages/novel_reader/novel_reader_page_view.dart';
+import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
+import 'package:kira/pages/novel_reader_page.dart';
+import 'package:kira/providers/novel_providers.dart';
+import 'package:kira/repositories/novel_repository.dart';
+import 'package:kira/utils/novel_bookmark_store.dart';
+import 'package:kira/utils/novel_reading_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// 翻页模式集成测试：点击分区、模式切换的位置交接、音量键拦截、
+/// 卷末自动跳卷与进度落盘。
+const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
+
+class _Api implements NovelApi {
+  @override
+  bool get hasCopyToken => false;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw StateError('Unexpected API access: ${invocation.memberName}');
+}
+
+class _Repository implements NovelRepository {
+  _Repository(this.content);
+
+  final Map<String, NovelVolumeContent> content;
+  final calls = <String>[];
+
+  @override
+  Future<NovelVolumeContent> loadVolumeContent(
+    String pathWord,
+    String volumeId, {
+    bool refresh = false,
+  }) async {
+    calls.add('$pathWord/$volumeId/$refresh');
+    return content[volumeId]!;
+  }
+
+  @override
+  Future<List<NovelVolume>> loadVolumes(
+    String pathWord, {
+    bool refresh = false,
+  }) async => content.values
+      .where((item) => item.detail.book.pathWord == pathWord)
+      .map((item) => item.detail.volume)
+      .toList();
+
+  @override
+  Future<NovelVolumeDetail> loadVolumeDetail(
+    String pathWord,
+    String volumeId, {
+    bool refresh = false,
+  }) async => content[volumeId]!.detail;
+
+  @override
+  Future<NovelVolumeContent?> getCachedVolumeContent(
+    String pathWord,
+    String volumeId,
+  ) async => null;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw StateError(
+    'Unexpected repository access: ${invocation.memberName}',
+  );
+}
+
+class _Store implements NovelReadingStore {
+  _Store(this.preferences);
+
+  final SharedPreferences preferences;
+  final writes = <NovelReadingProgress>[];
+
+  @override
+  Future<NovelReadingProgress?> readProgress(String pathWord) async {
+    final raw = preferences.getString('test_novel_progress_$pathWord');
+    if (raw == null) return null;
+    final json = jsonDecode(raw);
+    return json is Map<String, dynamic>
+        ? NovelReadingProgress.fromJson(json)
+        : null;
+  }
+
+  @override
+  Future<void> saveProgress(NovelReadingProgress progress) async {
+    writes.add(progress);
+    await preferences.setString(
+      'test_novel_progress_${progress.pathWord}',
+      jsonEncode(progress.toJson()),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw StateError(
+    'Unexpected reading store access: ${invocation.memberName}',
+  );
+}
+
+NovelVolumeContent _volume({
+  String book = 'book',
+  String id = 'v1',
+  int entries = 3,
+  int paragraphs = 100,
+  List<List<String>>? entryTexts,
+  String? previous,
+  String? next,
+}) {
+  final texts = entryTexts ?? _texts(id, List.filled(entries, paragraphs));
+  final parsed = <NovelReaderEntry>[
+    for (var entry = 0; entry < texts.length; entry++)
+      NovelReaderEntry(
+        entryIndex: entry,
+        entry: NovelContentEntry(name: '$id chapter $entry', contentType: 1),
+        paragraphs: texts[entry],
+      ),
+  ];
+  return NovelVolumeContent(
+    detail: NovelVolumeDetail(
+      book: NovelBook(pathWord: book, name: '$book title'),
+      volume: NovelVolume(
+        id: id,
+        name: '$id volume',
+        bookPathWord: book,
+        prev: previous,
+        next: next,
+        contents: parsed.map((item) => item.entry).toList(),
+      ),
+    ),
+    entries: parsed,
+  );
+}
+
+late NovelBookmarkStore _bookmarks;
+
+/// 生成 [counts] 指定的各章节段落文本（内容仅用于区分段落）。
+List<List<String>> _texts(String id, List<int> counts) => [
+  for (var entry = 0; entry < counts.length; entry++)
+    [
+      for (var paragraph = 0; paragraph < counts[entry]; paragraph++)
+        '$id entry $entry paragraph $paragraph',
+    ],
+];
+
+Future<void> _seedSettings(
+  WidgetTester tester,
+  NovelReaderSettings settings,
+) async {
+  await tester.runAsync(() async {
+    SharedPreferences.setMockInitialValues({
+      NovelReaderSettings.storageKey: jsonEncode(settings.toJson()),
+    });
+    await SharedPreferences.getInstance();
+  });
+}
+
+Future<void> _mount(
+  WidgetTester tester, {
+  required _Repository repository,
+  required _Store store,
+  bool paged = true,
+  NovelReaderSettings? settings,
+  String book = 'book',
+  String volume = 'v1',
+  bool settle = true,
+}) async {
+  await _seedSettings(
+    tester,
+    settings ??
+        NovelReaderSettings(
+          mode: paged ? NovelReaderMode.paged : NovelReaderMode.scroll,
+        ),
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        novelRepositoryProvider.overrideWithValue(repository),
+        novelReadingStoreProvider.overrideWithValue(store),
+        novelBookmarkStoreProvider.overrideWithValue(_bookmarks),
+        novelApiProvider.overrideWithValue(_Api()),
+      ],
+      child: MaterialApp(
+        locale: const Locale('zh'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: NovelReaderPage(pathWord: book, volumeId: volume),
+      ),
+    ),
+  );
+  if (settle) await _settle(tester);
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var frame = 0; frame < 8; frame++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump(const Duration(milliseconds: 20));
+  }
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 20),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 3),
+  );
+}
+
+Future<void> _remove(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await _settle(tester);
+}
+
+NovelReaderPageViewState _pager(WidgetTester tester) => tester
+    .state<NovelReaderPageViewState>(find.byType(NovelReaderPageView));
+
+NovelReaderLocation _pagedLocation(WidgetTester tester) =>
+    _pager(tester).currentLocation!;
+
+/// 模拟原生侧的音量键回调。
+Future<void> _pressVolume(WidgetTester tester, String method) async {
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    _volumeChannel.name,
+    const StandardMethodCodec().encodeMethodCall(MethodCall(method)),
+    (ByteData? _) {},
+  );
+  await _settle(tester);
+}
+
+/// 顶部屏障区域：底部弹层之外，点按即关闭弹层。
+Future<void> _dismissSheet(WidgetTester tester) async {
+  await tester.tapAt(const Offset(400, 40));
+  await _settle(tester);
+}
+
+Future<void> _openSettings(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+  await _settle(tester);
+}
+
+Future<void> _tapSheetSwitch(WidgetTester tester, String key) async {
+  final finder = find.byKey(ValueKey(key));
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+  await _settle(tester);
+}
+
+Future<void> _slideTo(WidgetTester tester, double item) async {
+  final slider = tester.widget<Slider>(
+    find.byKey(const ValueKey('novel-reader-progress')),
+  );
+  slider.onChanged!(item);
+  slider.onChangeEnd!(item);
+  await _settle(tester);
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  late _Store store;
+  late _Repository repository;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    store = _Store(await SharedPreferences.getInstance());
+    _bookmarks = NovelBookmarkStore.forTesting(
+      prefs: Future.value(store.preferences),
+    );
+    repository = _Repository({'v1': _volume()});
+  });
+
+  testWidgets('paged mode turns pages from the side zones and taps center', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    expect(find.byType(NovelReaderPageView), findsOneWidget);
+    expect(find.byType(NovelReaderViewport), findsNothing);
+    final start = _pagedLocation(tester);
+    // 右 1/3：下一页；翻页同时收起工具栏。
+    await tester.tapAt(const Offset(700, 300));
+    await _settle(tester);
+    final next = _pagedLocation(tester);
+    expect(next.progress, greaterThan(start.progress));
+    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
+    // 左 1/3：上一页。
+    await tester.tapAt(const Offset(100, 300));
+    await _settle(tester);
+    expect(_pagedLocation(tester).progress, closeTo(start.progress, 1e-9));
+    // 中间区域：唤回工具栏。
+    await tester.tapAt(const Offset(400, 300));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-reader-back')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('switching scroll to paged keeps the reading position', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store, paged: false);
+    await _slideTo(tester, 150);
+    final before = tester
+        .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
+        .currentLocation!;
+    expect(before.itemIndex, 150);
+    await _openSettings(tester);
+    await tester.tap(find.text('翻页'));
+    await _settle(tester);
+    await _dismissSheet(tester);
+    expect(find.byType(NovelReaderPageView), findsOneWidget);
+    expect(find.byType(NovelReaderViewport), findsNothing);
+    final after = _pagedLocation(tester);
+    // 页首段落不晚于切换前的位置，且与旧进度基本连续（误差小于一页）。
+    expect(after.itemIndex, lessThanOrEqualTo(before.itemIndex));
+    expect(after.progress, closeTo(before.progress, 0.06));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('volume keys turn pages only when paged and enabled', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      _volumeChannel,
+      (call) async {
+        calls.add(call.method);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        _volumeChannel,
+        null,
+      ),
+    );
+    await _mount(tester, repository: repository, store: store);
+    expect(calls, contains('enable'));
+    final start = _pagedLocation(tester).progress;
+    // 音量- 下一页、音量+ 上一页（与漫画一致）。
+    await _pressVolume(tester, 'volumeDown');
+    expect(_pagedLocation(tester).progress, greaterThan(start));
+    await _pressVolume(tester, 'volumeUp');
+    expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+    // 关掉开关后立即解除拦截，音量键不再翻页。
+    await tester.tapAt(const Offset(400, 300));
+    await _settle(tester);
+    await _openSettings(tester);
+    await _tapSheetSwitch(tester, 'novel-volume-key');
+    expect(calls.last, 'disable');
+    await _dismissSheet(tester);
+    final held = _pagedLocation(tester).progress;
+    await _pressVolume(tester, 'volumeUp');
+    expect(_pagedLocation(tester).progress, closeTo(held, 1e-9));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('scroll mode never intercepts the volume keys', (tester) async {
+    final calls = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      _volumeChannel,
+      (call) async {
+        calls.add(call.method);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        _volumeChannel,
+        null,
+      ),
+    );
+    await _mount(tester, repository: repository, store: store, paged: false);
+    expect(calls, isNot(contains('enable')));
+    expect(find.byType(NovelReaderViewport), findsOneWidget);
+    await _remove(tester);
+  });
+
+  testWidgets('turning past the last page opens the next volume', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 6, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 6),
+    });
+    await _mount(tester, repository: repository, store: store);
+    await _slideTo(tester, 5);
+    await tester.tapAt(const Offset(700, 300));
+    await _settle(tester);
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v2/')),
+      isTrue,
+      reason: '末页继续翻页应自动进入下一卷',
+    );
+    expect(
+      find.text('v2 chapter 0'),
+      findsWidgets,
+      reason: '应显示下一卷的章节名（页面标题与工具栏）',
+    );
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('paged mode persists the page position while turning', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    await tester.tapAt(const Offset(700, 300));
+    await _settle(tester);
+    await tester.pump(const Duration(milliseconds: 400));
+    await _settle(tester);
+    expect(store.writes, isNotEmpty);
+    final saved = store.writes.last;
+    expect(saved.progress, greaterThan(0));
+    final location = _pagedLocation(tester);
+    expect(saved.entryIndex, location.anchor.entryIndex);
+    expect(saved.paragraphIndex, location.anchor.paragraphIndex);
+    await _remove(tester);
+  });
+
+  testWidgets('leaving a volume by page turn skips the remaining chapters', (
+    tester,
+  ) async {
+    // 末章只有一段：末页页首仍属于第 1 章。若按「下一章」处理会停在本卷
+    // 中间（原地不动），正确行为是直接进入下一卷。
+    repository = _Repository({
+      'v1': _volume(entryTexts: _texts('v1', [40, 1]), next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 6),
+    });
+    await _mount(tester, repository: repository, store: store);
+    await _slideTo(tester, 40);
+    expect(
+      _pagedLocation(tester).anchor.entryIndex,
+      0,
+      reason: '前提：末页页首仍属于第 1 章',
+    );
+    await tester.tapAt(const Offset(700, 300));
+    await _settle(tester);
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v2/')),
+      isTrue,
+      reason: '末页继续翻页应进入下一卷，而不是跳回本卷下一章',
+    );
+    expect(find.text('v2 chapter 0'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('turning back past the first page lands on the volume tail', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entryTexts: _texts('v1', [40, 30]), next: 'v2'),
+      'v2': _volume(id: 'v2', entryTexts: _texts('v2', [6]), previous: 'v1'),
+    });
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      volume: 'v2',
+    );
+    await tester.tapAt(const Offset(100, 300));
+    await _settle(tester);
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v1/')),
+      isTrue,
+      reason: '首页继续回翻应加载上一卷',
+    );
+    // 落在文档末段（最后一页附近），而不是末章开头（第 41/70 段）。
+    expect(_pagedLocation(tester).progress, greaterThan(0.9));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('swiping past the last page opens the next volume', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 60, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 6),
+    });
+    await _mount(tester, repository: repository, store: store);
+    await _slideTo(tester, 59);
+    // 末页只有回弹：滑动越界也要按卷界处理（与漫画一致）。
+    await tester.drag(
+      find.byKey(const ValueKey('novel-reader-pages')),
+      const Offset(-300, 0),
+    );
+    await _settle(tester);
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v2/')),
+      isTrue,
+      reason: '末页继续滑动应进入下一卷',
+    );
+    expect(find.text('v2 chapter 0'), findsWidgets);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('pages render without overflowing the viewport', (tester) async {
+    // 段距 32 时每页排满后距页底只剩约 12px：若末片段再加一次段距
+    // （渲染与分页测量重复计入），Column 会高出页面并报溢出。
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      settings: const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        paragraphSpacing: 32,
+      ),
+    );
+    for (var turn = 1; turn <= 6; turn++) {
+      await tester.tapAt(const Offset(700, 300));
+      await _settle(tester);
+      expect(tester.takeException(), isNull, reason: '第 $turn 页渲染溢出');
+    }
+    await _remove(tester);
+  });
+
+  testWidgets('long-press opens the paragraph menu without turning the page', (
+    tester,
+  ) async {
+    String? clipboard;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          clipboard = (call.arguments as Map)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await _mount(tester, repository: repository, store: store);
+    final before = _pagedLocation(tester).progress;
+    await tester.longPress(find.text('v1 entry 0 paragraph 0'));
+    await _settle(tester);
+    expect(find.text('复制'), findsOneWidget);
+    expect(find.text('书签'), findsOneWidget);
+    await tester.tap(find.text('复制'));
+    await _settle(tester);
+    expect(clipboard, 'v1 entry 0 paragraph 0');
+    // 长按不翻页：菜单关闭后仍在同一页。
+    expect(_pagedLocation(tester).progress, closeTo(before, 1e-9));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+}

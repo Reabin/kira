@@ -9,6 +9,9 @@ import '../utils/json_helpers.dart';
 
 enum NovelReaderTheme { paper, dark, white, green }
 
+/// 阅读模式：连续滚动 / 整页翻页。翻页模式固定左到右横向翻页。
+enum NovelReaderMode { scroll, paged }
+
 /// ID 与名称分离：重命名不会改变浅色/深色模式的选择。
 @immutable
 class NovelReaderCustomTheme {
@@ -85,6 +88,9 @@ class NovelReaderSettings {
     this.lightThemeId = defaultLightThemeId,
     this.darkThemeId = defaultDarkThemeId,
     this.keepScreenOn = true,
+    this.mode = NovelReaderMode.scroll,
+    this.instantPageTurn = false,
+    this.volumeKey = true,
   }) : _customThemes = const [],
        fontSize = fontSize != fontSize
            ? defaultFontSize
@@ -117,6 +123,9 @@ class NovelReaderSettings {
       lightThemeId = base.lightThemeId,
       darkThemeId = base.darkThemeId,
       keepScreenOn = base.keepScreenOn,
+      mode = base.mode,
+      instantPageTurn = base.instantPageTurn,
+      volumeKey = base.volumeKey,
       _customThemes = List.unmodifiable(themes);
 
   static const storageKey = 'reader_novel_settings_v1';
@@ -142,6 +151,13 @@ class NovelReaderSettings {
   final String lightThemeId;
   final String darkThemeId;
   final bool keepScreenOn;
+  final NovelReaderMode mode;
+
+  /// 翻页模式下瞬时跳页（无过渡动画），与漫画阅读器的「无动画翻页」同一语义。
+  final bool instantPageTurn;
+
+  /// 翻页模式下允许音量键翻页（音量+上一页、音量-下一页）。
+  final bool volumeKey;
   final List<NovelReaderCustomTheme> _customThemes;
   List<NovelReaderCustomTheme> get customThemes => _customThemes;
 
@@ -227,6 +243,10 @@ class NovelReaderSettings {
         fallback: legacyId ?? defaultDarkThemeId,
       ),
       keepScreenOn: jsonBool(json, 'keepScreenOn', fallback: true),
+      // 未知/缺失的阅读模式回退滚动：旧版本记录与损坏数据都安全。
+      mode: _modeFromJson(jsonString(json, 'mode')),
+      instantPageTurn: jsonBool(json, 'instantPageTurn'),
+      volumeKey: jsonBool(json, 'volumeKey', fallback: true),
     ).copyWith(customThemes: themes);
   }
 
@@ -238,6 +258,9 @@ class NovelReaderSettings {
     'darkThemeId': themeIdFor(dark: true),
     'customThemes': _customThemes.map((theme) => theme.toJson()).toList(),
     'keepScreenOn': keepScreenOn,
+    'mode': mode.name,
+    'instantPageTurn': instantPageTurn,
+    'volumeKey': volumeKey,
   };
 
   NovelReaderSettings copyWith({
@@ -248,6 +271,9 @@ class NovelReaderSettings {
     String? darkThemeId,
     List<NovelReaderCustomTheme>? customThemes,
     bool? keepScreenOn,
+    NovelReaderMode? mode,
+    bool? instantPageTurn,
+    bool? volumeKey,
   }) {
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -256,6 +282,9 @@ class NovelReaderSettings {
       lightThemeId: lightThemeId ?? this.lightThemeId,
       darkThemeId: darkThemeId ?? this.darkThemeId,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+      mode: mode ?? this.mode,
+      instantPageTurn: instantPageTurn ?? this.instantPageTurn,
+      volumeKey: volumeKey ?? this.volumeKey,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();
     final themes = (customThemes ?? _customThemes)
@@ -353,7 +382,10 @@ class NovelReaderSettings {
       themeIdFor(dark: false) == other.themeIdFor(dark: false) &&
       themeIdFor(dark: true) == other.themeIdFor(dark: true) &&
       listEquals(_customThemes, other._customThemes) &&
-      keepScreenOn == other.keepScreenOn;
+      keepScreenOn == other.keepScreenOn &&
+      mode == other.mode &&
+      instantPageTurn == other.instantPageTurn &&
+      volumeKey == other.volumeKey;
 
   @override
   int get hashCode => Object.hash(
@@ -364,5 +396,14 @@ class NovelReaderSettings {
     themeIdFor(dark: true),
     Object.hashAll(_customThemes),
     keepScreenOn,
+    mode,
+    instantPageTurn,
+    volumeKey,
   );
 }
+
+/// 未知/缺失的阅读模式一律回退到滚动，保证旧记录与损坏数据可读。
+NovelReaderMode _modeFromJson(String raw) => NovelReaderMode.values.firstWhere(
+  (mode) => mode.name == raw,
+  orElse: () => NovelReaderMode.scroll,
+);

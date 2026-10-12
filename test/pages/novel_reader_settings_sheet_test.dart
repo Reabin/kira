@@ -307,6 +307,56 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('reading mode switch reveals and edits page-turn settings', (
+    tester,
+  ) async {
+    var latest = const NovelReaderSettings();
+    await _mount(tester, onChanged: (value) => latest = value);
+    // 滚动模式下不显示翻页分组。
+    expect(find.byKey(const ValueKey('novel-volume-key')), findsNothing);
+    expect(find.byKey(const ValueKey('novel-instant-page-turn')), findsNothing);
+    await tester.tap(find.text('翻页'));
+    await tester.pumpAndSettle();
+    expect(latest.mode, NovelReaderMode.paged);
+    // 翻页设置紧跟模式切换、排在字号之前，方便用户对比两种模式的差别。
+    final modeBottom = tester
+        .getBottomLeft(find.byKey(const ValueKey('novel-reader-mode')))
+        .dy;
+    final volumeTop = tester
+        .getTopLeft(find.byKey(const ValueKey('novel-volume-key')))
+        .dy;
+    final instantTop = tester
+        .getTopLeft(find.byKey(const ValueKey('novel-instant-page-turn')))
+        .dy;
+    final fontTop = tester
+        .getTopLeft(find.byKey(const ValueKey('novel-font-size')))
+        .dy;
+    expect(volumeTop, greaterThan(modeBottom));
+    expect(instantTop, greaterThan(volumeTop));
+    expect(fontTop, greaterThan(instantTop));
+    // 翻页设置默认值：音量键开启、无动画关闭。
+    expect(
+      tester
+          .widget<SwitchListTile>(find.byKey(const ValueKey('novel-volume-key')))
+          .value,
+      isTrue,
+    );
+    await _tapVisible(tester, 'novel-volume-key');
+    expect(latest.volumeKey, isFalse);
+    await _tapVisible(tester, 'novel-instant-page-turn');
+    expect(latest.instantPageTurn, isTrue);
+    // 切回滚动模式后翻页分组收起，已改的开关值仍保留。
+    final modeButton = find.byKey(const ValueKey('novel-reader-mode'));
+    await tester.ensureVisible(modeButton);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('滚动'));
+    await tester.pumpAndSettle();
+    expect(latest.mode, NovelReaderMode.scroll);
+    expect(latest.volumeKey, isFalse);
+    expect(latest.instantPageTurn, isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'novel settings embed global status settings and support first-to-last drag',
     (tester) async {

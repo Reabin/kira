@@ -330,11 +330,9 @@ NovelReaderLocation _centerLocation(WidgetTester tester) => tester
     .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
     .anchorAtViewportCenter()!;
 
-/// 双击一个段落：第二次 tap 落在双击窗口内，由段落的 onDoubleTap 接管。
-Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
-  await tester.tap(finder, warnIfMissed: false);
-  await tester.pump(const Duration(milliseconds: 80));
-  await tester.tap(finder, warnIfMissed: false);
+/// 长按一个段落：弹出段落上下文菜单（两种阅读模式同一手势）。
+Future<void> _longPress(WidgetTester tester, Finder finder) async {
+  await tester.longPress(finder, warnIfMissed: false);
   await tester.pumpAndSettle();
 }
 
@@ -872,7 +870,7 @@ void main() {
     },
   );
 
-  testWidgets('double-tap paragraph opens the action menu and copies text', (
+  testWidgets('long-press paragraph opens the action menu and copies text', (
     tester,
   ) async {
     String? clipboard;
@@ -893,7 +891,7 @@ void main() {
     );
 
     await _mount(tester, repository, store);
-    await _doubleTap(tester, find.text('v1 entry 0 paragraph 0'));
+    await _longPress(tester, find.text('v1 entry 0 paragraph 0'));
     expect(find.text('复制'), findsOneWidget);
     expect(find.text('书签'), findsOneWidget);
 
@@ -908,10 +906,10 @@ void main() {
   });
 
   testWidgets(
-    'double-tap menu bookmark stores the tapped paragraph and flashes highlight',
+    'long-press menu bookmark stores the tapped paragraph and flashes highlight',
     (tester) async {
       await _mount(tester, repository, store);
-      await _doubleTap(tester, find.text('v1 entry 0 paragraph 2'));
+      await _longPress(tester, find.text('v1 entry 0 paragraph 2'));
       await tester.tap(find.text('书签'));
       await _settle(tester);
       final bookmark = _bookmarks.bookmarks.single;
@@ -935,18 +933,18 @@ void main() {
   );
 
   testWidgets(
-    'double-tap menu offers bookmark removal for an already bookmarked paragraph',
+    'long-press menu offers bookmark removal for an already bookmarked paragraph',
     (tester) async {
       await tester.runAsync(
         () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
       );
       await _mount(tester, repository, store);
-      // 已收藏段落带小书签标记，双击菜单文案仍为「书签」。
+      // 已收藏段落带小书签标记，长按菜单文案仍为「书签」。
       expect(
         find.byKey(const ValueKey('novel-paragraph-marker-0-0')),
         findsOneWidget,
       );
-      await _doubleTap(tester, paragraphText('v1 entry 0 paragraph 0'));
+      await _longPress(tester, paragraphText('v1 entry 0 paragraph 0'));
       await tester.tap(find.text('书签'));
       await _settle(tester);
       expect(_bookmarks.bookmarks, isEmpty);
@@ -1011,7 +1009,7 @@ void main() {
     },
   );
 
-  testWidgets('double-tap menu disables actions on blank paragraphs', (
+  testWidgets('long-press menu disables actions on blank paragraphs', (
     tester,
   ) async {
     repository = _Repository({
@@ -1024,7 +1022,7 @@ void main() {
           matching: find.byType(Text),
         )
         .first;
-    await _doubleTap(tester, blank);
+    await _longPress(tester, blank);
     expect(find.text('复制'), findsOneWidget);
     // PopupMenuItem 是泛型类，byType 匹配不到，用 is 谓词。
     Finder menuItem(Finder of) => find.ancestor(
@@ -1218,7 +1216,7 @@ void main() {
       await _flush(tester);
       // 用户滚动会自动隐藏工具栏；本用例专注几何稳定，先点回工具栏。
       expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
-      // 点在页边空白（非段落文字），只切工具栏，不进入段落双击识别。
+      // 点在页边空白（非段落文字），只切工具栏，不会弹段落菜单。
       await tester.tapAt(
         Offset(
           tester.getRect(surface).left + 8,
