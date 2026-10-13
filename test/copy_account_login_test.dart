@@ -107,9 +107,7 @@ void main() {
   late FutureOr<ResponseBody> Function(RequestOptions) response;
   late FutureOr<ResponseBody> Function(RequestOptions) primaryResponse;
   var expectedPrimaryRequests = 0;
-  var expectedReLogins = 0;
   var probes = 0;
-  var reLogins = 0;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({
@@ -134,9 +132,7 @@ void main() {
     SecureCredentialStore.setInstance(secure);
     await user.init();
     probes = 0;
-    reLogins = 0;
     expectedPrimaryRequests = 0;
-    expectedReLogins = 0;
     LoginNodeStatusCard.probeOverride = (hosts, {onHostResult}) async {
       probes++;
       for (final host in hosts) {
@@ -163,14 +159,6 @@ void main() {
       user: user,
       cache: DataCache(),
     );
-    transport.loginHandler = (_, _) async {
-      reLogins++;
-      throw StateError('Unexpected HOT auto-login');
-    };
-    transport.copyLoginHandler = (_, _) async {
-      reLogins++;
-      throw StateError('Unexpected primary COPY auto-login');
-    };
     api = UserApi(
       transport,
       copyDioFactory: (options) =>
@@ -187,7 +175,6 @@ void main() {
 
   tearDown(() {
     expect(mainAdapter.requests, hasLength(expectedPrimaryRequests));
-    expect(reLogins, expectedReLogins);
     primaryDio.close();
     commentDio.close();
     LoginNodeStatusCard.probeOverride = null;
@@ -426,58 +413,6 @@ void main() {
     },
   );
 
-  for (final switchAccount in [false, true]) {
-    test(
-      'late primary COPY 401 relogin cannot ${switchAccount ? 'overwrite switched COPY' : 'revive logged-out COPY'}',
-      () async {
-        await user.setLoginSource('copy');
-        await user.setAutoLogin(true);
-        await user.copyAccount.saveSession(_oldSession);
-        final started = Completer<void>();
-        final relogin = Completer<Map<String, dynamic>>();
-        expectedPrimaryRequests = 2;
-        expectedReLogins = 1;
-        transport.copyLoginHandler = (_, _) {
-          reLogins++;
-          started.complete();
-          return relogin.future;
-        };
-        primaryResponse = (_) => mainAdapter.requests.length == 1
-            ? _jsonResponse({'code': 401}, 401)
-            : _jsonResponse({'code': 200, 'results': <String, Object>{}});
-        final request = primaryDio.get<dynamic>(
-          'https://primary.test/needs-auth',
-        );
-        await started.future;
-        if (switchAccount) {
-          await user.copyAccount.saveSession(
-            const CopyAccountSession(
-              token: 'manually-switched-copy',
-              userId: 'switched-id',
-            ),
-          );
-        } else {
-          await user.copyAccount.logout();
-        }
-        final beforeRecord = await secure.readCopyAccountRecord();
-        final beforeRevision = user.copyAccount.revision;
-        relogin.complete({
-          'token': 'late-primary-copy',
-          'user_id': 'copy-id',
-          'username': 'copy-main',
-          'nickname': 'COPY main',
-          'avatar': '',
-        });
-        await request;
-        expect(user.token, 'late-primary-copy');
-        expect(user.copyToken, switchAccount ? 'manually-switched-copy' : null);
-        expect(user.copyAccount.revision, beforeRevision);
-        expect(await secure.readCopyAccountRecord(), beforeRecord);
-        await user.init();
-        expect(user.copyToken, switchAccount ? 'manually-switched-copy' : null);
-      },
-    );
-  }
 
   testWidgets(
     'switching HOT to COPY rejects a HOT-valid token without touching accounts',
@@ -596,7 +531,7 @@ void main() {
   );
 
   testWidgets(
-    'COPY-only mode exposes account form plus official and token login entries',
+    'COPY-only mode exposes the account form and token login entry',
     (tester) async {
       await pumpLogin(tester);
       expect(find.byType(SegmentedButton<bool>), findsNothing);
@@ -605,13 +540,13 @@ void main() {
       expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
       expect(find.text('热辣漫画'), findsNothing);
       expect(find.text('same-username'), findsNothing);
-      expect(find.byTooltip('官网登录'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('official-register-copy')),
         findsNothing,
       );
-      expect(find.byIcon(Icons.language), findsOneWidget);
       expect(find.byIcon(Icons.key), findsOneWidget);
+      // 签名密钥未配置时只提供网页登录，通道选择器整块不展示。
+      expect(find.text('接口登录'), findsNothing);
       expect(
         tester
             .widget<LoginNodeStatusCard>(find.byType(LoginNodeStatusCard))
@@ -825,7 +760,7 @@ void main() {
 
   for (final copyOnly in [false, true]) {
     testWidgets(
-      'official login route supports cancel and success in copyOnly=$copyOnly',
+      'web login route supports cancel and success in copyOnly=$copyOnly',
       (tester) async {
         await pumpLogin(tester, copyOnly: copyOnly);
         if (!copyOnly) {
@@ -835,14 +770,16 @@ void main() {
         final before = _mainSnapshot(user);
         expect(find.byType(TextField), findsNWidgets(2));
         expect(find.byType(CheckboxListTile), findsNothing);
-        expect(find.byTooltip('官网登录'), findsOneWidget);
         expect(find.byIcon(Icons.key), findsOneWidget);
         expect(
           find.byKey(const ValueKey('official-register-copy')),
           findsNothing,
         );
 
-        await tester.tap(find.byTooltip('官网登录'));
+        // 网页登录是拷贝模式的默认通道，登录按钮直接进入官网页面。
+        await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+        await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+        await tester.tap(find.widgetWithText(FilledButton, '登录'));
         await tester.pumpAndSettle();
         expect(find.text('test-official-login'), findsOneWidget);
         await tester.tap(find.text('test-web-cancel'));
@@ -851,7 +788,7 @@ void main() {
         expect(find.byType(TextField), findsNWidgets(2));
         expect(_mainSnapshot(user), before);
 
-        await tester.tap(find.byTooltip('官网登录'));
+        await tester.tap(find.widgetWithText(FilledButton, '登录'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('test-web-success'));
         await tester.pumpAndSettle();
@@ -1555,40 +1492,6 @@ void main() {
     },
   );
 
-  test(
-    'late HOT auto-login cannot overwrite a new token-only COPY login',
-    () async {
-      await user.setAutoLogin(true);
-      final started = Completer<void>();
-      final relogin = Completer<Map<String, dynamic>>();
-      expectedPrimaryRequests = 1;
-      expectedReLogins = 1;
-      transport.loginHandler = (_, _) {
-        reLogins++;
-        started.complete();
-        return relogin.future;
-      };
-      primaryResponse = (_) => _jsonResponse({'code': 401}, 401);
-      final request = primaryDio.get<dynamic>(
-        'https://primary.test/needs-auth',
-      );
-      final rejected = expectLater(request, throwsA(isA<DioException>()));
-      await started.future;
-      expect(await webTokenLogin('new-copy-token'), isTrue);
-      final before = _mainSnapshot(user);
-      relogin.complete({
-        'token': 'late-hot-token',
-        'username': 'same-username',
-        'user_id': 'hot-id',
-      });
-      await rejected;
-      expect(_mainSnapshot(user), before);
-      expect(user.loginSource, 'hotmanga');
-      expect(user.copyToken, 'new-copy-token');
-      await user.init();
-      expect(user.token, 'hot-token');
-    },
-  );
 
   test(
     'WebView official login stores a new novel account without switching',
@@ -1625,19 +1528,6 @@ void main() {
       );
     },
   );
-
-  test('地球按钮进官网会带着上次会话，登录页填表的自动登录不会', () {
-    // 判据是入口：地球按钮 push 时不带 extra（autoFill 为空）→ 页面可能已
-    // 登录着上次的账号，要停下来等确认；登录页填好账号 push 时带 extra →
-    // 全程自动完成。
-    expect(const WebViewLoginPage().resumeSession, isTrue);
-    expect(
-      const WebViewLoginPage(
-        autoFill: (username: 'u', password: 'p'),
-      ).resumeSession,
-      isFalse,
-    );
-  });
 
   test(
     'web login form password is stored for the matching account only',
@@ -1790,60 +1680,4 @@ void main() {
     },
   );
 
-  test(
-    'primary COPY 401 auto-relogin follows the rotated token in the account list',
-    () async {
-      await user.setLoginSource('copy');
-      await user.setAutoLogin(true);
-      response = (_) => _jsonResponse({
-        'code': 200,
-        'results': {
-          'token': 'copy-token-1',
-          'user_id': 'copy-id',
-          'username': 'copy-main',
-        },
-      });
-      // 带密码登录：自动重登录依赖已保存的密码。
-      expect(
-        await user.authenticateAndLogin(
-          source: 'copy',
-          password: 'copy-password',
-          authenticate: () => api.copyLogin('same-username', 'copy-password'),
-        ),
-        isTrue,
-      );
-      expect(user.copyAccount.token, 'copy-token-1');
-
-      final started = Completer<void>();
-      final relogin = Completer<Map<String, dynamic>>();
-      expectedPrimaryRequests = 2;
-      expectedReLogins = 1;
-      transport.copyLoginHandler = (_, _) {
-        reLogins++;
-        started.complete();
-        return relogin.future;
-      };
-      primaryResponse = (_) => mainAdapter.requests.length == 1
-          ? _jsonResponse({'code': 401}, 401)
-          : _jsonResponse({'code': 200, 'results': <String, Object>{}});
-      final request = primaryDio.get<dynamic>(
-        'https://primary.test/needs-auth',
-      );
-      await started.future;
-      relogin.complete({
-        'token': 'copy-token-2',
-        'user_id': 'copy-id',
-        'username': 'copy-main',
-      });
-      await request;
-      expect(user.token, 'copy-token-2');
-      expect(
-        user.copyAccount.token,
-        'copy-token-2',
-        reason: '账号库 token 必须跟随轮换，否则同一账号在账号中心渲染两条',
-      );
-      expect(user.copyAccount.activeId, 'u:copy-id');
-      expect(user.copyAccount.accounts, hasLength(1));
-    },
-  );
 }

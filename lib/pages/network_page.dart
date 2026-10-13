@@ -7,6 +7,7 @@ import '../api/api_transport.dart'
         routes,
         defaultCopyApiHost,
         defaultCopyAppVersion,
+        defaultCopyVersionCode,
         defaultCopyLoginHost,
         copyLoginHostOptions;
 import '../l10n/app_localizations.dart';
@@ -52,6 +53,7 @@ class _NetworkPageState extends State<NetworkPage>
   final _proxyAddressController = TextEditingController();
   final _copyApiHostController = TextEditingController();
   final _copyAppVersionController = TextEditingController();
+  final _copyVersionCodeController = TextEditingController();
   final _customLoginHostController = TextEditingController();
 
   bool _testingLatency = false;
@@ -80,6 +82,7 @@ class _NetworkPageState extends State<NetworkPage>
     _proxyAddressController.text = _manualProxyAddress;
     _copyApiHostController.text = _user.copyApiHost;
     _copyAppVersionController.text = _user.copyAppVersion;
+    _copyVersionCodeController.text = _user.copyVersionCode;
     _manualProxyType = _user.networkProxyType;
     _user.addListener(_onChanged);
     // 进入页面即自动测速一次,让用户第一时间看到各线路/节点延迟。
@@ -97,6 +100,7 @@ class _NetworkPageState extends State<NetworkPage>
     _proxyAddressController.dispose();
     _copyApiHostController.dispose();
     _copyAppVersionController.dispose();
+    _copyVersionCodeController.dispose();
     _customLoginHostController.dispose();
     super.dispose();
   }

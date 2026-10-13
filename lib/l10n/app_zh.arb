@@ -187,7 +187,6 @@
   },
   "laterButton": "稍后再说",
   "goLoginButton": "去登录",
-  "autoLoginFailed": "自动登录失败，请手动重新登录",
   "loginToViewBookshelf": "登录后可继续查看书架",
   "searchHint": "搜索{mode}...",
   "@searchHint": {
@@ -251,9 +250,6 @@
   "deleteToastSuffixComic": " 部本地漫画",
   "chapterUnit": "章",
   "generalTitle": "通用",
-  "autoLoginTitle": "自动登录",
-  "autoLoginEnabledDesc": "登录过期时自动重新登录",
-  "autoLoginUnavailableDesc": "登录并保存账号密码后可用",
   "remoteNoticeTitle": "通知",
   "remoteNoticeDesc": "开启后应用启动时自动检查通知；关闭后仅在进入通知中心时获取",
   "noticeSettingsTooltip": "通知设置",
@@ -631,6 +627,7 @@
   "networkCopyLoginDomainEditTitle": "修改登录域名",
   "networkCopyLoginDomainDuplicate": "该域名已在列表中",
   "networkCopyAppVersion": "COPY 请求版本号",
+  "networkCopyVersionCode": "COPY versionCode",
   "networkCopyAutoUpdate": "每天自动更新",
   "networkCopyAutoUpdateNever": "尚未更新",
   "networkCopyAutoUpdateLast": "上次更新：{time}",
@@ -962,28 +959,19 @@
   "profileAccountPasswordLoginMode": "账号密码",
   "profileTokenLoginMode": "令牌",
   "profileTokenLoginEntry": "令牌登录",
-  "profileWebLoginButton": "官网登录",
-  "profileWebLoginRecommendedTag": "推荐",
-  "profileWebLoginPageTitle": "官网登录",
-  "profileWebLoginHint": "在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态",
-  "profileWebLoginCompleting": "已获取登录信息，正在验证…",
-  "profileWebLoginManualButton": "我已完成登录",
-  "profileWebLoginNotDetected": "未检测到登录信息，请先在官网中完成登录",
-  "profileWebLoginResetTooltip": "清除官网登录状态",
-  "profileWebLoginResetDone": "已清除官网登录状态，请登录其他账号",
-  "profileWebLoginKnownAccount": "检测到本机已保存的账号「{name}」，尚未自动登录",
-  "@profileWebLoginKnownAccount": {
+  "copyAccountChannelWeb": "网页登录",
+  "copyAccountChannelApp": "接口登录",
+  "copyAccountAppLoginFailed": "登录失败：{detail}",
+  "@copyAccountAppLoginFailed": {
     "placeholders": {
-      "name": {
+      "detail": {
         "type": "String"
       }
     }
   },
-  "profileWebLoginKnownAccountFallback": "已保存的账号",
-  "profileWebLoginUseAccount": "使用该账号",
-  "profileWebLoginSwitchAccount": "切换其他账号",
-  "profileWebLoginRetryButton": "重新检测登录",
-  "profileWebLoginResetFailed": "清除官网登录状态失败，请重试",
+  "profileWebLoginPageTitle": "官网登录",
+  "profileWebLoginHint": "在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。",
+  "profileWebLoginCompleting": "已获取登录信息，正在验证…",
   "profileWebLoginFailed": "官网登录失败",
   "profileCopyAutoLoginRejected": "登录被拒绝：{detail}",
   "@profileCopyAutoLoginRejected": {

@@ -101,6 +101,8 @@ jobs:
 
       - name: Build APK
         shell: pwsh
+        env:
+          COPY_AUTH_KEY: ${{ secrets.COPY_AUTH_KEY }}
         run: scripts/build_apk.ps1 -TargetPlatform ${{ matrix.target-platform }} -Abi ${{ matrix.abi }}
 
       - name: Upload APK artifacts
@@ -148,6 +150,8 @@ jobs:
 
       - name: Build installer
         shell: pwsh
+        env:
+          COPY_AUTH_KEY: ${{ secrets.COPY_AUTH_KEY }}
         run: scripts/build_windows.ps1
 
       - name: Upload installer artifact

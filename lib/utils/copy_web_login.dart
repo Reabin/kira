@@ -40,72 +40,11 @@ class CopyWebCredentials {
     required this.avatar,
     this.profileBoundToToken = false,
   });
-
-  /// 该凭证是否与本机已保存的某个拷贝账号是同一个。
-  ///
-  /// WebView 里的登录态是持久的，官网登录页一打开就可能带着旧账号的
-  /// cookie/storage。用于区分「本机认识的账号」（停提示条确认）与
-  /// 「本次新登录的账号」。
-  bool matchesSavedAccount(UserManager user) {
-    final candidate = token.trim();
-    if (candidate.isEmpty) return false;
-    for (final account in user.copyAccount.accounts) {
-      if (account.token == candidate) return true;
-      if (userId.isNotEmpty && account.userId == userId) return true;
-      if (username.isNotEmpty && account.username == username) return true;
-    }
-    for (final account in [?user.currentCredential, ...user.savedCredentials]) {
-      if (account.source != 'copy') continue;
-      if (account.token == candidate) return true;
-      if (userId.isNotEmpty && account.userId == userId) return true;
-      if (username.isNotEmpty && account.username == username) return true;
-    }
-    return false;
-  }
 }
 
-/// WebView 提取到登录态后的处置动作。
-enum WebLoginDisposition {
-  /// 直接完成登录。
-  complete,
-
-  /// 停在提示条上让用户确认（已保存的账号）。
-  knownAccount,
-
-  /// 静默不动，把页面留给用户去登录别的账号。
-  ignore,
-}
-
-/// 决定 WebView 里提取到的登录态如何处置。
-///
-/// 两个入口的性质不同，判定要分开：
-///
-/// - **登录页填好账号后自动登录**（[resumeSession] 为 false）：整个过程是用户
-///   在应用里发起的，提取到什么就是他要的账号，[submittedLogin] 一旦为真直接
-///   完成，不中途停下——否则界面显示「登录成功」却停在提示条上，看起来没生效。
-/// - **右上角地球按钮手动进官网**（[resumeSession] 为 true）：页面一打开就可能
-///   带着上次的登录态，而用户进来往往正是为了换账号。此时即便钩到本次登录提交，
-///   只要落回本机已保存的账号也停在提示条上等他确认，免得来不及切换就被抢登
-///   回来。换成另一个账号（未保存）或点 [manual] 则照常完成。
-///
-/// 没有 [submittedLogin] 时，提取到的只能是进入页面前残留的旧会话，一律不自动
-/// 完成——尤其该账号刚被登出/删除时，自动完成会在用户输入新账号前把它抢登
-/// 回来：已保存的停在提示条上让用户确认，未保存的静默。
-WebLoginDisposition disposeWebLoginCredentials({
-  required CopyWebCredentials credentials,
-  required UserManager user,
-  required bool submittedLogin,
-  bool manual = false,
-  bool resumeSession = false,
-}) {
-  if (manual) return WebLoginDisposition.complete;
-  if (submittedLogin && !resumeSession) return WebLoginDisposition.complete;
-  final known = credentials.matchesSavedAccount(user);
-  if (known) return WebLoginDisposition.knownAccount;
-  return submittedLogin
-      ? WebLoginDisposition.complete
-      : WebLoginDisposition.ignore;
-}
+// 注意：WebView 里的登录态是持久的，页面一打开就可能带着上次的 cookie/
+// storage。调用方必须用「本次是否钩到真实登录提交」来判定能否完成登录，
+// 否则刚被登出/删除的账号会在用户输入新账号前被抢登回来。
 
 /// 官网登录页表单里抓到的账号密码。
 ///

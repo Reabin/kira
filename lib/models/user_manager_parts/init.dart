@@ -107,7 +107,6 @@ extension UserManagerInitPart on UserManager {
         ? 'beta'
         : 'stable';
     _useUpdateMirror = prefs.getBool(UserManager._keyUseUpdateMirror) ?? true;
-    _autoLogin = prefs.getBool(UserManager._keyAutoLogin) ?? false;
     _disclaimerAccepted =
         prefs.getBool(UserManager._keyDisclaimerAccepted) ?? false;
     _loginSource = prefs.getString(UserManager._keyLoginSource) ?? 'hotmanga';
@@ -191,6 +190,9 @@ extension UserManagerInitPart on UserManager {
     }
     _copyAppVersion = UserManager.normalizeCopyAppVersion(
       prefs.getString(UserManager._keyCopyAppVersion),
+    );
+    _copyVersionCode = UserManager.normalizeCopyVersionCode(
+      prefs.getString(UserManager._keyCopyVersionCode),
     );
     _copyAutoUpdate = prefs.getBool(UserManager._keyCopyAutoUpdate) ?? true;
     _copySettingsUpdatedAt = prefs.getInt(

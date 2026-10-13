@@ -721,12 +721,6 @@ abstract class AppLocalizations {
   /// **'去登录'**
   String get goLoginButton;
 
-  /// No description provided for @autoLoginFailed.
-  ///
-  /// In zh, this message translates to:
-  /// **'自动登录失败，请手动重新登录'**
-  String get autoLoginFailed;
-
   /// No description provided for @loginToViewBookshelf.
   ///
   /// In zh, this message translates to:
@@ -840,24 +834,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'通用'**
   String get generalTitle;
-
-  /// No description provided for @autoLoginTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'自动登录'**
-  String get autoLoginTitle;
-
-  /// No description provided for @autoLoginEnabledDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'登录过期时自动重新登录'**
-  String get autoLoginEnabledDesc;
-
-  /// No description provided for @autoLoginUnavailableDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'登录并保存账号密码后可用'**
-  String get autoLoginUnavailableDesc;
 
   /// No description provided for @remoteNoticeTitle.
   ///
@@ -1957,6 +1933,12 @@ abstract class AppLocalizations {
   /// **'COPY 请求版本号'**
   String get networkCopyAppVersion;
 
+  /// No description provided for @networkCopyVersionCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'COPY versionCode'**
+  String get networkCopyVersionCode;
+
   /// No description provided for @networkCopyAutoUpdate.
   ///
   /// In zh, this message translates to:
@@ -3013,17 +2995,23 @@ abstract class AppLocalizations {
   /// **'令牌登录'**
   String get profileTokenLoginEntry;
 
-  /// No description provided for @profileWebLoginButton.
+  /// No description provided for @copyAccountChannelWeb.
   ///
   /// In zh, this message translates to:
-  /// **'官网登录'**
-  String get profileWebLoginButton;
+  /// **'网页登录'**
+  String get copyAccountChannelWeb;
 
-  /// No description provided for @profileWebLoginRecommendedTag.
+  /// No description provided for @copyAccountChannelApp.
   ///
   /// In zh, this message translates to:
-  /// **'推荐'**
-  String get profileWebLoginRecommendedTag;
+  /// **'接口登录'**
+  String get copyAccountChannelApp;
+
+  /// No description provided for @copyAccountAppLoginFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败：{detail}'**
+  String copyAccountAppLoginFailed(String detail);
 
   /// No description provided for @profileWebLoginPageTitle.
   ///
@@ -3034,7 +3022,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileWebLoginHint.
   ///
   /// In zh, this message translates to:
-  /// **'在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态'**
+  /// **'在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。'**
   String get profileWebLoginHint;
 
   /// No description provided for @profileWebLoginCompleting.
@@ -3042,66 +3030,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已获取登录信息，正在验证…'**
   String get profileWebLoginCompleting;
-
-  /// No description provided for @profileWebLoginManualButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'我已完成登录'**
-  String get profileWebLoginManualButton;
-
-  /// No description provided for @profileWebLoginNotDetected.
-  ///
-  /// In zh, this message translates to:
-  /// **'未检测到登录信息，请先在官网中完成登录'**
-  String get profileWebLoginNotDetected;
-
-  /// No description provided for @profileWebLoginResetTooltip.
-  ///
-  /// In zh, this message translates to:
-  /// **'清除官网登录状态'**
-  String get profileWebLoginResetTooltip;
-
-  /// No description provided for @profileWebLoginResetDone.
-  ///
-  /// In zh, this message translates to:
-  /// **'已清除官网登录状态，请登录其他账号'**
-  String get profileWebLoginResetDone;
-
-  /// No description provided for @profileWebLoginKnownAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'检测到本机已保存的账号「{name}」，尚未自动登录'**
-  String profileWebLoginKnownAccount(String name);
-
-  /// No description provided for @profileWebLoginKnownAccountFallback.
-  ///
-  /// In zh, this message translates to:
-  /// **'已保存的账号'**
-  String get profileWebLoginKnownAccountFallback;
-
-  /// No description provided for @profileWebLoginUseAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'使用该账号'**
-  String get profileWebLoginUseAccount;
-
-  /// No description provided for @profileWebLoginSwitchAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'切换其他账号'**
-  String get profileWebLoginSwitchAccount;
-
-  /// No description provided for @profileWebLoginRetryButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'重新检测登录'**
-  String get profileWebLoginRetryButton;
-
-  /// No description provided for @profileWebLoginResetFailed.
-  ///
-  /// In zh, this message translates to:
-  /// **'清除官网登录状态失败，请重试'**
-  String get profileWebLoginResetFailed;
 
   /// No description provided for @profileWebLoginFailed.
   ///

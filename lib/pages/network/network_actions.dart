@@ -303,13 +303,18 @@ extension _NetworkActions on _NetworkPageState {
     final version = UserManager.normalizeCopyAppVersion(
       _copyAppVersionController.text,
     );
+    final versionCode = UserManager.normalizeCopyVersionCode(
+      _copyVersionCodeController.text,
+    );
     final hostChanged = host != _user.copyApiHost;
 
     _copyApiHostController.text = host;
     _copyAppVersionController.text = version;
+    _copyVersionCodeController.text = versionCode;
 
     await _user.setCopyApiHost(host);
     await _user.setCopyAppVersion(version);
+    await _user.setCopyVersionCode(versionCode);
     if (!mounted) return;
 
     if (hostChanged) {
@@ -325,9 +330,11 @@ extension _NetworkActions on _NetworkPageState {
     final hostChanged = _user.copyApiHost != defaultCopyApiHost;
     _copyApiHostController.text = defaultCopyApiHost;
     _copyAppVersionController.text = defaultCopyAppVersion;
+    _copyVersionCodeController.text = defaultCopyVersionCode;
 
     await _user.setCopyApiHost(defaultCopyApiHost);
     await _user.setCopyAppVersion(defaultCopyAppVersion);
+    await _user.setCopyVersionCode(defaultCopyVersionCode);
     if (!mounted) return;
 
     if (hostChanged) {

@@ -17,7 +17,6 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/copy_web_login.dart';
-import '../utils/toast.dart';
 
 /// 官网登录凭据抓取脚本。
 ///
@@ -38,7 +37,8 @@ import '../utils/toast.dart';
 final _loginFormScript = buildCopyLoginFormScript();
 
 /// 官网登录凭据抓包脚本（见上方说明）。独立成公开函数便于离线测试。
-String buildCopyLoginFormScript() => r'''
+String buildCopyLoginFormScript() =>
+    r'''
 (function () {
   if (window.__copyLoginProbe) return;
   window.__copyLoginProbe = true;
@@ -61,7 +61,9 @@ String buildCopyLoginFormScript() => r'''
   }
 
   // 只认登录接口，避免把注册/找回密码的请求当成登录。
-  var loginPaths = ''' + jsonEncode(copyLoginSubmitPaths) + r''';
+  var loginPaths = ''' +
+    jsonEncode(copyLoginSubmitPaths) +
+    r''';
 
   function isLoginUrl(url) {
     if (!url) return false;
@@ -296,23 +298,18 @@ String buildCopyLoginFillScript({
 ''';
 }
 
-/// 通过应用内 WebView 登录拷贝官网：用户在网页中完成登录后，
-/// 从 cookie 中提取 token 并走令牌登录流程。
+/// 通过应用内 WebView 登录拷贝官网。
+///
+/// 用户在 kira 登录页填好账号密码后进入本页，脚本自动填表并触发表单提交，
+/// 网页自己发出登录请求；登录成功后从 cookie/storage 提取 token，走令牌
+/// 登录落库。页面本身不提供手动登录入口——网页里的登录态是持久的，手动
+/// 进入无法区分「本次登录」与「上次残留」，会把已删除的账号抢登回来。
 class WebViewLoginPage extends ConsumerStatefulWidget {
-  const WebViewLoginPage({super.key, this.autoFill});
+  const WebViewLoginPage({super.key, required this.autoFill});
 
-  /// 非空时页面加载完成后自动填表并触发登录；失败时用户仍可在网页里
-  /// 手动改密码重试。
-  final ({String username, String password})? autoFill;
-
-  /// 本页是否可能带着上次的官网会话进入。
-  ///
-  /// 右上角地球按钮手动进官网（[autoFill] 为空）时为真：页面一打开就可能已经
-  /// 登录着上次的账号，用户进来往往正是为了换账号，所以即便本次真的提交了登录，
-  /// 只要落回本机已保存的账号也要停下来等他确认（见
-  /// [disposeWebLoginCredentials] 的 `resumeSession`）。从登录页填好账号进来的
-  /// 自动登录（[autoFill] 非空）为假，整个过程自动完成、不中途停下。
-  bool get resumeSession => autoFill == null;
+  /// 登录页填好的账号密码；页面加载完成后自动填表并触发表单提交，
+  /// 失败时用户仍可在网页里手动改密码重试。
+  final ({String username, String password}) autoFill;
 
   @override
   ConsumerState<WebViewLoginPage> createState() => _WebViewLoginPageState();
@@ -334,13 +331,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   /// 留给用户改密码，避免在页面导航时反复提交同一个错误密码。
   bool _autoFillRejected = false;
 
-  /// 页面上自动识别出的、本机已保存过的账号；非 null 时展示选择栏而不是
-  /// 直接完成登录。
-  CopyWebCredentials? _knownAccount;
-
-  /// 本页是否可能带着上次的官网会话进入。见 [WebViewLoginPage.resumeSession]。
-  bool get _resumeSession => widget.autoFill == null;
-
   /// 表单抓取到的密码，按用户名暂存，登录完成时一并落到对应账号上。
   final _loginFormPasswords = <String, String>{};
 
@@ -355,8 +345,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   String get _host => ref.read(userManagerProvider).copyLoginHost;
-
-  WebUri get _baseUri => WebUri('https://$_host');
 
   /// 官网按 UA 分流：移动 WebView（Android/iOS）会被重定向到 Vant 版 h5
   /// 站点，登录页是 `/h5/login`；桌面 WebView2 的登录页才是
@@ -435,12 +423,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     WebUri? url,
   ) async {
     final fill = widget.autoFill;
-    if (fill == null) return;
     // 已被官网拒绝时不再自动重填，把页面留给用户改密码重试。
     if (_autoFillRejected && _submittedLogin) return;
     final path = url?.toString() ?? '';
     final isLoginPage =
-        path.contains('/web/login/loginByAccount') || path.contains('/h5/login');
+        path.contains('/web/login/loginByAccount') ||
+        path.contains('/h5/login');
     if (!isLoginPage) return;
     try {
       await controller.evaluateJavascript(
@@ -473,7 +461,8 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     _autoFillRejected = false;
     try {
       await _controller?.evaluateJavascript(
-        source: 'window.__copyLoginProbeReset && window.__copyLoginProbeReset();',
+        source:
+            'window.__copyLoginProbeReset && window.__copyLoginProbeReset();',
       );
     } catch (_, st) {
       unawaited(
@@ -495,7 +484,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     final base = _host.startsWith('www.') ? _host.substring(4) : _host;
     final candidates = <WebUri>{
       if (currentUrl != null && _isLoginHost(currentUrl.host)) currentUrl,
-      _baseUri,
+      WebUri('https://$_host'),
       WebUri('https://$base'),
       WebUri('https://www.$base'),
     };
@@ -578,9 +567,8 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
   }
 
-  Future<void> _tryExtractAndFinish({bool manual = false}) async {
+  Future<void> _tryExtractAndFinish() async {
     if (_completing || _readingCredentials) return;
-    final l10n = AppLocalizations.of(context)!;
 
     _readingCredentials = true;
     CopyWebCredentials? credentials;
@@ -607,28 +595,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       _readingCredentials = false;
     }
     if (!mounted) return;
-    if (credentials == null) {
-      if (manual) showToast(context, l10n.profileWebLoginNotDetected);
-      return;
-    }
-
-    // 处置规则见 disposeWebLoginCredentials：手动按钮 → 直接完成；从登录页
-    // 填好账号进来的自动登录 → 不中途停下；地球按钮手动进官网 → 落回已保存
-    // 账号时停下等确认，避免来不及换账号就被抢登回去。
-    switch (disposeWebLoginCredentials(
-      credentials: credentials,
-      user: ref.read(userManagerProvider),
-      submittedLogin: _submittedLogin,
-      manual: manual,
-      resumeSession: _resumeSession,
-    )) {
-      case WebLoginDisposition.complete:
-        await _completeLogin(credentials);
-      case WebLoginDisposition.knownAccount:
-        setState(() => _knownAccount = credentials);
-      case WebLoginDisposition.ignore:
-        setState(() => _knownAccount = null);
-    }
+    // 页面一打开就可能带着上次的官网会话。只有本次真的提交过登录，才能
+    // 认定提取到的是用户刚登录的账号；否则一律不动，免得把已登出/已删除的
+    // 账号在用户输入新账号前抢登回来。
+    if (credentials == null || !_submittedLogin) return;
+    await _completeLogin(credentials);
   }
 
   Future<void> _completeLogin(CopyWebCredentials credentials) async {
@@ -651,14 +622,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       if (saved) {
         // 登录已经成功，保存密码只是附带收益：失败也不影响本次登录。
         await _persistLoginFormPasswords(user);
-        // 自动填表时账号密码是用户在 kira 里输入的，登录请求（尤其移动版
-        // h5）的表单体不一定解析得到，直接按本次登录的 token 锚定并回。
+        // 账号密码是用户在 kira 里输入的，登录请求（尤其移动版 h5）的表单体
+        // 不一定解析得到，直接按本次登录的 token 锚定并回。
         final fill = widget.autoFill;
-        if (fill != null) {
-          await user.saveLoginFormPasswords({
-            fill.username: fill.password,
-          }, anchorToken: credentials.token);
-        }
+        await user.saveLoginFormPasswords({
+          fill.username: fill.password,
+        }, anchorToken: credentials.token);
         if (!mounted) return;
         context.pop(true);
       } else {
@@ -685,88 +654,13 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
   }
 
-  /// 重新识别当前网页里的登录态。走的是自动流程，所以若还是那个已保存的
-  /// 账号，会重新停在提示条上；只有用户真的换成了另一个账号才自动完成。
-  Future<void> _retryExtraction() async {
-    setState(() {
-      _error = null;
-      _knownAccount = null;
-    });
-    await _tryExtractAndFinish();
-  }
-
-  /// Wipe every trace of the previous web session before loading the login
-  /// page. Cookies alone are not enough: the official site also persists the
-  /// token in localStorage/sessionStorage, and either one makes the next
-  /// visit silently land on the previously logged-in account, which is why
-  /// switching to another account looked impossible.
-  Future<void> _resetWebSession() async {
-    final l10n = AppLocalizations.of(context)!;
-    final manager = CookieManager.instance();
-    try {
-      await manager.deleteAllCookies();
-      // WebView storage is per-origin and is not covered by cookie deletion.
-      await WebStorageManager.instance().deleteAllData();
-    } catch (_, st) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          'Unable to clear COPY WebView session',
-          stackTrace: st,
-          source: 'webview_login.reset_session',
-        ),
-      );
-      if (mounted) showToast(context, l10n.profileWebLoginResetFailed);
-    }
-    if (!mounted) return;
-    setState(() {
-      _error = null;
-      _knownAccount = null;
-      // 会话已清空，重新开始观察本次的登录提交。
-      _submittedLogin = false;
-      _autoFillRejected = false;
-    });
-    await _controller?.loadUrl(urlRequest: URLRequest(url: _loginUri));
-    if (mounted) showToast(context, l10n.profileWebLoginResetDone);
-  }
-
-  /// 已保存账号的展示名：优先用户名，其次昵称，最后回落到通用文案，
-  /// 避免在页面上暴露完整的账号标识。
-  String _knownName(CopyWebCredentials credentials) {
-    final l10n = AppLocalizations.of(context)!;
-    for (final candidate in [credentials.username, credentials.nickname]) {
-      if (candidate.trim().isNotEmpty) return candidate.trim();
-    }
-    return l10n.profileWebLoginKnownAccountFallback;
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.profileWebLoginPageTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.profileWebLoginResetTooltip,
-            onPressed: _completing ? null : _resetWebSession,
-            icon: const Icon(Icons.restart_alt),
-          ),
-          TextButton(
-            onPressed: _completing
-                ? null
-                : () => _knownAccount == null
-                      ? _tryExtractAndFinish(manual: true)
-                      : _retryExtraction(),
-            child: Text(
-              _knownAccount == null
-                  ? l10n.profileWebLoginManualButton
-                  : l10n.profileWebLoginRetryButton,
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.profileWebLoginPageTitle)),
       body: Stack(
         children: [
           Column(
@@ -789,13 +683,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                   ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ),
-              if (_knownAccount case final known?)
-                _KnownAccountBanner(
-                  key: const ValueKey('web-login-known-account'),
-                  accountName: _knownName(known),
-                  onUse: () => _completeLogin(known),
-                  onSwitch: _resetWebSession,
-                ),
               if (_error != null)
                 Container(
                   width: double.infinity,
@@ -872,65 +759,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 官网登录页检测到的「本机已保存账号」提示条。
-///
-/// 自动完成会让用户没有机会切换账号，所以这里停下来问一句：直接用这个账号，
-/// 还是清掉登录态去登另一个。
-class _KnownAccountBanner extends StatelessWidget {
-  const _KnownAccountBanner({
-    super.key,
-    required this.accountName,
-    required this.onUse,
-    required this.onSwitch,
-  });
-
-  final String accountName;
-  final VoidCallback onUse;
-  final VoidCallback onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Container(
-      width: double.infinity,
-      color: cs.secondaryContainer,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.profileWebLoginKnownAccount(accountName),
-            style: tt.bodySmall?.copyWith(color: cs.onSecondaryContainer),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                key: const ValueKey('web-login-switch-account'),
-                onPressed: onSwitch,
-                child: Text(l10n.profileWebLoginSwitchAccount),
-              ),
-              TextButton(
-                key: const ValueKey('web-login-use-account'),
-                onPressed: onUse,
-                child: Text(l10n.profileWebLoginUseAccount),
-              ),
-            ],
-          ),
         ],
       ),
     );

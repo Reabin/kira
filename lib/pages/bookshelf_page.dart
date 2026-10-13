@@ -489,19 +489,6 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
   Future<void> _handleUnauthorized() async {
     if (_showingLoginPrompt || !mounted) return;
 
-    // 自动登录开启时，拦截器已尝试自动登录但失败了，静默提示即可
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(
-          context,
-          AppLocalizations.of(context)!.autoLoginFailed,
-          isError: true,
-        );
-      }
-      return;
-    }
-
     _showingLoginPrompt = true;
 
     await _user.logout();

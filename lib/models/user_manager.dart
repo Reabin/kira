@@ -239,7 +239,6 @@ class UserManager extends ChangeNotifier {
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
   static const _keyUpdateChannel = 'update_channel'; // stable | beta
   static const _keyUseUpdateMirror = 'use_update_mirror';
-  static const _keyAutoLogin = 'auto_login';
   static const _keyDisclaimerAccepted = 'disclaimer_accepted';
   static const _keyLoginSource = 'login_source';
   static const _keyApiRoute = 'api_route';
@@ -253,6 +252,7 @@ class UserManager extends ChangeNotifier {
   static const _keyCopyLoginHost = 'copy_login_host';
   static const _keyCustomCopyLoginHosts = 'copy_login_custom_hosts';
   static const _keyCopyAppVersion = 'copy_app_version';
+  static const _keyCopyVersionCode = 'copy_version_code';
   static const _keyCopyAutoUpdate = 'copy_auto_update';
   static const _keyCopySettingsUpdatedAt = 'copy_settings_updated_at';
   static const _keyCopyHomeSectionCollapsed = 'copy_home_section_collapsed';
@@ -311,7 +311,6 @@ class UserManager extends ChangeNotifier {
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
   String _updateChannel = 'stable'; // stable | beta
   bool _useUpdateMirror = true;
-  bool _autoLogin = false;
   bool _disclaimerAccepted = false;
   String _loginSource = 'hotmanga';
   int _apiRoute = 0; // 0=线路1(默认), 1=线路2
@@ -333,6 +332,7 @@ class UserManager extends ChangeNotifier {
   /// 用户自定义的拷贝登录域名（内置 [copyLoginHostOptions] 之外）。
   List<String> _customCopyLoginHosts = [];
   String _copyAppVersion = defaultCopyAppVersion;
+  String _copyVersionCode = defaultCopyVersionCode;
   bool _copyAutoUpdate = true;
   int? _copySettingsUpdatedAt;
   Map<String, bool> _copyHomeSectionCollapsed = {};
@@ -429,7 +429,6 @@ class UserManager extends ChangeNotifier {
   String get updateChannel => _updateChannel;
   bool get isBetaUpdateChannel => _updateChannel == 'beta';
   bool get useUpdateMirror => _useUpdateMirror;
-  bool get autoLogin => _autoLogin;
   bool get disclaimerAccepted => _disclaimerAccepted;
   String get loginSource => _loginSource;
   int get apiRoute => _apiRoute;
@@ -463,6 +462,7 @@ class UserManager extends ChangeNotifier {
     ..._customCopyLoginHosts.where((h) => !copyLoginHostOptions.contains(h)),
   ]);
   String get copyAppVersion => _copyAppVersion;
+  String get copyVersionCode => _copyVersionCode;
   bool get copyAutoUpdate => _copyAutoUpdate;
   int? get copySettingsUpdatedAt => _copySettingsUpdatedAt;
   bool isCopyHomeSectionCollapsed(String key) =>
@@ -585,6 +585,12 @@ class UserManager extends ChangeNotifier {
   static String normalizeCopyAppVersion(String? value) {
     final version = value?.trim() ?? '';
     return version.isEmpty ? defaultCopyAppVersion : version;
+  }
+
+  /// versioncode 只允许数字(服务端收到非数字会直接判无效);空值回落默认。
+  static String normalizeCopyVersionCode(String? value) {
+    final digits = (value ?? '').trim().replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.isEmpty ? defaultCopyVersionCode : digits;
   }
 
   static bool isValidProxyPort(int? port) =>

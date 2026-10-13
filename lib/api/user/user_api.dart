@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import '../../models/comic.dart';
 import '../../models/copy_account_store.dart';
 import '../../utils/app_dio.dart';
+import '../../utils/copy_app_headers.dart';
 import '../../utils/network_error.dart';
 import '../api_transport.dart';
 
@@ -53,12 +54,14 @@ class UserApi {
   final Dio Function(BaseOptions options)? copyDioFactory;
   final Dio Function(BaseOptions options)? profileDioFactory;
   final Dio Function(BaseOptions options)? copyProfileDioFactory;
+  final Dio Function(BaseOptions options)? copyAppDioFactory;
 
   UserApi(
     this._t, {
     this.copyDioFactory,
     this.profileDioFactory,
     this.copyProfileDioFactory,
+    this.copyAppDioFactory,
   });
 
   Dio _createCopyLoginDio(BaseOptions options) =>
@@ -80,6 +83,65 @@ class UserApi {
       ),
     );
     return resp.data['results'];
+  }
+
+  /// 拷贝 App 通道账号密码登录（`POST {copyApiHost}/api/v3/login`）。
+  ///
+  /// 与官网网页通道（[copyLogin]）的区别：这里走的是官方 App 的接口与请求头，
+  /// 域名是高级设置里的 `COPY API URL`，登录成功直接返回 token，不需要
+  /// WebView。密码的变换是 `base64(密码 + "-" + salt)`，salt 为本地随机数。
+  ///
+  /// 失败语义：服务端 IP 风控返回 `code 210` 且文案固定（见
+  /// [isIpBlockedLoginError]），其余失败按 [NetworkError.throwBadResponse] 抛出。
+  Future<Map<String, dynamic>> loginViaApp(
+    String username,
+    String password,
+  ) async {
+    // 官方 App 的 salt 是 [0,9998]，与官网网页通道用的 6 位区间不同。
+    final salt = Random().nextInt(9999);
+    final encoded = base64Encode(utf8.encode('$password-$salt'));
+    final headers = await CopyAppHeaders.build(user: _t.user);
+    final options = BaseOptions(
+      followRedirects: false,
+      validateStatus: (_) => true,
+      headers: headers,
+    );
+    final dio =
+        copyAppDioFactory?.call(options) ??
+        AppDio.create(
+          source: 'copy_app_login',
+          options: options,
+          enableErrorLog: false,
+        );
+    try {
+      final resp = await dio.post(
+        'https://${_t.user.copyApiHost}/api/v3/login',
+        data: {
+          'username': username,
+          'password': encoded,
+          'salt': salt.toString(),
+        },
+      );
+      final data = resp.data;
+      if (data is Map && data['code'] == 200) {
+        final results = data['results'];
+        if (results is Map) return Map<String, dynamic>.from(results);
+      }
+      final message = data is Map
+          ? (data['message']?.toString() ??
+                (data['results'] is Map
+                    ? (data['results'] as Map)['detail']?.toString()
+                    : null) ??
+                'COPY app login failed')
+          : 'COPY app login failed';
+      NetworkError.throwBadResponse(
+        response: resp,
+        message: message,
+        source: 'copy_app_login',
+      );
+    } finally {
+      dio.close();
+    }
   }
 
   /// 拷贝登录（域名可在高级设置中切换）

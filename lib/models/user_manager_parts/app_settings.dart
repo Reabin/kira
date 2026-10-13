@@ -46,13 +46,6 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setAutoLogin(bool enabled) async {
-    _autoLogin = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyAutoLogin, enabled);
-    _notifyListeners();
-  }
-
   Future<void> setDisclaimerAccepted(bool accepted) async {
     _disclaimerAccepted = accepted;
     final prefs = await SharedPreferences.getInstance();
@@ -240,6 +233,16 @@ extension UserManagerAppSettingsPart on UserManager {
     _copyAppVersion = normalized;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(UserManager._keyCopyAppVersion, normalized);
+    _notifyListeners();
+  }
+
+  Future<void> setCopyVersionCode(String value) async {
+    final normalized = UserManager.normalizeCopyVersionCode(value);
+    if (_copyVersionCode == normalized) return;
+
+    _copyVersionCode = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(UserManager._keyCopyVersionCode, normalized);
     _notifyListeners();
   }
 

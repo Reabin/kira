@@ -345,9 +345,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get goLoginButton => '去登录';
 
   @override
-  String get autoLoginFailed => '自动登录失败，请手动重新登录';
-
-  @override
   String get loginToViewBookshelf => '登录后可继续查看书架';
 
   @override
@@ -413,15 +410,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get generalTitle => '通用';
-
-  @override
-  String get autoLoginTitle => '自动登录';
-
-  @override
-  String get autoLoginEnabledDesc => '登录过期时自动重新登录';
-
-  @override
-  String get autoLoginUnavailableDesc => '登录并保存账号密码后可用';
 
   @override
   String get remoteNoticeTitle => '通知';
@@ -1027,6 +1015,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkCopyAppVersion => 'COPY 请求版本号';
 
   @override
+  String get networkCopyVersionCode => 'COPY versionCode';
+
+  @override
   String get networkCopyAutoUpdate => '每天自动更新';
 
   @override
@@ -1607,52 +1598,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTokenLoginEntry => '令牌登录';
 
   @override
-  String get profileWebLoginButton => '官网登录';
+  String get copyAccountChannelWeb => '网页登录';
 
   @override
-  String get profileWebLoginRecommendedTag => '推荐';
+  String get copyAccountChannelApp => '接口登录';
+
+  @override
+  String copyAccountAppLoginFailed(String detail) {
+    return '登录失败：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官网登录';
 
   @override
-  String get profileWebLoginHint =>
-      '在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态';
+  String get profileWebLoginHint => '在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。';
 
   @override
   String get profileWebLoginCompleting => '已获取登录信息，正在验证…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登录';
-
-  @override
-  String get profileWebLoginNotDetected => '未检测到登录信息，请先在官网中完成登录';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官网登录状态';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官网登录状态，请登录其他账号';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '检测到本机已保存的账号「$name」，尚未自动登录';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已保存的账号';
-
-  @override
-  String get profileWebLoginUseAccount => '使用该账号';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切换其他账号';
-
-  @override
-  String get profileWebLoginRetryButton => '重新检测登录';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官网登录状态失败，请重试';
 
   @override
   String get profileWebLoginFailed => '官网登录失败';
@@ -4466,9 +4429,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get goLoginButton => '去登入';
 
   @override
-  String get autoLoginFailed => '自動登入失敗，請手動重新登入';
-
-  @override
   String get loginToViewBookshelf => '登入後可繼續檢視書架';
 
   @override
@@ -4534,15 +4494,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get generalTitle => '通用';
-
-  @override
-  String get autoLoginTitle => '自動登入';
-
-  @override
-  String get autoLoginEnabledDesc => '登入過期時自動重新登入';
-
-  @override
-  String get autoLoginUnavailableDesc => '登入並儲存帳號密碼後可用';
 
   @override
   String get remoteNoticeTitle => '通知';
@@ -5148,6 +5099,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get networkCopyAppVersion => 'COPY 請求版本號';
 
   @override
+  String get networkCopyVersionCode => 'COPY versionCode';
+
+  @override
   String get networkCopyAutoUpdate => '每天自動更新';
 
   @override
@@ -5728,52 +5682,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileTokenLoginEntry => '權杖登入';
 
   @override
-  String get profileWebLoginButton => '官網登入';
+  String get copyAccountChannelWeb => '網頁登入';
 
   @override
-  String get profileWebLoginRecommendedTag => '推薦';
+  String get copyAccountChannelApp => '介面登入';
+
+  @override
+  String copyAccountAppLoginFailed(String detail) {
+    return '登入失敗：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官網登入';
 
   @override
-  String get profileWebLoginHint =>
-      '在官網中登入拷貝漫畫帳號，登入成功後將自動完成；若要換成其他帳號，請先點右上角清除登入狀態';
+  String get profileWebLoginHint => '在應用內開啟拷貝官網登入頁並自動填入帳號密碼，由網頁完成登入後自動回填。';
 
   @override
   String get profileWebLoginCompleting => '已獲取登入資訊，正在驗證…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登入';
-
-  @override
-  String get profileWebLoginNotDetected => '未偵測到登入資訊，請先在官網中完成登入';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官網登入狀態';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官網登入狀態，請登入其他帳號';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '偵測到本機已儲存的帳號「$name」，尚未自動登入';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已儲存的帳號';
-
-  @override
-  String get profileWebLoginUseAccount => '使用該帳號';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切換其他帳號';
-
-  @override
-  String get profileWebLoginRetryButton => '重新偵測登入';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官網登入狀態失敗，請重試';
 
   @override
   String get profileWebLoginFailed => '官網登入失敗';

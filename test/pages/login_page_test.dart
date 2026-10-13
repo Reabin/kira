@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/login_page.dart';
+import 'package:kira/utils/copy_signature.dart';
 import 'package:kira/widgets/login_node_status.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -56,22 +57,28 @@ void main() {
     );
   }
 
-  void expectCopyEntryOnly() {
-    expect(find.byType(TextField), findsNothing);
+  /// 拷贝模式的公共形态：账号密码表单 + 登录按钮，没有「记住账号」，
+  /// 也不显示热辣的注册入口。签名密钥未配置时只有网页登录，通道选择器不展示。
+  /// 已保存的拷贝账号会回填进表单并出现在下方列表里，热辣账号不出现。
+  void expectCopyForm(WidgetTester tester, {String username = 'copy_user'}) {
+    expect(find.byType(TextField), findsNWidgets(2));
     expect(find.byType(CheckboxListTile), findsNothing);
     expect(find.text('hot_user'), findsNothing);
-    expect(find.text('copy_user'), findsNothing);
-    expect(find.text('官网登录'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, '登录'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
     expect(find.byIcon(Icons.key), findsOneWidget);
+    expect(find.text('接口登录'), findsNothing);
     expect(
       find.byKey(const ValueKey('official-register-hotmanga')),
       findsNothing,
     );
     expect(find.byKey(const ValueKey('official-register-copy')), findsNothing);
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(fields[0].controller!.text, username);
   }
 
-  testWidgets('switching to COPY removes the password form and restores HOT', (
+  testWidgets('switching to COPY swaps the form and restores HOT', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({
@@ -100,13 +107,12 @@ void main() {
       find.byKey(const ValueKey('official-register-hotmanga')),
       findsOneWidget,
     );
-    expect(find.text('官网登录'), findsNothing);
 
     await tester.tap(find.text('拷贝漫画'));
     await tester.pumpAndSettle();
 
     expect(find.byType(SegmentedButton<bool>), findsOneWidget);
-    expectCopyEntryOnly();
+    expectCopyForm(tester);
 
     await tester.tap(find.text('热辣漫画'));
     await tester.pumpAndSettle();
@@ -117,7 +123,6 @@ void main() {
       find.byKey(const ValueKey('official-register-hotmanga')),
       findsOneWidget,
     );
-    expect(find.text('官网登录'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -144,7 +149,7 @@ void main() {
         await UserManager().init();
         await pumpLogin(tester);
 
-        expectCopyEntryOnly();
+        expectCopyForm(tester);
         await tester.tap(find.text('热辣漫画'));
         await tester.pumpAndSettle();
 
@@ -207,5 +212,81 @@ void main() {
 
     expect(find.text('令牌 (Token)'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  group('COPY 登录通道', () {
+    setUp(() {
+      // 有密钥才有接口通道；测试用固定串，与真实协议常量无关。
+      CopySignature.debugKeyOverride =
+          '00000000000000000000000000000000';
+    });
+
+    tearDown(() => CopySignature.debugKeyOverride = null);
+
+    testWidgets('配置了签名密钥时提供网页/接口通道切换，默认网页', (tester) async {
+      SharedPreferences.setMockInitialValues({'login_source': 'copy'});
+      await UserManager().init();
+      await pumpLogin(tester);
+
+      expect(find.text('网页登录'), findsOneWidget);
+      expect(find.text('接口登录'), findsOneWidget);
+      // 默认网页登录：节点卡展示官网域名，切到接口后换成 COPY API 节点。
+      final card = tester.widget<LoginNodeStatusCard>(
+        find.byType(LoginNodeStatusCard),
+      );
+      expect(card.copyChannel, CopyLoginChannel.web);
+
+      await tester.tap(find.text('接口登录'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<LoginNodeStatusCard>(find.byType(LoginNodeStatusCard))
+            .copyChannel,
+        CopyLoginChannel.app,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('切换通道后重新探测新域名，不会一直停在「检测中」', (tester) async {
+      final probed = <List<String>>[];
+      LoginNodeStatusCard.probeOverride = (hosts, {onHostResult}) async {
+        probed.add(List.of(hosts));
+        final results = <String, int?>{for (final host in hosts) host: 42};
+        for (final entry in results.entries) {
+          onHostResult?.call(entry.key, entry.value);
+        }
+        return results;
+      };
+      CopySignature.debugKeyOverride = '00000000000000000000000000000000';
+      SharedPreferences.setMockInitialValues({'login_source': 'copy'});
+      final user = UserManager();
+      await user.init();
+      await user.setCopyApiHost('api.copy.test');
+      await pumpLogin(tester);
+
+      // 首轮测的是网页通道的官网域名。
+      expect(probed.single, contains(user.copyLoginHost));
+      expect(find.text('检测中'), findsNothing);
+
+      await tester.tap(find.text('接口登录'));
+      await tester.pumpAndSettle();
+
+      // 切到接口通道后必须为 COPY API 节点补测，否则会一直显示检测中。
+      expect(probed, hasLength(2));
+      expect(probed.last, contains('api.copy.test'));
+      expect(find.text('检测中'), findsNothing);
+      expect(find.text('42 ms'), findsOneWidget);
+    });
+
+    testWidgets('未配置签名密钥时不提供接口通道', (tester) async {
+      CopySignature.debugKeyOverride = null;
+      SharedPreferences.setMockInitialValues({'login_source': 'copy'});
+      await UserManager().init();
+      await pumpLogin(tester);
+
+      expect(find.text('网页登录'), findsNothing);
+      expect(find.text('接口登录'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

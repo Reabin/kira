@@ -10,10 +10,21 @@ import '../models/user_manager.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../utils/copy_signature.dart';
+import '../utils/network_error.dart';
 import '../utils/toast.dart';
 import '../widgets/account_avatar.dart';
 import '../widgets/login_node_status.dart';
 import '../widgets/setting_tile_group.dart';
+
+/// 拷贝账号的登录通道。
+enum CopyLoginChannel {
+  /// 官网网页登录：应用内 WebView 自动填表，由网页自己提交登录后取 token。
+  web,
+
+  /// 接口登录：直接调官方 App 的 `/api/v3/login`。
+  app,
+}
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.copyOnly = false, this.userApi});
@@ -43,13 +54,21 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscure = true;
   bool _rememberMe = false;
   bool _useCopyLogin = false;
+
+  /// 拷贝模式下的登录通道：默认网页登录（官网 WebView 自动填表）。
+  /// 接口登录需要构建期注入签名密钥，未配置时该通道不展示。
+  CopyLoginChannel _copyChannel = CopyLoginChannel.web;
   String? _error;
+
+  /// 接口登录是否可用：签名密钥缺失时登录必然失败（服务端对无效签名
+  /// 返回空数据），所以直接不提供这个入口。
+  bool get _appLoginAvailable => CopySignature.isConfigured;
 
   @override
   void initState() {
     super.initState();
     _useCopyLogin = widget.copyOnly || _user.loginSource == 'copy';
-    if (!_useCopyLogin) _loadHotCredentials();
+    _loadSavedCredentials(copy: _useCopyLogin);
     _user.addListener(_onUserChanged);
   }
 
@@ -78,11 +97,13 @@ class _LoginPageState extends State<LoginPage> {
     return false;
   }
 
-  void _loadHotCredentials() {
+  /// 回填已保存的账号密码。热辣模式还会勾上「记住账号」；拷贝模式的密码
+  /// 只有网页自动填表与接口登录用得到，不涉及「记住」语义。
+  void _loadSavedCredentials({required bool copy}) {
     final next = _user.savedCredentials
-        .where((credential) => !_isCopyCredential(credential))
+        .where((credential) => _isCopyCredential(credential) == copy)
         .firstOrNull;
-    _rememberMe = next != null;
+    if (!copy) _rememberMe = next != null;
     _usernameCtrl.text = next?.username ?? '';
     _passwordCtrl.text = next?.password ?? '';
   }
@@ -122,21 +143,11 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _useCopyLogin = useCopyLogin;
       _error = null;
-      if (useCopyLogin) {
-        _rememberMe = false;
-        _usernameCtrl.clear();
-        _passwordCtrl.clear();
-      } else {
-        _loadHotCredentials();
-      }
+      if (useCopyLogin) _rememberMe = false;
+      // 两个来源各有一份已保存账密，切换时换成对应那份，避免把热辣账号
+      // 带进拷贝表单（反之亦然）。
+      _loadSavedCredentials(copy: useCopyLogin);
     });
-  }
-
-  Future<void> _goWebLogin() async {
-    final result = await context.pushNamed<bool>(AppRoutes.webviewLogin);
-    if (result == true && mounted) {
-      Navigator.pop(context, true);
-    }
   }
 
   Future<void> _openOfficialRegister() async {
@@ -194,9 +205,9 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// 拷贝账号密码登录：跳转官网登录页并自动填入账号密码、由网页自己发出
-  /// 登录请求，成功后从 cookie 拿 token 走令牌登录落库；网页里失败时用户
-  /// 仍可手动改密码重试。
+  /// 拷贝账号密码登录。网页通道跳转官网登录页并自动填入账号密码，由网页
+  /// 自己发出登录请求、成功后从 cookie 拿 token 落库；接口通道直接调官方
+  /// App 的登录接口拿 token。
   Future<void> _loginCopy() async {
     if (_loading) return;
     final l10n = AppLocalizations.of(context)!;
@@ -206,13 +217,61 @@ class _LoginPageState extends State<LoginPage> {
       setState(() => _error = l10n.profileUsernamePasswordRequired);
       return;
     }
-    final result = await context.pushNamed<bool>(
-      AppRoutes.webviewLogin,
-      extra: (username: username, password: password),
-    );
-    if (result == true && mounted) {
-      Navigator.pop(context, true);
+    if (_copyChannel == CopyLoginChannel.web) {
+      final result = await context.pushNamed<bool>(
+        AppRoutes.webviewLogin,
+        extra: (username: username, password: password),
+      );
+      if (result == true && mounted) {
+        Navigator.pop(context, true);
+      }
+      return;
     }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final saved = await _user.authenticateAndLogin(
+        source: 'copy',
+        password: password,
+        authenticate: () => _userApi.loginViaApp(username, password),
+      );
+      if (!mounted) return;
+      if (saved) {
+        final session = _user.copyAccount.accounts
+            .where((item) => item.username == username)
+            .firstOrNull;
+        if (session != null) {
+          _user.refreshCopyCredentialInBackground(session, api: _userApi);
+        }
+        Navigator.pop(context, true);
+      } else {
+        setState(() {
+          _error = l10n.copyAccountLoginSuperseded;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = isIpBlockedLoginError(e)
+            ? l10n.profileLoginIpBlockedHint
+            : l10n.copyAccountAppLoginFailed(NetworkError.message(e));
+        _loading = false;
+      });
+    }
+  }
+
+  /// 切换拷贝登录通道（网页 / 接口）。
+  void _selectCopyChannel(CopyLoginChannel channel) {
+    if (_loading || _copyChannel == channel) return;
+    // 已保存的密码按来源通用，切换通道只需清掉上一次的错误提示。
+    setState(() {
+      _copyChannel = channel;
+      _error = null;
+    });
   }
 
   Future<void> _showTokenLoginDialog() async {
@@ -375,12 +434,6 @@ class _LoginPageState extends State<LoginPage> {
           widget.copyOnly ? l10n.copyAccountLoginTitle : l10n.profileLoginTitle,
         ),
         actions: [
-          if (_useCopyLogin)
-            IconButton(
-              tooltip: l10n.profileWebLoginButton,
-              onPressed: _loading ? null : _goWebLogin,
-              icon: const Icon(Icons.language),
-            ),
           IconButton(
             tooltip: l10n.profileTokenLoginEntry,
             onPressed: _loading ? null : _showTokenLoginDialog,
@@ -393,9 +446,16 @@ class _LoginPageState extends State<LoginPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            LoginNodeStatusCard(useCopyLogin: _useCopyLogin),
+            LoginNodeStatusCard(
+              useCopyLogin: _useCopyLogin,
+              copyChannel: _copyChannel,
+            ),
             const SizedBox(height: AppSpacing.lg),
             _buildLoginSourceSelector(context, cs),
+            if (_useCopyLogin && _appLoginAvailable) ...[
+              const SizedBox(height: AppSpacing.lg),
+              _buildCopyChannelSelector(),
+            ],
             const SizedBox(height: AppSpacing.lg),
             ..._buildAccountPasswordForm(
               context,
@@ -495,6 +555,28 @@ class _LoginPageState extends State<LoginPage> {
       ],
       selected: {_useCopyLogin},
       onSelectionChanged: (v) => _selectLoginSource(v.first),
+    );
+  }
+
+  /// 拷贝登录通道选择器（网页 / 接口）。接口通道不可用时整块不展示
+  /// （见 [_appLoginAvailable]），此时只有网页登录一种方式，无需选择。
+  Widget _buildCopyChannelSelector() {
+    final l10n = AppLocalizations.of(context)!;
+    return SegmentedButton<CopyLoginChannel>(
+      segments: [
+        ButtonSegment(
+          value: CopyLoginChannel.web,
+          label: Text(l10n.copyAccountChannelWeb),
+          icon: const Icon(Icons.language, size: 18),
+        ),
+        ButtonSegment(
+          value: CopyLoginChannel.app,
+          label: Text(l10n.copyAccountChannelApp),
+          icon: const Icon(Icons.api, size: 18),
+        ),
+      ],
+      selected: {_copyChannel},
+      onSelectionChanged: (v) => _selectCopyChannel(v.first),
     );
   }
 

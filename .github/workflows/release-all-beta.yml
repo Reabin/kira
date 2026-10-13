@@ -63,7 +63,7 @@ jobs:
         run: flutter pub get
 
       - name: Build APK (arm64-v8a)
-        run: flutter build apk --release --target-platform android-arm64
+        run: flutter build apk --release --target-platform android-arm64 --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Rename APK
         shell: bash
@@ -142,7 +142,7 @@ jobs:
         run: flutter pub get
 
       - name: Build macOS
-        run: flutter build macos --release
+        run: flutter build macos --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package macOS ZIP
         shell: bash
@@ -185,7 +185,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Linux
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package Linux tar.gz
         shell: bash

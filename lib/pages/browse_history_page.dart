@@ -252,14 +252,6 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
     if (_showingLoginPrompt || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
 
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(context, l10n.autoLoginFailed, isError: true);
-      }
-      return;
-    }
-
     _showingLoginPrompt = true;
 
     await _user.logout();

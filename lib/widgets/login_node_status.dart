@@ -6,6 +6,7 @@ import '../api/api_client.dart';
 import '../api/api_transport.dart' show routes;
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
+import '../pages/login_page.dart' show CopyLoginChannel;
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
@@ -21,20 +22,31 @@ typedef LoginHostProbe =
 
 /// 登录页顶部的登录节点状态卡。
 ///
-/// 只显示当前所选登录来源对应的一个节点：热辣来源显示下一次请求将使用
-/// 的线路节点（与实际登录请求同一选择逻辑，见 ApiTransport.previewNextHost），
-/// 拷贝来源显示当前拷贝登录域名。进入页面即后台探测（切换来源时结果
-/// 立即可用），让用户在登录前就能看出当前网络是否可达。
+/// 只显示当前所选登录通道实际会打的那个节点：热辣来源显示下一次请求将
+/// 使用的线路节点（与实际登录请求同一选择逻辑，见
+/// ApiTransport.previewNextHost）；拷贝来源按登录通道区分——网页通道打的是
+/// `copyLoginHost`（官网），接口通道打的是 `copyApiHost`（COPY API 节点），
+/// 两者是不同域名，探测与展示都必须跟着通道走，否则显示的是绿的、真正
+/// 发请求的那个却超时。进入页面即后台探测（切换来源/通道时结果立即可用），
+/// 让用户在登录前就能看出当前网络是否可达。
+///
 /// 延迟阈值与配色与网络诊断页保持一致（≤800 绿、≤2000 橙、其余红、超时红）。
 ///
 /// 延迟较差时只有小字变红不够醒目，所以分级强调（不新增文案，仍用
 /// 「超时」/「N ms」）：较差（>800ms）给数值加状态色胶囊底；严重（超时或
 /// >2000ms）再加描边，并把行首圆点换成警示图标。
 class LoginNodeStatusCard extends StatefulWidget {
-  const LoginNodeStatusCard({super.key, required this.useCopyLogin});
+  const LoginNodeStatusCard({
+    super.key,
+    required this.useCopyLogin,
+    this.copyChannel = CopyLoginChannel.web,
+  });
 
   /// 当前是否选中拷贝漫画登录；false 表示热辣漫画。
   final bool useCopyLogin;
+
+  /// 拷贝登录通道：决定探测与展示哪个域名（官网 vs COPY API 节点）。
+  final CopyLoginChannel copyChannel;
 
   /// 测试注入的探测函数；null 时走 NetworkApi.testHostsConnectivity。
   /// widget 测试必须覆盖它，否则会发起真实网络请求。
@@ -52,22 +64,34 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
   final _api = ApiClient();
   final _user = UserManager();
 
-  /// host → 延迟毫秒；null 表示超时；不在 map 中表示检测中。
+  /// host → 延迟毫秒；null 表示超时；不在 map 中表示尚未测过或正在测。
   final Map<String, int?> _results = {};
-  bool _testing = false;
+
+  /// 当前这一轮要覆盖的域名。探测期间据此判断是否已覆盖当前展示的域名，
+  /// 以及结束后要不要补一轮（用户中途改了域名/通道时）。
+  final Set<String> _inflight = {};
 
   /// 本次探测选中的热辣节点（探测时确定，展示与探测保持一致）。
   String? _hotHost;
 
-  /// 选定本次探测的域名：两个来源都测，切换来源时无需重新等待。
-  /// 热辣节点在探测时确定一次，展示与探测保持一致。
+  /// 当前拷贝通道实际会打的主机：网页通道是官网登录域名，接口通道是
+  /// COPY API 节点。
+  String get _copyHost => widget.copyChannel == CopyLoginChannel.app
+      ? _user.copyApiHost
+      : _user.copyLoginHost;
+
+  /// 选定本次探测的域名：热辣节点与拷贝通道的域名都测，切换来源/通道时
+  /// 无需重新等待。热辣节点在探测时确定一次，展示与探测保持一致。
+  ///
+  /// 用户改了拷贝域名（高级设置）时，新域名不在 `_results` 里，本轮一并补测。
   List<String> _collectProbeHosts() {
     _hotHost =
         LoginNodeStatusCard.hotHostOverride?.call() ??
         _api.network.previewRouteHost();
     final hosts = <String>[_hotHost!];
-    final copy = _user.copyLoginHost;
-    if (copy.isNotEmpty && !hosts.contains(copy)) hosts.add(copy);
+    for (final copy in [_copyHost, _user.copyLoginHost]) {
+      if (copy.isNotEmpty && !hosts.contains(copy)) hosts.add(copy);
+    }
     return hosts;
   }
 
@@ -86,8 +110,15 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
   /// 当前展示的行（标签, host）。
   (String, String) _displayRow(AppLocalizations l10n) {
     if (widget.useCopyLogin) {
-      final copy = _user.copyLoginHost;
-      if (copy.isNotEmpty) return (l10n.networkCopyLoginHost, copy);
+      final copy = _copyHost;
+      if (copy.isNotEmpty) {
+        return (
+          widget.copyChannel == CopyLoginChannel.app
+              ? l10n.networkCopyApiHost
+              : l10n.networkCopyLoginHost,
+          copy,
+        );
+      }
     }
     final host = _hotHost ?? _api.network.previewRouteHost();
     final nodeNumber = _nodeNumberOf(host);
@@ -97,26 +128,55 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
     );
   }
 
+  /// 当前展示的域名。切换登录通道会换成另一个域名，此时必须补测，否则
+  /// 新域名永远停在没有结果的状态（显示「检测中」）。
+  String get _displayHost => widget.useCopyLogin
+      ? _copyHost
+      : (_hotHost ?? _api.network.previewRouteHost());
+
+  /// 本卡片是否有探测在跑（按钮转圈用）。
+  bool get _testing => _inflight.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
-    _testing = true;
     unawaited(_probe());
   }
 
+  @override
+  void didUpdateWidget(LoginNodeStatusCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 只在真正换了登录来源或拷贝通道时测；UserManager 的通知会让父级重建，
+    // 但 widget 的这两个字段没变，不能因此反复发探测请求。
+    final switched =
+        oldWidget.useCopyLogin != widget.useCopyLogin ||
+        oldWidget.copyChannel != widget.copyChannel;
+    if (switched) unawaited(_probe());
+  }
+
+  /// 探测当前展示的域名。切换登录来源/通道后重测一次，让数值跟着刷新；
+  /// 已有探测覆盖了当前域名时不重复发请求。
   Future<void> _probe() async {
-    final probe =
-        LoginNodeStatusCard.probeOverride ?? _api.network.testHostsConnectivity;
+    if (!mounted) return;
+    // 先收集（顺带确定本轮的热辣节点），再判断当前展示的域名。
+    final hosts = _collectProbeHosts();
+    final host = _displayHost;
+    if (host.isEmpty || _inflight.contains(host)) return;
+    setState(() => _inflight.addAll(hosts));
     try {
-      await probe(_collectProbeHosts(), onHostResult: _onHostResult);
+      final probe =
+          LoginNodeStatusCard.probeOverride ??
+          _api.network.testHostsConnectivity;
+      await probe(hosts, onHostResult: _onHostResult);
     } finally {
-      if (mounted) setState(() => _testing = false);
+      if (mounted) setState(() => _inflight.removeAll(hosts));
     }
   }
 
-  Future<void> _test() async {
+  /// 手动刷新：丢掉当前域名的旧结果重测。
+  Future<void> _retest() async {
     if (_testing) return;
-    setState(() => _testing = true);
+    setState(() => _results.remove(_displayHost));
     await _probe();
   }
 
@@ -155,9 +215,10 @@ class _LoginNodeStatusCardState extends State<LoginNodeStatusCard> {
             const SizedBox(width: AppSpacing.xs),
             Expanded(child: _buildHostRow(row, tone, l10n, cs)),
             // 探测中/空闲占同一 48x48 槽位，行高恒定，卡片不跳动。
+            // 按钮重新测当前展示的域名（会覆盖已有结果）。
             IconButton(
               tooltip: l10n.networkTestLatencyShort,
-              onPressed: _testing ? null : _test,
+              onPressed: _testing ? null : _retest,
               icon: _testing
                   ? const SizedBox(
                       width: 14,

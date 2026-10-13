@@ -130,6 +130,7 @@ abstract final class BackupSchema {
     'bottom_nav_label_mode',
     'copy_api_host',
     'copy_app_version',
+    'copy_version_code',
     'copy_home_section_collapsed',
     'copy_login_host',
     'desktop_font_family',

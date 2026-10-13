@@ -25,10 +25,18 @@ try {
 
     # 构建 APK
     Write-Host "`n正在构建 APK ($TargetPlatform, release)..." -ForegroundColor Yellow
-    & flutter build apk `
-        --release `
-        --target-platform $TargetPlatform `
-       
+    $copyAuthKeyDefine = Get-CopyAuthKeyDefine
+    if (-not $copyAuthKeyDefine) {
+        Write-Host "未设置 COPY_AUTH_KEY，接口登录入口将不出现在应用中" -ForegroundColor DarkYellow
+    }
+    $buildArgs = @(
+        'build', 'apk',
+        '--release',
+        '--target-platform', $TargetPlatform
+    )
+    if ($copyAuthKeyDefine) { $buildArgs += $copyAuthKeyDefine }
+    & flutter @buildArgs
+
     if ($LASTEXITCODE -ne 0) {
         throw "flutter build apk 失败 (exit code: $LASTEXITCODE)"
     }

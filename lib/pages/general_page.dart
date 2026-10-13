@@ -87,11 +87,6 @@ class _GeneralPageState extends State<GeneralPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final tt = Theme.of(context).textTheme;
-    final canAutoLogin =
-        _user.isLoggedIn &&
-        _user.savedUsername != null &&
-        _user.savedPassword != null;
-
     return Scaffold(
       appBar: AppBar(title: Text(l10n.generalTitle)),
       body: ListView(
@@ -99,18 +94,6 @@ class _GeneralPageState extends State<GeneralPage> {
         children: [
           SettingTileGroup(
             children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.login_rounded),
-                title: Text(l10n.autoLoginTitle),
-                subtitle: Text(
-                  canAutoLogin
-                      ? l10n.autoLoginEnabledDesc
-                      : l10n.autoLoginUnavailableDesc,
-                  style: tt.bodySmall,
-                ),
-                value: canAutoLogin ? _user.autoLogin : false,
-                onChanged: canAutoLogin ? _user.setAutoLogin : null,
-              ),
               SwitchListTile(
                 secondary: const Icon(Icons.view_carousel_outlined),
                 title: Text(l10n.bannerVisibleTitle),
