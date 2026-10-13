@@ -133,20 +133,6 @@ extension UserManagerInitPart on UserManager {
             username: _username ?? '',
           );
     }
-    final activeCredential = currentCredential;
-    if (activeCredential != null) {
-      final known = _savedCredentials.where(
-        (item) => item.sameAccount(activeCredential),
-      );
-      _savedCredentials = [
-        activeCredential.copyWith(
-          password: known.isEmpty ? '' : known.first.password,
-        ),
-        ..._savedCredentials.where(
-          (item) => !item.sameAccount(activeCredential),
-        ),
-      ];
-    }
     _apiRoute = prefs.getInt(UserManager._keyApiRoute) ?? 0;
     _remoteNoticeEnabled =
         prefs.getBool(UserManager._keyRemoteNoticeEnabled) ?? true;
@@ -237,19 +223,24 @@ extension UserManagerInitPart on UserManager {
     await network.initFromPrefs(prefs, persistMigrations: persistMigrations);
     // loginSource is loaded late above; never infer COPY from token presence.
     if (revision != _accountRevision) return;
-    await copyAccount.init(
-      legacySession: _loginSource == 'copy' && isLoggedIn
-          ? CopyAccountSession(
-              token: _token!,
-              userId: _userId ?? '',
-              username: _username ?? '',
-              nickname: _nickname ?? '',
-              avatar: _avatar ?? '',
-              accountId: _accountId,
-            )
-          : null,
-      persistMigrations: persistMigrations,
-    );
+    _beginCopyAccountSuppression();
+    try {
+      await readAccountStorage(
+        () => _initCopyAccounts(
+          persistMigrations: persistMigrations,
+          revision: revision,
+        ),
+      );
+    } catch (_) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          const CopyAccountStorageException(),
+          source: 'user_manager.init_accounts',
+        ),
+      );
+    } finally {
+      _endCopyAccountSuppression();
+    }
     if (revision != _accountRevision) return;
 
     // Forward sub-store notifications so legacy listeners on UserManager
@@ -260,12 +251,12 @@ extension UserManagerInitPart on UserManager {
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
-    copyAccount.removeListener(_onSubStoreChanged);
+    copyAccount.removeListener(_onCopyAccountChanged);
     reader.addListener(_onSubStoreChanged);
     comment.addListener(_onSubStoreChanged);
     theme.addListener(_onSubStoreChanged);
     network.addListener(_onSubStoreChanged);
-    copyAccount.addListener(_onSubStoreChanged);
+    copyAccount.addListener(_onCopyAccountChanged);
 
     _notifyListeners();
   }

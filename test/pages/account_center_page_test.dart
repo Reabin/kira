@@ -573,6 +573,61 @@ void main() {
     },
   );
 
+  for (final primaryCopy in [false, true]) {
+    testWidgets(
+      'remove confirmation follows a merged COPY handle: primary=$primaryCopy',
+      (tester) async {
+        await tester.runAsync(() async {
+          await user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => _copyA.toJson(),
+            fillOnlyIfEmpty: !primaryCopy,
+          );
+          await user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => {'token': 'temporary-copy-token'},
+          );
+        });
+        final temporary = user.copyAccount.accounts.singleWhere(
+          (item) => !item.hasIdentity,
+        );
+        await pump(tester);
+        await action(tester, 'copy-${temporary.id}', '退出登录');
+        expect(find.byType(AlertDialog), findsOneWidget);
+        api.respondCopy = (_) async => {
+          'username': _copyA.username,
+          'user_id': _copyA.userId,
+          'nickname': _copyA.nickname,
+        };
+        expect(
+          await tester.runAsync(
+            () => user.refreshCopyCredential(temporary, api: api),
+          ),
+          isTrue,
+        );
+        await tester.pumpAndSettle();
+        final canonicalId = user.copyAccount.resolveAccountId(temporary.id);
+        expect(canonicalId, isNotNull);
+        expect(canonicalId, isNot(temporary.id));
+        expect(user.copyAccount.accounts, hasLength(1));
+        await tester.tap(find.text('确认'));
+        await tester.pumpAndSettle();
+        expect(user.copyAccount.accounts, isEmpty);
+        expect(user.copyAccount.resolveAccountId(temporary.id), isNull);
+        expect(
+          user.savedCredentials.where((item) => item.source == 'copy'),
+          isEmpty,
+        );
+        expect(user.token, primaryCopy ? isNull : 'hot-token');
+        expect(
+          user.savedCredentials.any((item) => item.sameAccount(_second)),
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('logout removes only the clicked saved HOT', (tester) async {
     await user.copyAccount.saveSession(_copyA);
     await pump(tester);

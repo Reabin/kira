@@ -80,7 +80,9 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       if (credential.token?.isNotEmpty != true) continue;
       if (result.any((item) => item.sameAccount(credential))) continue;
       if (credential.source == 'copy' &&
-          _copyAccounts.any((item) => item.token == credential.token)) {
+          _copyAccounts.any(
+            (item) => credential.identity.matches(item.identity),
+          )) {
         continue;
       }
       result.add(credential);
@@ -92,9 +94,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       _current?.sameAccount(credential) == true;
 
   bool _copyIsCurrent(CopyAccountSession account) =>
-      _user.isLoggedIn &&
-      _user.loginSource == 'copy' &&
-      _user.token == account.token;
+      _current?.identity.matches(account.identity) == true;
 
   String _name(
     String username,
@@ -337,9 +337,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     token: account.token,
   );
 
-  /// 拷贝账号的密码存在凭据列表里（官网登录时脚本抓取），账号库本身只有
-  /// 令牌。按令牌或账号 id 精确匹配，不做用户名兜底，避免显示成同名的另一
-  /// 个账号的密码。
+  /// 密码只来自同源的同一身份；只读备份重载后两库的令牌/绑定可暂时不同，
+  /// 但已确认的登录名仍能准确关联。昵称和头像不参与判断。
   String _savedCopyPassword(CopyAccountSession account) {
     if (account.token.isEmpty) return '';
     for (final credential in [
@@ -347,9 +346,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       ..._user.savedCredentials,
     ]) {
       if (credential.source != 'copy' || credential.password.isEmpty) continue;
-      if (credential.token == account.token) return credential.password;
-      final id = account.id;
-      if (id != null && credential.accountId == id) {
+      if (credential.identity.matches(account.identity)) {
         return credential.password;
       }
     }
@@ -538,14 +535,22 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       return;
     }
     await _guard(() async {
-      await _user.copyAccount.removeAccount(account.id!);
-      if (_copyIsCurrent(account)) await _user.logout();
+      // 资料刷新可能在确认框打开期间把旧句柄合并；删除时重新定位同一身份。
+      final current = _user.copyAccount.byId(
+        _user.copyAccount.resolveAccountId(account.id),
+      );
+      if (current == null ||
+          (account.hasIdentity && !account.sameAccount(current))) {
+        return;
+      }
+      await _user.copyAccount.removeAccount(current.id!);
+      if (_copyIsCurrent(current)) await _user.logout();
       await _user.removeSavedCredential(
-        account.username,
+        current.username,
         loginSource: 'copy',
-        userId: account.userId,
-        accountId: account.id,
-        token: account.token,
+        userId: current.userId,
+        accountId: current.id,
+        token: current.token,
       );
     });
   }

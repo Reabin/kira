@@ -79,6 +79,7 @@ Future<bool> completeCopyWebLogin({
   required UserManager user,
   required UserApi api,
   required CopyWebCredentials credentials,
+  Future<void> Function()? persistLoginFormPasswords,
 }) async {
   final saved = await user.authenticateAndLogin(
     source: 'copy',
@@ -113,6 +114,8 @@ Future<bool> completeCopyWebLogin({
     },
   );
   if (saved) {
+    // 补写登录名可能归并账号并推进 revision，必须先完成，再发起资料刷新。
+    await persistLoginFormPasswords?.call();
     final session = user.copyAccount.accounts
         .where((account) => account.token == credentials.token.trim())
         .firstOrNull;

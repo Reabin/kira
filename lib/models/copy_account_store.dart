@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../utils/app_logger.dart';
+import 'account_identity.dart';
 import 'secure_credential_store.dart';
 
 /// Only COPY credentials may enter this store. The primary account is separate.
@@ -26,6 +27,10 @@ class CopyAccountSession {
   /// stays authoritative; the label is only a display aid.
   final String label;
 
+  /// Historical local handles proven to name this account. Kept with the
+  /// account so deleting it also invalidates queued downloads' old bindings.
+  final List<String> mergedAccountIds;
+
   const CopyAccountSession({
     required this.token,
     this.accountId,
@@ -34,6 +39,7 @@ class CopyAccountSession {
     this.nickname = '',
     this.avatar = '',
     this.label = '',
+    this.mergedAccountIds = const [],
   });
 
   CopyAccountSession copyWith({
@@ -44,6 +50,7 @@ class CopyAccountSession {
     String? nickname,
     String? avatar,
     String? label,
+    List<String>? mergedAccountIds,
   }) => CopyAccountSession(
     token: token ?? this.token,
     accountId: accountId ?? this.accountId,
@@ -52,6 +59,9 @@ class CopyAccountSession {
     nickname: nickname ?? this.nickname,
     avatar: avatar ?? this.avatar,
     label: label ?? this.label,
+    mergedAccountIds: mergedAccountIds == null
+        ? this.mergedAccountIds
+        : List.unmodifiable(mergedAccountIds),
   );
 
   /// Stable, opaque identity for bindings. Prefer the server id; fall back to
@@ -64,6 +74,26 @@ class CopyAccountSession {
     final name = username.trim();
     if (name.isEmpty) return null;
     return 'n:${sha256.convert(utf8.encode(name)).toString().substring(0, 32)}';
+  }
+
+  AccountIdentity get identity => AccountIdentity(
+    source: 'copy',
+    username: username,
+    userId: userId,
+    token: token,
+    accountId: id,
+  );
+
+  bool sameAccount(CopyAccountSession other) =>
+      identity.matches(other.identity);
+
+  bool acceptsProfile({String userId = '', String username = ''}) {
+    final name = username.trim();
+    if (name.isNotEmpty && this.username.trim().isNotEmpty) {
+      return name == this.username.trim();
+    }
+    final id = userId.trim();
+    return id.isEmpty || this.userId.trim().isEmpty || id == this.userId.trim();
   }
 
   bool get hasIdentity =>
@@ -84,6 +114,16 @@ class CopyAccountSession {
       throw const FormatException('Invalid COPY session');
     }
     final accountId = json['account_id'];
+    final aliases = json['merged_account_ids'];
+    final mergedAccountIds = aliases is List
+        ? aliases
+              .whereType<String>()
+              .map((id) => id.trim())
+              .where((id) => id.isNotEmpty)
+              .toSet()
+              .toList()
+        : <String>[];
+    mergedAccountIds.sort();
     return CopyAccountSession(
       token: token.trim(),
       accountId: accountId is String && accountId.trim().isNotEmpty
@@ -94,6 +134,7 @@ class CopyAccountSession {
       nickname: json['nickname']?.toString() ?? '',
       avatar: json['avatar']?.toString() ?? '',
       label: json['label']?.toString() ?? '',
+      mergedAccountIds: List.unmodifiable(mergedAccountIds),
     );
   }
 
@@ -105,6 +146,7 @@ class CopyAccountSession {
     'nickname': nickname,
     'avatar': avatar,
     'label': label,
+    if (mergedAccountIds.isNotEmpty) 'merged_account_ids': mergedAccountIds,
   };
 
   /// Identity is the membership key: a re-login of the same person updates
@@ -116,6 +158,172 @@ class CopyAccountSession {
 
   @override
   int get hashCode => id?.hashCode ?? identityHashCode(this);
+}
+
+String? _resolveAccountId(List<CopyAccountSession> accounts, String? id) {
+  if (id == null || id.isEmpty) return null;
+  final current = accounts.where((account) => account.id == id).toList();
+  if (current.isNotEmpty) return current.length == 1 ? id : null;
+  final aliases = accounts
+      .where((account) => account.mergedAccountIds.contains(id))
+      .toList();
+  return aliases.length == 1 ? aliases.single.id : null;
+}
+
+/// A pure reconciliation result shared with the primary-account transaction.
+/// The map keeps bindings reachable when several old handles name one person.
+class CopyAccountMerge {
+  final List<CopyAccountSession> accounts;
+  final String? activeId;
+  final Map<String, String> idRemap;
+  final CopyAccountSession? incoming;
+
+  const CopyAccountMerge({
+    required this.accounts,
+    required this.activeId,
+    required this.idRemap,
+    this.incoming,
+  });
+}
+
+CopyAccountMerge mergeCopyAccounts(
+  List<CopyAccountSession> accounts, {
+  String? activeId,
+  CopyAccountSession? incoming,
+  CopyAccountSession? preferredSession,
+  bool selectIncoming = false,
+}) {
+  final groups = groupAccounts<CopyAccountSession>([
+    ...accounts,
+    ?incoming,
+  ], (account) => account.identity);
+  // Two different people sharing one handle is never trustworthy: the handle
+  // dies for both. A handle that is another group's persisted merge alias is
+  // different — history wins, so the adopting group takes a new handle rather
+  // than stealing the alias from its rightful owner.
+  final currentOwners = <String, List<int>>{};
+  final aliasOwners = <String, List<int>>{};
+  for (var index = 0; index < groups.length; index++) {
+    for (final id
+        in groups[index].map((item) => item.id).whereType<String>().toSet()) {
+      (currentOwners[id] ??= []).add(index);
+    }
+    for (final id in groups[index].expand((item) => item.mergedAccountIds)) {
+      (aliasOwners[id] ??= []).add(index);
+    }
+  }
+  final conflictingIds = currentOwners.entries
+      .where((entry) => entry.value.length > 1)
+      .map((entry) => entry.key)
+      .toSet();
+  bool foreignAlias(String? id, int group) =>
+      id != null &&
+      !conflictingIds.contains(id) &&
+      (aliasOwners[id] ?? const []).any((owner) => owner != group);
+  final preferredGroups = preferredSession == null
+      ? <List<CopyAccountSession>>[]
+      : groups
+            .where(
+              (group) =>
+                  group.any((item) => item.sameAccount(preferredSession)),
+            )
+            .toList();
+  final merged = <CopyAccountSession>[];
+  final positions = Map<CopyAccountSession, int>.identity();
+  final remap = <String, String>{};
+  CopyAccountSession? mergedIncoming;
+  for (var index = 0; index < groups.length; index++) {
+    final group = groups[index];
+    final originals = group
+        .where((item) => !identical(item, incoming))
+        .toList();
+    // Existing identified handles win over a temporary token-only handle.
+    // With no timestamps, lexical handle order is a deterministic fallback,
+    // not a claim that a particular historical token is newer.
+    int compare(CopyAccountSession a, CopyAccountSession b) {
+      if (a.hasIdentity != b.hasIdentity) return a.hasIdentity ? -1 : 1;
+      return (a.id ?? '').compareTo(b.id ?? '');
+    }
+
+    originals.sort(compare);
+    final stable = originals.isEmpty ? group.first : originals.first;
+    // A historical id shared by different people is not a trustworthy alias,
+    // and one already aliased to another account is not free to adopt: give
+    // this group a distinct handle and leave the old id with its owner.
+    final reclaimed = conflictingIds.contains(stable.id)
+        ? stable.id
+        : foreignAlias(stable.id, index)
+        ? stable.id
+        : null;
+    final id = reclaimed != null ? CopyAccountStore._newAccountId() : stable.id;
+    if (id == null) continue;
+    final hasIncoming =
+        incoming != null && group.any((item) => identical(item, incoming));
+    final preferred =
+        preferredGroups.length == 1 && identical(preferredGroups.single, group)
+        ? preferredSession
+        : null;
+    final selected = group.where((item) => item.id == activeId).firstOrNull;
+    var entry = hasIncoming ? incoming : preferred ?? selected ?? stable;
+    final fields = [entry, ...originals, ...group];
+    String nonEmpty(String Function(CopyAccountSession) field) =>
+        fields
+            .map(field)
+            .where((value) => value.trim().isNotEmpty)
+            .firstOrNull ??
+        '';
+    final aliases = <String>{
+      for (final item in group) ...[?item.id, ...item.mergedAccountIds],
+    }..removeAll({id, ...conflictingIds, ?reclaimed});
+    final mergedAccountIds = aliases.toList()..sort();
+    entry = entry.copyWith(
+      accountId: id,
+      mergedAccountIds: mergedAccountIds,
+      userId: nonEmpty((item) => item.userId),
+      username: nonEmpty((item) => item.username),
+      nickname: nonEmpty((item) => item.nickname),
+      avatar: nonEmpty((item) => item.avatar),
+      label: nonEmpty((item) => item.label),
+    );
+    if (!hasIncoming &&
+        group.length == 1 &&
+        stable.accountId == null &&
+        !conflictingIds.contains(stable.id) &&
+        jsonEncode(stable.toJson()..remove('account_id')) ==
+            jsonEncode(entry.toJson()..remove('account_id'))) {
+      // Merely loading an unchanged legacy record must not pin its derived id
+      // or rewrite storage. Pin it when identity/profile/token actually changes.
+      entry = stable;
+    }
+    merged.add(entry);
+    positions[entry] = accounts.indexWhere(
+      (original) => group.any((item) => identical(item, original)),
+    );
+    if (hasIncoming) mergedIncoming = entry;
+  }
+  for (final entry in merged) {
+    for (final oldId in [?entry.id, ...entry.mergedAccountIds]) {
+      final resolved = _resolveAccountId(merged, oldId);
+      if (resolved != null) remap[oldId] = resolved;
+    }
+  }
+  // Preserve presentation order; identity grouping itself processes named
+  // entries first only to avoid ambiguous incomplete-identity bridges.
+  int position(CopyAccountSession entry) {
+    if (mergedIncoming != null && entry.id == mergedIncoming.id) return -1;
+    return positions[entry]!;
+  }
+
+  merged.sort((a, b) => position(a).compareTo(position(b)));
+  final selected = selectIncoming && mergedIncoming != null
+      ? mergedIncoming.id
+      : remap[activeId];
+  return CopyAccountMerge(
+    accounts: merged,
+    activeId: selected ?? (merged.isEmpty ? null : merged.first.id),
+    idRemap: remap,
+    incoming: mergedIncoming,
+  );
 }
 
 /// Deliberately excludes the underlying storage error, which may contain secrets.
@@ -157,6 +365,10 @@ class CopyAccountStore extends ChangeNotifier {
     }
     return null;
   }
+
+  /// Resolve only current handles or persisted, unambiguous merge aliases.
+  /// [byId] intentionally stays strict for account mutations and auth checks.
+  String? resolveAccountId(String? id) => _resolveAccountId(_accounts, id);
 
   /// A stored list with no explicit selection still has an obvious answer:
   /// the most recent account. Used by the legacy import path, which may hold a
@@ -213,10 +425,15 @@ class CopyAccountStore extends ChangeNotifier {
   Future<void> init({
     CopyAccountSession? legacySession,
     bool persistMigrations = true,
+    bool Function()? isCurrent,
+    Future<void> Function(CopyAccountMerge merge)? prepareCommit,
+    void Function(CopyAccountMerge merge)? onCommitted,
+    Future<void> Function()? rollback,
   }) {
     final revision = ++_revision;
+    bool current() => revision == _revision && isCurrent?.call() != false;
     return _serialize(() async {
-      if (revision != _revision) return;
+      if (!current()) return;
       try {
         final raw = await _secure.readCopyAccountRecord();
         var accounts = <CopyAccountSession>[];
@@ -233,44 +450,92 @@ class CopyAccountStore extends ChangeNotifier {
           activeId = decoded['activeId']?.toString();
           cleared = decoded['cleared'] == true;
         }
-        if (revision != _revision) return;
-        // An explicit clear always wins. An existing unhandled record also
-        // wins over the primary, while a handled legacy-empty record may import
-        // a COPY primary that became available after an earlier HOT-first boot.
+        if (!current()) return;
+        final originalAccounts = accounts;
+        final originalActiveId = activeId;
+        // An explicit clear always wins. Read-only backup reloads must neither
+        // import the primary nor rotate the independent novel credentials.
         final importLegacy =
+            persistMigrations &&
             !cleared &&
             accounts.isEmpty &&
             legacySession != null &&
             (raw == null || handled);
-        if (persistMigrations && (!handled || importLegacy)) {
-          if (legacySession != null && importLegacy) {
-            accounts = [_resolveSession(legacySession, accounts)];
-          }
-          activeId = _reachable(activeId, accounts);
-          var persisted = false;
+        if (importLegacy) {
+          accounts = [_resolveSession(legacySession, accounts)];
+        }
+        var merge = mergeCopyAccounts(
+          accounts,
+          activeId: activeId,
+          preferredSession: persistMigrations ? legacySession : null,
+        );
+        final changed =
+            jsonEncode(originalAccounts.map((a) => a.toJson()).toList()) !=
+                jsonEncode(merge.accounts.map((a) => a.toJson()).toList()) ||
+            originalActiveId != merge.activeId;
+        var primaryPrepared = false;
+        var copyWritten = false;
+        final originalHandled = handled;
+        Future<void> rollbackPrimary() async {
+          if (!primaryPrepared) return;
           try {
-            if (cleared && accounts.isEmpty) {
-              await _writeClearedRecord();
-            } else {
-              await _writeRecord(accounts, activeId);
-            }
-            persisted = true;
-            handled = true;
+            await rollback?.call();
           } catch (_) {
-            // Migration is best-effort. A readable account stays usable even
-            // if its marker cannot be updated; the next init can retry.
-            _logStorageFailure('migrate');
-          }
-          if (revision != _revision) {
-            if (persisted) await _restorePublishedRecord();
-            return;
+            // Compensation failure must not discard the readable COPY snapshot.
+            _logStorageFailure('restore_primary');
           }
         }
-        if (revision != _revision) return;
-        _accounts = accounts;
-        _activeId = _reachable(activeId, accounts);
+
+        try {
+          primaryPrepared = prepareCommit != null;
+          await prepareCommit?.call(merge);
+          if (!current()) {
+            await rollbackPrimary();
+            return;
+          }
+          if (persistMigrations && (!handled || importLegacy || changed)) {
+            if (cleared && merge.accounts.isEmpty) {
+              await _writeClearedRecord();
+            } else {
+              await _writeRecord(merge.accounts, merge.activeId);
+            }
+            copyWritten = true;
+            handled = true;
+          }
+          if (!current()) {
+            if (copyWritten) await _restorePublishedRecord();
+            await rollbackPrimary();
+            return;
+          }
+          onCommitted?.call(merge);
+        } catch (_) {
+          // Keep both readable snapshots when either side fails. Normal startup
+          // can retry the cleanup; it must not report a half-committed identity.
+          await rollbackPrimary();
+          if (copyWritten) {
+            try {
+              if (raw != null) {
+                await _secure.writeCopyAccountRecord(raw);
+              } else {
+                await _restorePublishedRecord();
+              }
+            } catch (_) {
+              _logStorageFailure('restore_copy');
+            }
+          }
+          handled = originalHandled;
+          _logStorageFailure('migrate');
+          merge = CopyAccountMerge(
+            accounts: originalAccounts,
+            activeId: _reachable(originalActiveId, originalAccounts),
+            idRemap: const {},
+          );
+        }
+        if (!current()) return;
+        _accounts = merge.accounts;
+        _activeId = merge.activeId;
         _migrationHandled = handled;
-        _cleared = cleared && accounts.isEmpty;
+        _cleared = cleared && _accounts.isEmpty;
         notifyListeners();
       } catch (_) {
         // Storage failures never block or clear the primary account.
@@ -285,15 +550,16 @@ class CopyAccountStore extends ChangeNotifier {
     final list = raw['accounts'];
     final source = list is List ? list : [raw['session']];
     final accounts = <CopyAccountSession>[];
-    final seen = <String>{};
     for (final item in source) {
       if (item is! Map) continue;
       final account = CopyAccountSession.fromJson(
         Map<String, dynamic>.from(item),
       );
-      final id = account.id;
-      if (id == null || !seen.add(id)) continue;
-      accounts.add(account);
+      accounts.add(
+        account.id == null
+            ? account.copyWith(accountId: _newAccountId())
+            : account,
+      );
     }
     return accounts;
   }
@@ -310,54 +576,48 @@ class CopyAccountStore extends ChangeNotifier {
   /// Resolve a validated login before a dual-domain commit writes credentials.
   /// This does not publish or persist anything; the caller must retain the
   /// returned id and keep its revision guard until saveSession completes.
+  CopyAccountMerge previewSession(
+    CopyAccountSession session, {
+    bool select = true,
+  }) {
+    final validated = CopyAccountSession.fromJson(session.toJson());
+    var candidate = validated.copyWith(
+      accountId: validated.id ?? _newAccountId(),
+    );
+    final groups = groupAccounts<CopyAccountSession>([
+      ..._accounts,
+      candidate,
+    ], (account) => account.identity);
+    final incomingGroup = groups.firstWhere(
+      (group) => group.any((item) => identical(item, candidate)),
+    );
+    if (_accounts.any(
+      (existing) =>
+          existing.id == candidate.id &&
+          !incomingGroup.any((item) => identical(item, existing)),
+    )) {
+      candidate = candidate.copyWith(accountId: _newAccountId());
+    }
+    return mergeCopyAccounts(
+      _accounts,
+      activeId: activeId,
+      incoming: candidate,
+      selectIncoming: select,
+    );
+  }
+
   CopyAccountSession resolveSession(CopyAccountSession session) =>
-      _resolveSession(session, _accounts);
+      previewSession(session).incoming!;
 
   static CopyAccountSession _resolveSession(
     CopyAccountSession session,
     List<CopyAccountSession> accounts,
   ) {
-    final candidate = CopyAccountSession.fromJson(session.toJson());
-    var known = accounts
-        .where((account) => account.token == candidate.token)
-        .firstOrNull;
-    known ??= accounts
-        .where(
-          (account) =>
-              candidate.accountId != null && account.id == candidate.accountId,
-        )
-        .firstOrNull;
-    if (known == null && candidate.userId.trim().isNotEmpty) {
-      known = accounts
-          .where((account) => account.userId.trim() == candidate.userId.trim())
-          .firstOrNull;
-    }
-    if (known == null && candidate.username.trim().isNotEmpty) {
-      // 登录名唯一，直接按登录名归属；不再要求一侧 userId 为空，否则同一
-      // 账号两次登录带回不同 user_id 时会各建一条。
-      known = accounts
-          .where(
-            (account) => account.username.trim() == candidate.username.trim(),
-          )
-          .firstOrNull;
-    }
-    if (known == null) {
-      return candidate.copyWith(accountId: candidate.id ?? _newAccountId());
-    }
-    // An exact token or known identity may fill profile gaps, but must not
-    // change an existing binding (including legacy username-derived ids).
-    return candidate.copyWith(
-      accountId: known.id,
-      userId: candidate.userId.trim().isEmpty ? known.userId : candidate.userId,
-      username: candidate.username.trim().isEmpty
-          ? known.username
-          : candidate.username,
-      nickname: candidate.nickname.trim().isEmpty
-          ? known.nickname
-          : candidate.nickname,
-      avatar: candidate.avatar.trim().isEmpty ? known.avatar : candidate.avatar,
-      label: candidate.label.trim().isEmpty ? known.label : candidate.label,
-    );
+    final validated = CopyAccountSession.fromJson(session.toJson());
+    return mergeCopyAccounts(
+      accounts,
+      incoming: validated.copyWith(accountId: validated.id ?? _newAccountId()),
+    ).incoming!;
   }
 
   static String _newAccountId() {
@@ -395,15 +655,9 @@ class CopyAccountStore extends ChangeNotifier {
     bool superseded() => revision != _revision || isCurrent?.call() == false;
     return _serialize(() async {
       if (superseded()) return false;
-      final entry = resolveSession(validated);
-      final next = [
-        entry,
-        ..._accounts.where((account) => account.id != entry.id),
-      ];
-      // select 为 false 时保留当前选中（与 _commitLogin 判断「是否已选中」
-      // 用的是同一个 getter）；确实没有选中时才落到新账号。
-      final selectedId = activeId;
-      final nextActiveId = select ? entry.id : (selectedId ?? entry.id);
+      final merge = previewSession(validated, select: select);
+      final next = merge.accounts;
+      final nextActiveId = merge.activeId;
       try {
         await _writeRecord(next, nextActiveId);
         if (superseded()) {
@@ -457,9 +711,10 @@ class CopyAccountStore extends ChangeNotifier {
       final existing = byId(id);
       if (existing == null || existing.token != token) return false;
       final returnedId = field('user_id', '');
-      if (returnedId.isNotEmpty &&
-          existing.userId.isNotEmpty &&
-          returnedId != existing.userId) {
+      if (!existing.acceptsProfile(
+        userId: returnedId,
+        username: field('username', ''),
+      )) {
         return false;
       }
       final updated = existing.copyWith(
@@ -469,12 +724,10 @@ class CopyAccountStore extends ChangeNotifier {
         nickname: field('nickname', existing.nickname),
         avatar: field('avatar', existing.avatar),
       );
-      final next = [
-        for (final account in _accounts)
-          if (account.id == id) updated else account,
-      ];
+      final merge = previewSession(updated, select: false);
+      final next = merge.accounts;
       try {
-        await _writeRecord(next, _activeId);
+        await _writeRecord(next, merge.activeId);
         if (!current()) {
           await _restorePublishedRecord();
           return false;
@@ -485,8 +738,9 @@ class CopyAccountStore extends ChangeNotifier {
       }
       if (!current()) return false;
       _accounts = next;
+      _activeId = merge.activeId;
       _migrationHandled = true;
-      onCommitted?.call(updated);
+      onCommitted?.call(merge.incoming!);
       notifyListeners();
       return true;
     });
@@ -500,9 +754,13 @@ class CopyAccountStore extends ChangeNotifier {
   Future<bool> syncSessionToken({
     required String id,
     required CopyAccountSession session,
+    int? expectedRevision,
     bool Function()? isCurrent,
     void Function(CopyAccountSession session)? onCommitted,
   }) {
+    if (expectedRevision != null && expectedRevision != _revision) {
+      return Future.value(false);
+    }
     final revision = ++_revision;
     bool current() => revision == _revision && isCurrent?.call() != false;
     String field(String value, String oldValue) =>
@@ -512,7 +770,10 @@ class CopyAccountStore extends ChangeNotifier {
       final existing = byId(id);
       if (existing == null) return false;
       final returnedId = field(session.userId, existing.userId);
-      if (existing.userId.isNotEmpty && returnedId != existing.userId) {
+      if (!existing.acceptsProfile(
+        userId: returnedId,
+        username: session.username,
+      )) {
         return false;
       }
       final updated = existing.copyWith(
@@ -522,12 +783,10 @@ class CopyAccountStore extends ChangeNotifier {
         nickname: field(session.nickname, existing.nickname),
         avatar: field(session.avatar, existing.avatar),
       );
-      final next = [
-        for (final account in _accounts)
-          if (account.id == id) updated else account,
-      ];
+      final merge = previewSession(updated, select: false);
+      final next = merge.accounts;
       try {
-        await _writeRecord(next, _activeId);
+        await _writeRecord(next, merge.activeId);
         if (!current()) {
           await _restorePublishedRecord();
           return false;
@@ -538,8 +797,9 @@ class CopyAccountStore extends ChangeNotifier {
       }
       if (!current()) return false;
       _accounts = next;
+      _activeId = merge.activeId;
       _migrationHandled = true;
-      onCommitted?.call(updated);
+      onCommitted?.call(merge.incoming!);
       notifyListeners();
       return true;
     });

@@ -674,18 +674,19 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         user: user,
         api: api,
         credentials: credentials,
+        persistLoginFormPasswords: () async {
+          if (!mounted) return;
+          // 登录已成功；先补回表单密码，再用最终账号 revision 刷新资料。
+          await _persistLoginFormPasswords(user);
+          // 移动版 h5 的表单体不一定可解析，以本次登录 token 锚定自动填表密码。
+          final fill = widget.autoFill;
+          await user.saveLoginFormPasswords({
+            fill.username: fill.password,
+          }, anchorToken: credentials.token);
+        },
       );
       if (!mounted) return;
       if (saved) {
-        // 登录已经成功，保存密码只是附带收益：失败也不影响本次登录。
-        await _persistLoginFormPasswords(user);
-        // 账号密码是用户在 kira 里输入的，登录请求（尤其移动版 h5）的表单体
-        // 不一定解析得到，直接按本次登录的 token 锚定并回。
-        final fill = widget.autoFill;
-        await user.saveLoginFormPasswords({
-          fill.username: fill.password,
-        }, anchorToken: credentials.token);
-        if (!mounted) return;
         context.pop(true);
       } else {
         setState(() {
