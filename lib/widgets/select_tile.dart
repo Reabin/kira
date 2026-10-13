@@ -6,21 +6,28 @@ import '../theme/app_radius.dart';
 
 /// 「最多显示 N 个字符」对应的宽度上限。
 ///
-/// 用数字量：数字是常见字体里最宽的一类字形，按它封顶能保证同长度的文字都
-/// 放得下。按字符数而非固定像素，是因为同一段文字在不同字体/字号下宽度差很
-/// 多，而「最多显示几个字」才是要保证的观感。
+/// 数字与全角汉字是两极：数字 ≈0.55em，CJK 全角 ≈1em，只按数字量会让中文
+/// 标签的上限远小于「N 个字」的观感（真机上数字更窄，问题更明显）。取两者
+/// 较大值，保证 N 个字符无论中英文都放得下。按字符数而非固定像素，是因为
+/// 同一段文字在不同字体/字号下宽度差很多，而「最多显示几个字」才是要保证
+/// 的观感。
 double _maxCharactersWidth(
   BuildContext context,
   int characters,
   TextStyle? style,
 ) {
-  final painter = TextPainter(
-    text: TextSpan(text: '0' * characters, style: style),
-    textDirection: TextDirection.ltr,
-    textScaler: MediaQuery.textScalerOf(context),
-    maxLines: 1,
-  )..layout();
-  return painter.size.width;
+  final scaler = MediaQuery.textScalerOf(context);
+  double widthOf(String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    return painter.size.width;
+  }
+
+  return math.max(widthOf('0' * characters), widthOf('字' * characters));
 }
 
 /// 标签文本宽度（单行，不折行）。
@@ -285,8 +292,14 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                   Icon(widget.leadingIcon, size: 18, color: foreground),
                   const SizedBox(width: 6),
                 ],
+                // 通用硬上限 168；设了字符上限时标签跟着收窄，否则超长账号
+                // 名会把胶囊撑满 168，菜单宽度又被胶囊顶破上限。
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 168),
+                  constraints: BoxConstraints(
+                    maxWidth: _labelWidth == null
+                        ? 168
+                        : math.min(168.0, _labelWidth!),
+                  ),
                   child: Text(
                     label,
                     maxLines: 1,

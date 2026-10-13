@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/widgets/select_tile.dart';
@@ -164,5 +166,45 @@ void main() {
     )..layout();
     expect(menuWidth, closeTo(painter.size.width + 32, 0.5));
     expect(menuWidth, greaterThan(pillWidth));
+  });
+
+  testWidgets('menuMaxCharacters also caps the pill label width', (
+    tester,
+  ) async {
+    const long = '一二三四五六七八九十一二三四五六七八九十';
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<String>(
+            value: 'long',
+            menuMaxCharacters: 8,
+            items: const [SelectItem('long', long)],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    // 胶囊标签被压到 cap 内，胶囊不再被超长账号名撑满 168 的通用上限。
+    // （真机上数字 ≈0.55em 远窄于全角汉字，此前只按数字量 cap 时胶囊宽度
+    // 会反过来顶破菜单上限，限制形同虚设。）
+    final style = Theme.of(
+      tester.element(find.byType(SelectTile<String>)),
+    ).textTheme.bodyMedium;
+    final digits = TextPainter(
+      text: TextSpan(text: '0' * 8, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final cjk = TextPainter(
+      text: TextSpan(text: '字' * 8, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final cap = math.max(digits.size.width, cjk.size.width);
+
+    final pillWidth = tester.getSize(find.byType(SelectTile<String>)).width;
+    // 胶囊 = 标签(cap) + 水平内边距 32 + 间隙 6 + 箭头 18。
+    expect(pillWidth, closeTo(cap + 56, 0.5));
+    expect(pillWidth, lessThan(224.0));
   });
 }
