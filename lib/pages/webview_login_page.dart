@@ -298,12 +298,65 @@ String buildCopyLoginFillScript({
 ''';
 }
 
+/// 清空 WebView 里残留的登录态，让本次登录从全新环境开始。
+///
+/// 官网的登录态是持久的：cookie 与 localStorage 都会跨会话保留，上次登录
+/// 的痕迹会干扰本次登录（例如页面带着旧 token 直接跳登录后首页、自动填表
+/// 提交被旧会话顶掉）。所以在加载登录页之前先清一次。
+///
+/// 各平台能力不同（依据 flutter_inappwebview 官方文档与插件源码）：
+/// - Android：`deleteAllData()` 清 Web Storage，`deleteAllCookies()` 清 cookie；
+/// - iOS / macOS：没有 `deleteAllData()`，要用 `fetchDataRecords()` 找到记录后
+///   `removeDataFor()` 删除；`deleteAllCookies()` 内部同样是按 cookies 类型删；
+/// - Windows：插件只实现了 cookie 管理，没有 Web Storage 原生实现，
+///   清不到 localStorage（登录页本身仍可用，只是 h5 站残留会留着）；
+/// - Linux / Web：插件没有对应实现，直接跳过。
+///
+/// 清理失败不阻断登录：登录流程本身有「本次是否真的提交过登录」的判定
+/// （[_WebViewLoginPageState._submittedLogin]），清不掉也不会误登旧账号。
+Future<void> clearWebViewLoginState() async {
+  if (kIsWeb) return;
+  try {
+    await CookieManager.instance().deleteAllCookies();
+  } catch (_, st) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        'Unable to clear COPY WebView cookies',
+        stackTrace: st,
+        source: 'webview_login.clear_cookies',
+      ),
+    );
+  }
+  try {
+    final storage = WebStorageManager.instance();
+    if (Platform.isAndroid) {
+      await storage.deleteAllData();
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      final records = await storage.fetchDataRecords(
+        dataTypes: WebsiteDataType.values,
+      );
+      await storage.removeDataFor(
+        dataTypes: WebsiteDataType.values,
+        dataRecords: records,
+      );
+    }
+  } catch (_, st) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        'Unable to clear COPY WebView storage',
+        stackTrace: st,
+        source: 'webview_login.clear_storage',
+      ),
+    );
+  }
+}
+
 /// 通过应用内 WebView 登录拷贝官网。
 ///
 /// 用户在 kira 登录页填好账号密码后进入本页，脚本自动填表并触发表单提交，
 /// 网页自己发出登录请求；登录成功后从 cookie/storage 提取 token，走令牌
-/// 登录落库。页面本身不提供手动登录入口——网页里的登录态是持久的，手动
-/// 进入无法区分「本次登录」与「上次残留」，会把已删除的账号抢登回来。
+/// 登录落库。进入页面时会先清空 WebView 残留的登录态（见
+/// [clearWebViewLoginState]），保证每次登录都是全新环境。
 class WebViewLoginPage extends ConsumerStatefulWidget {
   const WebViewLoginPage({super.key, required this.autoFill});
 
@@ -337,6 +390,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   /// 自动填表提交后的 cookie 轮询：登录是 axios 请求、不一定触发页面导航，
   /// 靠轮询保证拿到新 token。
   Timer? _autoFillPoll;
+
+  /// 清空残留登录态的异步任务。WebView 要等它完成后才创建，否则清理与页面
+  /// 加载会互相竞争（清掉的 cookie 可能又被加载中的页面写回来）。
+  late final Future<void> _cleared = clearWebViewLoginState();
 
   @override
   void dispose() {
@@ -699,39 +756,15 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                   ),
                 ),
               Expanded(
-                child: InAppWebView(
-                  initialUrlRequest: URLRequest(url: _loginUri),
-                  initialUserScripts: UnmodifiableListView([
-                    UserScript(
-                      source: _loginFormScript,
-                      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                      allowedOriginRules: _scriptOriginRules,
-                    ),
-                  ]),
-                  onWebViewCreated: (controller) {
-                    _controller = controller;
-                    controller.addJavaScriptHandler(
-                      handlerName: 'copyLoginForm',
-                      callback: _onLoginFormReported,
-                    );
-                    controller.addJavaScriptHandler(
-                      handlerName: 'copyAutoLogin',
-                      callback: _onAutoLoginEvent,
-                    );
-                  },
-                  onProgressChanged: (controller, progress) {
-                    setState(() => _progress = progress / 100);
-                  },
-                  onLoadStop: (controller, url) {
-                    _tryExtractAndFinish();
-                    _injectAutoFill(controller, url);
-                  },
-                  // h5 站登录成功后只写 cookie/localStorage、不跳路由，此时
-                  // 只能靠上面的轮询；这里覆盖桌面站的整页跳转，以及用户手动
-                  // 改完密码后 h5 站可能发生的 SPA 导航（顺带重新注入脚本）。
-                  onUpdateVisitedHistory: (controller, url, isReload) {
-                    _tryExtractAndFinish();
-                    _injectAutoFill(controller, url);
+                // 等残留登录态清干净再建 WebView：边清边加载会让页面把清掉的
+                // cookie 又写回来，等于没清。
+                child: FutureBuilder<void>(
+                  future: _cleared,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return _buildWebView();
                   },
                 ),
               ),
@@ -761,6 +794,44 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildWebView() {
+    return InAppWebView(
+      initialUrlRequest: URLRequest(url: _loginUri),
+      initialUserScripts: UnmodifiableListView([
+        UserScript(
+          source: _loginFormScript,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          allowedOriginRules: _scriptOriginRules,
+        ),
+      ]),
+      onWebViewCreated: (controller) {
+        _controller = controller;
+        controller.addJavaScriptHandler(
+          handlerName: 'copyLoginForm',
+          callback: _onLoginFormReported,
+        );
+        controller.addJavaScriptHandler(
+          handlerName: 'copyAutoLogin',
+          callback: _onAutoLoginEvent,
+        );
+      },
+      onProgressChanged: (controller, progress) {
+        setState(() => _progress = progress / 100);
+      },
+      onLoadStop: (controller, url) {
+        _tryExtractAndFinish();
+        _injectAutoFill(controller, url);
+      },
+      // h5 站登录成功后只写 cookie/localStorage、不跳路由，此时只能靠上面的
+      // 轮询；这里覆盖桌面站的整页跳转，以及用户手动改完密码后 h5 站可能发生
+      // 的 SPA 导航（顺带重新注入脚本）。
+      onUpdateVisitedHistory: (controller, url, isReload) {
+        _tryExtractAndFinish();
+        _injectAutoFill(controller, url);
+      },
     );
   }
 }

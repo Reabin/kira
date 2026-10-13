@@ -60,9 +60,14 @@ class _LoginPageState extends State<LoginPage> {
   CopyLoginChannel _copyChannel = CopyLoginChannel.web;
   String? _error;
 
-  /// 接口登录是否可用：签名密钥缺失时登录必然失败（服务端对无效签名
-  /// 返回空数据），所以直接不提供这个入口。
-  bool get _appLoginAvailable => CopySignature.isConfigured;
+  /// 接口登录的临时开关:该功能当前存在问题,先整体关闭入口。修好后置回
+  /// true 即恢复;届时仍要求签名密钥就绪(密钥缺失时登录必然失败,服务端
+  /// 对无效签名返回空数据,见 [CopySignature.isConfigured])。
+  static const _appLoginEnabled = false;
+
+  /// 接口登录是否可用:功能开关开启且签名密钥已就绪时才提供该入口。
+  bool get _appLoginAvailable =>
+      _appLoginEnabled && CopySignature.isConfigured;
 
   @override
   void initState() {

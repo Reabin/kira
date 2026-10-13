@@ -214,78 +214,28 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  group('COPY 登录通道', () {
+  group('COPY 接口登录入口', () {
     setUp(() {
-      // 有密钥才有接口通道；测试用固定串，与真实协议常量无关。
+      // 测试用固定串,与真实协议常量无关:只为验证「即便密钥就绪,入口仍因
+      // 功能开关关闭而不展示」。
       CopySignature.debugKeyOverride =
           '00000000000000000000000000000000';
     });
 
     tearDown(() => CopySignature.debugKeyOverride = null);
 
-    testWidgets('配置了签名密钥时提供网页/接口通道切换，默认网页', (tester) async {
-      SharedPreferences.setMockInitialValues({'login_source': 'copy'});
-      await UserManager().init();
-      await pumpLogin(tester);
-
-      expect(find.text('网页登录'), findsOneWidget);
-      expect(find.text('接口登录'), findsOneWidget);
-      // 默认网页登录：节点卡展示官网域名，切到接口后换成 COPY API 节点。
-      final card = tester.widget<LoginNodeStatusCard>(
-        find.byType(LoginNodeStatusCard),
-      );
-      expect(card.copyChannel, CopyLoginChannel.web);
-
-      await tester.tap(find.text('接口登录'));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<LoginNodeStatusCard>(find.byType(LoginNodeStatusCard))
-            .copyChannel,
-        CopyLoginChannel.app,
-      );
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('切换通道后重新探测新域名，不会一直停在「检测中」', (tester) async {
-      final probed = <List<String>>[];
-      LoginNodeStatusCard.probeOverride = (hosts, {onHostResult}) async {
-        probed.add(List.of(hosts));
-        final results = <String, int?>{for (final host in hosts) host: 42};
-        for (final entry in results.entries) {
-          onHostResult?.call(entry.key, entry.value);
-        }
-        return results;
-      };
-      CopySignature.debugKeyOverride = '00000000000000000000000000000000';
-      SharedPreferences.setMockInitialValues({'login_source': 'copy'});
-      final user = UserManager();
-      await user.init();
-      await user.setCopyApiHost('api.copy.test');
-      await pumpLogin(tester);
-
-      // 首轮测的是网页通道的官网域名。
-      expect(probed.single, contains(user.copyLoginHost));
-      expect(find.text('检测中'), findsNothing);
-
-      await tester.tap(find.text('接口登录'));
-      await tester.pumpAndSettle();
-
-      // 切到接口通道后必须为 COPY API 节点补测，否则会一直显示检测中。
-      expect(probed, hasLength(2));
-      expect(probed.last, contains('api.copy.test'));
-      expect(find.text('检测中'), findsNothing);
-      expect(find.text('42 ms'), findsOneWidget);
-    });
-
-    testWidgets('未配置签名密钥时不提供接口通道', (tester) async {
-      CopySignature.debugKeyOverride = null;
+    testWidgets('接口登录暂时隐藏:即使配置了签名密钥也不展示通道入口', (tester) async {
       SharedPreferences.setMockInitialValues({'login_source': 'copy'});
       await UserManager().init();
       await pumpLogin(tester);
 
       expect(find.text('网页登录'), findsNothing);
       expect(find.text('接口登录'), findsNothing);
+      // 入口隐藏后仍走网页登录,节点卡固定展示官网域名。
+      final card = tester.widget<LoginNodeStatusCard>(
+        find.byType(LoginNodeStatusCard),
+      );
+      expect(card.copyChannel, CopyLoginChannel.web);
       expect(tester.takeException(), isNull);
     });
   });
