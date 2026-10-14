@@ -923,17 +923,18 @@
   "appDisclaimerFooter": "繼續使用本軟體，即表示您已仔細閱讀、充分理解並同意接受上述全部條款的約束。如您不同意任一條款，請立即停止使用並解除安裝本軟體。",
   "profileUsernamePasswordRequired": "請輸入使用者名稱和密碼",
   "profileLoginFailedProxyHint": "登入失敗，建議開啟代理後重試",
-  "profileLoginIpBlockedHint": "目前 IP 已被封鎖，請更換網路環境或開啟代理後重試",
+  "profileLoginIpBlockedHint": "目前 IP 已被封鎖，請更換網路環境或代理節點後重試",
   "profileTokenRequired": "請輸入權杖",
   "profileTokenInvalidOrExpired": "權杖無效或已過期",
   "profileLoginTitle": "登入",
   "profileAccountPasswordLoginMode": "帳號密碼",
   "profileTokenLoginMode": "權杖",
   "profileTokenLoginEntry": "權杖登入",
-  "copyAccountChannelWeb": "網頁登入",
-  "copyAccountChannelApp": "介面登入",
-  "copyAccountAppLoginFailed": "登入失敗：{detail}",
-  "@copyAccountAppLoginFailed": {
+  "copyAccountChannelWebApi": "網頁介面",
+  "copyAccountChannelWeb": "網頁",
+  "copyAccountChannelApp": "App介面",
+  "copyAccountInterfaceLoginFailed": "登入失敗：{detail}",
+  "@copyAccountInterfaceLoginFailed": {
     "placeholders": {
       "detail": {
         "type": "String"

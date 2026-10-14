@@ -413,7 +413,6 @@ void main() {
     },
   );
 
-
   testWidgets(
     'switching HOT to COPY rejects a HOT-valid token without touching accounts',
     (tester) async {
@@ -530,33 +529,34 @@ void main() {
     },
   );
 
-  testWidgets(
-    'COPY-only mode exposes the account form and token login entry',
-    (tester) async {
-      await pumpLogin(tester);
-      expect(find.byType(SegmentedButton<bool>), findsNothing);
-      expect(find.byType(TextField), findsNWidgets(2));
-      expect(find.byType(CheckboxListTile), findsNothing);
-      expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
-      expect(find.text('热辣漫画'), findsNothing);
-      expect(find.text('same-username'), findsNothing);
-      expect(
-        find.byKey(const ValueKey('official-register-copy')),
-        findsNothing,
-      );
-      expect(find.byIcon(Icons.key), findsOneWidget);
-      // 签名密钥未配置时只提供网页登录，通道选择器整块不展示。
-      expect(find.text('接口登录'), findsNothing);
-      expect(
-        tester
-            .widget<LoginNodeStatusCard>(find.byType(LoginNodeStatusCard))
-            .useCopyLogin,
-        isTrue,
-      );
-      expect(probes, 1);
-      expect(copyAdapter.requests, isEmpty);
-    },
-  );
+  testWidgets('COPY-only mode exposes the account form and token login entry', (
+    tester,
+  ) async {
+    await pumpLogin(tester);
+    expect(find.byType(SegmentedButton<bool>), findsNothing);
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.byType(CheckboxListTile), findsNothing);
+    expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
+    expect(find.text('热辣漫画'), findsNothing);
+    expect(find.text('same-username'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('official-register-copy')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.key), findsOneWidget);
+    // 通道选择器始终展示：网页接口与网页都不需要签名密钥。
+    // App 接口登录是否出现取决于密钥，这里不断言（见 login_page_test）。
+    expect(find.text('网页接口'), findsOneWidget);
+    expect(find.text('网页'), findsOneWidget);
+    expect(
+      tester
+          .widget<LoginNodeStatusCard>(find.byType(LoginNodeStatusCard))
+          .useCopyLogin,
+      isTrue,
+    );
+    expect(probes, 1);
+    expect(copyAdapter.requests, isEmpty);
+  });
 
   testWidgets(
     'COPY account login requires both fields before opening the official page',
@@ -569,6 +569,107 @@ void main() {
       expect(find.text('test-official-login'), findsNothing);
     },
   );
+
+  Future<void> selectCopyChannel(WidgetTester tester, String label) async {
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('网页接口登录打官网登录接口并直接落库', (tester) async {
+    response = (_) => _jsonResponse({
+      'code': 200,
+      'results': {
+        'token': 'web-api-copy',
+        'user_id': 'web-api-id',
+        'username': 'auto-user',
+        'nickname': 'COPY web api',
+      },
+    });
+    await pumpLogin(tester);
+    await selectCopyChannel(tester, '网页接口');
+
+    await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+    await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+    await tester.tap(find.widgetWithText(FilledButton, '登录'));
+    await tester.pumpAndSettle();
+
+    // 不再经过 WebView：请求直接由客户端发出，域名是官网登录域名。
+    expect(find.text('test-official-login'), findsNothing);
+    final request = copyAdapter.requests.first;
+    expect(request.method, 'POST');
+    expect(request.uri.host, user.copyLoginHost);
+    expect(request.uri.path, '/api/kb/web/login');
+    expect(user.copyToken, 'web-api-copy');
+    expect(find.text('test-home'), findsOneWidget);
+  });
+
+  testWidgets('接口登录直连失败后静默改用代理重试一次', (tester) async {
+    // 两次都失败：直连一趟 + 代理重试一趟，共两次请求。
+    var attempts = 0;
+    response = (_) {
+      attempts++;
+      return _jsonResponse({'code': 500, 'message': '服务端异常'});
+    };
+    await pumpLogin(tester);
+    await selectCopyChannel(tester, '网页接口');
+
+    await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+    await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+    await tester.tap(find.widgetWithText(FilledButton, '登录'));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 2);
+    // 重试对用户静默：只报最后一次失败，不暴露「用过代理」。
+    expect(find.text('登录失败：服务端异常'), findsOneWidget);
+    expect(find.textContaining('代理'), findsNothing);
+    expect(user.copyToken, isNull);
+  });
+
+  testWidgets('IP 风控封禁用警告框提示在登录按钮下方', (tester) async {
+    response = (_) => _jsonResponse({
+      'code': 210,
+      'message': '請到官網更新最新APP',
+      'results': {'detail': '請到官網更新最新APP'},
+    });
+    await pumpLogin(tester);
+    await selectCopyChannel(tester, '网页接口');
+
+    await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+    await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+    await tester.tap(find.widgetWithText(FilledButton, '登录'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('当前 IP 被封禁，请更换网络环境或代理节点后重试'), findsOneWidget);
+    // 警告框带警示图标，且位置在登录按钮下方。
+    expect(find.byIcon(Icons.warning_amber_outlined), findsOneWidget);
+    final buttonY = tester
+        .getCenter(find.widgetWithText(FilledButton, '登录'))
+        .dy;
+    final warningY = tester
+        .getCenter(find.byIcon(Icons.warning_amber_outlined))
+        .dy;
+    expect(warningY, greaterThan(buttonY));
+  });
+
+  testWidgets('代理模式为直连时不重试', (tester) async {
+    await user.setNetworkProxyMode(NetworkProxyMode.direct);
+    var attempts = 0;
+    response = (_) {
+      attempts++;
+      return _jsonResponse({'code': 500, 'message': '服务端异常'});
+    };
+    await pumpLogin(tester);
+    await selectCopyChannel(tester, '网页接口');
+
+    await tester.enterText(find.byType(TextField).at(0), 'auto-user');
+    await tester.enterText(find.byType(TextField).at(1), 'auto-password');
+    await tester.tap(find.widgetWithText(FilledButton, '登录'));
+    await tester.pumpAndSettle();
+
+    // 用户明确选了直连，没有可退回的代理，重试没有意义。
+    expect(attempts, 1);
+    expect(find.textContaining('登录失败：'), findsOneWidget);
+  });
 
   testWidgets(
     'username field offers saved accounts of the active login source only',
@@ -626,7 +727,8 @@ void main() {
             .text,
         'copy-password',
       );
-      // 回填后直接点登录即可把账密带进官网登录页。
+      // 回填后切到网页通道，点登录即可把账密带进官网登录页。
+      await selectCopyChannel(tester, '网页');
       await tester.tap(find.widgetWithText(FilledButton, '登录'));
       await tester.pumpAndSettle();
       expect(find.text('test-fill:copy-user:copy-password'), findsOneWidget);
@@ -662,6 +764,8 @@ void main() {
     'COPY account login opens the official page with the entered credentials',
     (tester) async {
       await pumpLogin(tester);
+      // 默认通道是网页接口登录，先切到网页（WebView）通道。
+      await selectCopyChannel(tester, '网页');
       await tester.enterText(find.byType(TextField).at(0), 'auto-user');
       await tester.enterText(find.byType(TextField).at(1), 'auto-password');
       await tester.tap(find.widgetWithText(FilledButton, '登录'));
@@ -773,10 +877,11 @@ void main() {
         expect(find.byIcon(Icons.key), findsOneWidget);
         expect(
           find.byKey(const ValueKey('official-register-copy')),
-          findsNothing,
+          findsOneWidget,
         );
 
-        // 网页登录是拷贝模式的默认通道，登录按钮直接进入官网页面。
+        // 网页通道（WebView）是最后一项，需显式切换；默认通道是网页接口登录。
+        await selectCopyChannel(tester, '网页');
         await tester.enterText(find.byType(TextField).at(0), 'auto-user');
         await tester.enterText(find.byType(TextField).at(1), 'auto-password');
         await tester.tap(find.widgetWithText(FilledButton, '登录'));
@@ -1134,60 +1239,43 @@ void main() {
     ),
   );
 
-  test(
-    'h5 web logins of one account collapse into a single card',
-    () async {
-      // 手机端官网把登录态写在 localStorage["user"]，字段名是 userid（无下划线）。
-      // 旧解析漏掉这个键，提取到的凭证没有身份，而官网每次登录都轮换 token，
-      // 于是同一账号每次都新建一条，账号中心堆出重复卡片。
-      CopyWebCredentials? creds;
-      void extract(String token, String userId) {
-        creds = parseCopyWebStorage({
-          'ls': {
-            'user': '{"token":"$token","userid":"$userId"}',
-          },
-        });
-      }
+  test('h5 web logins of one account collapse into a single card', () async {
+    // 手机端官网把登录态写在 localStorage["user"]，字段名是 userid（无下划线）。
+    // 旧解析漏掉这个键，提取到的凭证没有身份，而官网每次登录都轮换 token，
+    // 于是同一账号每次都新建一条，账号中心堆出重复卡片。
+    CopyWebCredentials? creds;
+    void extract(String token, String userId) {
+      creds = parseCopyWebStorage({
+        'ls': {'user': '{"token":"$token","userid":"$userId"}'},
+      });
+    }
 
-      extract('h5-token-1', 'h5-user-id');
-      expect(creds?.userId, 'h5-user-id');
-      expect(
-        await completeCopyWebLogin(
-          user: user,
-          api: api,
-          credentials: creds!,
-        ),
-        isTrue,
-      );
+    extract('h5-token-1', 'h5-user-id');
+    expect(creds?.userId, 'h5-user-id');
+    expect(
+      await completeCopyWebLogin(user: user, api: api, credentials: creds!),
+      isTrue,
+    );
 
-      // 第二次登录：官网轮换了 token，身份不变。
-      extract('h5-token-2', 'h5-user-id');
-      expect(
-        await completeCopyWebLogin(
-          user: user,
-          api: api,
-          credentials: creds!,
-        ),
-        isTrue,
-      );
+    // 第二次登录：官网轮换了 token，身份不变。
+    extract('h5-token-2', 'h5-user-id');
+    expect(
+      await completeCopyWebLogin(user: user, api: api, credentials: creds!),
+      isTrue,
+    );
 
-      expect(
-        user.copyAccount.accounts,
-        hasLength(1),
-        reason: '同一账号两次手机端登录只能有一张卡片',
-      );
-      expect(user.copyAccount.accounts.single.userId, 'h5-user-id');
-      expect(
-        user.copyAccount.token,
-        'h5-token-2',
-        reason: '卡片上的令牌必须跟着轮换',
-      );
-      expect(
-        user.savedCredentials.where((item) => item.source == 'copy'),
-        hasLength(1),
-      );
-    },
-  );
+    expect(
+      user.copyAccount.accounts,
+      hasLength(1),
+      reason: '同一账号两次手机端登录只能有一张卡片',
+    );
+    expect(user.copyAccount.accounts.single.userId, 'h5-user-id');
+    expect(user.copyAccount.token, 'h5-token-2', reason: '卡片上的令牌必须跟着轮换');
+    expect(
+      user.savedCredentials.where((item) => item.source == 'copy'),
+      hasLength(1),
+    );
+  });
 
   test(
     'successful token login returns before its optional profile request completes',
@@ -1492,7 +1580,6 @@ void main() {
     },
   );
 
-
   test(
     'WebView official login stores a new novel account without switching',
     () async {
@@ -1679,5 +1766,4 @@ void main() {
       );
     },
   );
-
 }

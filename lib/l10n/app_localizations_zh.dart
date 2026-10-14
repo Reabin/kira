@@ -1577,7 +1577,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileLoginFailedProxyHint => '登录失败，建议开启代理后重试';
 
   @override
-  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或开启代理后重试';
+  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或代理节点后重试';
 
   @override
   String get profileTokenRequired => '请输入令牌';
@@ -1598,13 +1598,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTokenLoginEntry => '令牌登录';
 
   @override
-  String get copyAccountChannelWeb => '网页登录';
+  String get copyAccountChannelWebApi => '网页接口';
 
   @override
-  String get copyAccountChannelApp => '接口登录';
+  String get copyAccountChannelWeb => '网页';
 
   @override
-  String copyAccountAppLoginFailed(String detail) {
+  String get copyAccountChannelApp => 'App接口';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
     return '登录失败：$detail';
   }
 
@@ -5661,7 +5664,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileLoginFailedProxyHint => '登入失敗，建議開啟代理後重試';
 
   @override
-  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或開啟代理後重試';
+  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或代理節點後重試';
 
   @override
   String get profileTokenRequired => '請輸入權杖';
@@ -5682,13 +5685,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileTokenLoginEntry => '權杖登入';
 
   @override
-  String get copyAccountChannelWeb => '網頁登入';
+  String get copyAccountChannelWebApi => '網頁介面';
 
   @override
-  String get copyAccountChannelApp => '介面登入';
+  String get copyAccountChannelWeb => '網頁';
 
   @override
-  String copyAccountAppLoginFailed(String detail) {
+  String get copyAccountChannelApp => 'App介面';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
     return '登入失敗：$detail';
   }
 

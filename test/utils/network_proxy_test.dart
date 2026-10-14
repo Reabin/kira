@@ -69,4 +69,19 @@ void main() {
       expect(user.networkProxyMode, NetworkProxyMode.system);
     },
   );
+
+  test('directFindProxy 无视手动代理配置', () async {
+    final user = UserManager();
+    await user.init();
+    await user.setManualProxy(
+      host: '127.0.0.1',
+      port: 7890,
+      type: NetworkProxyType.http,
+    );
+    final uri = Uri.parse('https://www.google.com/');
+
+    // 接口登录的「先直连」一趟就是靠这条规则绕开手动代理的。
+    expect(NetworkProxy.findProxy(uri), 'PROXY 127.0.0.1:7890');
+    expect(NetworkProxy.directFindProxy(uri), 'DIRECT');
+  });
 }

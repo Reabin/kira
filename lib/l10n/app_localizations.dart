@@ -2956,7 +2956,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLoginIpBlockedHint.
   ///
   /// In zh, this message translates to:
-  /// **'当前 IP 被封禁，请更换网络环境或开启代理后重试'**
+  /// **'当前 IP 被封禁，请更换网络环境或代理节点后重试'**
   String get profileLoginIpBlockedHint;
 
   /// No description provided for @profileTokenRequired.
@@ -2995,23 +2995,29 @@ abstract class AppLocalizations {
   /// **'令牌登录'**
   String get profileTokenLoginEntry;
 
+  /// No description provided for @copyAccountChannelWebApi.
+  ///
+  /// In zh, this message translates to:
+  /// **'网页接口'**
+  String get copyAccountChannelWebApi;
+
   /// No description provided for @copyAccountChannelWeb.
   ///
   /// In zh, this message translates to:
-  /// **'网页登录'**
+  /// **'网页'**
   String get copyAccountChannelWeb;
 
   /// No description provided for @copyAccountChannelApp.
   ///
   /// In zh, this message translates to:
-  /// **'接口登录'**
+  /// **'App接口'**
   String get copyAccountChannelApp;
 
-  /// No description provided for @copyAccountAppLoginFailed.
+  /// No description provided for @copyAccountInterfaceLoginFailed.
   ///
   /// In zh, this message translates to:
   /// **'登录失败：{detail}'**
-  String copyAccountAppLoginFailed(String detail);
+  String copyAccountInterfaceLoginFailed(String detail);
 
   /// No description provided for @profileWebLoginPageTitle.
   ///

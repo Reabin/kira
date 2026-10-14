@@ -2,18 +2,27 @@
 
 `AGENTS.md` 保留日常规则与约定；本文收录按需查阅的架构细节：API 分层结构、CachedRepository 解剖、模型序列化清单、UserManager 双写 key 现状、拷贝接口登录的密钥注入。
 
-## 拷贝登录：两条通道与签名密钥
+## 拷贝登录：三条通道与签名密钥
 
-拷贝账号有两条登录通道，由 `CopyLoginChannel` 区分，登录页在密钥可用时展示切换器：
+拷贝账号有三条登录通道，由 `CopyLoginChannel` 区分。选择器按枚举声明顺序展示，默认选中 `webApi`：
 
 | 通道 | 打哪里 | 请求头 |
 | --- | --- | --- |
-| `web`（默认） | `copyLoginHost` 官网页面，WebView 自动填表 → 抓 cookie token | 浏览器头 |
+| `webApi`（默认） | `copyLoginHost` + `/api/kb/web/login`（与 `web` 同一个接口，客户端直发） | 浏览器头（1:1 复刻抓包，见下） |
 | `app` | `copyApiHost` + `/api/v3/login` | `CopyAppHeaders`（15 项业务头 + 签名） |
+| `web` | `copyLoginHost` 官网页面，WebView 自动填表 → 抓 cookie token | 浏览器头（由 WebView 自己发） |
+
+`webApi` 与 `web` 打同一个接口，区别只是省掉 WebView；`webApi` 不需要签名密钥，任何构建都提供。
+
+**`app` 通道当前由 `LoginPage._appLoginEnabled` 整体关闭**（功能仍有问题），修好后置回 true；恢复后仍要求签名密钥就绪。
+
+**两条接口通道（`webApi` / `app`）先直连、失败再用代理重试一次**：直连通常更快，被墙/被风控时再退回代理。重试对用户静默（只报最后那次失败）。用户显式选了「直连」代理模式时没有可退回的代理，不重试。实现见 `UserApi._createLoginDio` 的 `useProxy` 与 `LoginPage._authenticateCopyInterface`。
+
+**`webApi` 请求头**按抓包 1:1 复刻（UA / `sec-ch-ua` / `accept-language` 集中在 `user_api.dart` 顶部三个常量里，改版本号要三个一起改）。Dio 自己计算 `content-length` 并接管 `host`/`accept-encoding`，代码里不声明；抓包里的 `_ga` / `_ga_SS4LL7K6CL` 是站点统计 cookie，与本请求无关，故意不带。
 
 **签名密钥**（`CopySignature.authKey`）= 拷贝官方 APK 签名证书 DER 的 MD5 hex。它不入库，取值顺序：测试注入（`debugKeyOverride`）→ 编译期 `--dart-define=COPY_AUTH_KEY=…` → 桌面运行时的同名环境变量。Android/iOS 没有运行时环境变量，只能走编译期注入。
 
-未配置时 `CopySignature.isConfigured` 为 false，登录页不展示接口通道——签名无效时服务端**不报错**，只返回 `code 200` + 空数据，任其展示会变成「密码正确却登不上」。
+未配置时 `CopySignature.isConfigured` 为 false，登录页选择器里不出现 App 接口通道——签名无效时服务端**不报错**，只返回 `code 200` + 空数据，任其展示会变成「密码正确却登不上」。
 
 注入方式：
 

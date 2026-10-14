@@ -57,21 +57,26 @@ void main() {
     );
   }
 
-  /// 拷贝模式的公共形态：账号密码表单 + 登录按钮，没有「记住账号」，
-  /// 也不显示热辣的注册入口。签名密钥未配置时只有网页登录，通道选择器不展示。
-  /// 已保存的拷贝账号会回填进表单并出现在下方列表里，热辣账号不出现。
+  /// 拷贝模式的公共形态：账号密码表单 + 登录按钮，没有「记住账号」。
+  /// 通道选择器固定展示「网页接口 / 网页」；「App接口」是否出现取决于
+  /// 签名密钥（桌面调试机若导出了 COPY_AUTH_KEY 就会就绪），所以这里不断言
+  /// 它，只断言两个不依赖密钥的通道。
   void expectCopyForm(WidgetTester tester, {String username = 'copy_user'}) {
     expect(find.byType(TextField), findsNWidgets(2));
     expect(find.byType(CheckboxListTile), findsNothing);
     expect(find.text('hot_user'), findsNothing);
     expect(find.widgetWithText(FilledButton, '登录'), findsOneWidget);
     expect(find.byIcon(Icons.key), findsOneWidget);
-    expect(find.text('接口登录'), findsNothing);
+    expect(find.text('网页接口'), findsOneWidget);
+    expect(find.text('网页'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('official-register-hotmanga')),
       findsNothing,
     );
-    expect(find.byKey(const ValueKey('official-register-copy')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('official-register-copy')),
+      findsOneWidget,
+    );
     final fields = tester
         .widgetList<TextField>(find.byType(TextField))
         .toList();
@@ -214,28 +219,39 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  group('COPY 接口登录入口', () {
+  group('COPY 登录通道', () {
     setUp(() {
-      // 测试用固定串,与真实协议常量无关:只为验证「即便密钥就绪,入口仍因
-      // 功能开关关闭而不展示」。
-      CopySignature.debugKeyOverride =
-          '00000000000000000000000000000000';
+      // 测试用固定串，与真实协议常量无关：只为让签名密钥「就绪」，
+      // 从而让需要签名的 App 接口通道出现在选择器里。
+      CopySignature.debugKeyOverride = '00000000000000000000000000000000';
     });
 
     tearDown(() => CopySignature.debugKeyOverride = null);
 
-    testWidgets('接口登录暂时隐藏:即使配置了签名密钥也不展示通道入口', (tester) async {
+    testWidgets('通道按 网页接口/网页 顺序展示，默认走网页接口', (tester) async {
       SharedPreferences.setMockInitialValues({'login_source': 'copy'});
       await UserManager().init();
       await pumpLogin(tester);
 
-      expect(find.text('网页登录'), findsNothing);
-      expect(find.text('接口登录'), findsNothing);
-      // 入口隐藏后仍走网页登录,节点卡固定展示官网域名。
+      expect(find.text('网页接口'), findsOneWidget);
+      expect(find.text('网页'), findsOneWidget);
+      // App 接口登录功能开关关闭：即便签名密钥就绪也不展示该项。
+      expect(find.text('App接口'), findsNothing);
+      // 声明顺序即展示顺序（SegmentedButton 按 segments 顺序排布），
+      // 网页（WebView）排在最后。
+      final segments = tester
+          .widget<SegmentedButton<CopyLoginChannel>>(
+            find.byType(SegmentedButton<CopyLoginChannel>),
+          )
+          .segments
+          .map((segment) => segment.value)
+          .toList();
+      expect(segments, [CopyLoginChannel.webApi, CopyLoginChannel.web]);
+      // 默认通道是网页接口登录，节点卡展示官网登录域名。
       final card = tester.widget<LoginNodeStatusCard>(
         find.byType(LoginNodeStatusCard),
       );
-      expect(card.copyChannel, CopyLoginChannel.web);
+      expect(card.copyChannel, CopyLoginChannel.webApi);
       expect(tester.takeException(), isNull);
     });
   });
