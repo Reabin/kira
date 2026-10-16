@@ -862,7 +862,7 @@ abstract class AppLocalizations {
   /// No description provided for @bannerVisibleDesc.
   ///
   /// In zh, this message translates to:
-  /// **'关闭后漫画和动漫主页顶部Banner不显示'**
+  /// **'关闭后漫画主页顶部Banner不显示'**
   String get bannerVisibleDesc;
 
   /// No description provided for @backExitConfirmTitle.
@@ -5480,7 +5480,7 @@ abstract class AppLocalizations {
   /// No description provided for @readerAlreadyFirstChapter.
   ///
   /// In zh, this message translates to:
-  /// **'已经是第一章'**
+  /// **'梦开始的地方'**
   String get readerAlreadyFirstChapter;
 
   /// No description provided for @readerContinuePageNextChapter.
@@ -7106,13 +7106,13 @@ abstract class AppLocalizations {
   /// No description provided for @novelReaderPrevious.
   ///
   /// In zh, this message translates to:
-  /// **'上一章节'**
+  /// **'上一卷'**
   String get novelReaderPrevious;
 
   /// No description provided for @novelReaderNext.
   ///
   /// In zh, this message translates to:
-  /// **'下一章节'**
+  /// **'下一卷'**
   String get novelReaderNext;
 
   /// No description provided for @novelReaderSettings.
@@ -7120,6 +7120,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'阅读设置'**
   String get novelReaderSettings;
+
+  /// No description provided for @novelReaderRealisticPageTurn.
+  ///
+  /// In zh, this message translates to:
+  /// **'仿真翻页'**
+  String get novelReaderRealisticPageTurn;
 
   /// No description provided for @novelReaderFontSize.
   ///

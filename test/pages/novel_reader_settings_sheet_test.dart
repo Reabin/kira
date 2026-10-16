@@ -10,6 +10,8 @@ import 'package:kira/widgets/reader_status_settings.dart';
 import 'package:kira/widgets/select_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 Future<void> _mount(
   WidgetTester tester, {
   NovelReaderSettings settings = const NovelReaderSettings(),
@@ -66,10 +68,13 @@ Future<void> _tapVisible(WidgetTester tester, String key) async {
 
 void main() {
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     final reader = ReaderSettings()..resetPrefsCache();
     await reader.initFromPrefs(await SharedPreferences.getInstance());
   });
+
+  tearDown(teardownSecureCredentialStoreForTest);
 
   testWidgets(
     'font slider offers 10 to 48 with one-pixel steps and live preview',
@@ -314,6 +319,10 @@ void main() {
     await _mount(tester, onChanged: (value) => latest = value);
     // 滚动模式下不显示翻页分组。
     expect(find.byKey(const ValueKey('novel-volume-key')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-realistic-page-turn')),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('novel-instant-page-turn')), findsNothing);
     await tester.tap(find.text('翻页'));
     await tester.pumpAndSettle();
@@ -325,6 +334,9 @@ void main() {
     final volumeTop = tester
         .getTopLeft(find.byKey(const ValueKey('novel-volume-key')))
         .dy;
+    final realisticTop = tester
+        .getTopLeft(find.byKey(const ValueKey('novel-realistic-page-turn')))
+        .dy;
     final instantTop = tester
         .getTopLeft(find.byKey(const ValueKey('novel-instant-page-turn')))
         .dy;
@@ -332,19 +344,41 @@ void main() {
         .getTopLeft(find.byKey(const ValueKey('novel-font-size')))
         .dy;
     expect(volumeTop, greaterThan(modeBottom));
-    expect(instantTop, greaterThan(volumeTop));
+    expect(realisticTop, greaterThan(volumeTop));
+    expect(instantTop, greaterThan(realisticTop));
     expect(fontTop, greaterThan(instantTop));
-    // 翻页设置默认值：音量键开启、无动画关闭。
+    // 翻页设置默认值：音量键与仿真翻页开启、无动画关闭。
     expect(
       tester
-          .widget<SwitchListTile>(find.byKey(const ValueKey('novel-volume-key')))
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-volume-key')),
+          )
           .value,
       isTrue,
     );
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-realistic-page-turn')),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-instant-page-turn')),
+          )
+          .value,
+      isFalse,
+    );
     await _tapVisible(tester, 'novel-volume-key');
     expect(latest.volumeKey, isFalse);
+    await _tapVisible(tester, 'novel-realistic-page-turn');
+    expect(latest.realisticPageTurn, isFalse);
     await _tapVisible(tester, 'novel-instant-page-turn');
     expect(latest.instantPageTurn, isTrue);
+    expect(latest.realisticPageTurn, isFalse);
     // 切回滚动模式后翻页分组收起，已改的开关值仍保留。
     final modeButton = find.byKey(const ValueKey('novel-reader-mode'));
     await tester.ensureVisible(modeButton);
@@ -353,6 +387,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(latest.mode, NovelReaderMode.scroll);
     expect(latest.volumeKey, isFalse);
+    expect(latest.realisticPageTurn, isFalse);
+    expect(latest.instantPageTurn, isTrue);
+    expect(
+      find.byKey(const ValueKey('novel-realistic-page-turn')),
+      findsNothing,
+    );
+    // 切回翻页后仍保持关闭，可重新开启；不改动无动画偏好。
+    await tester.tap(find.text('翻页'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-realistic-page-turn')),
+          )
+          .value,
+      isFalse,
+    );
+    await _tapVisible(tester, 'novel-realistic-page-turn');
+    expect(latest.realisticPageTurn, isTrue);
     expect(latest.instantPageTurn, isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -401,6 +454,7 @@ void main() {
           fontSize: 48,
           lineHeight: 3.0,
           paragraphSpacing: 64,
+          mode: NovelReaderMode.paged,
         );
         await _mount(
           tester,
@@ -410,8 +464,19 @@ void main() {
           textScale: 2,
           locale: locale,
         );
+        final realisticTile = find.byKey(
+          const ValueKey('novel-realistic-page-turn'),
+        );
+        final label = locale.scriptCode == 'Hant' ? '仿真翻頁' : '仿真翻页';
+        expect(
+          find.descendant(of: realisticTile, matching: find.text(label)),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
         for (final key in [
+          'novel-volume-key',
+          'novel-realistic-page-turn',
+          'novel-instant-page-turn',
           'novel-light-theme',
           'novel-dark-theme',
           'novel-theme-add',

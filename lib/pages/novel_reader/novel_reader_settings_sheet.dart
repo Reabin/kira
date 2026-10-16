@@ -213,6 +213,14 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
                   _change(_settings.copyWith(volumeKey: value)),
             ),
             SwitchListTile.adaptive(
+              key: const ValueKey('novel-realistic-page-turn'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.novelReaderRealisticPageTurn),
+              value: _settings.realisticPageTurn,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(realisticPageTurn: value)),
+            ),
+            SwitchListTile.adaptive(
               key: const ValueKey('novel-instant-page-turn'),
               contentPadding: EdgeInsets.zero,
               title: Text(l10n.readerInstantPageTurn),

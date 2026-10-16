@@ -58,6 +58,8 @@ void main() {
       expect(defaults.customThemes, isEmpty);
       expect(defaults.keepScreenOn, isTrue);
       expect(defaults.mode, NovelReaderMode.scroll);
+      expect(defaults.realisticPageTurn, isTrue);
+      expect(defaults.toJson()['realisticPageTurn'], isTrue);
       expect(defaults.instantPageTurn, isFalse);
       expect(defaults.volumeKey, isTrue);
       expect(
@@ -92,17 +94,77 @@ void main() {
     expect(settings.volumeKey, isFalse);
   });
 
+  test('realistic page turn persists and survives unrelated copies', () async {
+    for (final realistic in [true, false]) {
+      final settings = NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        realisticPageTurn: realistic,
+        instantPageTurn: true,
+      );
+      expect(settings.toJson()['realisticPageTurn'], realistic);
+      expect(NovelReaderSettings.fromJson(settings.toJson()), settings);
+      expect(settings.copyWith().realisticPageTurn, realistic);
+      final copied = settings
+          .copyWith(fontSize: 24, mode: NovelReaderMode.scroll)
+          .upsertCustomTheme(const NovelReaderCustomTheme(id: 'c1', name: '米黄'))
+          .removeCustomTheme('c1');
+      expect(copied.realisticPageTurn, realistic);
+      expect(copied.instantPageTurn, isTrue);
+      expect(
+        settings.copyWith(realisticPageTurn: !realistic).realisticPageTurn,
+        !realistic,
+      );
+      expect(settings.realisticPageTurn, realistic);
+
+      await settings.save();
+      // 使用默认 prefs 后端，重建实例后仍能恢复显式 false。
+      SharedPreferences.setMockInitialValues({
+        for (final key in prefs.getKeys())
+          if (prefs.get(key) case final Object value) key: value,
+      });
+      prefs = await SharedPreferences.getInstance();
+      final restored = await NovelReaderSettings.load();
+      expect(restored.realisticPageTurn, realistic);
+      expect(restored.instantPageTurn, isTrue);
+      expect(restored, settings);
+      expect(restored.hashCode, settings.hashCode);
+    }
+  });
+
+  test('realistic page turn only accepts JSON booleans', () {
+    for (final value in [null, 0, 1, 'true', 'false', [], {}]) {
+      expect(
+        NovelReaderSettings.fromJson({
+          'realisticPageTurn': value,
+        }).realisticPageTurn,
+        isTrue,
+        reason: 'invalid value: $value',
+      );
+    }
+  });
+
+  test('realistic page turn participates in equality and hashCode', () {
+    const enabled = NovelReaderSettings();
+    const disabled = NovelReaderSettings(realisticPageTurn: false);
+    expect(enabled == disabled, isFalse);
+    expect(enabled.hashCode == disabled.hashCode, isFalse);
+    expect(disabled.copyWith(realisticPageTurn: true), enabled);
+  });
+
   test('unknown reading mode and malformed toggles fall back safely', () {
     final unknown = NovelReaderSettings.fromJson(const {
       'mode': 'curl',
+      'realisticPageTurn': 'false',
       'instantPageTurn': 'yes',
       'volumeKey': 1,
     });
     expect(unknown.mode, NovelReaderMode.scroll);
+    expect(unknown.realisticPageTurn, isTrue);
     expect(unknown.instantPageTurn, isFalse);
     expect(unknown.volumeKey, isTrue);
     final legacy = NovelReaderSettings.fromJson(const {'fontSize': 22});
     expect(legacy.mode, NovelReaderMode.scroll);
+    expect(legacy.realisticPageTurn, isTrue);
     expect(legacy.instantPageTurn, isFalse);
     expect(legacy.volumeKey, isTrue);
   });
@@ -112,10 +174,7 @@ void main() {
     const paged = NovelReaderSettings(mode: NovelReaderMode.paged);
     expect(scroll == paged, isFalse);
     expect(scroll.hashCode == paged.hashCode, isFalse);
-    expect(
-      paged.copyWith(mode: NovelReaderMode.scroll) == scroll,
-      isTrue,
-    );
+    expect(paged.copyWith(mode: NovelReaderMode.scroll) == scroll, isTrue);
   });
 
   test('named themes, bindings, and false keepScreenOn round-trip', () async {
@@ -358,6 +417,7 @@ void main() {
       expect(settings.lightThemeId, 'paper');
       expect(settings.darkThemeId, 'paper');
       expect(settings.keepScreenOn, isFalse);
+      expect(settings.realisticPageTurn, isTrue);
       expect(prefs.getString(NovelReaderSettings.storageKey), raw);
     },
   );

@@ -17,6 +17,7 @@ import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
 import 'package:kira/utils/novel_reading_store.dart';
+import 'package:kira/widgets/novel_page_curl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// 翻页模式集成测试：点击分区、模式切换的位置交接、音量键拦截、
@@ -217,8 +218,8 @@ Future<void> _remove(WidgetTester tester) async {
   await _settle(tester);
 }
 
-NovelReaderPageViewState _pager(WidgetTester tester) => tester
-    .state<NovelReaderPageViewState>(find.byType(NovelReaderPageView));
+NovelReaderPageViewState _pager(WidgetTester tester) =>
+    tester.state<NovelReaderPageViewState>(find.byType(NovelReaderPageView));
 
 NovelReaderLocation _pagedLocation(WidgetTester tester) =>
     _pager(tester).currentLocation!;
@@ -273,6 +274,54 @@ void main() {
       prefs: Future.value(store.preferences),
     );
     repository = _Repository({'v1': _volume()});
+  });
+
+  testWidgets('dragging the sheet curls it and settles on release', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    final start = _pagedLocation(tester);
+    final surface = find.byKey(const ValueKey('novel-page-surface'));
+    // 缓慢拖过约 1/3 视口：松手后落页。
+    final gesture = await tester.startGesture(tester.getCenter(surface));
+    for (var step = 0; step < 6; step++) {
+      await gesture.moveBy(const Offset(-60, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    // 拖动过程中显示卷曲（被翻起的页与露出的页同时在场）。
+    expect(find.byType(NovelPageCurl), findsOneWidget);
+    await gesture.up();
+    await _settle(tester);
+    expect(find.byType(NovelPageCurl), findsNothing, reason: '落页后回到静止页');
+    expect(_pagedLocation(tester).progress, greaterThan(start.progress));
+
+    // 反向拖回：落回原页，位置与翻页前一致。
+    final gestureBack = await tester.startGesture(tester.getCenter(surface));
+    for (var step = 0; step < 6; step++) {
+      await gestureBack.moveBy(const Offset(60, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gestureBack.up();
+    await _settle(tester);
+    expect(find.byType(NovelPageCurl), findsNothing);
+    expect(_pagedLocation(tester).progress, closeTo(start.progress, 1e-9));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('a short drag does not turn the page', (tester) async {
+    await _mount(tester, repository: repository, store: store);
+    final start = _pagedLocation(tester);
+    // 只拖 40px（不足 1/3 视口）且松手时速度低：回弹不翻页。
+    final gesture = await tester.startGesture(const Offset(700, 300));
+    await gesture.moveBy(const Offset(-40, 0));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.up();
+    await _settle(tester);
+    expect(find.byType(NovelPageCurl), findsNothing);
+    expect(_pagedLocation(tester).progress, closeTo(start.progress, 1e-9));
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
   });
 
   testWidgets('paged mode turns pages from the side zones and taps center', (
@@ -460,12 +509,7 @@ void main() {
       'v1': _volume(entryTexts: _texts('v1', [40, 30]), next: 'v2'),
       'v2': _volume(id: 'v2', entryTexts: _texts('v2', [6]), previous: 'v1'),
     });
-    await _mount(
-      tester,
-      repository: repository,
-      store: store,
-      volume: 'v2',
-    );
+    await _mount(tester, repository: repository, store: store, volume: 'v2');
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
     expect(
@@ -490,7 +534,7 @@ void main() {
     await _slideTo(tester, 59);
     // 末页只有回弹：滑动越界也要按卷界处理（与漫画一致）。
     await tester.drag(
-      find.byKey(const ValueKey('novel-reader-pages')),
+      find.byKey(const ValueKey('novel-page-surface')),
       const Offset(-300, 0),
     );
     await _settle(tester);
@@ -523,6 +567,27 @@ void main() {
     }
     await _remove(tester);
   });
+
+  testWidgets(
+    'changing animation settings during a turn is safe in the reader',
+    (tester) async {
+      await _mount(tester, repository: repository, store: store);
+      await _openSettings(tester);
+      final instantTile = tester.widget<SwitchListTile>(
+        find.byKey(const ValueKey('novel-instant-page-turn')),
+      );
+      final before = _pagedLocation(tester).progress;
+      _pager(tester).nextPage();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      instantTile.onChanged!(true);
+      await _settle(tester);
+      expect(_pagedLocation(tester).progress, greaterThan(before));
+      expect(find.byType(NovelPageCurl), findsNothing);
+      expect(tester.takeException(), isNull);
+      await _remove(tester);
+    },
+  );
 
   testWidgets('long-press opens the paragraph menu without turning the page', (
     tester,

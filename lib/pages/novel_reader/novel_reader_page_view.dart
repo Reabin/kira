@@ -8,6 +8,7 @@ import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
+import '../../widgets/novel_page_curl.dart';
 import 'novel_reader_document.dart';
 import 'novel_reader_paginator.dart';
 
@@ -78,8 +79,10 @@ class NovelReaderPageView extends StatefulWidget {
   State<NovelReaderPageView> createState() => NovelReaderPageViewState();
 }
 
-class NovelReaderPageViewState extends State<NovelReaderPageView> {
-  PageController _controller = PageController();
+class NovelReaderPageViewState extends State<NovelReaderPageView>
+    with SingleTickerProviderStateMixin {
+  static const _turnDuration = Duration(milliseconds: 360);
+  late final AnimationController _turnController;
   NovelReaderPaginator? _paginator;
   Set<int> _markedItems = const {};
   int _currentPage = 0;
@@ -90,11 +93,20 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
   TextScaler? _textScaler;
   Timer? _buildTimer;
   NovelReaderLocation? _lastLocation;
-  double _instantTurnDelta = 0;
-  bool _instantTurnCommitted = false;
+  int? _turnTarget;
+  bool _turnForward = true;
+  bool _turnWillCommit = false;
+  int _turnSerial = 0;
+  int? _dragTurnSerial;
+  double _turnOriginY = 0.75;
+  double _dragDelta = 0;
+  double _dragOriginY = 0.75;
+  bool _dragCommitted = false;
+  bool _dragBlocked = false;
 
-  /// 一次滑动内是否已按卷界处理过（越界后继续滑动不再重复触发）。
-  bool _boundaryArmed = false;
+  /// 本次拖动越过了卷首/卷末（没有可翻的页面），松手时按卷界处理。
+  bool _dragOutOfBounds = false;
+  bool _dragForward = true;
 
   /// Null during any restoration: callers may flush their last valid snapshot,
   /// but must not replace it with a transient page position.
@@ -125,6 +137,12 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
   void prevPage() => _turn(forward: false);
 
   @override
+  void initState() {
+    super.initState();
+    _turnController = AnimationController(vsync: this, duration: _turnDuration);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final scaler = MediaQuery.textScalerOf(context);
@@ -152,13 +170,31 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
       _scheduleRepaginate(_anchorNow());
       return;
     }
+    if (oldWidget.settings.instantPageTurn != widget.settings.instantPageTurn ||
+        oldWidget.settings.realisticPageTurn !=
+            widget.settings.realisticPageTurn) {
+      final pending = _turnWillCommit ? _turnTarget : null;
+      _cancelTurn();
+      if (pending != null) {
+        _currentPage = pending;
+        _lastLocation = _locationForPage(pending) ?? _lastLocation;
+        final serial = _turnSerial;
+        // didUpdateWidget 属于构建阶段，宿主的进度/工具栏回调必须延后一帧。
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _restoring || serial != _turnSerial) return;
+          _emitPosition();
+          widget.onPageTurned?.call();
+        });
+      }
+    }
     if (oldWidget.bookmarkRevision != widget.bookmarkRevision) {
       _handleBookmarkRevision();
     }
   }
 
   NovelReaderAnchor _anchorNow() =>
-      _lastLocation?.anchor ?? _paginator?.anchorForPage(_currentPage) ??
+      _lastLocation?.anchor ??
+      _paginator?.anchorForPage(_currentPage) ??
       widget.target;
 
   bool _isCurrent(int generation) => mounted && generation == _generation;
@@ -190,24 +226,19 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
   void _pumpPagination(int generation, NovelReaderAnchor anchor) {
     final paginator = _paginator;
     if (paginator == null) return;
+    // 分页重建会改变页码含义：中止进行中的卷曲，避免落到过期页。
+    _cancelTurn();
     while (paginator.pageForAnchor(anchor) == null && paginator.buildMore()) {}
-    final target = paginator.pageForAnchor(anchor) ?? paginator.pages.length - 1;
+    final target =
+        paginator.pageForAnchor(anchor) ?? paginator.pages.length - 1;
     final page = target
         .clamp(0, math.max(0, paginator.pages.length - 1))
         .toInt();
     _currentPage = page;
     setState(() {});
-    // 帧后 PageView 已按新的页数完成布局，跳页不再受旧页数限制。
-    // jumpToPage 同步派发 onPageChanged（此刻 _restoring 仍为 true，被忽略），
-    // 所以不需要等待 endOfFrame：目标页与当前页相同时不会产生新帧，
-    // 等待会把恢复状态永久卡住（界面失去响应、进度不再记录）。
+    // 恢复期间先渲染一帧目标页再放行交互，避免用户看到旧页。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_isCurrent(generation)) return;
-      if (_controller.hasClients) {
-        _controller.jumpToPage(page);
-      } else {
-        _replaceController(page);
-      }
       setState(() => _restoring = false);
       _emitPosition();
       _scheduleBackgroundBuild(generation);
@@ -291,9 +322,9 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
   TextStyle _titleStyle(BuildContext context) =>
       DefaultTextStyle.of(context).style.merge(
         Theme.of(context).textTheme.headlineSmall?.copyWith(
-          color: widget.palette.foreground,
-        ) ??
-        const TextStyle(),
+              color: widget.palette.foreground,
+            ) ??
+            const TextStyle(),
       );
 
   NovelPaginationSpec _spec(Size size, EdgeInsets contentPadding) {
@@ -322,75 +353,109 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
 
   // ── 翻页 ──
 
-  void _replaceController(int initialPage) {
-    final old = _controller;
-    _controller = PageController(initialPage: initialPage);
-    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
-  }
+  /// 一次翻页动画（含拖动）尚未落定。
+  bool get _turning => _turnTarget != null;
 
-  void _jumpToPage(int page, {required bool animate}) {
-    if (!_controller.hasClients) {
-      _replaceController(page);
-      return;
-    }
-    if (animate) {
-      unawaited(
-        _controller.animateToPage(
-          page,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        ),
-      );
-    } else {
-      _controller.jumpToPage(page);
-    }
-  }
-
-  void _turn({required bool forward}) {
+  void _turn({required bool forward, double? originY}) {
     final paginator = _paginator;
     if (_restoring || paginator == null) return;
+    final pending = _turnTarget;
+    if (pending != null) {
+      // 连点加速已确认的翻页；未确认的拖动/取消回弹不能额外提交一页。
+      if (_turnWillCommit) {
+        _commitTurn(pending);
+      } else {
+        _resetTurn();
+      }
+    }
     final target = _currentPage + (forward ? 1 : -1);
-    if (target < 0) {
-      widget.onBoundary?.call(false);
+    if (!_ensurePage(target)) {
+      widget.onBoundary?.call(forward);
       return;
     }
-    if (target >= paginator.pages.length) {
-      // 后台分页未完成：同步补齐目标页；仍不足说明已到卷末。
-      while (target >= paginator.pages.length && paginator.buildMore()) {}
-      if (target >= paginator.pages.length) {
-        widget.onBoundary?.call(true);
-        return;
-      }
-      setState(() {});
+    if (widget.settings.instantPageTurn) {
+      _commitTurn(target);
+      return;
     }
-    _jumpToPage(target, animate: !widget.settings.instantPageTurn);
+    _beginTurn(target, forward: forward, originY: originY ?? _turnOriginY);
+    unawaited(_finishTurn(commit: true));
   }
 
-  void _onPageChanged(int page) {
-    _currentPage = page;
-    if (_restoring) return;
+  bool _ensurePage(int target) {
+    final paginator = _paginator;
+    if (paginator == null || target < 0) return false;
+    if (target >= paginator.pages.length) {
+      // 后台分页尚未覆盖目标页：先同步补齐，不能误当成卷末。
+      while (target >= paginator.pages.length && paginator.buildMore()) {}
+      setState(() {});
+    }
+    return target < paginator.pages.length;
+  }
+
+  void _resetTurn() {
+    ++_turnSerial;
+    _turnController.stop();
+    _turnController.value = 0;
+    _turnTarget = null;
+    _turnWillCommit = false;
+    _dragTurnSerial = null;
+  }
+
+  void _commitTurn(int target) {
+    _resetTurn();
+    _currentPage = target;
+    setState(() {});
     _emitPosition();
     widget.onPageTurned?.call();
   }
 
-  // ── 滑动越过卷首/卷末 ──
+  void _beginTurn(
+    int target, {
+    required bool forward,
+    required double originY,
+  }) {
+    _resetTurn();
+    _turnTarget = target;
+    _turnForward = forward;
+    _turnOriginY = originY.clamp(0.0, 1.0);
+    setState(() {});
+  }
 
-  /// PageView 在首尾页只会回弹（不产生翻页事件），需按卷界处理，
-  /// 与漫画一致：overscroll 的符号只取决于方向（>0 前翻、<0 回翻）。
-  /// 走 [_turn] 而不是直接回调：后台分页未完成时先补齐页面再前进。
-  bool _onScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollStartNotification) {
-      _boundaryArmed = true;
-    } else if (notification is ScrollEndNotification) {
-      _boundaryArmed = false;
-    } else if (notification is OverscrollNotification &&
-        _boundaryArmed &&
-        !_restoring &&
-        notification.overscroll.abs() > 1) {
-      _boundaryArmed = false;
-      _turn(forward: notification.overscroll > 0);
+  /// 松手后的时长随剩余距离缩短；序号与取消异常阻止旧动画回写页码。
+  Future<void> _finishTurn({required bool commit}) async {
+    final target = _turnTarget;
+    if (target == null) return;
+    final serial = _turnSerial;
+    _turnWillCommit = commit;
+    try {
+      if (widget.settings.instantPageTurn) {
+        _turnController.value = commit ? 1 : 0;
+      } else if (commit) {
+        await _turnController.animateTo(1, curve: Curves.easeOutCubic).orCancel;
+      } else {
+        await _turnController
+            .animateBack(0, curve: Curves.easeOutCubic)
+            .orCancel;
+      }
+    } on TickerCanceled {
+      // 新翻页、重分页或页面销毁会主动取消旧动画，无需落页。
+      return;
     }
-    return false;
+    if (!mounted || serial != _turnSerial || _turnTarget != target) return;
+    if (commit) {
+      _commitTurn(target);
+    } else {
+      _resetTurn();
+      setState(() {});
+    }
+  }
+
+  /// 重分页/跳转/切换动画类型时作废当前手势和动画。
+  void _cancelTurn() {
+    _dragBlocked = true;
+    _dragCommitted = false;
+    _dragOutOfBounds = false;
+    _resetTurn();
   }
 
   NovelReaderLocation? _locationForPage(int page) {
@@ -413,48 +478,116 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
     final box = context.findRenderObject() as RenderBox?;
     final width = _size?.width ?? box?.size.width ?? 0;
     if (box == null || width <= 0) return;
-    final x = box.globalToLocal(globalPosition).dx;
-    if (x < width / 3) {
-      _turn(forward: false);
-    } else if (x > width * 2 / 3) {
-      _turn(forward: true);
+    final local = box.globalToLocal(globalPosition);
+    if (local.dx < width / 3) {
+      _turn(forward: false, originY: _originYFor(local.dy));
+    } else if (local.dx > width * 2 / 3) {
+      _turn(forward: true, originY: _originYFor(local.dy));
     } else {
       widget.onTap();
     }
   }
 
-  // ── 无动画翻页拖动（与漫画一致：越过约 1/5 视口即翻一页） ──
-
-  void _onInstantTurnDragStart(DragStartDetails details) {
-    _instantTurnDelta = 0;
-    _instantTurnCommitted = false;
+  /// 落点纵坐标换算成 0..1 的卷曲原点：点击越靠下，纸角从越靠下处翻起。
+  double _originYFor(double localY) {
+    final height = _size?.height ?? 0;
+    if (height <= 0) return _turnOriginY;
+    return (localY / height).clamp(0.0, 1.0);
   }
 
-  void _onInstantTurnDragUpdate(DragUpdateDetails details) {
-    if (_instantTurnCommitted || _restoring) return;
-    _instantTurnDelta += details.delta.dx;
+  // ── 翻页拖动：与页面卷曲进度实时联动，松手后按阈值落定或退回 ──
+
+  void _onTurnDragStart(DragStartDetails details) {
+    _dragDelta = 0;
+    _dragCommitted = false;
+    _dragOutOfBounds = false;
+    _dragTurnSerial = null;
+    _dragBlocked = _restoring || _turning;
+    if (_dragBlocked) return;
+    final box = context.findRenderObject() as RenderBox?;
+    _dragOriginY = box == null
+        ? _turnOriginY
+        : _originYFor(box.globalToLocal(details.globalPosition).dy);
+  }
+
+  void _onTurnDragUpdate(DragUpdateDetails details) {
+    if (_dragBlocked || _restoring) return;
+    _dragDelta += details.delta.dx;
     final width = _size?.width ?? MediaQuery.sizeOf(context).width;
-    if (_instantTurnDelta.abs() >= width * 0.2) {
-      _instantTurnCommitted = true;
-      _turn(forward: _instantTurnDelta < 0);
+    if (width <= 0) return;
+    if (widget.settings.instantPageTurn) {
+      if (_dragCommitted) return;
+      if (_dragDelta.abs() >= width * 0.2) {
+        // 去重标记属于手势，不随页码落定重置。
+        _dragCommitted = true;
+        _turn(forward: _dragDelta < 0);
+      }
+      return;
     }
+    final progress = (_dragDelta.abs() / width).clamp(0.0, 1.0);
+    final forward = _dragDelta < 0;
+    final target = _currentPage + (forward ? 1 : -1);
+    _dragOutOfBounds = false;
+    if (progress == 0 || !_ensurePage(target)) {
+      if (_dragTurnSerial != null) {
+        _resetTurn();
+        _dragCommitted = false;
+        setState(() {});
+      }
+      _dragOutOfBounds = _dragDelta.abs() >= width * 0.12;
+      _dragForward = forward;
+      return;
+    }
+    if (_dragTurnSerial == null || _turnForward != forward) {
+      _beginTurn(target, forward: forward, originY: _dragOriginY);
+      _dragTurnSerial = _turnSerial;
+      _dragCommitted = true;
+    }
+    _turnController.value = progress;
   }
 
-  void _onInstantTurnDragEnd(DragEndDetails details) {
-    _instantTurnDelta = 0;
-    _instantTurnCommitted = false;
+  void _onTurnDragEnd(DragEndDetails details) {
+    final ownsTurn = _dragTurnSerial != null && _dragTurnSerial == _turnSerial;
+    final outOfBounds = _dragOutOfBounds;
+    final dragForward = _dragForward;
+    final progress = _turnController.value;
+    final width = _size?.width ?? MediaQuery.sizeOf(context).width;
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    _dragDelta = 0;
+    _dragCommitted = false;
+    _dragOutOfBounds = false;
+    _dragTurnSerial = null;
+    if (_dragBlocked) {
+      _dragBlocked = false;
+      return;
+    }
+    if (widget.settings.instantPageTurn) return;
+    if (outOfBounds) {
+      _turn(forward: dragForward);
+      return;
+    }
+    if (!ownsTurn) return;
+    final fastEnough =
+        width > 0 && (_turnForward ? -velocity : velocity) > width * 0.6;
+    unawaited(_finishTurn(commit: progress >= 0.34 || fastEnough));
   }
 
-  void _onInstantTurnDragCancel() {
-    _instantTurnDelta = 0;
-    _instantTurnCommitted = false;
+  void _onTurnDragCancel() {
+    final ownsTurn = _dragTurnSerial != null && _dragTurnSerial == _turnSerial;
+    _dragBlocked = false;
+    _dragDelta = 0;
+    _dragCommitted = false;
+    _dragOutOfBounds = false;
+    _dragTurnSerial = null;
+    // 点击/长按赢得手势竞争也会发 cancel，不能撤销它们之前确认的翻页。
+    if (ownsTurn) unawaited(_finishTurn(commit: false));
   }
 
   @override
   void dispose() {
     ++_generation;
     _buildTimer?.cancel();
-    _controller.dispose();
+    _turnController.dispose();
     super.dispose();
   }
 
@@ -474,54 +607,96 @@ class NovelReaderPageViewState extends State<NovelReaderPageView> {
         }
         final paginator = _paginator;
         if (paginator == null) return const SizedBox.expand();
-        final metrics = novelPageMetricsFor(size, contentPadding);
-        final instant = widget.settings.instantPageTurn;
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            contentPadding.left + metrics.horizontalPadding,
-            contentPadding.top,
-            contentPadding.right + metrics.horizontalPadding,
-            contentPadding.bottom,
-          ),
-          child: AbsorbPointer(
-            absorbing: _restoring,
-            child: Listener(
-              onPointerDown: (_) {
-                _instantTurnDelta = 0;
-                _instantTurnCommitted = false;
-              },
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _onScrollNotification,
-                child: GestureDetector(
-                  key: const ValueKey('novel-page-surface'),
-                  behavior: HitTestBehavior.translucent,
-                  onTapUp: (details) => _handleTap(details.globalPosition),
-                  onHorizontalDragStart: instant
-                      ? _onInstantTurnDragStart
-                      : null,
-                  onHorizontalDragUpdate: instant
-                      ? _onInstantTurnDragUpdate
-                      : null,
-                  onHorizontalDragEnd: instant ? _onInstantTurnDragEnd : null,
-                  onHorizontalDragCancel: instant
-                      ? _onInstantTurnDragCancel
-                      : null,
-                  child: PageView.builder(
-                    key: const ValueKey('novel-reader-pages'),
-                    controller: _controller,
-                    itemCount: paginator.pages.length,
-                    onPageChanged: _onPageChanged,
-                    physics: instant
-                        ? const NeverScrollableScrollPhysics()
-                        : null,
-                    itemBuilder: _buildPage,
-                  ),
-                ),
-              ),
-            ),
+        return AbsorbPointer(
+          absorbing: _restoring,
+          child: GestureDetector(
+            key: const ValueKey('novel-page-surface'),
+            behavior: HitTestBehavior.translucent,
+            onTapUp: (details) => _handleTap(details.globalPosition),
+            onHorizontalDragStart: _onTurnDragStart,
+            onHorizontalDragUpdate: _onTurnDragUpdate,
+            onHorizontalDragEnd: _onTurnDragEnd,
+            onHorizontalDragCancel: _onTurnDragCancel,
+            child: _buildPageSurface(context, paginator),
           ),
         );
       },
+    );
+  }
+
+  /// 静止时只渲染当前页；翻页中把「被翻起的页」与「露出的页」交给
+  /// [NovelPageCurl]，纸背用同一页内容的独立实例（镜像文字）。
+  Widget _buildPageSurface(
+    BuildContext context,
+    NovelReaderPaginator paginator,
+  ) {
+    final target = _turnTarget;
+    if (target == null || target < 0 || target >= paginator.pages.length) {
+      return KeyedSubtree(
+        key: const ValueKey('novel-reader-pages'),
+        child: _buildPageSheet(context, _currentPage),
+      );
+    }
+    if (!widget.settings.realisticPageTurn) {
+      final current = RepaintBoundary(
+        child: _buildPageSheet(context, _currentPage),
+      );
+      final next = RepaintBoundary(child: _buildPageSheet(context, target));
+      final direction = _turnForward ? -1.0 : 1.0;
+      return ClipRect(
+        key: const ValueKey('novel-reader-pages'),
+        child: AnimatedBuilder(
+          animation: _turnController,
+          builder: (context, _) {
+            final value = _turnController.value;
+            return Stack(
+              key: const ValueKey('novel-page-slide'),
+              fit: StackFit.expand,
+              children: [
+                FractionalTranslation(
+                  translation: Offset(direction * value, 0),
+                  child: current,
+                ),
+                FractionalTranslation(
+                  translation: Offset(-direction * (1 - value), 0),
+                  child: next,
+                ),
+              ],
+            );
+          },
+        ),
+      );
+    }
+    final turningIndex = _turnForward ? _currentPage : target;
+    final underneathIndex = _turnForward ? target : _currentPage;
+    return NovelPageCurl(
+      key: const ValueKey('novel-reader-pages'),
+      animation: _turnController,
+      forward: _turnForward,
+      originY: _turnOriginY,
+      paperColor: widget.palette.background,
+      turningPage: _buildPageSheet(context, turningIndex),
+      turningPageBack: _buildPageSheet(context, turningIndex),
+      underneath: _buildPageSheet(context, underneathIndex),
+    );
+  }
+
+  /// 整张纸参与翻页，正文边距仍与分页测量一致，不能只卷动文字区域。
+  Widget _buildPageSheet(BuildContext context, int index) {
+    final size = _size!;
+    final padding = widget.contentPadding;
+    final metrics = novelPageMetricsFor(size, padding);
+    return ColoredBox(
+      color: widget.palette.background,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left + metrics.horizontalPadding,
+          padding.top,
+          padding.right + metrics.horizontalPadding,
+          padding.bottom,
+        ),
+        child: _buildPage(context, index),
+      ),
     );
   }
 

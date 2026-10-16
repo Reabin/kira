@@ -424,7 +424,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bannerVisibleTitle => '显示Banner';
 
   @override
-  String get bannerVisibleDesc => '关闭后漫画和动漫主页顶部Banner不显示';
+  String get bannerVisibleDesc => '关闭后漫画主页顶部Banner不显示';
 
   @override
   String get backExitConfirmTitle => '返回两次退出应用';
@@ -2999,7 +2999,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerRefresh => '刷新本话';
 
   @override
-  String get readerAlreadyFirstChapter => '已经是第一章';
+  String get readerAlreadyFirstChapter => '梦开始的地方';
 
   @override
   String get readerContinuePageNextChapter => '继续翻页进入下一话';
@@ -3857,13 +3857,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
 
   @override
-  String get novelReaderPrevious => '上一章节';
+  String get novelReaderPrevious => '上一卷';
 
   @override
-  String get novelReaderNext => '下一章节';
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '阅读设置';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻页';
 
   @override
   String get novelReaderFontSize => '字号';
@@ -4511,7 +4514,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bannerVisibleTitle => '顯示 Banner';
 
   @override
-  String get bannerVisibleDesc => '關閉後漫畫和動漫首頁頂部 Banner 不顯示';
+  String get bannerVisibleDesc => '關閉後漫畫首頁頂部 Banner 不顯示';
 
   @override
   String get backExitConfirmTitle => '返回兩次退出應用';
@@ -7086,7 +7089,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerRefresh => '重新整理本話';
 
   @override
-  String get readerAlreadyFirstChapter => '已經是第一章';
+  String get readerAlreadyFirstChapter => '夢開始的地方';
 
   @override
   String get readerContinuePageNextChapter => '繼續翻頁進入下一話';
@@ -7944,13 +7947,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';
 
   @override
-  String get novelReaderPrevious => '上一章節';
+  String get novelReaderPrevious => '上一卷';
 
   @override
-  String get novelReaderNext => '下一章節';
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '閱讀設定';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻頁';
 
   @override
   String get novelReaderFontSize => '字級';

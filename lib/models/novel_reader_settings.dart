@@ -89,6 +89,7 @@ class NovelReaderSettings {
     this.darkThemeId = defaultDarkThemeId,
     this.keepScreenOn = true,
     this.mode = NovelReaderMode.scroll,
+    this.realisticPageTurn = true,
     this.instantPageTurn = false,
     this.volumeKey = true,
   }) : _customThemes = const [],
@@ -124,6 +125,7 @@ class NovelReaderSettings {
       darkThemeId = base.darkThemeId,
       keepScreenOn = base.keepScreenOn,
       mode = base.mode,
+      realisticPageTurn = base.realisticPageTurn,
       instantPageTurn = base.instantPageTurn,
       volumeKey = base.volumeKey,
       _customThemes = List.unmodifiable(themes);
@@ -152,6 +154,9 @@ class NovelReaderSettings {
   final String darkThemeId;
   final bool keepScreenOn;
   final NovelReaderMode mode;
+
+  /// 翻页模式下使用仿真翻页，关闭时使用平移动画；[instantPageTurn] 优先。
+  final bool realisticPageTurn;
 
   /// 翻页模式下瞬时跳页（无过渡动画），与漫画阅读器的「无动画翻页」同一语义。
   final bool instantPageTurn;
@@ -245,6 +250,7 @@ class NovelReaderSettings {
       keepScreenOn: jsonBool(json, 'keepScreenOn', fallback: true),
       // 未知/缺失的阅读模式回退滚动：旧版本记录与损坏数据都安全。
       mode: _modeFromJson(jsonString(json, 'mode')),
+      realisticPageTurn: jsonBool(json, 'realisticPageTurn', fallback: true),
       instantPageTurn: jsonBool(json, 'instantPageTurn'),
       volumeKey: jsonBool(json, 'volumeKey', fallback: true),
     ).copyWith(customThemes: themes);
@@ -259,6 +265,7 @@ class NovelReaderSettings {
     'customThemes': _customThemes.map((theme) => theme.toJson()).toList(),
     'keepScreenOn': keepScreenOn,
     'mode': mode.name,
+    'realisticPageTurn': realisticPageTurn,
     'instantPageTurn': instantPageTurn,
     'volumeKey': volumeKey,
   };
@@ -272,6 +279,7 @@ class NovelReaderSettings {
     List<NovelReaderCustomTheme>? customThemes,
     bool? keepScreenOn,
     NovelReaderMode? mode,
+    bool? realisticPageTurn,
     bool? instantPageTurn,
     bool? volumeKey,
   }) {
@@ -283,6 +291,7 @@ class NovelReaderSettings {
       darkThemeId: darkThemeId ?? this.darkThemeId,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
       mode: mode ?? this.mode,
+      realisticPageTurn: realisticPageTurn ?? this.realisticPageTurn,
       instantPageTurn: instantPageTurn ?? this.instantPageTurn,
       volumeKey: volumeKey ?? this.volumeKey,
     );
@@ -384,6 +393,7 @@ class NovelReaderSettings {
       listEquals(_customThemes, other._customThemes) &&
       keepScreenOn == other.keepScreenOn &&
       mode == other.mode &&
+      realisticPageTurn == other.realisticPageTurn &&
       instantPageTurn == other.instantPageTurn &&
       volumeKey == other.volumeKey;
 
@@ -397,6 +407,7 @@ class NovelReaderSettings {
     Object.hashAll(_customThemes),
     keepScreenOn,
     mode,
+    realisticPageTurn,
     instantPageTurn,
     volumeKey,
   );
