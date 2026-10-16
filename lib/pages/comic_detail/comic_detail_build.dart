@@ -239,8 +239,9 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
             onPressed: comic.uuid == null || comic.uuid!.isEmpty
                 ? null
                 : _toggleCollect,
+            // 用爱心区分「收藏」（服务端）与右上角的「书签」（本地）。
             icon: Icon(
-              _isCollected ? Icons.bookmark : Icons.bookmark_border,
+              _isCollected ? Icons.favorite : Icons.favorite_border,
               size: 18,
             ),
             label: Text(

@@ -63,6 +63,10 @@ class NovelDetailPage extends ConsumerStatefulWidget {
 class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   late final UserManager _user = ref.read(userManagerProvider);
   late final _downloads = ref.read(novelDownloadManagerProvider);
+  late final _bookmarkStore = ref.read(novelBookmarkStoreProvider);
+
+  /// 这部轻小说是否已出现在书签页（只有分组也算）。
+  bool _bookmarkGrouped = false;
   NovelDetail? _detail;
   NovelQuery? _query;
   NovelReadingProgress? _progress;
@@ -104,7 +108,67 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _token = _user.copyToken;
     _user.addListener(_onAccountChanged);
     _downloads.addListener(_onDownloadsChanged);
+    _bookmarkStore.addListener(_onBookmarksChanged);
+    unawaited(_loadBookmarkGroup());
     unawaited(_initializePage());
+  }
+
+  Future<void> _loadBookmarkGroup() async {
+    await _bookmarkStore.ensureLoaded();
+    _onBookmarksChanged();
+  }
+
+  void _onBookmarksChanged() {
+    if (!mounted) return;
+    setState(() => _bookmarkGrouped = _bookmarkStore.hasGroup(widget.pathWord));
+  }
+
+  /// 右上角书签按钮：把这部轻小说加进书签页。只登记分组、不写具体书签，
+  /// 所以在书签页里表现为「只有组头、没有条目」。
+  ///
+  /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
+  Future<void> _toggleBookmarkGroup() async {
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.of(context);
+    if (_bookmarkStore.hasGroup(widget.pathWord)) {
+      final count = _bookmarkStore.bookmarks
+          .where((bookmark) => bookmark.pathWord == widget.pathWord)
+          .length;
+      if (count > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.bookmarkRemove),
+            content: Text(l10n.bookmarkRemoveGroupContent(count)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancelButton),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      await _bookmarkStore.removeGroup(widget.pathWord);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(l10n.bookmarkRemoved)));
+      return;
+    }
+    final book = _detail?.book;
+    await _bookmarkStore.addGroup(
+      pathWord: widget.pathWord,
+      name: book?.name ?? '',
+      cover: book?.cover ?? '',
+    );
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(l10n.bookmarkAdded)));
   }
 
   @override
@@ -117,6 +181,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _progress = null;
     _volumes = [];
     _selectedDownloadVolumes.clear();
+    _onBookmarksChanged();
     _downloadSelectionMode = false;
     _collected = null;
     _collecting = false;
@@ -125,6 +190,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   @override
   void dispose() {
+    _bookmarkStore.removeListener(_onBookmarksChanged);
     _user.removeListener(_onAccountChanged);
     _downloads.removeListener(_onDownloadsChanged);
     super.dispose();
@@ -752,8 +818,9 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             onPressed: _collecting || _queryLoading || book.uuid.isEmpty
                 ? null
                 : _toggleCollect,
+            // 用爱心区分「收藏」（服务端）与右上角的「书签」（本地）。
             icon: Icon(
-              _collected == true ? Icons.bookmark : Icons.bookmark_border,
+              _collected == true ? Icons.favorite : Icons.favorite_border,
               size: 18,
             ),
             label: Text(_collectLabel()),
@@ -1196,6 +1263,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            key: const ValueKey('novel_detail_bookmark'),
+            icon: Icon(
+              _bookmarkGrouped
+                  ? Icons.bookmark_added
+                  : Icons.bookmark_add_outlined,
+            ),
+            tooltip: _bookmarkGrouped ? l10n.bookmarkRemove : l10n.bookmarkAdd,
+            onPressed: _toggleBookmarkGroup,
+          ),
+        ],
       ),
       // 继续阅读固定在右下角，与漫画详情页的续读入口同款、同位置。
       body: Stack(

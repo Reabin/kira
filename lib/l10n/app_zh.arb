@@ -906,6 +906,14 @@
   "bookmarkRemove": "取消书签",
   "bookmarkAdded": "已添加书签",
   "bookmarkRemoved": "已取消书签",
+  "bookmarkRemoveGroupContent": "该作品有 {count} 条书签，取消书签会一并删除。",
+  "@bookmarkRemoveGroupContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bookmarkPage": "第 {page} 页",
   "@bookmarkPage": {
     "placeholders": {

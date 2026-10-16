@@ -2803,6 +2803,12 @@ abstract class AppLocalizations {
   /// **'已取消书签'**
   String get bookmarkRemoved;
 
+  /// No description provided for @bookmarkRemoveGroupContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'该作品有 {count} 条书签，取消书签会一并删除。'**
+  String bookmarkRemoveGroupContent(int count);
+
   /// No description provided for @bookmarkPage.
   ///
   /// In zh, this message translates to:

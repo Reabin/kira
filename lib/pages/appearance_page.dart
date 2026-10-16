@@ -51,7 +51,7 @@ class _AppearancePageState extends State<AppearancePage>
     'comic': (Icons.menu_book_outlined, Icons.menu_book),
     'novel': (Icons.auto_stories_outlined, Icons.auto_stories),
     'search': (Icons.search_outlined, Icons.search),
-    'bookshelf': (Icons.bookmark_border, Icons.bookmark),
+    'bookshelf': (Icons.favorite_border, Icons.favorite),
     'profile': (Icons.person_outline, Icons.person),
   };
 

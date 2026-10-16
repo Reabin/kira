@@ -96,6 +96,40 @@ class NovelBookmark {
   Map<String, dynamic> toJson() => position.toJson()..remove('txtAddr');
 }
 
+/// 书签组的元数据：书签被删光后组头仍要保留（封面、书名、继续阅读入口），
+/// 因此在加书签时单独记一份，删除书签时不动它。
+@immutable
+class NovelBookmarkGroup {
+  const NovelBookmarkGroup({
+    required this.pathWord,
+    required this.name,
+    this.cover = '',
+    required this.updatedAt,
+  });
+
+  final String pathWord;
+  final String name;
+  final String cover;
+  final DateTime updatedAt;
+
+  factory NovelBookmarkGroup.fromJson(Map<String, dynamic> json) =>
+      NovelBookmarkGroup(
+        pathWord: jsonString(json, 'pathWord'),
+        name: jsonString(json, 'name'),
+        cover: jsonString(json, 'cover'),
+        updatedAt:
+            DateTime.tryParse(jsonString(json, 'updatedAt')) ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'pathWord': pathWord,
+    'name': name,
+    if (cover.isNotEmpty) 'cover': cover,
+    'updatedAt': updatedAt.toIso8601String(),
+  };
+}
+
 /// 单键持久化、串行读写的书签单例。写入成功才发布内存快照及变更通知。
 class NovelBookmarkStore extends ChangeNotifier {
   NovelBookmarkStore._({Future<SharedPreferences>? prefs}) : _prefs = prefs;
@@ -109,18 +143,25 @@ class NovelBookmarkStore extends ChangeNotifier {
 
   // 不使用 novel_reading_history_ 前缀，避免被自动阅读历史枚举/清理。
   static const storageKey = 'novel_bookmarks_v1';
+
+  /// 组元数据单独存一个键：清空书签时保留，组头才不会跟着消失。
+  static const groupsStorageKey = 'novel_bookmark_groups_v1';
   static const maxBookmarks = 500;
 
   final Future<SharedPreferences>? _prefs;
   Future<SharedPreferences> get _preferences =>
       _prefs ?? SharedPreferences.getInstance();
   List<NovelBookmark> _bookmarks = const [];
+  List<NovelBookmarkGroup> _groups = const [];
   Future<void>? _queue;
   bool _loaded = false;
   bool _restoring = false;
   int _restoreEpoch = 0;
 
   List<NovelBookmark> get bookmarks => _bookmarks;
+
+  /// 曾收藏过的轻小说（含书签已删光的），按最近一次加书签的时间倒序。
+  List<NovelBookmarkGroup> get groups => _groups;
 
   Future<void> ensureLoaded() => _enqueue(_load);
 
@@ -148,6 +189,14 @@ class NovelBookmarkStore extends ChangeNotifier {
       blocked: () => _bookmarks.any((item) => item.id == bookmark.id),
       action: () async {
         final exists = _bookmarks.any((item) => item.id == bookmark.id);
+        // 记下组元数据：这之后即使书签被删光，书签页也保留该组。
+        if (!exists) {
+          _upsertGroup(
+            pathWord: bookmark.pathWord,
+            name: bookmark.name,
+            cover: bookmark.cover,
+          );
+        }
         await _commit(
           exists
               ? _bookmarks.where((item) => item.id != bookmark.id)
@@ -191,6 +240,42 @@ class NovelBookmarkStore extends ChangeNotifier {
     },
   );
 
+  /// 该轻小说是否已在书签页占有一个分组（不论组内是否还有书签）。
+  bool hasGroup(String pathWord) =>
+      _groups.any((group) => group.pathWord == pathWord);
+
+  /// 只登记分组、不加具体书签：详情页的「加入书签」入口。
+  Future<void> addGroup({
+    required String pathWord,
+    required String name,
+    String cover = '',
+  }) => _mutate<void>(
+    blocked: () {},
+    action: () async {
+      if (hasGroup(pathWord)) return;
+      _upsertGroup(pathWord: pathWord, name: name, cover: cover);
+      await _commit(_bookmarks);
+    },
+  );
+
+  /// 取消收藏：分组连同该轻小说的书签一起移除，返回被删除的书签。
+  Future<List<NovelBookmark>> removeGroup(String pathWord) => _mutate(
+    blocked: () => const <NovelBookmark>[],
+    action: () async {
+      final removed = _bookmarks
+          .where((item) => item.pathWord == pathWord)
+          .toList();
+      if (removed.isEmpty && !hasGroup(pathWord)) {
+        return const <NovelBookmark>[];
+      }
+      _groups = List.unmodifiable(
+        _groups.where((group) => group.pathWord != pathWord),
+      );
+      await _commit(_bookmarks.where((item) => item.pathWord != pathWord));
+      return removed;
+    },
+  );
+
   /// 撤销只补回缺失的书签，不覆盖用户随后重新标记的位置。
   Future<void> restoreAll(List<NovelBookmark> items) {
     final snapshot = List<NovelBookmark>.of(items);
@@ -215,6 +300,34 @@ class NovelBookmarkStore extends ChangeNotifier {
       if (!allowed || _restoring || epoch != _restoreEpoch) return blocked();
       return action();
     });
+  }
+
+  /// 记录/更新该轻小说的组元数据，空字段沿用旧值。
+  /// 只改内存，落盘由 [_commit] 一并完成（书签与分组同一次提交）。
+  void _upsertGroup({
+    required String pathWord,
+    required String name,
+    required String cover,
+  }) {
+    NovelBookmarkGroup? previous;
+    for (final existing in _groups) {
+      if (existing.pathWord == pathWord) {
+        previous = existing;
+        break;
+      }
+    }
+    final merged = NovelBookmarkGroup(
+      pathWord: pathWord,
+      name: name.isEmpty ? previous?.name ?? '' : name,
+      cover: cover.isEmpty ? previous?.cover ?? '' : cover,
+      updatedAt: DateTime.now(),
+    );
+    _groups = List.unmodifiable(
+      [
+        merged,
+        ..._groups.where((group) => group.pathWord != pathWord),
+      ].take(maxBookmarks),
+    );
   }
 
   Future<void> _load() async {
@@ -245,8 +358,62 @@ class NovelBookmarkStore extends ChangeNotifier {
     } catch (error, stack) {
       _logFailure('read', error, stack);
     }
-    _bookmarks = _normalize(items);
+    final bookmarks = _normalize(items);
+    _groups = _withGroupsFromBookmarks(_readGroups(prefs), bookmarks);
+    _bookmarks = bookmarks;
     _loaded = true;
+  }
+
+  /// 补上「有书签但还没有组元数据」的作品：组元数据是后加的功能，
+  /// 老书签没有对应记录，否则详情页书签按钮会显示成未添加、删光书签后组也会消失。
+  /// 只改内存，不在这里写盘——读取路径保持只读，下次任何写入会带上补齐的组。
+  static List<NovelBookmarkGroup> _withGroupsFromBookmarks(
+    List<NovelBookmarkGroup> groups,
+    List<NovelBookmark> bookmarks,
+  ) {
+    final known = groups.map((group) => group.pathWord).toSet();
+    final added = <NovelBookmarkGroup>[];
+    for (final bookmark in bookmarks) {
+      if (!known.add(bookmark.pathWord)) continue;
+      added.add(
+        NovelBookmarkGroup(
+          pathWord: bookmark.pathWord,
+          name: bookmark.name,
+          cover: bookmark.cover,
+          updatedAt: bookmark.updatedAt,
+        ),
+      );
+    }
+    if (added.isEmpty) return groups;
+    final merged = [...groups, ...added]
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(merged);
+  }
+
+  /// 组元数据读失败时按空处理，不影响书签本身。
+  static List<NovelBookmarkGroup> _readGroups(SharedPreferences prefs) {
+    try {
+      final raw = prefs.get(groupsStorageKey);
+      if (raw is! String) return const [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final groups = <NovelBookmarkGroup>[];
+      for (final value in decoded) {
+        try {
+          if (value is! Map<String, dynamic>) {
+            throw const FormatException('Novel bookmark group must be object');
+          }
+          final group = NovelBookmarkGroup.fromJson(value);
+          if (group.pathWord.isNotEmpty) groups.add(group);
+        } catch (error, stack) {
+          _logFailure('read_group', error, stack);
+        }
+      }
+      return List.unmodifiable(groups.take(maxBookmarks));
+    } catch (error, stack) {
+      _logFailure('read_groups', error, stack);
+      return const [];
+    }
   }
 
   static List<NovelBookmark> _normalize(Iterable<NovelBookmark> items) {
@@ -268,6 +435,11 @@ class NovelBookmarkStore extends ChangeNotifier {
     if (!await prefs.setString(storageKey, encoded)) {
       throw StateError('Novel bookmark persistence failed');
     }
+    // 分组元数据与书签同一次提交落盘：书签被删光后组头仍要保留。
+    await prefs.setString(
+      groupsStorageKey,
+      jsonEncode(_groups.map((group) => group.toJson()).toList()),
+    );
     _bookmarks = next;
     notifyListeners();
   }
@@ -328,6 +500,7 @@ class NovelBookmarkStore extends ChangeNotifier {
   void debugReset() {
     assert(_queue == null, 'Flush pending novel bookmark operations first');
     _bookmarks = const [];
+    _groups = const [];
     _loaded = false;
     _restoring = false;
     _restoreEpoch++;

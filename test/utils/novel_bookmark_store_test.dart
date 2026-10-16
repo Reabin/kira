@@ -23,6 +23,19 @@ void main() {
     store.dispose();
   });
 
+  test('老数据：只有书签、没有分组元数据时仍视为已加入书签页', () async {
+    // 分组元数据是后加的功能，旧版本只写了书签列表。
+    final bookmark = NovelBookmark(position: _position());
+    await prefs.setString(
+      NovelBookmarkStore.storageKey,
+      jsonEncode([bookmark.toJson()]),
+    );
+    await store.reload();
+
+    expect(store.hasGroup('novel-a'), isTrue);
+    expect(store.groups.single.name, '小说 A');
+  });
+
   test('toggle persists exact anchors and excludes text URLs', () async {
     final progress = _position().copyWith(txtAddr: 'secret-signed-text-url');
     expect(await store.toggle(progress: progress), isTrue);
@@ -118,7 +131,8 @@ void main() {
       gate.complete();
       await Future.wait([first, second]);
       await store.reload();
-      expect(controlled.writes, 2);
+      // 每次提交写两个键：书签列表 + 分组元数据（书签删光后组头仍要保留）。
+      expect(controlled.writes, 4);
       expect(store.bookmarks, hasLength(2));
     },
   );

@@ -181,7 +181,10 @@ abstract final class BackupSchema {
       return BackupCategory.readingHistory;
     }
     if (key == 'reading_stats_v1') return BackupCategory.readingStatistics;
-    if (key == 'comic_bookmarks_v1' || key == 'novel_bookmarks_v1') {
+    if (key == 'comic_bookmarks_v1' ||
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return BackupCategory.bookmarks;
     }
     if (accountKeys.contains(key)) return BackupCategory.account;
@@ -199,7 +202,9 @@ abstract final class BackupSchema {
         key.startsWith('novel_reading_history_') ||
         key == 'reading_stats_v1' ||
         key == 'comic_bookmarks_v1' ||
-        key == 'novel_bookmarks_v1') {
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return 'string';
     }
     // In particular: backup_*, cache_*, AI conversations/summaries, download

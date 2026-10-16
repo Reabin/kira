@@ -57,7 +57,7 @@ void main() {
       // 卷名前缀去重：章节名「第一卷 第二章」显示为「第一卷 · 第二章」。
       expect(find.text('第一卷 · 第二章'), findsOneWidget);
       expect(find.text('第一卷 · 第一卷 第二章'), findsNothing);
-      expect(find.textContaining('本卷 42.00%'), findsOneWidget);
+      expect(find.textContaining('42.00%'), findsOneWidget);
       expect(find.text('1 条书签'), findsOneWidget);
       await tester.tap(find.text('漫画'));
       await tester.pumpAndSettle();
@@ -123,7 +123,10 @@ void main() {
     await _settleBookmarks(tester, novelStore);
     expect(novelStore.bookmarks, isEmpty);
     expect(BookmarkStore().bookmarks, hasLength(1));
-    expect(find.textContaining('阅读轻小说时'), findsOneWidget);
+    // 书签删光后组头保留：仍能看到这部轻小说，只是没有条目。
+    expect(find.text('小说 A'), findsOneWidget);
+    expect(find.text('0 条书签'), findsOneWidget);
+    expect(find.textContaining('阅读轻小说时'), findsNothing);
     await tester.tap(find.text('撤销'));
     await _settleBookmarks(tester, novelStore);
     expect(novelStore.bookmarks.single.id, saved.id);
@@ -281,7 +284,9 @@ void main() {
       );
       await _settleBookmarks(tester, novelStore);
       expect(novelStore.bookmarks, isEmpty);
-      expect(find.text('还没有书签'), findsOneWidget);
+      // 组头保留，只是条目没了；空态不应出现。
+      expect(find.text('0 条书签'), findsOneWidget);
+      expect(find.text('还没有书签'), findsNothing);
       expect(find.text('撤销'), findsOneWidget);
     },
   );
@@ -298,8 +303,13 @@ void main() {
     await novelStore.remove(saved.id);
     router.pop();
     await tester.pumpAndSettle();
-    expect(find.textContaining('阅读轻小说时'), findsOneWidget);
-    expect(find.text('小说 A'), findsNothing);
+    // 书签删光后组头保留：仍能看到这部轻小说，只是条目已移除。
+    expect(find.text('小说 A'), findsOneWidget);
+    expect(find.text('0 条书签'), findsOneWidget);
+    expect(
+      find.byKey(ValueKey('novel_bookmark_open_${saved.id}')),
+      findsNothing,
+    );
   });
 
   testWidgets('搜索词在切换 tab 后沿用，命中书名与章节名', (tester) async {

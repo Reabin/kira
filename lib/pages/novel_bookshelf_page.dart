@@ -443,7 +443,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         children: [
           ListTile(
             leading: Icon(
-              Icons.bookmark_remove_outlined,
+              Icons.favorite_border,
               color: AppStatusColors.danger(cs),
             ),
             title: Text(l10n.novelUncollect),
@@ -507,7 +507,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
               onTap: () => _setOrdering(ApiOrdering.datetimeUpdated),
             ),
             OrderingTile(
-              icon: Icons.bookmark_added,
+              icon: Icons.favorite_border,
               title: l10n.sortByFavoriteTime,
               subtitle: l10n.sortByFavoriteTimeDesc,
               selected: _ordering == ApiOrdering.datetimeModifier,
@@ -576,7 +576,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            noUpdates ? Icons.check_circle_outline : Icons.bookmark_border,
+            noUpdates ? Icons.check_circle_outline : Icons.favorite_border,
             size: noUpdates ? AppIconSize.empty : AppIconSize.display,
             color: cs.onSurfaceVariant,
           ),

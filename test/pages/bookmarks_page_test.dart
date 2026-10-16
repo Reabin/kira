@@ -92,7 +92,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(BookmarkStore().bookmarks, isEmpty);
-    expect(find.text('还没有书签'), findsOneWidget);
+    expect(find.text('漫画 A'), findsOneWidget);
+    expect(find.text('0 条书签'), findsOneWidget);
+    expect(find.text('还没有书签'), findsNothing);
   });
 
   testWidgets('搜索按漫画名与章节名过滤，命中即整组展示，无结果与空态区分', (tester) async {

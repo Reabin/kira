@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/utils/bookmark_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +21,20 @@ void main() {
         page: page,
         updatedAt: DateTime(2026, 7, 24, 12),
       );
+
+  test('老数据：只有书签、没有分组元数据时仍视为已加入书签页', () async {
+    // 分组元数据是后加的功能，旧版本只写了书签列表。
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'comic_bookmarks_v1',
+      jsonEncode([sample().toJson()]),
+    );
+    BookmarkStore().debugReset();
+    await BookmarkStore().ensureLoaded();
+
+    expect(BookmarkStore().hasGroup('comic-a'), isTrue);
+    expect(BookmarkStore().groups.single.comicName, '漫画A');
+  });
 
   test('toggle adds then removes a bookmark', () async {
     final store = BookmarkStore();

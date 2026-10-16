@@ -201,9 +201,10 @@ class _MainShellState extends State<MainShell>
       selectedIcon: Icons.search,
       labelKey: 'search',
     ),
+    // 书架用爱心：bookmark 图标留给「书签」功能。
     'bookshelf': _NavItem(
-      icon: Icons.bookmark_border,
-      selectedIcon: Icons.bookmark,
+      icon: Icons.favorite_border,
+      selectedIcon: Icons.favorite,
       labelKey: 'bookshelf',
     ),
     'profile': _NavItem(

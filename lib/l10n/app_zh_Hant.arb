@@ -877,6 +877,14 @@
   "bookmarkRemove": "取消書籤",
   "bookmarkAdded": "已新增書籤",
   "bookmarkRemoved": "已取消書籤",
+  "bookmarkRemoveGroupContent": "該作品有 {count} 條書籤，取消書籤會一併刪除。",
+  "@bookmarkRemoveGroupContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bookmarkPage": "第 {page} 頁",
   "@bookmarkPage": {
     "placeholders": {

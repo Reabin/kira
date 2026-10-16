@@ -18,6 +18,8 @@ void validateBackupRecords(Map<String, BackupPreference> preferences) {
     final isList = const {
       'comic_bookmarks_v1',
       'novel_bookmarks_v1',
+      'comic_bookmark_groups_v1',
+      'novel_bookmark_groups_v1',
       'ai_providers',
       'saved_credentials',
       'zhipu_prompt_presets',
@@ -46,6 +48,8 @@ void validateBackupRecords(Map<String, BackupPreference> preferences) {
           'saved_credentials' => const ['username', 'password'],
           'zhipu_prompt_presets' => const ['id', 'name', 'prompt'],
           'comic_bookmarks_v1' => const ['pathWord', 'chapterUuid'],
+          'comic_bookmark_groups_v1' ||
+          'novel_bookmark_groups_v1' => const ['pathWord'],
           _ => const <String>[],
         };
         for (final field in required) {

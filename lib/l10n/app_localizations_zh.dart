@@ -1489,6 +1489,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkRemoved => '已取消书签';
 
   @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '该作品有 $count 条书签，取消书签会一并删除。';
+  }
+
+  @override
   String bookmarkPage(int page) {
     return '第 $page 页';
   }
@@ -5597,6 +5602,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get bookmarkRemoved => '已取消書籤';
+
+  @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '該作品有 $count 條書籤，取消書籤會一併刪除。';
+  }
 
   @override
   String bookmarkPage(int page) {
