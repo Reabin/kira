@@ -172,6 +172,7 @@ abstract final class BackupSchema {
     'nav_order',
     'reader_reading_stats_section_order',
     'reader_status_overlay_order',
+    'update_mirror_custom_prefixes',
     'zhipu_custom_models',
   };
 

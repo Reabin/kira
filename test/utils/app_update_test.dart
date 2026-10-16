@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kira/models/user_manager.dart';
 import 'package:kira/utils/app_update.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The update decision must be platform-scoped: a release without an
 /// installable asset for the running platform (e.g. APK-only checked from
@@ -262,10 +264,30 @@ void main() {
     });
 
     test('mirror chain falls back through mirrors then the direct URL', () {
-      // 未 init 的 UserManager 用默认前缀（gh-proxy.com），
+      // 未 init 的 UserManager 用默认前缀（gh-proxy.org），
       // 顺序应为：默认镜像 → 备选镜像 → GitHub 直链。
       expect(InAppInstaller.downloadCandidates(apk, useMirror: true), [
-        'https://gh-proxy.com/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://gh-proxy.org/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://ghproxy.net/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://example.com/kira-1.5.0-arm64-v8a.apk',
+      ]);
+    });
+
+    test('custom mirrors join the chain before the direct URL', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      final user = UserManager();
+      await user.init();
+      await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+      await user.setUpdateMirrorPrefix('https://my.mirror');
+      addTearDown(() async {
+        await user.removeCustomUpdateMirrorPrefix('https://my.mirror');
+        await user.setUpdateMirrorPrefix(UserManager.defaultUpdateMirrorPrefix);
+      });
+
+      expect(InAppInstaller.downloadCandidates(apk, useMirror: true), [
+        'https://my.mirror/https://example.com/kira-1.5.0-arm64-v8a.apk',
+        'https://gh-proxy.org/https://example.com/kira-1.5.0-arm64-v8a.apk',
         'https://ghproxy.net/https://example.com/kira-1.5.0-arm64-v8a.apk',
         'https://example.com/kira-1.5.0-arm64-v8a.apk',
       ]);

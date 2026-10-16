@@ -162,20 +162,23 @@ class UserManager extends ChangeNotifier {
       ThemeSettings.defaultDisplayModeRefreshRate;
 
   /// GitHub 下载镜像默认前缀，也用于提示条等处的「默认值」语义。
-  static const defaultUpdateMirrorPrefix = 'https://gh-proxy.com/';
+  static const defaultUpdateMirrorPrefix = 'https://gh-proxy.org/';
 
-  /// 镜像源下拉可选项，第一项即默认；其余为备选，下载失败时按顺序兜底。
+  /// 镜像源下拉里内置的可选项，第一项即默认；其余为备选。
   static const updateMirrorPrefixOptions = <String>[
     defaultUpdateMirrorPrefix,
     'https://ghproxy.net/',
   ];
 
-  /// 应用内下载的镜像兜底顺序：选中的镜像优先，其余镜像依次尝试。
-  /// 自定义镜像不在预设里时也排在最前（它就是用户当前选中的那个）。
-  static List<String> updateMirrorFallbackChain(String selected) {
+  /// 应用内下载的镜像兜底顺序：选中的镜像优先，内置与自定义镜像依次尝试。
+  /// 选中的值不在列表里（如备份恢复的旧值）时也排在最前。
+  static List<String> updateMirrorFallbackChain(
+    String selected, [
+    List<String> custom = const [],
+  ]) {
     final first = normalizeUpdateMirrorPrefix(selected);
     final chain = <String>[first];
-    for (final option in updateMirrorPrefixOptions) {
+    for (final option in [...updateMirrorPrefixOptions, ...custom]) {
       final normalized = normalizeUpdateMirrorPrefix(option);
       if (!chain.contains(normalized)) chain.add(normalized);
     }
@@ -230,6 +233,7 @@ class UserManager extends ChangeNotifier {
   static const _keyAutoCheckUpdate = 'auto_check_update';
   static const _keySkippedUpdateVersion = 'skipped_update_version';
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
+  static const _keyUpdateMirrorCustomPrefixes = 'update_mirror_custom_prefixes';
   static const _keyUpdateChannel = 'update_channel'; // stable | beta
   static const _keyUseUpdateMirror = 'use_update_mirror';
   static const _keyDisclaimerAccepted = 'disclaimer_accepted';
@@ -302,6 +306,9 @@ class UserManager extends ChangeNotifier {
   bool _autoCheckUpdate = true;
   String? _skippedUpdateVersion;
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
+
+  /// 用户自定义的更新镜像源（内置 [updateMirrorPrefixOptions] 之外）。
+  List<String> _customUpdateMirrorPrefixes = [];
   String _updateChannel = 'stable'; // stable | beta
   bool _useUpdateMirror = true;
   bool _disclaimerAccepted = false;
@@ -419,6 +426,10 @@ class UserManager extends ChangeNotifier {
   bool get autoCheckUpdate => _autoCheckUpdate;
   String? get skippedUpdateVersion => _skippedUpdateVersion;
   String get updateMirrorPrefix => _updateMirrorPrefix;
+
+  /// 用户自定义的更新镜像源（内置 [updateMirrorPrefixOptions] 之外）。
+  List<String> get customUpdateMirrorPrefixes =>
+      List.unmodifiable(_customUpdateMirrorPrefixes);
   String get updateChannel => _updateChannel;
   bool get isBetaUpdateChannel => _updateChannel == 'beta';
   bool get useUpdateMirror => _useUpdateMirror;

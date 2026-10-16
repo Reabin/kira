@@ -107,6 +107,42 @@ extension UserManagerInitPart on UserManager {
         ? 'beta'
         : 'stable';
     _useUpdateMirror = prefs.getBool(UserManager._keyUseUpdateMirror) ?? true;
+    {
+      // 自定义镜像源：规范化后去重（与内置重复的一律丢弃），非法值会被
+      // normalize 折成默认地址，同样落在内置项里而被过滤掉。
+      final raw =
+          prefs.getStringList(UserManager._keyUpdateMirrorCustomPrefixes) ??
+          const <String>[];
+      final custom = <String>[];
+      for (final value in raw) {
+        final prefix = UserManager.normalizeUpdateMirrorPrefix(value);
+        if (custom.contains(prefix) ||
+            UserManager.updateMirrorPrefixOptions.contains(prefix)) {
+          continue;
+        }
+        custom.add(prefix);
+      }
+      // 旧版本把自定义镜像只写在 update_mirror_prefix 里，没有列表：并入
+      // 后它才可见、可删除、可继续参与兜底，而不是一切换预设就消失。
+      if (!UserManager.updateMirrorPrefixOptions.contains(
+            _updateMirrorPrefix,
+          ) &&
+          !custom.contains(_updateMirrorPrefix)) {
+        custom.add(_updateMirrorPrefix);
+      }
+      _customUpdateMirrorPrefixes = custom;
+      // 规范化或并入改变了内容才回写，避免每次启动都写一次 prefs。
+      var unchanged = custom.length == raw.length;
+      for (var i = 0; unchanged && i < custom.length; i++) {
+        unchanged = custom[i] == raw[i];
+      }
+      if (persistMigrations && !unchanged) {
+        await prefs.setStringList(
+          UserManager._keyUpdateMirrorCustomPrefixes,
+          custom,
+        );
+      }
+    }
     _disclaimerAccepted =
         prefs.getBool(UserManager._keyDisclaimerAccepted) ?? false;
     _loginSource = prefs.getString(UserManager._keyLoginSource) ?? 'hotmanga';

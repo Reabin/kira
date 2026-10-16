@@ -136,7 +136,7 @@ Future<T> load() async {
 `AiSettings`（`lib/api/ai_api.dart`）独立，键名混用 `zhipu_` / `ai_` 前缀；API key 与连接配置仍以明文存在 prefs，未纳入 `SecureCredentialStore`，备份归入需显式选择的敏感「AI 连接」分类。
 
 ### 键名前缀族（缓存管理页 `_looksLikeSettingKey` 用以区分设置 vs 缓存）
-`theme_` `custom_theme_` `dark_mode_` `bottom_nav_` `nav_` `last_nav_` `desktop_font_` `bookshelf_` `reader_` `image_` `comment_` `auto_check_` `skipped_update_` `disclaimer_` `api_route` `anime_feature_` `banner_` `anime_home_` `anime_skip_` `anime_playback_progress_` `download_` `danmaku_` `local_bookshelf_`（见 `cache_management_page.dart:702`）。
+`theme_` `custom_theme_` `dark_mode_` `bottom_nav_` `nav_` `last_nav_` `desktop_font_` `bookshelf_` `reader_` `image_` `comment_` `auto_check_` `skipped_update_` `update_mirror_` `use_update_mirror` `disclaimer_` `api_route` `anime_feature_` `banner_` `anime_home_` `anime_skip_` `anime_playback_progress_` `download_` `danmaku_` `local_bookshelf_`（见 `cache_management_page.dart` 的 `_looksLikeSettingKey`）。
 
 新增用户偏好 key 时，归入上述某一前缀族，否则可能被缓存清理误判或备份遗漏。
 

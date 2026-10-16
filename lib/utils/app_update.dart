@@ -758,8 +758,10 @@ class InAppInstaller with WidgetsBindingObserver {
     if (!useMirror) return [asset.downloadUrl];
 
     final urls = <String>[];
+    final user = UserManager();
     for (final prefix in UserManager.updateMirrorFallbackChain(
-      UserManager().updateMirrorPrefix,
+      user.updateMirrorPrefix,
+      user.customUpdateMirrorPrefixes,
     )) {
       final url = asset.mirrorUrlFor(prefix);
       if (!urls.contains(url)) urls.add(url);

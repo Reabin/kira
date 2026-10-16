@@ -41,6 +41,39 @@ void main() {
     );
   });
 
+  test('mirror download hosts bypass the configured proxy', () async {
+    final user = UserManager();
+    await user.init();
+    await user.setManualProxy(
+      host: '127.0.0.1',
+      port: 7890,
+      type: NetworkProxyType.http,
+    );
+    await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+    addTearDown(() async {
+      await user.removeCustomUpdateMirrorPrefix('https://my.mirror');
+      await user.setUpdateMirrorPrefix(UserManager.defaultUpdateMirrorPrefix);
+    });
+
+    // 当前选中的镜像、内置备选与已添加的自定义镜像都直连，只有其余流量走代理。
+    expect(
+      NetworkProxy.findProxy(Uri.parse('https://gh-proxy.org/file.apk')),
+      'DIRECT',
+    );
+    expect(
+      NetworkProxy.findProxy(Uri.parse('https://ghproxy.net/file.apk')),
+      'DIRECT',
+    );
+    expect(
+      NetworkProxy.findProxy(Uri.parse('https://my.mirror/file.apk')),
+      'DIRECT',
+    );
+    expect(
+      NetworkProxy.findProxy(Uri.parse('https://www.google.com/')),
+      'PROXY 127.0.0.1:7890',
+    );
+  });
+
   test('direct proxy mode bypasses any proxy', () async {
     SharedPreferences.setMockInitialValues({
       'network_proxy_mode': NetworkProxyMode.direct.index,

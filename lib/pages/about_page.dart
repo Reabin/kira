@@ -12,6 +12,7 @@ import '../api/hitokoto_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
 import '../routing/app_router.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';

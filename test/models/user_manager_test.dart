@@ -199,13 +199,13 @@ void main() {
     );
   });
 
-  test('update mirror prefix defaults to gh-proxy.com and persists', () async {
+  test('update mirror prefix defaults to gh-proxy.org and persists', () async {
     final user = UserManager();
     await user.init();
 
-    expect(UserManager.defaultUpdateMirrorPrefix, 'https://gh-proxy.com/');
+    expect(UserManager.defaultUpdateMirrorPrefix, 'https://gh-proxy.org/');
     expect(UserManager.updateMirrorPrefixOptions, [
-      'https://gh-proxy.com/',
+      'https://gh-proxy.org/',
       'https://ghproxy.net/',
     ]);
 
@@ -215,8 +215,8 @@ void main() {
       UserManager.defaultUpdateMirrorPrefix,
     );
     expect(
-      UserManager.normalizeUpdateMirrorPrefix('https://gh-proxy.com'),
-      'https://gh-proxy.com/',
+      UserManager.normalizeUpdateMirrorPrefix('https://gh-proxy.org'),
+      'https://gh-proxy.org/',
     );
 
     await user.setUpdateMirrorPrefix('https://ghproxy.net');
@@ -228,19 +228,19 @@ void main() {
   test('update mirror fallback chain puts the selected source first', () {
     expect(UserManager.updateMirrorFallbackChain('https://ghproxy.net/'), [
       'https://ghproxy.net/',
-      'https://gh-proxy.com/',
+      'https://gh-proxy.org/',
     ]);
 
     // 自定义镜像不在预设里：它排在首位，预设镜像补在其后兜底。
     expect(UserManager.updateMirrorFallbackChain('https://my.mirror'), [
       'https://my.mirror/',
-      'https://gh-proxy.com/',
+      'https://gh-proxy.org/',
       'https://ghproxy.net/',
     ]);
 
     // 非法/空值回落默认，不产生重复项。
     expect(UserManager.updateMirrorFallbackChain(''), [
-      'https://gh-proxy.com/',
+      'https://gh-proxy.org/',
       'https://ghproxy.net/',
     ]);
   });

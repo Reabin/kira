@@ -12,7 +12,7 @@ extension _AboutPageUpdateSettings on _AboutPageState {
         (uri.scheme == 'http' || uri.scheme == 'https');
   }
 
-  /// 自定义镜像输入框（保留原有能力），保存后即成为下拉当前项。
+  /// 自定义镜像输入框（保留原有能力），保存后即成为下拉当前项并进入自定义列表。
   Future<void> _editUpdateMirrorPrefix() async {
     final l10n = AppLocalizations.of(context)!;
     final formKey = GlobalKey<FormState>();
@@ -77,19 +77,20 @@ extension _AboutPageUpdateSettings on _AboutPageState {
     );
 
     if (mirrorPrefix == null) return;
+    // 非内置地址先记进自定义列表：切到别的源后它仍留在下拉里，可再选回或删除，
+    // 不会因为一次切换就丢掉。内置地址与重复项会被 add 拒绝，只做切换。
+    await _user.addCustomUpdateMirrorPrefix(mirrorPrefix);
     await _user.setUpdateMirrorPrefix(mirrorPrefix);
     if (!mounted) return;
     showToast(context, l10n.aboutMirrorPrefixSavedToast);
   }
 
-  /// 镜像源弹出菜单（对齐账号中心列表项的 trailing 菜单）：预设 + 当前存储值
-  /// （备份恢复的自定义值不在预设里时也要能显示保留）+ 自定义入口。按钮上只
-  /// 显示当前镜像主机名并限宽，避免把 ListTile 标题挤成多行。
+  /// 镜像源弹出菜单（对齐账号中心列表项的 trailing 菜单）：内置项 + 自定义项
+  /// （可逐条删除）+ 自定义入口。按钮上只显示当前镜像主机名并限宽，避免把
+  /// ListTile 标题挤成多行。
   Widget _buildUpdateMirrorDropdown(AppLocalizations l10n) {
+    final cs = Theme.of(context).colorScheme;
     final current = _user.updateMirrorPrefix;
-    final options = UserManager.updateMirrorPrefixOptions.contains(current)
-        ? UserManager.updateMirrorPrefixOptions
-        : [...UserManager.updateMirrorPrefixOptions, current];
     return PopupMenuButton<String>(
       tooltip: l10n.aboutMirrorPrefixTitle,
       onSelected: (value) async {
@@ -103,8 +104,46 @@ extension _AboutPageUpdateSettings on _AboutPageState {
         showToast(context, l10n.aboutMirrorPrefixSavedToast);
       },
       itemBuilder: (_) => [
-        for (final option in options)
+        for (final option in UserManager.updateMirrorPrefixOptions)
           PopupMenuItem(value: option, child: Text(option)),
+        for (final custom in _user.customUpdateMirrorPrefixes)
+          PopupMenuItem(
+            value: custom,
+            child: Builder(
+              // 菜单项自己的 context 才能 pop 掉菜单本身（删除后立即收起，
+              // 下次打开就是删除后的列表）。
+              builder: (itemContext) => Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      custom,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      size: AppIconSize.md,
+                    ),
+                    tooltip: l10n.deleteButton,
+                    color: cs.error,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(itemContext);
+                      unawaited(_user.removeCustomUpdateMirrorPrefix(custom));
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
         PopupMenuItem(
           value: _customMirrorOption,
           child: Text(l10n.networkCopyLoginDomainCustom),
@@ -123,8 +162,8 @@ extension _AboutPageUpdateSettings on _AboutPageState {
           ),
           Icon(
             Icons.arrow_drop_down_rounded,
-            size: 20,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            size: AppIconSize.lg,
+            color: cs.onSurfaceVariant,
           ),
         ],
       ),

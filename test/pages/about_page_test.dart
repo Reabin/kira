@@ -319,4 +319,73 @@ void main() {
       expect(find.text('跳过此版本'), findsOneWidget);
     });
   }
+
+  group('更新镜像源', () {
+    // 页面打开后更新检查一直处于 checking（CircularProgressIndicator 常驻动画），
+    // 因此这里一律用固定时长的 pump，不用 pumpAndSettle；弹出菜单的收起动画
+    // 比 300ms 长，需要多给一轮才能等到菜单真正从树上移除。
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+    }
+
+    testWidgets('自定义镜像在下拉里可删除，删除后回落默认', (tester) async {
+      final user = UserManager();
+      await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+      await user.setUpdateMirrorPrefix('https://my.mirror');
+
+      await pumpAbout(tester);
+      final mirrorRow = find.byTooltip('设置镜像源');
+      await tester.ensureVisible(mirrorRow);
+      await settle(tester);
+      // 按钮上显示当前镜像的主机名。
+      expect(find.text('my.mirror'), findsOneWidget);
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('删除'));
+      await settle(tester);
+
+      expect(user.customUpdateMirrorPrefixes, isEmpty);
+      expect(user.updateMirrorPrefix, UserManager.defaultUpdateMirrorPrefix);
+      // 删除后菜单立即收起，按钮回落到默认镜像主机名。
+      expect(find.byType(AboutPage), findsOneWidget, reason: 'about 页不应被 pop');
+      expect(find.byType(PopupMenuItem<String>), findsNothing);
+      expect(find.text('gh-proxy.org'), findsOneWidget);
+      // 再打开下拉，已删除的自定义项不再出现。
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsNothing);
+    });
+
+    testWidgets('切换内置镜像后自定义项仍留在下拉里', (tester) async {
+      final user = UserManager();
+      await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+
+      await pumpAbout(tester);
+      final mirrorRow = find.byTooltip('设置镜像源');
+      await tester.ensureVisible(mirrorRow);
+      await settle(tester);
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      await tester.tap(find.text('https://my.mirror/'));
+      await settle(tester);
+      expect(user.updateMirrorPrefix, 'https://my.mirror/');
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      await tester.tap(find.text('https://ghproxy.net/'));
+      await settle(tester);
+
+      expect(user.updateMirrorPrefix, 'https://ghproxy.net/');
+      expect(user.customUpdateMirrorPrefixes, ['https://my.mirror/']);
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsOneWidget);
+    });
+  });
 }
