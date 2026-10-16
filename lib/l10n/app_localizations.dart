@@ -2479,6 +2479,18 @@ abstract class AppLocalizations {
   /// **'书签保存失败，请重试'**
   String get bookmarksUpdateFailed;
 
+  /// No description provided for @bookmarksSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索书名或章节'**
+  String get bookmarksSearchHint;
+
+  /// No description provided for @bookmarksSearchEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到相关书签，试试其他关键词'**
+  String get bookmarksSearchEmpty;
+
   /// No description provided for @statsTitle.
   ///
   /// In zh, this message translates to:

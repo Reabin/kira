@@ -29,19 +29,32 @@ class _BookmarksPageState extends State<BookmarksPage>
     with SingleTickerProviderStateMixin {
   final _comicKey = GlobalKey<_ComicBookmarksPageState>();
   final _novelKey = GlobalKey<NovelBookmarksPageState>();
+  final _searchController = TextEditingController();
   late final TabController _tabs;
   int _tabIndex = 0;
+
+  /// 搜索词由宿主页持有：切换 tab 后沿用同一关键词，两个分页各自过滤。
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this)..addListener(_onTabChanged);
+    _searchController.addListener(_onQueryChanged);
   }
 
   @override
   void dispose() {
+    _searchController
+      ..removeListener(_onQueryChanged)
+      ..dispose();
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    if (_searchController.text == _query) return;
+    setState(() => _query = _searchController.text);
   }
 
   void _onTabChanged() {
@@ -62,6 +75,7 @@ class _BookmarksPageState extends State<BookmarksPage>
     final canClear = _tabIndex == 0 || !showNovel
         ? _comicKey.currentState?.hasBookmarks == true
         : _novelKey.currentState?.hasBookmarks == true;
+    final hp = ScreenLayout.horizontalPadding(MediaQuery.sizeOf(context).width);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.bookmarksTitle),
@@ -90,23 +104,69 @@ class _BookmarksPageState extends State<BookmarksPage>
               )
             : null,
       ),
-      body: showNovel
-          ? TabBarView(
-              controller: _tabs,
-              children: [
-                _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
-                NovelBookmarksPage(key: _novelKey, onChanged: _onItemsChanged),
-              ],
-            )
-          : _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(hp, AppSpacing.md, hp, AppSpacing.xs),
+            child: SearchBar(
+              controller: _searchController,
+              hintText: l10n.bookmarksSearchHint,
+              leading: const Padding(
+                padding: EdgeInsets.only(left: AppSpacing.sm),
+                child: Icon(Icons.search),
+              ),
+              trailing: _query.isEmpty
+                  ? null
+                  : [
+                      IconButton(
+                        key: const ValueKey('bookmarks_search_clear'),
+                        icon: const Icon(Icons.clear),
+                        tooltip: l10n.searchClearTooltip,
+                        onPressed: _searchController.clear,
+                      ),
+                    ],
+            ),
+          ),
+          Expanded(
+            child: showNovel
+                ? TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _ComicBookmarksPage(
+                        key: _comicKey,
+                        query: _query,
+                        onChanged: _onItemsChanged,
+                      ),
+                      NovelBookmarksPage(
+                        key: _novelKey,
+                        query: _query,
+                        onChanged: _onItemsChanged,
+                      ),
+                    ],
+                  )
+                : _ComicBookmarksPage(
+                    key: _comicKey,
+                    query: _query,
+                    onChanged: _onItemsChanged,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _ComicBookmarksPage extends StatefulWidget {
-  const _ComicBookmarksPage({super.key, required this.onChanged});
+  const _ComicBookmarksPage({
+    super.key,
+    required this.onChanged,
+    this.query = '',
+  });
 
   final VoidCallback onChanged;
+
+  /// 宿主页搜索框的关键词，空串表示不过滤。
+  final String query;
 
   @override
   State<_ComicBookmarksPage> createState() => _ComicBookmarksPageState();
@@ -202,12 +262,25 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
   }
 
   /// 按漫画分组；全局列表本身按时间倒序，分组后组与组内均保持倒序。
+  /// 搜索是「组级」的：组内任一条命中，该漫画的全部书签都照常展示，
+  /// 组头上的条数与整组删除因此仍与所见一致。
   List<MapEntry<String, List<ComicBookmark>>> _grouped() {
+    final query = widget.query.trim().toLowerCase();
     final groups = <String, List<ComicBookmark>>{};
     for (final bookmark in _store.bookmarks) {
       groups.putIfAbsent(bookmark.pathWord, () => []).add(bookmark);
     }
-    return groups.entries.toList();
+    final entries = groups.entries.toList();
+    if (query.isEmpty) return entries;
+    return entries
+        .where((entry) => entry.value.any((b) => _matchesQuery(b, query)))
+        .toList();
+  }
+
+  bool _matchesQuery(ComicBookmark bookmark, String query) {
+    if (query.isEmpty) return true;
+    return bookmark.comicName.toLowerCase().contains(query) ||
+        bookmark.chapterName.toLowerCase().contains(query);
   }
 
   void _showUndoSnackBar(String message, List<ComicBookmark> removed) {
@@ -328,6 +401,8 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
     final groups = _grouped();
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
+    // 「搜不到」和「一条书签都没有」要分开：否则搜索无结果会被误读成书签丢了。
+    final searching = widget.query.trim().isNotEmpty;
 
     return _loading
         ? const Center(child: CircularProgressIndicator())
@@ -347,25 +422,32 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    Icons.bookmark_border,
+                                    searching
+                                        ? Icons.search_off
+                                        : Icons.bookmark_border,
                                     size: 64,
                                     color: cs.onSurfaceVariant,
                                   ),
                                   const SizedBox(height: AppSpacing.lg),
                                   Text(
-                                    l10n.bookmarksEmptyTitle,
+                                    searching
+                                        ? l10n.bookmarksSearchEmpty
+                                        : l10n.bookmarksEmptyTitle,
+                                    textAlign: TextAlign.center,
                                     style: tt.titleMedium?.copyWith(
                                       color: cs.onSurfaceVariant,
                                     ),
                                   ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Text(
-                                    l10n.bookmarksEmptySubtitle,
-                                    textAlign: TextAlign.center,
-                                    style: tt.bodySmall?.copyWith(
-                                      color: cs.onSurfaceVariant,
+                                  if (!searching) ...[
+                                    const SizedBox(height: AppSpacing.sm),
+                                    Text(
+                                      l10n.bookmarksEmptySubtitle,
+                                      textAlign: TextAlign.center,
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),

@@ -831,6 +831,8 @@
   "novelBookmarksEmptySubtitle": "阅读轻小说时，点击工具栏右上角添加书签",
   "bookmarksLoadFailed": "书签加载失败，请重试",
   "bookmarksUpdateFailed": "书签保存失败，请重试",
+  "bookmarksSearchHint": "搜索书名或章节",
+  "bookmarksSearchEmpty": "没有找到相关书签，试试其他关键词",
   "statsTitle": "阅读统计",
   "continueReadingTitle": "继续阅读",
   "continueReadingPageLabel": "第 {page} 页",

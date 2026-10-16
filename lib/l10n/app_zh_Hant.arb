@@ -802,6 +802,8 @@
   "novelBookmarksEmptySubtitle": "閱讀輕小說時，點擊工具列右上角新增書籤",
   "bookmarksLoadFailed": "書籤載入失敗，請重試",
   "bookmarksUpdateFailed": "書籤儲存失敗，請重試",
+  "bookmarksSearchHint": "搜尋書名或章節",
+  "bookmarksSearchEmpty": "沒有找到相關書籤，試試其他關鍵詞",
   "statsTitle": "閱讀統計",
   "continueReadingTitle": "繼續閱讀",
   "continueReadingPageLabel": "第 {page} 頁",

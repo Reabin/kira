@@ -22,9 +22,16 @@ import '../widgets/novel_widgets.dart';
 
 /// 统一书签页的轻小说分页，不查询网络目录，也不改写最后阅读进度。
 class NovelBookmarksPage extends ConsumerStatefulWidget {
-  const NovelBookmarksPage({super.key, required this.onChanged});
+  const NovelBookmarksPage({
+    super.key,
+    required this.onChanged,
+    this.query = '',
+  });
 
   final VoidCallback onChanged;
+
+  /// 宿主页搜索框的关键词，空串表示不过滤。
+  final String query;
 
   @override
   ConsumerState<NovelBookmarksPage> createState() => NovelBookmarksPageState();
@@ -230,16 +237,31 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
     if (mounted) setState(() {});
   }
 
+  /// 书名、卷名与章节名都参与匹配（卷内章节名通常不带卷名前缀）。
+  bool _matchesQuery(NovelBookmark bookmark, String query) {
+    if (query.isEmpty) return true;
+    return bookmark.name.toLowerCase().contains(query) ||
+        bookmark.volumeName.toLowerCase().contains(query) ||
+        bookmark.chapterName.toLowerCase().contains(query);
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final query = widget.query.trim().toLowerCase();
     final groups = <String, List<NovelBookmark>>{};
     for (final bookmark in _store.bookmarks) {
       groups.putIfAbsent(bookmark.pathWord, () => []).add(bookmark);
     }
-    final entries = groups.entries.toList();
+    // 搜索是「组级」的：组内任一条命中，该轻小说的全部书签都照常展示。
+    final entries = query.isEmpty
+        ? groups.entries.toList()
+        : groups.entries
+              .where((entry) => entry.value.any((b) => _matchesQuery(b, query)))
+              .toList();
+    final searching = query.isNotEmpty;
     final hp = ScreenLayout.horizontalPadding(MediaQuery.sizeOf(context).width);
 
     if (_loading) return const Center(child: ExpressiveLoadingIndicator());
@@ -264,25 +286,30 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.bookmark_border,
+                        searching ? Icons.search_off : Icons.bookmark_border,
                         size: AppIconSize.display,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: AppSpacing.lg),
                       Text(
-                        l10n.bookmarksEmptyTitle,
+                        searching
+                            ? l10n.bookmarksSearchEmpty
+                            : l10n.bookmarksEmptyTitle,
+                        textAlign: TextAlign.center,
                         style: theme.textTheme.titleMedium?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Text(
-                        l10n.novelBookmarksEmptySubtitle,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      if (!searching) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          l10n.novelBookmarksEmptySubtitle,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

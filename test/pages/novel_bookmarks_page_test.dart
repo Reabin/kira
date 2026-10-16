@@ -301,6 +301,69 @@ void main() {
     expect(find.textContaining('阅读轻小说时'), findsOneWidget);
     expect(find.text('小说 A'), findsNothing);
   });
+
+  testWidgets('搜索词在切换 tab 后沿用，命中书名与章节名', (tester) async {
+    await seedBookmarks();
+    await _pump(tester, novelStore);
+    expect(find.text('漫画 A'), findsOneWidget);
+
+    // 漫画 tab 下无命中：轻小说名不匹配漫画书签。
+    await tester.enterText(find.byType(TextField), '小说');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到相关书签，试试其他关键词'), findsOneWidget);
+    expect(find.text('漫画 A'), findsNothing);
+
+    // 关键词随 tab 切换保留。
+    await _showNovels(tester);
+    expect(find.text('小说 A'), findsOneWidget);
+    expect(find.text('第一卷 · 第二章'), findsOneWidget);
+
+    // 章节名（含卷名前缀的原始名）同样命中：只命中第三章时，
+    // 同一轻小说的第二章也照常显示（整组展示）。
+    await novelStore.toggle(
+      progress: _position().copyWith(
+        chapterName: '第一卷 第三章',
+        entryIndex: 9,
+        paragraphIndex: 0,
+      ),
+    );
+    await tester.enterText(find.byType(TextField), '第三章');
+    await tester.pumpAndSettle();
+    expect(find.text('小说 A'), findsOneWidget);
+    expect(find.text('第一卷 · 第二章'), findsOneWidget);
+    expect(find.text('第一卷 · 第三章'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '不存在的书');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到相关书签，试试其他关键词'), findsOneWidget);
+    expect(find.text('小说 A'), findsNothing);
+    expect(find.textContaining('阅读轻小说时'), findsNothing);
+  });
+
+  testWidgets('搜索时整组左滑删除该轻小说的全部书签', (tester) async {
+    await seedBookmarks();
+    await novelStore.toggle(
+      progress: _position().copyWith(
+        chapterName: '第一卷 第三章',
+        entryIndex: 9,
+        paragraphIndex: 0,
+      ),
+    );
+    await _pump(tester, novelStore);
+    await _showNovels(tester);
+
+    // 只命中第三章，第二章未命中；整组左滑仍删掉两条。
+    await tester.enterText(find.byType(TextField), '第三章');
+    await tester.pumpAndSettle();
+    expect(novelStore.bookmarks, hasLength(2));
+    await tester.drag(
+      find.byKey(const ValueKey('novel_bookmark_group_novel-a')),
+      const Offset(-550, 0),
+    );
+    await _settleBookmarks(tester, novelStore);
+    expect(novelStore.bookmarks, isEmpty);
+    expect(find.text('已删除 2 条书签'), findsOneWidget);
+  });
 }
 
 Future<void> _settleBookmarks(

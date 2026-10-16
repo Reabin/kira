@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:kira/l10n/app_localizations.dart';
@@ -93,14 +94,85 @@ void main() {
     expect(BookmarkStore().bookmarks, isEmpty);
     expect(find.text('还没有书签'), findsOneWidget);
   });
+
+  testWidgets('搜索按漫画名与章节名过滤，命中即整组展示，无结果与空态区分', (tester) async {
+    // 同一漫画再存一条：用于验证命中一条时整组都显示。
+    await BookmarkStore().toggle(
+      pathWord: 'comic-a',
+      comicName: '漫画 A',
+      group: 'default',
+      chapterUuid: 'chapter-2',
+      chapterName: '第 2 话',
+      page: 3,
+    );
+    await BookmarkStore().toggle(
+      pathWord: 'comic-b',
+      comicName: '漫画 B',
+      group: 'default',
+      chapterUuid: 'chapter-9',
+      chapterName: '第 9 话',
+      page: 1,
+    );
+    final router = _createRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(_buildTestApp(router));
+    await tester.pumpAndSettle();
+    expect(_groupFinder('comic-a'), findsOneWidget);
+    expect(_groupFinder('comic-b'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '漫画 B');
+    await tester.pumpAndSettle();
+    expect(_groupFinder('comic-b'), findsOneWidget);
+    expect(_groupFinder('comic-a'), findsNothing);
+
+    // 只命中「第 1 话」，但同一漫画的「第 2 话」也一并显示。
+    await tester.enterText(find.byType(TextField), '第 1 话');
+    await tester.pumpAndSettle();
+    expect(_groupFinder('comic-a'), findsOneWidget);
+    expect(_groupFinder('comic-b'), findsNothing);
+    expect(_bookmarkFinder('chapter-1:7'), findsOneWidget);
+    expect(_bookmarkFinder('chapter-2:3'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '不存在的漫画');
+    await tester.pumpAndSettle();
+    expect(find.text('没有找到相关书签，试试其他关键词'), findsOneWidget);
+    expect(find.text('还没有书签'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('bookmarks_search_clear')));
+    await tester.pumpAndSettle();
+    expect(_groupFinder('comic-a'), findsOneWidget);
+    expect(_groupFinder('comic-b'), findsOneWidget);
+
+    // 搜索时整组左滑照旧删除该漫画的全部书签（含未命中的第 2 话）。
+    await tester.enterText(find.byType(TextField), '第 1 话');
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const ValueKey('bookmark_group_comic-a')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('已删除 2 条书签'), findsOneWidget);
+    expect(BookmarkStore().bookmarks.single.pathWord, 'comic-b');
+  });
 }
 
+/// 搜索框自身也是文本，断言列表内容时按分组/条目 key 定位而非按文本。
+Finder _groupFinder(String pathWord) =>
+    find.byKey(ValueKey('bookmark_comic_$pathWord'));
+
+Finder _bookmarkFinder(String bookmarkId) =>
+    find.byKey(ValueKey('bookmark_open_$bookmarkId'));
+
+/// 书签页的轻小说分页是 Riverpod 消费者，TabBarView 可能惰性挂载它，
+/// 因此测试树必须自带 ProviderScope。
 Widget _buildTestApp(GoRouter router) {
-  return MaterialApp.router(
-    routerConfig: router,
-    locale: const Locale('zh'),
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
+  return ProviderScope(
+    child: MaterialApp.router(
+      routerConfig: router,
+      locale: const Locale('zh'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+    ),
   );
 }
 

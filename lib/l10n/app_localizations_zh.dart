@@ -1321,6 +1321,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarksUpdateFailed => '书签保存失败，请重试';
 
   @override
+  String get bookmarksSearchHint => '搜索书名或章节';
+
+  @override
+  String get bookmarksSearchEmpty => '没有找到相关书签，试试其他关键词';
+
+  @override
   String get statsTitle => '阅读统计';
 
   @override
@@ -5423,6 +5429,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get bookmarksUpdateFailed => '書籤儲存失敗，請重試';
+
+  @override
+  String get bookmarksSearchHint => '搜尋書名或章節';
+
+  @override
+  String get bookmarksSearchEmpty => '沒有找到相關書籤，試試其他關鍵詞';
 
   @override
   String get statsTitle => '閱讀統計';
