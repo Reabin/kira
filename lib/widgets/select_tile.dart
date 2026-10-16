@@ -293,18 +293,22 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                   const SizedBox(width: 6),
                 ],
                 // 通用硬上限 168；设了字符上限时标签跟着收窄，否则超长账号
-                // 名会把胶囊撑满 168，菜单宽度又被胶囊顶破上限。
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: _labelWidth == null
-                        ? 168
-                        : math.min(168.0, _labelWidth!),
-                  ),
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodyMedium?.copyWith(color: foreground),
+                // 名会把胶囊撑满 168，菜单宽度又被胶囊顶破上限。窄屏或大字号
+                // 下外围图标与内边距会先吃掉宽度，Flexible 让标签继续收缩，
+                // 而不是把整行撑破。
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: _labelWidth == null
+                          ? 168
+                          : math.min(168.0, _labelWidth!),
+                    ),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.bodyMedium?.copyWith(color: foreground),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),

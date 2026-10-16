@@ -13,6 +13,8 @@ import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reader_settings.dart';
 import 'package:kira/models/novel_reading_progress.dart';
 import 'package:kira/models/reader_settings.dart';
+import 'package:kira/pages/novel_reader/novel_chapter_slider_track_shape.dart';
+import 'package:kira/pages/novel_reader/novel_reader_contents_sheet.dart';
 import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
 import 'package:kira/pages/novel_reader_page.dart';
@@ -27,7 +29,10 @@ import 'package:kira/widgets/app_sheet.dart';
 import 'package:kira/widgets/error_retry_view.dart';
 import 'package:kira/widgets/reader_status_overlay.dart';
 import 'package:kira/widgets/select_tile.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'test_helpers.dart';
 
 class _Api implements NovelApi {
   @override
@@ -47,6 +52,9 @@ class _Repository implements NovelRepository {
   final errors = <String, Object>{};
   final cached = <String, NovelVolumeContent>{};
   final detailPending = <String, Completer<NovelVolumeDetail>>{};
+  final volumeCalls = <String>[];
+  final detailCalls = <String>[];
+  Completer<List<NovelVolume>>? volumesPending;
 
   @override
   Future<NovelVolumeContent> loadVolumeContent(
@@ -73,10 +81,14 @@ class _Repository implements NovelRepository {
   Future<List<NovelVolume>> loadVolumes(
     String pathWord, {
     bool refresh = false,
-  }) async => content.values
-      .where((item) => item.detail.book.pathWord == pathWord)
-      .map((item) => item.detail.volume)
-      .toList();
+  }) async {
+    volumeCalls.add(pathWord);
+    if (volumesPending case final pending?) return pending.future;
+    return content.values
+        .where((item) => item.detail.book.pathWord == pathWord)
+        .map((item) => item.detail.volume)
+        .toList();
+  }
 
   @override
   Future<NovelVolumeDetail> loadVolumeDetail(
@@ -84,6 +96,7 @@ class _Repository implements NovelRepository {
     String volumeId, {
     bool refresh = false,
   }) async {
+    detailCalls.add('$pathWord/$volumeId');
     if (detailPending[volumeId] case final completer?) return completer.future;
     return content[volumeId]!.detail;
   }
@@ -357,6 +370,7 @@ void main() {
   late HttpOverrides? previousOverrides;
 
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     store = _Store(await SharedPreferences.getInstance());
     _bookmarks = NovelBookmarkStore.forTesting(
@@ -368,6 +382,7 @@ void main() {
   });
 
   tearDown(() {
+    teardownSecureCredentialStoreForTest();
     HttpOverrides.global = previousOverrides;
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
@@ -413,6 +428,61 @@ void main() {
       expect(document.itemFor(const NovelReaderAnchor(entryIndex: 999)), 0);
     },
   );
+
+  test('chapter starts follow paragraph offsets instead of chapter count', () {
+    final document = NovelReaderDocument(const [
+      NovelReaderEntry(
+        entryIndex: 0,
+        entry: NovelContentEntry(name: 'a', contentType: 1),
+        paragraphs: ['1', '2', '3'],
+      ),
+      NovelReaderEntry(
+        entryIndex: 1,
+        entry: NovelContentEntry(name: 'img', contentType: 2, content: 'u'),
+      ),
+      NovelReaderEntry(
+        entryIndex: 2,
+        entry: NovelContentEntry(name: 'b', contentType: 1),
+        paragraphs: ['1'],
+      ),
+      NovelReaderEntry(
+        entryIndex: 3,
+        entry: NovelContentEntry(name: 'c', contentType: 1),
+      ),
+    ]);
+    // 插图不占正文槽；空章节仍占 1 槽，所以坐标分母是 itemCount-1。
+    expect(document.itemCount, 5);
+    expect(document.chapterStarts, [0, 3 / 4, 1]);
+    // 不等长章节不能退化成等距分布。
+    expect(
+      document.chapterStarts[1] - document.chapterStarts[0],
+      isNot(closeTo(document.chapterStarts[2] - document.chapterStarts[1], 0.01)),
+    );
+  });
+
+  test('chapter starts stay empty when the slider has a single slot', () {
+    expect(NovelReaderDocument(const []).chapterStarts, isEmpty);
+    expect(
+      NovelReaderDocument(const [
+        NovelReaderEntry(
+          entryIndex: 0,
+          entry: NovelContentEntry(name: 'a', contentType: 1),
+          paragraphs: ['1'],
+        ),
+      ]).chapterStarts,
+      isEmpty,
+    );
+    // 只有插图时同样没有正文坐标，不能除以零。
+    expect(
+      NovelReaderDocument(const [
+        NovelReaderEntry(
+          entryIndex: 0,
+          entry: NovelContentEntry(name: 'img', contentType: 2, content: 'u'),
+        ),
+      ]).chapterStarts,
+      isEmpty,
+    );
+  });
 
   testWidgets(
     'resume restores exact paragraph and negative alignment, not chapter start',
@@ -468,6 +538,23 @@ void main() {
       await _remove(tester);
     },
   );
+
+  testWidgets('volume loading uses the shared patterned indicator', (
+    tester,
+  ) async {
+    final pending = Completer<NovelVolumeContent>();
+    repository.pending['v1'] = pending;
+    await _mount(tester, repository, store, settle: false);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    pending.complete(_volume());
+    await _settle(tester);
+    expect(find.byType(ExpressiveLoadingIndicator), findsNothing);
+    expect(find.byType(NovelReaderViewport), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
 
   testWidgets(
     'dispose during volume loading leaves the old progress untouched',
@@ -599,31 +686,48 @@ void main() {
     },
   );
 
-  testWidgets(
-    'previous and next navigate entries and cross volume boundaries',
-    (tester) async {
-      repository = _Repository({
-        'v1': _volume(next: 'v2'),
-        'v2': _volume(id: 'v2', previous: 'v1'),
-      });
-      await _mount(tester, repository, store, initialEntry: 2);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-next')));
-      await _settle(tester);
-      expect(repository.calls, contains('book/v2/false'));
-      expect(_location(tester).anchor.entryIndex, 0);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-next')));
-      await _settle(tester);
-      expect(_location(tester).anchor.entryIndex, 1);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-previous')));
-      await _settle(tester);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-previous')));
-      await _settle(tester);
-      expect(_location(tester).anchor.entryIndex, 2);
-      await _flush(tester);
-      expect(store.writes.last.volumeId, 'v1');
-      await _remove(tester);
-    },
-  );
+  testWidgets('toolbar switches volumes directly instead of chapters', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(next: 'v2'),
+      'v2': _volume(id: 'v2', previous: 'v1'),
+    });
+    await _mount(tester, repository, store, initialEntry: 1);
+    expect(
+      tester
+          .widget<IconButton>(
+            find.byKey(const ValueKey('novel-reader-previous')),
+          )
+          .onPressed,
+      isNull,
+      reason: '第一卷即使存在上一章也不能启用上一卷',
+    );
+    expect(find.byTooltip('下一卷'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('novel-reader-next')));
+    await _settle(tester);
+    expect(repository.calls, contains('book/v2/false'));
+    expect(_location(tester).anchor.entryIndex, 0);
+    final next = tester.widget<IconButton>(
+      find.byKey(const ValueKey('novel-reader-next')),
+    );
+    expect(next.onPressed, isNull, reason: '最后一卷不因有下一章而启用下一卷');
+    await tester.tap(find.byKey(const ValueKey('novel-reader-next')));
+    await _settle(tester);
+    expect(_location(tester).anchor.entryIndex, 0);
+    expect(
+      repository.calls.where((call) => call == 'book/v2/false'),
+      hasLength(1),
+    );
+    await tester.tap(find.byKey(const ValueKey('novel-reader-previous')));
+    await _settle(tester);
+    expect(_location(tester).anchor.entryIndex, 2);
+    expect(_location(tester).anchor.paragraphIndex, 99);
+    await _flush(tester);
+    expect(store.writes.last.volumeId, 'v1');
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
 
   testWidgets('a slower old volume response cannot replace a newer book', (
     tester,
@@ -1378,10 +1482,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
     await tester.pump(const Duration(milliseconds: 350));
     tester
-        .widget<DropdownButtonFormField<String>>(
-          find.byType(DropdownButtonFormField<String>),
-        )
-        .onChanged!('v2');
+        .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+        .onChanged('v2');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.tap(find.byKey(const ValueKey('novel-toc-entry-2')));
     await _settle(tester);
@@ -1395,6 +1497,108 @@ void main() {
     await _remove(tester);
   });
 
+  testWidgets('reopening contents reuses session volumes and chapter details', (
+    tester,
+  ) async {
+    repository.content['v2'] = _volume(id: 'v2');
+    await _mount(tester, repository, store);
+    expect(repository.volumeCalls, ['book']);
+    for (var open = 0; open < 2; open++) {
+      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _settle(tester);
+      expect(
+        find.descendant(
+          of: find.byType(NovelReaderContentsSheet),
+          matching: find.byType(LinearProgressIndicator),
+        ),
+        findsNothing,
+      );
+      tester
+          .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+          .onChanged('v2');
+      await _settle(tester);
+      expect(find.text('v2 chapter 2'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('novel-toc-close')));
+      await _settle(tester);
+    }
+    expect(repository.volumeCalls, ['book']);
+    expect(repository.detailCalls, ['book/v2']);
+    expect(repository.calls, ['book/v1/false']);
+    await _remove(tester);
+  });
+
+  testWidgets(
+    'contents shares the pending volume request instead of refetching',
+    (tester) async {
+      final pending = Completer<List<NovelVolume>>();
+      repository.volumesPending = pending;
+      await _mount(tester, repository, store);
+      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(repository.volumeCalls, ['book']);
+      pending.complete([repository.content['v1']!.detail.volume]);
+      await _settle(tester);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('novel-toc-close')));
+      await _settle(tester);
+      await _remove(tester);
+    },
+  );
+
+  testWidgets('progress slider matches the comic bottom bar styling', (
+    tester,
+  ) async {
+    await _mount(tester, repository, store);
+    final sliderFinder = find.byKey(const ValueKey('novel-reader-progress'));
+    final sliderTheme = tester
+        .widget<SliderTheme>(
+          find
+              .ancestor(of: sliderFinder, matching: find.byType(SliderTheme))
+              .first,
+        )
+        .data;
+    final primary = Theme.of(
+      tester.element(find.byType(NovelReaderPage)),
+    ).colorScheme.primary;
+    // 与漫画底栏同一套：trackHeight 3、滑块半径 7、active=primary、
+    // inactive=trackInactive、overlay 20%。
+    expect(sliderTheme.trackHeight, 3);
+    expect(
+      (sliderTheme.thumbShape! as RoundSliderThumbShape).enabledThumbRadius,
+      7,
+    );
+    expect(sliderTheme.activeTrackColor, primary);
+    expect(sliderTheme.inactiveTrackColor, ReaderChrome.trackInactive);
+    expect(sliderTheme.thumbColor, primary);
+    expect(sliderTheme.overlayColor, primary.withValues(alpha: 0.2));
+    // 刻度不是等距分页：按章节段落偏移定位，且不做 divisions 吸附。
+    final shape = sliderTheme.trackShape! as NovelChapterSliderTrackShape;
+    expect(shape.chapterStarts, [0, 100 / 299, 200 / 299]);
+    expect(shape.activeColor, primary);
+    expect(shape.inactiveColor, ReaderChrome.trackInactive);
+    expect(tester.widget<Slider>(sliderFinder).divisions, isNull);
+    final background = tester.widget<ColoredBox>(
+      find.ancestor(of: sliderFinder, matching: find.byType(ColoredBox)).first,
+    );
+    expect(background.color, ReaderChrome.surface);
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: find.byKey(const ValueKey('novel-reader-settings')),
+              matching: find.byType(Icon),
+            ),
+          )
+          .icon,
+      Icons.settings_outlined,
+    );
+    await _slideTo(tester, 100);
+    expect(_location(tester).anchor.entryIndex, 1);
+    expect(_location(tester).anchor.paragraphIndex, 0);
+    await _remove(tester);
+  });
+
   testWidgets('directory switches volume and opens the chosen entry', (
     tester,
   ) async {
@@ -1403,10 +1607,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
     await _settle(tester);
     tester
-        .widget<DropdownButtonFormField<String>>(
-          find.byType(DropdownButtonFormField<String>),
-        )
-        .onChanged!('v2');
+        .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+        .onChanged('v2');
     await _settle(tester);
     await tester.tap(find.byKey(const ValueKey('novel-toc-entry-2')));
     await _settle(tester);
@@ -1481,8 +1683,13 @@ void main() {
     expect(find.byKey(const ValueKey('novel-image-1')), findsNothing);
     expect(_location(tester).anchor.entryIndex, 0);
     expect(_location(tester).anchor.paragraphIndex, 2);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-next')));
-    await _settle(tester);
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const ValueKey('novel-reader-next')))
+          .onPressed,
+      isNull,
+    );
+    await _slideTo(tester, 3);
     expect(_location(tester).anchor.entryIndex, 2);
     expect(_location(tester).progress, closeTo(0.5, 1e-6));
     await _slideTo(tester, 5);
@@ -1560,10 +1767,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       tester
-          .widget<DropdownButtonFormField<String>>(
-            find.byType(DropdownButtonFormField<String>),
-          )
-          .onChanged!('v2');
+          .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+          .onChanged('v2');
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('novel-toc-entry-1')));
       await _settle(tester);
@@ -1588,16 +1793,12 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
     await _settle(tester);
     tester
-        .widget<DropdownButtonFormField<String>>(
-          find.byType(DropdownButtonFormField<String>),
-        )
-        .onChanged!('v2');
+        .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+        .onChanged('v2');
     await tester.pump();
     tester
-        .widget<DropdownButtonFormField<String>>(
-          find.byType(DropdownButtonFormField<String>),
-        )
-        .onChanged!('v3');
+        .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+        .onChanged('v3');
     await _settle(tester);
     stale.complete(repository.content['v2']!.detail);
     await _settle(tester);

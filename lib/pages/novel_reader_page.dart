@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/novel/novel_api.dart';
@@ -26,6 +27,7 @@ import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/reader_status_overlay.dart';
+import 'novel_reader/novel_chapter_slider_track_shape.dart';
 import 'novel_reader/novel_reader_contents_sheet.dart';
 import 'novel_reader/novel_reader_document.dart';
 import 'novel_reader/novel_reader_page_view.dart';
@@ -97,6 +99,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   NovelReaderAnchor _target = const NovelReaderAnchor(entryIndex: 0);
   NovelReadingProgress? _pendingProgress;
   List<NovelVolume> _volumes = [];
+  bool _volumesReady = false;
+  Future<List<NovelVolume>>? _volumesLoad;
+  final _volumeDetails = <String, NovelVolumeDetail>{};
   Object? _error;
   Timer? _saveTimer;
   Future<void> _lastWrite = Future<void>.value();
@@ -336,6 +341,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     _pendingProgress = null;
     _error = null;
     _volumes = [];
+    _volumesReady = false;
+    _volumesLoad = null;
+    _volumeDetails.clear();
     _highlightTimer?.cancel();
     _highlight = null;
     _saveTimer?.cancel();
@@ -430,11 +438,36 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     await _loadVolume(volume, anchor: anchor);
   }
 
+  Future<List<NovelVolume>> _ensureVolumes(int session, String path) {
+    if (_volumesReady) return Future.value(_volumes);
+    if (_volumesLoad case final pending?) return pending;
+    final source = _source;
+    final loading = source
+        .loadVolumes(path)
+        .then(
+          (volumes) {
+            if (_active(session)) {
+              setState(() {
+                _volumes = volumes;
+                _volumesReady = true;
+              });
+            }
+            return volumes;
+          },
+          onError: (Object error, StackTrace stack) {
+            if (_active(session)) _volumesLoad = null;
+            Error.throwWithStackTrace(error, stack);
+          },
+        );
+    _volumesLoad = loading;
+    return loading;
+  }
+
   Future<void> _loadVolumes(int session, String path) async {
     try {
-      final volumes = await _source.loadVolumes(path);
-      if (_active(session)) setState(() => _volumes = volumes);
+      await _ensureVolumes(session, path);
     } catch (error, stack) {
+      if (_active(session)) _volumesLoad = null;
       // A missing remote directory must not prevent cached text from opening.
       _warn(error, stack, 'volumes.load');
     }
@@ -480,6 +513,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         return;
       }
       if (content.detail.isLocked) throw NovelAccessException(content.detail);
+      _volumeDetails[volume] = content.detail;
       final document = NovelReaderDocument(content.entries);
       setState(() {
         _content = content;
@@ -653,28 +687,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ) ??
       -1;
 
-  bool _canStep(int direction) {
-    final entries = _document?.entries ?? [];
-    final next = _entrySlot + direction;
-    return !_loading &&
-        ((next >= 0 && next < entries.length) ||
-            _adjacentVolume(direction) != null);
-  }
+  bool _canStepVolume(int direction) =>
+      !_loading && !_disposed && _adjacentVolume(direction) != null;
 
-  void _step(int direction) {
-    final entries = _document?.entries ?? [];
-    final next = _entrySlot + direction;
-    if (next >= 0 && next < entries.length) {
-      _jumpTo(NovelReaderAnchor(entryIndex: entries[next].entryIndex));
-    } else {
-      _stepVolume(direction);
-    }
-  }
-
-  /// 翻页模式越过卷界：直接加载相邻卷，不做卷内章跳。
-  ///
-  /// 与 [_step] 的区别：[_step] 先尝试卷内下一章（工具栏按钮语义）。
-  /// 卷末最后一页的页首片段可能属于非末章，若走章跳会停在本卷中间。
+  /// 工具栏与翻页卷界都直接切换相邻卷，不做卷内章跳。
+  /// 下一卷从首页开始，回翻上一卷落在末尾；卷内章节通过目录选择。
   void _stepVolume(int direction) {
     if (_loading || _disposed) return;
     final volume = _adjacentVolume(direction);
@@ -700,6 +717,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         volumeId: _volumeId,
         entryIndex: _location?.anchor.entryIndex ?? _target.entryIndex,
         detail: _accessDetail,
+        volumes: _volumesReady ? _volumes : null,
+        loadVolumes: () => _ensureVolumes(session, _pathWord),
+        volumeDetails: _volumeDetails,
+        onDetailLoaded: (detail) {
+          if (_active(session)) _volumeDetails[detail.volume.id] = detail;
+        },
       ),
     );
     if (!_active(session) || selection == null) return;
@@ -1043,8 +1066,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
           if (didPop) unawaited(_flush());
         },
         child: AnnotatedRegion<SystemUiOverlayStyle>(
-          // 与漫画阅读器一致：工具栏显示时状态栏透明、浅色图标（露出下方
-          // 黑色工具栏背景），沉浸时系统栏整体收起。
+          // 工具栏固定黑底白字，系统栏保持浅色图标。
           value: _toolbarVisible
               ? ReaderChrome.systemUiToolbar
               : ReaderChrome.systemUiImmersive,
@@ -1185,7 +1207,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final l10n = AppLocalizations.of(context)!;
     final document = _document;
     final request = _request;
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: ExpressiveLoadingIndicator());
     if (_error != null) return _buildError();
     if (document == null || document.itemCount == 0) {
       return Center(
@@ -1210,6 +1232,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         _recordLocation(location);
       }
     }
+
     if (_paged) {
       return NovelReaderPageView(
         key: _pageViewKey,
@@ -1284,6 +1307,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Widget _buildToolbar() {
     final l10n = AppLocalizations.of(context)!;
+    final primary = Theme.of(context).colorScheme.primary;
     final document = _document;
     final count = document?.itemCount ?? 0;
     final current =
@@ -1333,11 +1357,22 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                   ),
                 ),
                 SliderTheme(
+                  // 与漫画阅读器底栏进度条同一套配色/粗细/滑块；唯一差别是
+                  // 小说的「刻度」不是等距分页，而是按章节段落偏移定位的圆点。
                   data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    activeTrackColor: ReaderChrome.onSurface,
+                    trackHeight: 3,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
+                    trackShape: NovelChapterSliderTrackShape(
+                      chapterStarts: document?.chapterStarts ?? const [],
+                      activeColor: primary,
+                      inactiveColor: ReaderChrome.trackInactive,
+                    ),
+                    activeTrackColor: primary,
                     inactiveTrackColor: ReaderChrome.trackInactive,
-                    thumbColor: ReaderChrome.onSurface,
+                    thumbColor: primary,
+                    overlayColor: primary.withValues(alpha: 0.2),
                   ),
                   child: Slider(
                     key: const ValueKey('novel-reader-progress'),
@@ -1358,11 +1393,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                     IconButton(
                       key: const ValueKey('novel-reader-previous'),
                       tooltip: l10n.novelReaderPrevious,
-                      onPressed: _canStep(-1) ? () => _step(-1) : null,
+                      onPressed: _canStepVolume(-1)
+                          ? () => _stepVolume(-1)
+                          : null,
                       // 与漫画阅读器底栏一致：颜色显式指定，禁用态仍可见。
                       icon: Icon(
                         Icons.skip_previous,
-                        color: _canStep(-1)
+                        color: _canStepVolume(-1)
                             ? ReaderChrome.onSurface
                             : ReaderChrome.onSurfaceFaint,
                       ),
@@ -1377,15 +1414,17 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       key: const ValueKey('novel-reader-settings'),
                       tooltip: l10n.novelReaderSettings,
                       onPressed: _loading ? null : _showSettings,
-                      icon: const Icon(Icons.text_fields),
+                      icon: const Icon(Icons.settings_outlined),
                     ),
                     IconButton(
                       key: const ValueKey('novel-reader-next'),
                       tooltip: l10n.novelReaderNext,
-                      onPressed: _canStep(1) ? () => _step(1) : null,
+                      onPressed: _canStepVolume(1)
+                          ? () => _stepVolume(1)
+                          : null,
                       icon: Icon(
                         Icons.skip_next,
-                        color: _canStep(1)
+                        color: _canStepVolume(1)
                             ? ReaderChrome.onSurface
                             : ReaderChrome.onSurfaceFaint,
                       ),

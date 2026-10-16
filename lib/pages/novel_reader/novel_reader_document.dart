@@ -62,6 +62,11 @@ class NovelReaderDocument {
   final Map<int, int> _illustrationOffsets = {};
   int itemCount = 0;
 
+  /// 章节起点按整卷进度条的 0..1 坐标表示；插图不占正文进度。
+  List<double> get chapterStarts => itemCount > 1
+      ? [for (final offset in _offsets) offset / (itemCount - 1)]
+      : const [];
+
   int itemFor(NovelReaderAnchor anchor) {
     final offset = _entryOffsets[anchor.entryIndex];
     if (offset == null) return _illustrationOffsets[anchor.entryIndex] ?? 0;

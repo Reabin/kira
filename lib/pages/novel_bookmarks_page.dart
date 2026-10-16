@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
 import '../l10n/app_localizations.dart';
 import '../providers/novel_providers.dart';
@@ -241,7 +242,7 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
     final entries = groups.entries.toList();
     final hp = ScreenLayout.horizontalPadding(MediaQuery.sizeOf(context).width);
 
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: ExpressiveLoadingIndicator());
     return RefreshIndicator(
       onRefresh: () => _load(refresh: true),
       child: CustomScrollView(

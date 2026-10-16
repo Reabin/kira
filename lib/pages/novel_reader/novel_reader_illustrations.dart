@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/novel.dart';
@@ -138,7 +139,7 @@ class _IllustrationImageState extends State<_IllustrationImage> {
   static const _placeholder = AspectRatio(
     aspectRatio: 1,
     child: Center(
-      child: CircularProgressIndicator(color: ReaderChrome.onSurface),
+      child: ExpressiveLoadingIndicator(color: ReaderChrome.onSurface),
     ),
   );
 

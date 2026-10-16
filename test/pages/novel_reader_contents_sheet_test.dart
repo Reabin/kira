@@ -17,7 +17,11 @@ import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/app_sheet.dart';
 import 'package:kira/widgets/error_retry_view.dart';
 import 'package:kira/widgets/pinch_zoomable.dart';
+import 'package:kira/widgets/select_tile.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../test_helpers.dart';
 
 const _text = NovelContentEntry(name: '正文一', contentType: 1);
 const _imageA = NovelContentEntry(
@@ -168,6 +172,7 @@ Future<_SheetResult> _openSheet(
   _Repository repository, {
   int entryIndex = 0,
   double textScale = 1,
+  String volumeId = 'v1',
 }) async {
   final result = _SheetResult();
   await tester.pumpWidget(
@@ -191,9 +196,9 @@ Future<_SheetResult> _openSheet(
                 child: NovelReaderContentsSheet(
                   repository: repository,
                   pathWord: 'book',
-                  volumeId: 'v1',
+                  volumeId: volumeId,
                   entryIndex: entryIndex,
-                  detail: repository.details['v1'],
+                  detail: repository.details[volumeId],
                 ),
               );
               result.closed = true;
@@ -211,10 +216,8 @@ Future<_SheetResult> _openSheet(
 
 Future<void> _changeVolume(WidgetTester tester, String id) async {
   tester
-      .widget<DropdownButtonFormField<String>>(
-        find.byType(DropdownButtonFormField<String>),
-      )
-      .onChanged!(id);
+      .widget<SelectTile<String>>(find.byType(SelectTile<String>))
+      .onChanged(id);
   await _settle(tester);
 }
 
@@ -266,9 +269,13 @@ Future<void> _pinchIllustrations(
 }
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    setupSecureCredentialStoreForTest();
+    SharedPreferences.setMockInitialValues({});
+  });
 
   tearDown(() {
+    teardownSecureCredentialStoreForTest();
     PaintingBinding.instance.imageCache.clear();
     PaintingBinding.instance.imageCache.clearLiveImages();
   });
@@ -686,6 +693,104 @@ void main() {
       expect(store.progress.paragraphAlignment, closeTo(-0.04, 0.005));
       await tester.pumpWidget(const SizedBox());
       await _settle(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('header stays bare and chapter names stay single-line', (
+    tester,
+  ) async {
+    final repository = _Repository({
+      'v1': _detail(const [_text]),
+    });
+    await _openSheet(tester, repository);
+
+    // 目录本身就是目录，不再重复标题、定位按钮或阅读状态说明。
+    expect(find.text('目录'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-toc-locate-current')),
+      findsNothing,
+    );
+    expect(find.text('正在阅读'), findsNothing);
+    expect(find.byKey(const ValueKey('novel-toc-close')), findsOneWidget);
+    expect(find.byKey(const ValueKey('novel-toc-catalog')), findsOneWidget);
+
+    final title = tester.widget<Text>(find.text('正文一'));
+    expect(title.maxLines, 1);
+    expect(title.overflow, TextOverflow.ellipsis);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('catalog footer sits below the list instead of covering it', (
+    tester,
+  ) async {
+    final repository = _Repository({
+      'v1': _detail(const [_text, _text, _text]),
+    });
+    await _openSheet(tester, repository);
+
+    final footer = tester.getRect(
+      find.byKey(const ValueKey('novel-toc-catalog')),
+    );
+    final list = tester.getRect(find.byType(ScrollablePositionedList));
+    expect(footer.top, greaterThanOrEqualTo(list.bottom));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'long names on a narrow large-text screen keep the layout intact',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      const longVolume = '第二卷 转生之后我在异世界过起了慢生活';
+      final entries = [
+        for (var index = 0; index < 40; index++)
+          NovelContentEntry(name: '第${index + 1}章 一个特别漫长的章节标题', contentType: 1),
+      ];
+      final repository = _Repository({
+        'v1': const NovelVolumeDetail(
+          book: NovelBook(pathWord: 'book', name: '测试小说'),
+          volume: NovelVolume(
+            id: 'v1',
+            name: '第一卷 最初的约定',
+            contents: [NovelContentEntry(name: '正文一', contentType: 1)],
+          ),
+        ),
+        'v2': NovelVolumeDetail(
+          book: const NovelBook(pathWord: 'book', name: '测试小说'),
+          volume: NovelVolume(id: 'v2', name: longVolume, contents: entries),
+        ),
+      });
+      await _openSheet(
+        tester,
+        repository,
+        volumeId: 'v2',
+        entryIndex: 30,
+        textScale: 2,
+      );
+
+      final sheet = tester.getRect(find.byType(NovelReaderContentsSheet));
+      final selected = tester.getRect(
+        find.byKey(const ValueKey('novel-toc-entry-30')),
+      );
+      // 打开长卷时当前章节直接落在可视区，不需要先滚动。
+      expect(selected.top, greaterThanOrEqualTo(sheet.top - 0.01));
+      expect(selected.bottom, lessThanOrEqualTo(sheet.bottom + 0.01));
+
+      final title = tester.widget<Text>(find.text('第31章 一个特别漫长的章节标题'));
+      expect(title.maxLines, 1);
+      expect(title.overflow, TextOverflow.ellipsis);
+
+      // 卷名胶囊有硬上限，长卷名不会把顶部行撑破，也不会挤掉关闭入口。
+      final pill = tester.getRect(find.byType(SelectTile<String>));
+      final close = tester.getRect(
+        find.byKey(const ValueKey('novel-toc-close')),
+      );
+      expect(pill.left, greaterThanOrEqualTo(sheet.left - 0.01));
+      expect(pill.right, lessThanOrEqualTo(close.left + 0.01));
+      expect(close.right, lessThanOrEqualTo(sheet.right + 0.01));
       expect(tester.takeException(), isNull);
     },
   );
