@@ -4632,6 +4632,12 @@ abstract class AppLocalizations {
   /// **'暂无错误日志'**
   String get appLogEmpty;
 
+  /// No description provided for @appLogDisabledTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志记录已关闭'**
+  String get appLogDisabledTitle;
+
   /// No description provided for @appLogCopied.
   ///
   /// In zh, this message translates to:
@@ -4721,6 +4727,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索日志（消息、来源、堆栈、上下文）'**
   String get appLogSearchHint;
+
+  /// No description provided for @appLogExportTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出日志文件'**
+  String get appLogExportTooltip;
+
+  /// No description provided for @appLogExported.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志已导出'**
+  String get appLogExported;
+
+  /// No description provided for @appLogExportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出失败：{error}'**
+  String appLogExportFailed(String error);
 
   /// No description provided for @appLogClearLogsTooltip.
   ///

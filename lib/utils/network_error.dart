@@ -19,15 +19,18 @@ class NetworkError {
     return InterceptorsWrapper(
       onResponse: (response, handler) {
         if (response.statusCode == 429) {
-          return handler.reject(_rateLimitFromResponse(response));
+          // 继续交给后续错误拦截器（含日志拦截器），否则 429 会被静默吞掉。
+          return handler.reject(_rateLimitFromResponse(response), true);
         }
         handler.next(response);
       },
       onError: (error, handler) {
-        if (isRateLimited(error)) {
-          return handler.reject(_rateLimitFromError(error));
+        // 用 next 而不是 reject：reject 会跳过后续错误拦截器（含统一网络
+        // 日志），429 就再也留不下痕迹了。已经归一化过的不再重复包装。
+        if (error is RateLimitDioException || !isRateLimited(error)) {
+          return handler.next(error);
         }
-        handler.next(error);
+        handler.next(_rateLimitFromError(error));
       },
     );
   }
@@ -51,7 +54,9 @@ class NetworkError {
   }) {
     if (CancelToken.isCancel(error)) return Future<void>.value();
     return (logger ?? AppLogger.instance).recordError(
-      error,
+      // 不直接写异常对象：DioException.toString() 会带上完整响应体与请求
+      // 参数，业务错误码 210 的原文就藏在那里。这里只落受控摘要。
+      _dioExceptionSummary(error),
       stackTrace: error.stackTrace,
       source: source,
       context: _dioErrorContext(error),
@@ -157,10 +162,29 @@ class NetworkError {
     if (statusMessage != null) context['statusMessage'] = statusMessage;
     final responseCode = _codeFromData(data);
     if (responseCode != null) context['responseCode'] = responseCode;
-    final responseMessage = _messageFromData(data);
+    final responseMessage = _logMessageFromData(data);
     if (responseMessage != null) context['responseMessage'] = responseMessage;
 
     return context;
+  }
+
+  /// 日志里只保留可定位、可分享的摘要，不带完整响应体。
+  static String _dioExceptionSummary(DioException error) {
+    final statusCode = error.response?.statusCode;
+    final status = statusCode == null ? '' : ' (HTTP $statusCode)';
+    return 'DioException[${error.type.name}]$status';
+  }
+
+  /// 供日志使用的短消息：只接受结构化字段，不把整段响应体当消息。
+  static String? _logMessageFromData(Object? data) {
+    if (data is! Map) return null;
+    final error = data['error'];
+    if (error is Map && error['message'] is String) {
+      return error['message'] as String;
+    }
+    final message = data['message'];
+    if (message is String && message.isNotEmpty) return message;
+    return null;
   }
 
   static Map<String, Object?> _dioErrorContext(DioException error) {
@@ -172,20 +196,20 @@ class NetworkError {
       'type': error.type.name,
     };
 
-    final errorMessage = error.message;
-    if (errorMessage != null && errorMessage.isNotEmpty) {
-      context['message'] = errorMessage;
-    }
+    // 异常自带的 message 在业务错误里就是上游原文（code 210 时为整段
+    // JSON），因此不再写入日志；界面提示仍走 message()。
+    //
+    // error.error 只在它是真正的异常对象时才记录：业务错误码场景下这里是
+    // 上游 JSON 原文，写进去等于绕过摘要。SocketException 之类的底层原因
+    // 仍要留下，否则分不清 DNS/TLS/连接失败。
     final rawError = error.error;
-    if (rawError != null) context['error'] = rawError;
+    if (rawError != null && rawError is! String) context['error'] = rawError;
     final responseCode = _codeFromData(data);
     if (responseCode != null) context['responseCode'] = responseCode;
-    final responseMessage = _messageFromData(data);
+    final responseMessage = _logMessageFromData(data);
     if (responseMessage != null) context['responseMessage'] = responseMessage;
     final statusCode = response?.statusCode;
     if (statusCode != null) context['statusCode'] = statusCode;
-    final statusMessage = response?.statusMessage;
-    if (statusMessage != null) context['statusMessage'] = statusMessage;
 
     return context;
   }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -23,6 +22,7 @@ import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/chapter_summary_cache.dart';
 import '../utils/comment_text.dart';
+import '../utils/log_sanitizer.dart';
 import '../utils/network_error.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';

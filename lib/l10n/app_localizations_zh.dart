@@ -2514,6 +2514,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appLogEmpty => '暂无错误日志';
 
   @override
+  String get appLogDisabledTitle => '日志记录已关闭';
+
+  @override
   String get appLogCopied => '日志已复制到剪贴板';
 
   @override
@@ -2561,6 +2564,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appLogSearchHint => '搜索日志（消息、来源、堆栈、上下文）';
+
+  @override
+  String get appLogExportTooltip => '导出日志文件';
+
+  @override
+  String get appLogExported => '日志已导出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '导出失败：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日志';
@@ -6604,6 +6618,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appLogEmpty => '暫無錯誤日誌';
 
   @override
+  String get appLogDisabledTitle => '日誌記錄已關閉';
+
+  @override
   String get appLogCopied => '日誌已複製到剪貼簿';
 
   @override
@@ -6651,6 +6668,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appLogSearchHint => '搜尋日誌（訊息、來源、堆疊、上下文）';
+
+  @override
+  String get appLogExportTooltip => '匯出日誌檔案';
+
+  @override
+  String get appLogExported => '日誌已匯出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '匯出失敗：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日誌';

@@ -31,11 +31,7 @@ double _maxCharactersWidth(
 }
 
 /// 标签文本宽度（单行，不折行）。
-double _labelTextWidth(
-  BuildContext context,
-  String text,
-  TextStyle? style,
-) {
+double _labelTextWidth(BuildContext context, String text, TextStyle? style) {
   final painter = TextPainter(
     text: TextSpan(text: text, style: style),
     textDirection: TextDirection.ltr,
@@ -107,7 +103,19 @@ final class SelectItem<T> {
   /// 胶囊里显示的短文本；缺省用 [label]（菜单项始终显示 [label]）。
   final String? compactLabel;
 
-  const SelectItem(this.value, this.label, {this.compactLabel});
+  /// 菜单项（及未指定 [SelectTile.leadingIcon] 时的胶囊）图标。
+  final IconData? icon;
+
+  /// 菜单项文本/图标颜色；缺省用主题色（选中项 primary、其余 onSurface）。
+  final Color? color;
+
+  const SelectItem(
+    this.value,
+    this.label, {
+    this.compactLabel,
+    this.icon,
+    this.color,
+  });
 
   String get pillLabel => compactLabel ?? label;
 }
@@ -166,6 +174,24 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
     if (_expanded) setState(() => _expanded = false);
   }
 
+  /// 菜单是否需要向上弹出。
+  ///
+  /// 触发器贴近屏幕底部时（如底部弹层里的设置项），向下展开会被裁掉，
+  /// 这时把菜单贴在触发器上沿。
+  bool _shouldOpenUpward(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlayBox == null) return false;
+
+    final triggerTop = box.localToGlobal(Offset.zero, ancestor: overlayBox).dy;
+    final overlayHeight = overlayBox.size.height;
+    final estimatedMenuHeight = widget.items.length * 44.0 + 16;
+    final spaceBelow = overlayHeight - (triggerTop + box.size.height);
+
+    return spaceBelow < estimatedMenuHeight && triggerTop > spaceBelow;
+  }
+
   void _toggle() {
     if (_expanded) {
       _dismissMenu();
@@ -174,6 +200,7 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
     setState(() => _expanded = true);
     final overlay = Overlay.of(context);
     _menuWidth = context.size?.width;
+    final openUpward = _shouldOpenUpward(context);
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     _menuEntry = OverlayEntry(
@@ -189,7 +216,10 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
           ),
           CompositedTransformFollower(
             link: _layerLink,
-            targetAnchor: Alignment.bottomLeft,
+            targetAnchor: openUpward ? Alignment.topLeft : Alignment.bottomLeft,
+            followerAnchor: openUpward
+                ? Alignment.bottomLeft
+                : Alignment.topLeft,
             child: SizedBox(
               // 默认与触发器等宽；设了字符上限时按「最长标签（封顶后）」定宽，
               // 但不比触发器窄，短列表仍保持原有的等宽观感。
@@ -215,21 +245,38 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                             horizontal: 16,
                             vertical: 12,
                           ),
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: Text(
-                              item.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: tt.bodyMedium?.copyWith(
-                                color: item.value == widget.value
-                                    ? cs.primary
-                                    : cs.onSurface,
-                                fontWeight: item.value == widget.value
-                                    ? FontWeight.w600
-                                    : null,
+                          child: Row(
+                            children: [
+                              if (item.icon != null) ...[
+                                Icon(
+                                  item.icon,
+                                  size: 18,
+                                  color:
+                                      item.color ??
+                                      (item.value == widget.value
+                                          ? cs.primary
+                                          : cs.onSurfaceVariant),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: tt.bodyMedium?.copyWith(
+                                    color:
+                                        item.color ??
+                                        (item.value == widget.value
+                                            ? cs.primary
+                                            : cs.onSurface),
+                                    fontWeight: item.value == widget.value
+                                        ? FontWeight.w600
+                                        : null,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ),

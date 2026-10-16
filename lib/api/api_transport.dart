@@ -137,6 +137,8 @@ class ApiTransport {
             : data['message']?.toString() ??
                   (results is Map ? results['detail']?.toString() : null) ??
                   'Request failed (code: $code)';
+        // callFollowingErrorInterceptor: 让后续错误拦截器（统一网络日志）
+        // 也能看到这次业务失败，否则 200 + 业务错误码的请求完全不留痕。
         return handler.reject(
           DioException(
             requestOptions: response.requestOptions,
@@ -145,6 +147,7 @@ class ApiTransport {
             error: message,
             type: DioExceptionType.badResponse,
           ),
+          true,
         );
       }
     }

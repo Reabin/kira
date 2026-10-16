@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
@@ -9,6 +11,8 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/toast.dart';
+import '../widgets/error_retry_view.dart';
+import '../widgets/select_tile.dart';
 
 class AppLogPage extends StatefulWidget {
   const AppLogPage({super.key, this.logger});
@@ -21,7 +25,7 @@ class AppLogPage extends StatefulWidget {
 
 class _AppLogPageState extends State<AppLogPage> {
   late Future<List<AppLogEntry>> _entriesFuture;
-  bool _copying = false;
+  bool _exporting = false;
   bool _clearing = false;
   bool _loggingEnabled = AppLogger.defaultLoggingEnabled;
   AppLogLevel _minimumLevel = AppLogger.defaultMinimumLevel;
@@ -63,11 +67,18 @@ class _AppLogPageState extends State<AppLogPage> {
     await future;
   }
 
-  Future<void> _copyLogs() async {
+  /// 目录初始化失败后的重试：先让 logger 重新初始化，再重新读取。
+  Future<void> _retry() async {
+    await _logger.retryInit();
+    if (!mounted) return;
+    await _refresh();
+  }
+
+  Future<void> _exportLogs() async {
     final l10n = AppLocalizations.of(context)!;
-    if (_copying) return;
+    if (_exporting) return;
     setState(() {
-      _copying = true;
+      _exporting = true;
     });
 
     try {
@@ -78,21 +89,32 @@ class _AppLogPageState extends State<AppLogPage> {
         return;
       }
 
-      await Clipboard.setData(ClipboardData(text: text));
-      if (mounted) {
-        showToast(context, l10n.appLogCopied);
+      final saved = await FilePicker.saveFile(
+        fileName: _exportFileName(),
+        bytes: Uint8List.fromList(utf8.encode(text)),
+        mimeType: 'text/plain',
+      );
+      if (saved != null && mounted) {
+        showToast(context, l10n.appLogExported);
       }
     } catch (e) {
       if (mounted) {
-        showToast(context, l10n.appLogCopyFailed('$e'), isError: true);
+        showToast(context, l10n.appLogExportFailed('$e'), isError: true);
       }
     } finally {
       if (mounted) {
         setState(() {
-          _copying = false;
+          _exporting = false;
         });
       }
     }
+  }
+
+  static String _exportFileName() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return 'kira_logs_${now.year}${two(now.month)}${two(now.day)}'
+        '_${two(now.hour)}${two(now.minute)}${two(now.second)}.txt';
   }
 
   Future<void> _clearLogs() async {
@@ -173,28 +195,20 @@ class _AppLogPageState extends State<AppLogPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.errorLogTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.settingsTooltip,
-            onPressed: () => _showSettings(context),
-            icon: const Icon(Icons.settings_rounded),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.errorLogTitle)),
       body: Column(
         children: [
           _LogFilterPanel(
             controller: _searchController,
             levelFilter: _levelFilter,
             searchQuery: _searchQuery,
-            copying: _copying,
+            exporting: _exporting,
             clearing: _clearing,
             onLevelChanged: (level) => setState(() => _levelFilter = level),
             onSearchChanged: (query) => setState(() => _searchQuery = query),
+            onSettings: () => _showSettings(context),
             onRefresh: _refresh,
-            onCopy: _copyLogs,
+            onExport: _exportLogs,
             onClear: _clearLogs,
           ),
           Expanded(
@@ -206,6 +220,12 @@ class _AppLogPageState extends State<AppLogPage> {
                   return const Center(child: ExpressiveLoadingIndicator());
                 }
 
+                // 读取失败必须与「没有日志」区分开：否则目录不可用会被当成
+                // 一切正常，用户拿不到任何可提供的证据。
+                if (snapshot.hasError) {
+                  return ErrorRetryView(onRetry: () => unawaited(_retry()));
+                }
+
                 final entries = snapshot.data ?? const <AppLogEntry>[];
                 final query = _searchQuery.trim().toLowerCase();
                 final filtered = entries.where((entry) {
@@ -215,6 +235,16 @@ class _AppLogPageState extends State<AppLogPage> {
                   if (query.isEmpty) return true;
                   return _entryMatches(entry, query, l10n);
                 }).toList();
+
+                // 关闭记录时不能跟平时长得一样：否则用户会把「没开记录」看成
+                // 「没有出错」，反而拿不到本该留下的证据。已有记录仍然可读、
+                // 可导出，所以只在完全没内容时用整屏空态。
+                if (!_loggingEnabled && entries.isEmpty) {
+                  return _LogDisabledView(
+                    onEnable: () => unawaited(_setLoggingEnabled(true)),
+                  );
+                }
+
                 if (filtered.isEmpty) {
                   return RefreshIndicator(
                     onRefresh: _refresh,
@@ -250,11 +280,17 @@ class _AppLogPageState extends State<AppLogPage> {
                   child: ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
+                    // 关闭记录但仍有历史记录时，先给一条提示再列出来。
+                    itemCount: filtered.length + (_loggingEnabled ? 0 : 1),
                     separatorBuilder: (_, _) =>
                         const SizedBox(height: AppSpacing.sm),
                     itemBuilder: (context, index) {
-                      final entry = filtered[index];
+                      if (!_loggingEnabled && index == 0) {
+                        return _LogDisabledBanner(
+                          onEnable: () => unawaited(_setLoggingEnabled(true)),
+                        );
+                      }
+                      final entry = filtered[index - (_loggingEnabled ? 0 : 1)];
                       return _LogEntryCard(entry: entry);
                     },
                   ),
@@ -352,25 +388,27 @@ class _LogSettingsPanelState extends State<_LogSettingsPanel> {
             contentPadding: const EdgeInsets.symmetric(horizontal: 20),
             leading: const Icon(Icons.tune_rounded),
             title: Text(l10n.appLogLevel),
-            trailing: DropdownButton<AppLogLevel>(
+            trailing: SelectTile<AppLogLevel>(
               value: _minimumLevel,
-              underline: const SizedBox.shrink(),
+              foregroundColor: _levelColor(
+                Theme.of(context).colorScheme,
+                _minimumLevel,
+              ),
+              leadingIcon: _levelIcon(_minimumLevel),
+              items: [
+                for (final level in AppLogLevel.values)
+                  SelectItem(
+                    level,
+                    level.displayName(l10n),
+                    icon: _levelIcon(level),
+                    color: _levelColor(Theme.of(context).colorScheme, level),
+                  ),
+              ],
               onChanged: (level) {
-                if (level == null || level == _minimumLevel) return;
+                if (level == _minimumLevel) return;
                 setState(() => _minimumLevel = level);
                 widget.onMinimumLevelChanged(level);
               },
-              items: [
-                for (final level in AppLogLevel.values)
-                  DropdownMenuItem(
-                    value: level,
-                    child: _FilterItem(
-                      icon: _levelIcon(level),
-                      color: _levelColor(Theme.of(context).colorScheme, level),
-                      label: level.displayName(l10n),
-                    ),
-                  ),
-              ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -387,10 +425,11 @@ class _LogFilterPanel extends StatelessWidget {
     required this.searchQuery,
     required this.onLevelChanged,
     required this.onSearchChanged,
+    required this.onSettings,
     required this.onRefresh,
-    required this.onCopy,
+    required this.onExport,
     required this.onClear,
-    this.copying = false,
+    this.exporting = false,
     this.clearing = false,
   });
 
@@ -399,19 +438,17 @@ class _LogFilterPanel extends StatelessWidget {
   final String searchQuery;
   final ValueChanged<AppLogLevel?> onLevelChanged;
   final ValueChanged<String> onSearchChanged;
+  final VoidCallback onSettings;
   final VoidCallback onRefresh;
-  final VoidCallback onCopy;
+  final VoidCallback onExport;
   final VoidCallback onClear;
-  final bool copying;
+  final bool exporting;
   final bool clearing;
-
-  static const _allValue = #all;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final currentValue = levelFilter ?? _allValue;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -428,7 +465,6 @@ class _LogFilterPanel extends StatelessWidget {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 isDense: true,
-                hintText: l10n.appLogSearchHint,
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: searchQuery.isEmpty
                     ? null
@@ -447,17 +483,23 @@ class _LogFilterPanel extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: AppSpacing.sm),
             Row(
               children: [
+                IconButton(
+                  tooltip: l10n.settingsTooltip,
+                  onPressed: onSettings,
+                  icon: const Icon(Icons.settings_rounded),
+                ),
                 IconButton(
                   tooltip: l10n.refreshButton,
                   onPressed: onRefresh,
                   icon: const Icon(Icons.refresh_rounded),
                 ),
                 IconButton(
-                  tooltip: l10n.chapterCommentsCopyLog,
-                  onPressed: copying ? null : onCopy,
-                  icon: const Icon(Icons.copy_rounded),
+                  tooltip: l10n.appLogExportTooltip,
+                  onPressed: exporting ? null : onExport,
+                  icon: const Icon(Icons.save_alt_rounded),
                 ),
                 IconButton(
                   tooltip: l10n.appLogClearLogsTooltip,
@@ -465,35 +507,30 @@ class _LogFilterPanel extends StatelessWidget {
                   icon: const Icon(Icons.delete_outline_rounded),
                 ),
                 const Spacer(),
-                DropdownButton<Object>(
-                  value: currentValue,
-                  underline: const SizedBox.shrink(),
-                  onChanged: (value) {
-                    if (value == _allValue) {
-                      onLevelChanged(null);
-                    } else if (value is AppLogLevel) {
-                      onLevelChanged(value);
-                    }
-                  },
+                // 等级沿用卡片图标那套颜色，菜单项与胶囊保持一致。
+                SelectTile<AppLogLevel?>(
+                  value: levelFilter,
+                  foregroundColor: levelFilter == null
+                      ? cs.onSurfaceVariant
+                      : _levelColor(cs, levelFilter!),
+                  leadingIcon: levelFilter == null
+                      ? Icons.layers_rounded
+                      : _levelIcon(levelFilter!),
                   items: [
-                    DropdownMenuItem<Object>(
-                      value: _allValue,
-                      child: _FilterItem(
-                        icon: Icons.layers_rounded,
-                        color: cs.onSurfaceVariant,
-                        label: l10n.appLogAllLevels,
-                      ),
+                    SelectItem(
+                      null,
+                      l10n.appLogAllLevels,
+                      icon: Icons.layers_rounded,
                     ),
                     for (final level in AppLogLevel.values)
-                      DropdownMenuItem<Object>(
-                        value: level,
-                        child: _FilterItem(
-                          icon: _levelIcon(level),
-                          color: _levelColor(cs, level),
-                          label: level.displayName(l10n),
-                        ),
+                      SelectItem(
+                        level,
+                        level.displayName(l10n),
+                        icon: _levelIcon(level),
+                        color: _levelColor(cs, level),
                       ),
                   ],
+                  onChanged: onLevelChanged,
                 ),
               ],
             ),
@@ -504,26 +541,74 @@ class _LogFilterPanel extends StatelessWidget {
   }
 }
 
-class _FilterItem extends StatelessWidget {
-  const _FilterItem({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
+/// 记录已关闭时的空态：一眼看出是「没在记」而不是「没出错」。
+class _LogDisabledView extends StatelessWidget {
+  const _LogDisabledView({required this.onEnable});
 
-  final IconData icon;
-  final Color color;
-  final String label;
+  final VoidCallback onEnable;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: AppSpacing.sm),
-        Text(label, style: TextStyle(color: color)),
-      ],
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.visibility_off_outlined, size: 48, color: cs.outline),
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              l10n.appLogDisabledTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            FilledButton.tonal(
+              onPressed: onEnable,
+              child: Text(l10n.appLogRecordLogs),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 记录已关闭但仍有历史记录：列表顶部提示，不遮挡已有内容。
+class _LogDisabledBanner extends StatelessWidget {
+  const _LogDisabledBanner({required this.onEnable});
+
+  final VoidCallback onEnable;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    final tt = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: AppRadius.mdR,
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.visibility_off_outlined, size: 18, color: cs.outline),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              l10n.appLogDisabledTitle,
+              style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
+          TextButton(onPressed: onEnable, child: Text(l10n.appLogRecordLogs)),
+        ],
+      ),
     );
   }
 }
@@ -539,6 +624,7 @@ class _LogEntryCard extends StatefulWidget {
 
 class _LogEntryCardState extends State<_LogEntryCard> {
   bool _copying = false;
+  bool _expanded = false;
 
   AppLogEntry get entry => widget.entry;
 
@@ -576,10 +662,12 @@ class _LogEntryCardState extends State<_LogEntryCard> {
           _levelIcon(entry.level),
           color: _levelColor(cs, entry.level),
         ),
+        onExpansionChanged: (expanded) => setState(() => _expanded = expanded),
         title: Text(
           entry.message,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+          // 展开后不再截断：长异常直接看全文，不必再去翻导出文件。
+          maxLines: _expanded ? null : 2,
+          overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
           style: TextStyle(
             color:
                 (entry.level == AppLogLevel.warning ||
@@ -610,6 +698,7 @@ class _LogEntryCardState extends State<_LogEntryCard> {
             ),
           ),
           if (entry.context.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(l10n.appLogContextTitle, style: tt.labelLarge),

@@ -1616,6 +1616,7 @@
   "themeVariantRainbow": "彩虹",
   "themeVariantRainbowDesc": "跳脱主色限制，整体更活泼。",
   "appLogEmpty": "暂无错误日志",
+  "appLogDisabledTitle": "日志记录已关闭",
   "appLogCopied": "日志已复制到剪贴板",
   "appLogCopyFailed": "复制失败：{error}",
   "@appLogCopyFailed": {
@@ -1645,6 +1646,16 @@
   "appLogLevelWarning": "警告",
   "appLogLevelError": "错误",
   "appLogSearchHint": "搜索日志（消息、来源、堆栈、上下文）",
+  "appLogExportTooltip": "导出日志文件",
+  "appLogExported": "日志已导出",
+  "appLogExportFailed": "导出失败：{error}",
+  "@appLogExportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "appLogClearLogsTooltip": "清空日志",
   "appLogAllLevels": "全部",
   "appLogCopyThisLogTooltip": "复制此日志",

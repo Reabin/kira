@@ -16,47 +16,45 @@ extension _ChapterCommentPosting on _ChapterCommentsSheetState {
     return NetworkError.message(error, l10n: AppLocalizations.of(context)!);
   }
 
+  /// 失败诊断只保留定位所需的安全摘要。
+  ///
+  /// 这里的内容会进剪贴板并可能被转发，因此不再拼接请求正文（评论原文）
+  /// 与响应原文；需要细节时看请求参数和状态即可。
   String _formatCommentPostErrorLog(Object error) {
     if (error is DioException) {
-      final buffer = StringBuffer();
-      buffer.writeln('DioException');
-      buffer.writeln('type: ${error.type}');
-      final message = error.message?.trim();
-      if (message != null && message.isNotEmpty) {
-        buffer.writeln('message: $message');
-      }
-      buffer.writeln(
-        'request: ${error.requestOptions.method} ${error.requestOptions.uri}',
-      );
+      final buffer = StringBuffer()
+        ..writeln('DioException')
+        ..writeln('type: ${error.type}')
+        ..writeln(
+          'request: ${error.requestOptions.method} ${error.requestOptions.uri}',
+        );
 
       final requestData = error.requestOptions.data;
-      if (requestData != null) {
-        buffer.writeln('requestData: ${_formatLogValue(requestData)}');
+      if (requestData is Map) {
+        buffer.writeln('requestFields: ${requestData.keys.join(', ')}');
+      } else if (requestData != null) {
+        buffer.writeln('requestBody: ${requestData.runtimeType}');
       }
 
       final response = error.response;
       if (response != null) {
         buffer.writeln('statusCode: ${response.statusCode}');
-        if (response.data != null) {
-          buffer.writeln('responseData: ${_formatLogValue(response.data)}');
+        final data = response.data;
+        if (data is Map) {
+          if (data['code'] != null) buffer.writeln('code: ${data['code']}');
+          final message = NetworkError.message(error).trim();
+          if (message.isNotEmpty) {
+            buffer.writeln(
+              'message: ${LogSanitizer.text(message, maxLength: 300)}',
+            );
+          }
         }
       }
 
-      buffer.writeln('toString: ${error.toString()}');
       return buffer.toString().trimRight();
     }
 
-    return error.toString();
-  }
-
-  String _formatLogValue(Object? value) {
-    if (value == null) return 'null';
-    if (value is String) return value;
-    try {
-      return jsonEncode(value);
-    } catch (_) {
-      return value.toString();
-    }
+    return LogSanitizer.text('$error');
   }
 
   Widget _buildPostCommentErrorPanel(

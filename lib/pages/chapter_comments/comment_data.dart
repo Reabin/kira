@@ -120,13 +120,14 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
         if (!mounted) return;
         tryLoadMoreWhenNearBottom();
       });
-    } catch (e) {
+    } catch (e, stack) {
       if (!mounted) return;
       // Keep existing data when page-1 refresh fails; only log the issue.
       unawaited(
-        AppLogger().recordWarning(
+        AppLogger.instance.recordWarning(
           'Refresh first comment page failed: $e',
-          stackTrace: StackTrace.current,
+          stackTrace: stack,
+          source: 'chapter_comments.refresh',
         ),
       );
     }
