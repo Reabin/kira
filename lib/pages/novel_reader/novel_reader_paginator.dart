@@ -147,9 +147,7 @@ class NovelTextMetrics {
   /// 每行顶部相对段落顶部的偏移（长度 = 行数）。
   final List<double> lineTops;
 
-  double get height => lineTops.isEmpty
-      ? 0
-      : lineTops.last + lineHeights.last;
+  double get height => lineTops.isEmpty ? 0 : lineTops.last + lineHeights.last;
 
   int get lineCount => lineHeights.length;
 }
@@ -300,8 +298,7 @@ class NovelReaderPaginator {
     while (line < metrics.lineCount) {
       var fit = 0;
       var height = 0.0;
-      final available =
-          spec.size.height - _usedHeight - _pageHeightSafety;
+      final available = spec.size.height - _usedHeight - _pageHeightSafety;
       while (line + fit < metrics.lineCount &&
           height + metrics.lineHeights[line + fit] <= available + _epsilon) {
         height += metrics.lineHeights[line + fit];

@@ -27,7 +27,8 @@ class _CredentialMerge {
 
   _CredentialMerge(this.accounts, this._byOriginal);
 
-  SavedCredential? forAccount(SavedCredential? original) => _byOriginal[original];
+  SavedCredential? forAccount(SavedCredential? original) =>
+      _byOriginal[original];
 }
 
 /// Reconcile all saved identities, not just the one being logged in. COPY's
@@ -40,19 +41,23 @@ _CredentialMerge _mergeCredentials(
   List<CopyAccountSession> copyAccounts = const [],
 }) {
   final groups = groupAccounts(credentials, (account) => account.identity);
-  final exactPreferredGroups = groups.where(
-    (group) => group.any((item) => identical(item, preferred)),
-  ).toList();
+  final exactPreferredGroups = groups
+      .where((group) => group.any((item) => identical(item, preferred)))
+      .toList();
   final preferredGroups = exactPreferredGroups.isNotEmpty
       ? exactPreferredGroups
-      : preferred == null ? <List<SavedCredential>>[] : groups.where(
-          (group) => group.any((item) => item.sameAccount(preferred)),
-        ).toList();
+      : preferred == null
+      ? <List<SavedCredential>>[]
+      : groups
+            .where((group) => group.any((item) => item.sameAccount(preferred)))
+            .toList();
   final copyOwners = Map<CopyAccountSession, List<SavedCredential>>.identity();
   for (final copy in copyAccounts) {
-    final matches = groups.where((group) => group.any(
-      (item) => item.identity.matches(copy.identity),
-    )).toList();
+    final matches = groups
+        .where(
+          (group) => group.any((item) => item.identity.matches(copy.identity)),
+        )
+        .toList();
     // A projection must be unique in both directions: an anonymous COPY row
     // with a shared fallback id must not overwrite several known login names.
     if (matches.length == 1) copyOwners[copy] = matches.single;
@@ -93,7 +98,9 @@ _CredentialMerge _mergeCredentials(
         .firstOrNull;
     final merged = base.copyWith(
       username: value((item) => item.username) ?? '',
-      password: overwriteIncomingPassword && incoming != null &&
+      password:
+          overwriteIncomingPassword &&
+              incoming != null &&
               group.any((item) => identical(item, incoming))
           ? incoming.password
           : value((item) => item.password) ?? '',
@@ -101,7 +108,8 @@ _CredentialMerge _mergeCredentials(
       userId: value((item) => item.userId),
       nickname: value((item) => item.nickname),
       avatar: value((item) => item.avatar),
-      accountId: copy?.accountId ?? existingId ?? value((item) => item.accountId),
+      accountId:
+          copy?.accountId ?? existingId ?? value((item) => item.accountId),
     );
     result.add(merged);
     for (final original in group) {
@@ -221,7 +229,8 @@ extension UserManagerAccountReconciliation on UserManager {
       // A failed independent COPY migration must not discard the readable
       // primary profile. Enrich only in memory, without publishing COPY ids.
       _savedCredentials = _mergeCredentials(
-        candidates, preferred: currentWithPassword,
+        candidates,
+        preferred: currentWithPassword,
       ).accounts;
     }
   }

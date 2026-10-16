@@ -28,25 +28,34 @@ class AccountIdentity {
         (accountId.isNotEmpty && accountId == other.accountId);
   }
 
-  bool sharesExactCredential(AccountIdentity other) => matches(other) &&
+  bool sharesExactCredential(AccountIdentity other) =>
+      matches(other) &&
       ((token.isNotEmpty && token == other.token) ||
-       (accountId.isNotEmpty && accountId == other.accountId &&
-        !accountId.startsWith('u:') && !accountId.startsWith('n:')));
+          (accountId.isNotEmpty &&
+              accountId == other.accountId &&
+              !accountId.startsWith('u:') &&
+              !accountId.startsWith('n:')));
 }
 
 bool _compatibleIdentities(Iterable<AccountIdentity> identities) {
   final items = identities.toList();
   if (items.map((item) => item.source).toSet().length > 1) return false;
-  final names = items.map((item) => item.username)
-      .where((name) => name.isNotEmpty).toSet();
+  final names = items
+      .map((item) => item.username)
+      .where((name) => name.isNotEmpty)
+      .toSet();
   if (names.length > 1) return false;
-  final userIds = items.map((item) => item.userId)
-      .where((id) => id.isNotEmpty).toSet();
+  final userIds = items
+      .map((item) => item.userId)
+      .where((id) => id.isNotEmpty)
+      .toSet();
   if (userIds.length <= 1) return true;
   // The same confirmed login name can survive a server-id change. Anonymous
   // records cannot by themselves explain conflicting nonempty server ids.
-  final namedIds = items.where((item) => item.username.isNotEmpty)
-      .map((item) => item.userId).toSet();
+  final namedIds = items
+      .where((item) => item.username.isNotEmpty)
+      .map((item) => item.userId)
+      .toSet();
   return names.length == 1 && namedIds.containsAll(userIds);
 }
 
@@ -63,17 +72,23 @@ List<List<T>> groupAccounts<T>(
     for (final account in accounts) {
       final identity = identityOf(account);
       if (identity.username.isNotEmpty != named) continue;
-      var matches = groups.where((group) => group.any(
-        (item) => identity.matches(identityOf(item)),
-      )).toList();
+      var matches = groups
+          .where(
+            (group) => group.any((item) => identity.matches(identityOf(item))),
+          )
+          .toList();
       bool compatible(List<List<T>> candidates) => _compatibleIdentities([
         identity,
         for (final group in candidates) ...group.map(identityOf),
       ]);
       if (!compatible(matches)) {
-        matches = matches.where((group) => group.any(
-          (item) => identity.sharesExactCredential(identityOf(item)),
-        )).toList();
+        matches = matches
+            .where(
+              (group) => group.any(
+                (item) => identity.sharesExactCredential(identityOf(item)),
+              ),
+            )
+            .toList();
       }
       if (matches.isEmpty || !compatible(matches)) {
         groups.add([account]);

@@ -64,7 +64,10 @@ class NovelChapterSliderTrackShape extends RoundedRectSliderTrackShape {
     for (final start in chapterStarts) {
       if (!start.isFinite || start < 0 || start > 1) continue;
       final fraction = textDirection == TextDirection.ltr ? start : 1 - start;
-      final center = Offset(track.left + fraction * track.width, track.center.dy);
+      final center = Offset(
+        track.left + fraction * track.width,
+        track.center.dy,
+      );
       final passed = textDirection == TextDirection.ltr
           ? center.dx <= thumbCenter.dx
           : center.dx >= thumbCenter.dx;

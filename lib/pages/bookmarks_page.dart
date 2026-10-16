@@ -655,18 +655,27 @@ class _BookmarkCover extends StatelessWidget {
   }
 }
 
-/// 单个书签条目：章节名 + 页码/时间，点击直达阅读位置。
+/// 单个书签条目：单行显示章节名 + 页码 + 时间，点击直达阅读位置。
 class _BookmarkTile extends StatelessWidget {
   final ComicBookmark bookmark;
   final VoidCallback onTap;
 
   const _BookmarkTile({required this.bookmark, required this.onTap});
 
+  /// 页码与相对时间，跟在章节名后以小字号显示。
+  String _metaOf(AppLocalizations l10n) => [
+    l10n.bookmarkPage(bookmark.page),
+    if (bookmark.updatedAt != null)
+      TimeFormat.relative(bookmark.updatedAt!, l10n),
+  ].where((part) => part.isNotEmpty).join(' · ');
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context)!;
+    final chapter = bookmark.chapterName.trim();
+    final meta = _metaOf(l10n);
 
     return InkWell(
       key: ValueKey('bookmark_open_${bookmark.id}'),
@@ -677,29 +686,20 @@ class _BookmarkTile extends StatelessWidget {
           children: [
             Icon(Icons.bookmark, size: 16, color: cs.primary),
             const SizedBox(width: 8),
+            // 章节名过长时先截断，页码/时间右对齐、始终完整可见。
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    bookmark.chapterName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodyMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      l10n.bookmarkPage(bookmark.page),
-                      if (bookmark.updatedAt != null)
-                        TimeFormat.relative(bookmark.updatedAt!, l10n),
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
+              child: Text(
+                chapter,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: tt.bodyMedium,
               ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              meta,
+              maxLines: 1,
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(width: AppSpacing.sm),
             Icon(Icons.chevron_right, color: cs.onSurfaceVariant),

@@ -373,6 +373,12 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
   final Future<void> Function(NovelBookmark) onRemove;
   final Future<void> Function() onClear;
 
+  /// 卷名 + 去重后的章节名，两者都空时返回空串。
+  static String _chapterLabel(NovelBookmark bookmark) => [
+    bookmark.volumeName,
+    stripVolumePrefix(bookmark.chapterName, bookmark.volumeName),
+  ].where((part) => part.isNotEmpty).join(' · ');
+
   /// 百分比保留两位小数；未到结尾不得四舍五入成 100%。
   static String _percentLabel(double progress) {
     if (progress >= 1) return '100.00';
@@ -491,26 +497,27 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
                   size: AppIconSize.sm,
                   color: cs.primary,
                 ),
-                title: Text(
-                  [
-                    bookmark.volumeName,
-                    stripVolumePrefix(
-                      bookmark.chapterName,
-                      bookmark.volumeName,
+                // 章节名过长时先截断，百分比/时间右对齐、始终完整可见。
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _chapterLabel(bookmark),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium,
+                      ),
                     ),
-                  ].where((part) => part.isNotEmpty).join(' · '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                subtitle: Text(
-                  '${l10n.novelVolumeProgress(_percentLabel(bookmark.progress))}'
-                  ' · ${TimeFormat.relative(bookmark.updatedAt, l10n)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.meta(
-                    theme.textTheme,
-                  )?.copyWith(color: cs.onSurfaceVariant),
+                    const SizedBox(width: AppSpacing.sm),
+                    Text(
+                      '${_percentLabel(bookmark.progress)}%'
+                      ' · ${TimeFormat.relative(bookmark.updatedAt, l10n)}',
+                      maxLines: 1,
+                      style: AppTypography.meta(
+                        theme.textTheme,
+                      )?.copyWith(color: cs.onSurfaceVariant),
+                    ),
+                  ],
                 ),
                 onTap: () => onOpen(bookmark),
                 // 与漫画书签条目一致：尾部只放导航箭头，删除走左滑。
