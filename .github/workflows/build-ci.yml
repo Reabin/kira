@@ -18,6 +18,9 @@ on:
 env:
   # 必须与开发机一致,否则 pub get 会重解析依赖并改写 lock
   FLUTTER_VERSION: "3.44.2"
+  # lock 里的 hosted url 来自开发机的镜像,CI 必须用同一来源否则 enforce 失败
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
+  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
 
 jobs:
   build-android:
