@@ -159,9 +159,9 @@ extension _NetworkActions on _NetworkPageState {
         _pendingLatencyHosts = {};
       });
       _showToast(
-        AppLocalizations.of(context)!.networkSpeedTestFailedDetail(
-          NetworkError.message(e),
-        ),
+        AppLocalizations.of(
+          context,
+        )!.networkSpeedTestFailedDetail(NetworkError.message(e)),
         isError: true,
       );
     }

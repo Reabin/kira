@@ -456,7 +456,9 @@ void main() {
     // 不等长章节不能退化成等距分布。
     expect(
       document.chapterStarts[1] - document.chapterStarts[0],
-      isNot(closeTo(document.chapterStarts[2] - document.chapterStarts[1], 0.01)),
+      isNot(
+        closeTo(document.chapterStarts[2] - document.chapterStarts[1], 0.01),
+      ),
     );
   });
 

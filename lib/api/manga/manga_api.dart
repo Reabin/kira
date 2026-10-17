@@ -627,10 +627,7 @@ class MangaApi {
       );
       final seen = list.map((c) => c.id).toSet();
       final before = list.length;
-      list = [
-        ...list,
-        ...next.list.where((c) => seen.add(c.id)),
-      ];
+      list = [...list, ...next.list.where((c) => seen.add(c.id))];
       total = next.total;
       // 服务端在分页边界重复返回同一批数据时停止，避免死循环。
       if (list.length == before) break;

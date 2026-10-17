@@ -583,10 +583,7 @@ void main() {
     final result = await _openSheet(tester, repository);
     await tester.tap(find.byKey(const ValueKey('novel-toc-illustrations-v1')));
     await _settle(tester);
-    expect(
-      find.textContaining('插图加载失败'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('插图加载失败'), findsOneWidget);
     expect(_illustrationList, findsOneWidget);
     await tester.tap(
       find.descendant(
@@ -595,10 +592,7 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(
-      find.textContaining('插图加载失败'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('插图加载失败'), findsOneWidget);
     expect(repository.api.imageRequests, isEmpty);
     expect(result.closed, isFalse);
     await tester.tap(find.byKey(const ValueKey('novel-illustrations-close')));

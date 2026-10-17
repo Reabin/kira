@@ -120,13 +120,19 @@ void main() {
   ) async {
     await pumpPage(tester, unavailable: true);
 
-    expect(find.textContaining('AppLoggerUnavailableException'), findsOneWidget);
+    expect(
+      find.textContaining('AppLoggerUnavailableException'),
+      findsOneWidget,
+    );
     expect(find.text('暂无错误日志'), findsNothing);
   });
 
   testWidgets('recovers after a successful retry', (tester) async {
     final logger = await pumpPage(tester, unavailable: true);
-    expect(find.textContaining('AppLoggerUnavailableException'), findsOneWidget);
+    expect(
+      find.textContaining('AppLoggerUnavailableException'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();

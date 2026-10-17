@@ -112,10 +112,11 @@ void main() {
       thumbCenter: const Offset(_trackMid, 20),
     );
 
-    expect(
-      circles.map((circle) => circle.center.dx),
-      [_trackRight, _trackRight - 0.25 * 252, _trackLeft],
-    );
+    expect(circles.map((circle) => circle.center.dx), [
+      _trackRight,
+      _trackRight - 0.25 * 252,
+      _trackLeft,
+    ]);
     // RTL 下 thumb 右侧（坐标更大的一侧）是已读方向。
     expect(circles.first.color, _isColor(_active));
     expect(circles.last.color, _isColor(_inactive));
@@ -129,7 +130,10 @@ void main() {
     );
     final circles = _paint(shape, textDirection: TextDirection.ltr);
 
-    expect(circles.map((circle) => circle.center.dx), [_trackLeft, _trackRight]);
+    expect(circles.map((circle) => circle.center.dx), [
+      _trackLeft,
+      _trackRight,
+    ]);
   });
 
   test('a zero-height track paints neither markers nor track', () {

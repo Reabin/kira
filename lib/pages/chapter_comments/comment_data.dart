@@ -172,8 +172,7 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
     try {
       while (!stale() && _comments.length < _total) {
         if (_comments.length >=
-            _ChapterCommentsSheetState._pageSize *
-                chapterCommentInitialPages) {
+            _ChapterCommentsSheetState._pageSize * chapterCommentInitialPages) {
           break;
         }
         await Future<void>.delayed(chapterCommentPageGap);

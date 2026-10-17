@@ -58,9 +58,7 @@ void main() {
       // （无下划线）。漏掉这个键名会丢掉唯一身份，同一账号每次登录（官网
       // 每次轮换 token）都被当成新账号，账号中心就堆出重复卡片。
       final credentials = parseCopyWebStorage({
-        'ls': {
-          'user': '{"token":"h5-token","userid":"h5-user-id"}',
-        },
+        'ls': {'user': '{"token":"h5-token","userid":"h5-user-id"}'},
         'ss': {'init': 'true'},
       });
       expect(credentials?.token, 'h5-token');

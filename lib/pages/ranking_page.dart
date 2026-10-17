@@ -260,10 +260,7 @@ class _RankingPageState extends State<RankingPage> {
                       hasScrollBody: false,
                       child: _error == null
                           ? Center(child: Text(_emptyText(l10n)))
-                          : ErrorRetryView(
-                              message: _error,
-                              onRetry: _load,
-                            ),
+                          : ErrorRetryView(message: _error, onRetry: _load),
                     )
                   else
                     SliverPadding(

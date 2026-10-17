@@ -95,6 +95,7 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
   bool _loading = true;
   bool _loadingMore = false;
   bool _loadingAll = false;
+
   /// 首屏补页进行中：期间把手动翻页交给它，避免同一 offset 并发请求。
   bool _prefetchingInitialPages = false;
 

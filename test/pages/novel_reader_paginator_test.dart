@@ -60,17 +60,16 @@ int _coveredLines(NovelReaderPaginator paginator, int itemIndex) {
   var lines = 0;
   for (final page in paginator.pages) {
     for (final slice in page.slices) {
-      if (slice.itemIndex == itemIndex) lines += slice.endLine - slice.startLine;
+      if (slice.itemIndex == itemIndex)
+        lines += slice.endLine - slice.startLine;
     }
   }
   return lines;
 }
 
 /// 每页的填充高度（校验不超页高）。
-double _pageHeight(
-  NovelReaderPaginator paginator,
-  NovelPaginatedPage page,
-) => page.slices.fold(0.0, (sum, slice) => sum + paginator.sliceHeight(slice));
+double _pageHeight(NovelReaderPaginator paginator, NovelPaginatedPage page) =>
+    page.slices.fold(0.0, (sum, slice) => sum + paginator.sliceHeight(slice));
 
 /// 把分页结果还原成每段的完整文本，验证无丢字、无重复。
 List<String> _reconstruct(
@@ -101,14 +100,16 @@ void main() {
       _entry(
         entryIndex: 0,
         name: '第一章',
-        paragraphs: [
-          for (var i = 0; i < 40; i++) '第一章第 $i 段。' * 4,
-        ],
+        paragraphs: [for (var i = 0; i < 40; i++) '第一章第 $i 段。' * 4],
       ),
       _entry(
         entryIndex: 1,
         name: '第二章',
-        paragraphs: ['', '短段落。', for (var i = 0; i < 20; i++) '更长的段落内容 $i。' * 6],
+        paragraphs: [
+          '',
+          '短段落。',
+          for (var i = 0; i < 20; i++) '更长的段落内容 $i。' * 6,
+        ],
       ),
     ]);
     final paginator = NovelReaderPaginator(
@@ -136,10 +137,7 @@ void main() {
     // 无丢字：还原文本与原文一致。
     final expected = [
       for (var item = 0; item < document.itemCount; item++)
-        novelParagraphDisplayText(
-          document.paragraphAt(item),
-          '本章节暂无正文',
-        ),
+        novelParagraphDisplayText(document.paragraphAt(item), '本章节暂无正文'),
     ];
     expect(_reconstruct(document, paginator), expected);
   });
@@ -171,51 +169,47 @@ void main() {
     expect(_reconstruct(document, paginator).single, long);
   });
 
-  test('chapter title stays with its first line and empty entries render once', () {
-    final document = _document([
-      _entry(
-        entryIndex: 0,
-        name: '标题',
-        paragraphs: [for (var i = 0; i < 30; i++) '正文段落 $i。' * 5],
-      ),
-      _entry(entryIndex: 1, name: '空章', paragraphs: []),
-      _entry(
-        entryIndex: 2,
-        name: '第三章',
-        paragraphs: ['', '结束。'],
-      ),
-    ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
-    while (paginator.buildMore()) {}
+  test(
+    'chapter title stays with its first line and empty entries render once',
+    () {
+      final document = _document([
+        _entry(
+          entryIndex: 0,
+          name: '标题',
+          paragraphs: [for (var i = 0; i < 30; i++) '正文段落 $i。' * 5],
+        ),
+        _entry(entryIndex: 1, name: '空章', paragraphs: []),
+        _entry(entryIndex: 2, name: '第三章', paragraphs: ['', '结束。']),
+      ]);
+      final paginator = NovelReaderPaginator(
+        document: document,
+        spec: _spec(document: document),
+      );
+      while (paginator.buildMore()) {}
 
-    // 标题与首行同页：带标题的片段所在页必须有正文片段。
-    for (final page in paginator.pages) {
-      final titled = page.slices.where((slice) => slice.hasTitle);
-      for (final slice in titled) {
-        expect(
-          slice.endLine,
-          greaterThan(slice.startLine),
-          reason: '标题片段必须含至少一行正文',
-        );
+      // 标题与首行同页：带标题的片段所在页必须有正文片段。
+      for (final page in paginator.pages) {
+        final titled = page.slices.where((slice) => slice.hasTitle);
+        for (final slice in titled) {
+          expect(
+            slice.endLine,
+            greaterThan(slice.startLine),
+            reason: '标题片段必须含至少一行正文',
+          );
+        }
       }
-    }
-    final reconstructed = _reconstruct(document, paginator);
-    // 空章节合成 1 个 item，渲染占位文案且只出现一次。
-    final emptyChapter = document.itemFor(
-      const NovelReaderAnchor(entryIndex: 1),
-    );
-    expect(reconstructed[emptyChapter], '本章节暂无正文');
-    expect(
-      reconstructed.where((text) => text == '本章节暂无正文'),
-      hasLength(1),
-    );
-    final blank = document.itemFor(const NovelReaderAnchor(entryIndex: 2));
-    expect(reconstructed[blank], ' ');
-    expect(reconstructed[blank + 1], '结束。');
-  });
+      final reconstructed = _reconstruct(document, paginator);
+      // 空章节合成 1 个 item，渲染占位文案且只出现一次。
+      final emptyChapter = document.itemFor(
+        const NovelReaderAnchor(entryIndex: 1),
+      );
+      expect(reconstructed[emptyChapter], '本章节暂无正文');
+      expect(reconstructed.where((text) => text == '本章节暂无正文'), hasLength(1));
+      final blank = document.itemFor(const NovelReaderAnchor(entryIndex: 2));
+      expect(reconstructed[blank], ' ');
+      expect(reconstructed[blank + 1], '结束。');
+    },
+  );
 
   test('anchorForPage and pageForAnchor round-trip for every page', () {
     final document = _document([
@@ -281,9 +275,7 @@ void main() {
       _entry(
         entryIndex: 0,
         name: '第一章',
-        paragraphs: [
-          for (var i = 0; i < 40; i++) '段落 $i 的内容稍微长一点点。' * 3,
-        ],
+        paragraphs: [for (var i = 0; i < 40; i++) '段落 $i 的内容稍微长一点点。' * 3],
       ),
     ]);
     final marked = <int>{};
@@ -343,10 +335,7 @@ void main() {
       expect(location.progress, greaterThanOrEqualTo(previous));
       previous = location.progress;
     }
-    expect(
-      paginator.locationForPage(paginator.pages.length - 1).progress,
-      1.0,
-    );
+    expect(paginator.locationForPage(paginator.pages.length - 1).progress, 1.0);
   });
 
   test('center paragraph skips blank lines and returns text paragraphs', () {
@@ -386,82 +375,89 @@ void main() {
     expect(_reconstruct(document, paginator).length, 12);
   });
 
-  test('anchorForPage round-trips when the viewport is taller than the page', () {
-    final document = _document([
-      // 无标题：段落内深度 = 行号 × 行高（36px），页边界落在精确的行顶，
-      // 正是除法/乘法舍入最容易把深度算小 1ulp 的位置。
-      _entry(
+  test(
+    'anchorForPage round-trips when the viewport is taller than the page',
+    () {
+      final document = _document([
+        // 无标题：段落内深度 = 行号 × 行高（36px），页边界落在精确的行顶，
+        // 正是除法/乘法舍入最容易把深度算小 1ulp 的位置。
+        _entry(
+          entryIndex: 0,
+          name: '',
+          paragraphs: [List.filled(400, '长段落文字').join()],
+        ),
+      ]);
+      final paginator = NovelReaderPaginator(
+        document: document,
+        // 整屏 800 而正文区 360、顶部 inset 44（接近真机状态栏）。
+        spec: _spec(
+          document: document,
+          viewportHeight: 800,
+          contentTopInset: 44,
+        ),
+      );
+      while (paginator.buildMore()) {}
+
+      var checked = 0;
+      for (var page = 0; page < paginator.pages.length; page++) {
+        final anchor = paginator.anchorForPage(page);
+        // alignment ≥ 0：段落顶仍在屏内，映射到段落起始页（非本页）。
+        if (anchor.alignment >= 0) continue;
+        expect(paginator.pageForAnchor(anchor), page);
+        checked++;
+      }
+      expect(checked, greaterThan(paginator.pages.length ~/ 2));
+    },
+  );
+
+  test(
+    'pageForAnchor uses the content inset and the viewport height together',
+    () {
+      final long = List.filled(600, '长段落文字').join();
+      final document = _document([
+        // 无标题：段落内深度 = 行号 × 行高，便于精确推算期望值。
+        _entry(entryIndex: 0, name: '', paragraphs: [long]),
+      ]);
+      const inset = 40.0;
+      const viewport = 800.0;
+      final paginator = NovelReaderPaginator(
+        document: document,
+        spec: _spec(
+          document: document,
+          size: const Size(360, 480),
+          viewportHeight: viewport,
+          contentTopInset: inset,
+        ),
+      );
+      while (paginator.buildMore()) {}
+
+      final firstSlice = paginator.pages.first.slices.first;
+      final lineHeight =
+          paginator.sliceHeight(firstSlice) /
+          (firstSlice.endLine - firstSlice.startLine);
+      int pageOfLine(int line) => paginator.pages.indexWhere(
+        (page) => page.slices.any(
+          (slice) =>
+              slice.itemIndex == 0 &&
+              line >= slice.startLine &&
+              line < slice.endLine,
+        ),
+      );
+
+      // 屏幕顶端落在第 2 页首行稍下方：深度 = 页首行深 + 半行。
+      final secondPageTop =
+          paginator.pages[1].slices.first.startLine * lineHeight;
+      final depth = secondPageTop + lineHeight / 2;
+      final anchor = NovelReaderAnchor(
         entryIndex: 0,
-        name: '',
-        paragraphs: [List.filled(400, '长段落文字').join()],
-      ),
-    ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      // 整屏 800 而正文区 360、顶部 inset 44（接近真机状态栏）。
-      spec: _spec(
-        document: document,
-        viewportHeight: 800,
-        contentTopInset: 44,
-      ),
-    );
-    while (paginator.buildMore()) {}
-
-    var checked = 0;
-    for (var page = 0; page < paginator.pages.length; page++) {
-      final anchor = paginator.anchorForPage(page);
-      // alignment ≥ 0：段落顶仍在屏内，映射到段落起始页（非本页）。
-      if (anchor.alignment >= 0) continue;
-      expect(paginator.pageForAnchor(anchor), page);
-      checked++;
-    }
-    expect(checked, greaterThan(paginator.pages.length ~/ 2));
-  });
-
-  test('pageForAnchor uses the content inset and the viewport height together', () {
-    final long = List.filled(600, '长段落文字').join();
-    final document = _document([
-      // 无标题：段落内深度 = 行号 × 行高，便于精确推算期望值。
-      _entry(entryIndex: 0, name: '', paragraphs: [long]),
-    ]);
-    const inset = 40.0;
-    const viewport = 800.0;
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(
-        document: document,
-        size: const Size(360, 480),
-        viewportHeight: viewport,
-        contentTopInset: inset,
-      ),
-    );
-    while (paginator.buildMore()) {}
-
-    final firstSlice = paginator.pages.first.slices.first;
-    final lineHeight =
-        paginator.sliceHeight(firstSlice) /
-        (firstSlice.endLine - firstSlice.startLine);
-    int pageOfLine(int line) => paginator.pages.indexWhere(
-      (page) => page.slices.any(
-        (slice) =>
-            slice.itemIndex == 0 &&
-            line >= slice.startLine &&
-            line < slice.endLine,
-      ),
-    );
-
-    // 屏幕顶端落在第 2 页首行稍下方：深度 = 页首行深 + 半行。
-    final secondPageTop = paginator.pages[1].slices.first.startLine * lineHeight;
-    final depth = secondPageTop + lineHeight / 2;
-    final anchor = NovelReaderAnchor(
-      entryIndex: 0,
-      alignment: (inset - depth) / viewport,
-    );
-    expect(pageOfLine((depth / lineHeight).floor()), 1);
-    // 忽略 inset 会落到上一页——本用例正是为了区分这两种实现。
-    expect(pageOfLine(((depth - inset) / lineHeight).floor()), 0);
-    expect(paginator.pageForAnchor(anchor), 1);
-  });
+        alignment: (inset - depth) / viewport,
+      );
+      expect(pageOfLine((depth / lineHeight).floor()), 1);
+      // 忽略 inset 会落到上一页——本用例正是为了区分这两种实现。
+      expect(pageOfLine(((depth - inset) / lineHeight).floor()), 0);
+      expect(paginator.pageForAnchor(anchor), 1);
+    },
+  );
 
   test('progress stays below 1.0 until every paragraph is paginated', () {
     final document = _document([
@@ -486,10 +482,7 @@ void main() {
       );
     }
     expect(paginator.complete, isTrue);
-    expect(
-      paginator.locationForPage(paginator.pages.length - 1).progress,
-      1.0,
-    );
+    expect(paginator.locationForPage(paginator.pages.length - 1).progress, 1.0);
   });
 
   test('rebuildFrom invalidates the metrics of every changed paragraph', () {

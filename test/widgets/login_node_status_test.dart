@@ -131,9 +131,7 @@ void main() {
 
   /// 卡片外层容器的装饰（底色 / 描边）。
   BoxDecoration cardDecoration(WidgetTester tester) {
-    final container = tester.widget<Container>(
-      find.byType(Container).first,
-    );
+    final container = tester.widget<Container>(find.byType(Container).first);
     return container.decoration! as BoxDecoration;
   }
 

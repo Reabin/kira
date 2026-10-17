@@ -1091,33 +1091,29 @@ void main() {
     );
   }
 
-  testWidgets(
-    'HOT password login failure surfaces the server message',
-    (tester) async {
-      expectedPrimaryRequests = 1;
-      primaryResponse = (_) => _jsonResponse({
-        'code': 401,
-        'message': '账号或密码错误',
-      }, 401);
-      await pumpLogin(tester, copyOnly: false);
-      await submitHotPassword(tester, password: 'wrong-password');
-      expect(user.token, 'hot-token');
-      expect(find.text('登录失败：账号或密码错误'), findsOneWidget);
-    },
-  );
+  testWidgets('HOT password login failure surfaces the server message', (
+    tester,
+  ) async {
+    expectedPrimaryRequests = 1;
+    primaryResponse = (_) =>
+        _jsonResponse({'code': 401, 'message': '账号或密码错误'}, 401);
+    await pumpLogin(tester, copyOnly: false);
+    await submitHotPassword(tester, password: 'wrong-password');
+    expect(user.token, 'hot-token');
+    expect(find.text('登录失败：账号或密码错误'), findsOneWidget);
+  });
 
-  testWidgets(
-    'HOT token login failure surfaces the HTTP status',
-    (tester) async {
-      expectedPrimaryRequests = 1;
-      primaryResponse = (_) => _jsonResponse({'code': 401}, 401);
-      await pumpLogin(tester, copyOnly: false);
-      await submitToken(tester, token: 'expired-token');
-      expect(user.token, 'hot-token');
-      expect(find.text('请求失败（code: 401）'), findsOneWidget);
-      expect(find.text('令牌无效或已过期'), findsNothing);
-    },
-  );
+  testWidgets('HOT token login failure surfaces the HTTP status', (
+    tester,
+  ) async {
+    expectedPrimaryRequests = 1;
+    primaryResponse = (_) => _jsonResponse({'code': 401}, 401);
+    await pumpLogin(tester, copyOnly: false);
+    await submitToken(tester, token: 'expired-token');
+    expect(user.token, 'hot-token');
+    expect(find.text('请求失败（code: 401）'), findsOneWidget);
+    expect(find.text('令牌无效或已过期'), findsNothing);
+  });
 
   for (final copyOnly in [false, true]) {
     testWidgets(

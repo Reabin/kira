@@ -431,10 +431,7 @@ class NovelApi {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(
-          error.message,
-          statusCode: error.response?.statusCode,
-        ),
+        _describeFailure(error.message, statusCode: error.response?.statusCode),
         statusCode: error.response?.statusCode,
       );
     }
@@ -611,10 +608,7 @@ class NovelApi {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(
-          error.message,
-          statusCode: error.response?.statusCode,
-        ),
+        _describeFailure(error.message, statusCode: error.response?.statusCode),
         statusCode: error.response?.statusCode,
       );
     }
@@ -633,10 +627,7 @@ class NovelApi {
 
   /// Compose a user-facing failure that keeps the upstream detail instead of
   /// replacing it with a generic label.
-  static String _describeFailure(
-    String? detail, {
-    int? statusCode,
-  }) {
+  static String _describeFailure(String? detail, {int? statusCode}) {
     final text = detail?.trim() ?? '';
     if (text.isEmpty) {
       // HTTP 200 means the failure came from the envelope's business code, so

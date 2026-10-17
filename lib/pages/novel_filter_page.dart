@@ -213,9 +213,7 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                           child: Padding(
                             padding: EdgeInsets.symmetric(horizontal: hp),
                             child: InlineRetryNotice(
-                              message: novelErrorMessage(
-                                _books.refreshError,
-                              ),
+                              message: novelErrorMessage(_books.refreshError),
                               onRetry: () => unawaited(_refresh()),
                             ),
                           ),

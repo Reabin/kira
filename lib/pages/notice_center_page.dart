@@ -95,7 +95,11 @@ class _NoticeCenterPageState extends State<NoticeCenterPage> {
             : l10n.noticeReadFailedDetail(detail);
       });
       if (refreshRemote) {
-        showToast(context, l10n.noticeRefreshFailedDetail(detail), isError: true);
+        showToast(
+          context,
+          l10n.noticeRefreshFailedDetail(detail),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) {
