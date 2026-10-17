@@ -129,7 +129,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
   Future<void> _toggleBookmarkGroup() async {
     final l10n = AppLocalizations.of(context)!;
-    final messenger = ScaffoldMessenger.of(context);
     if (_bookmarkStore.hasGroup(widget.pathWord)) {
       final count = _bookmarkStore.bookmarks
           .where((bookmark) => bookmark.pathWord == widget.pathWord)
@@ -155,9 +154,8 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         if (confirmed != true || !mounted) return;
       }
       await _bookmarkStore.removeGroup(widget.pathWord);
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(l10n.bookmarkRemoved)));
+      if (!mounted) return;
+      showToast(context, l10n.bookmarkRemoved);
       return;
     }
     final book = _detail?.book;
@@ -166,9 +164,8 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       name: book?.name ?? '',
       cover: book?.cover ?? '',
     );
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(l10n.bookmarkAdded)));
+    if (!mounted) return;
+    showToast(context, l10n.bookmarkAdded);
   }
 
   @override

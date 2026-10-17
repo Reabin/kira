@@ -1321,6 +1321,12 @@ abstract class AppLocalizations {
   /// **'经典导航，文字显示在图标下方'**
   String get appearanceBottomNavLabelModeAlwaysDesc;
 
+  /// No description provided for @appearanceFloatingNavLabelModeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'悬浮底栏不支持始终显示文字，已改为选中时显示'**
+  String get appearanceFloatingNavLabelModeHint;
+
   /// No description provided for @appearanceNavOrder.
   ///
   /// In zh, this message translates to:
@@ -4379,6 +4385,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'数据缓存'**
   String get cacheDataCacheSection;
+
+  /// No description provided for @cacheDataCacheWarning.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。'**
+  String get cacheDataCacheWarning;
 
   /// No description provided for @cacheNoLocalKeyValueData.
   ///

@@ -210,6 +210,45 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   }
 
+  Widget _accountSelectTile(IconData icon, String title, Widget select) {
+    return ListTile(
+      leading: Icon(icon),
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: title,
+              style: DefaultTextStyle.of(context).style,
+            ),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+            maxLines: 1,
+          )..layout();
+          // 先留足标题宽度；大字号下改为上下排列，不让胶囊挤碎标题。
+          if (constraints.maxWidth < painter.width + AppSpacing.lg + 96) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title),
+                const SizedBox(height: AppSpacing.sm),
+                Align(alignment: Alignment.centerRight, child: select),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Text(title),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Align(alignment: Alignment.centerRight, child: select),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -222,15 +261,15 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
           _SectionLabel(l10n.accountCenterActiveLabel),
           SettingTileGroup(
             children: [
-              ListTile(
-                leading: const Icon(Icons.menu_book_rounded),
-                title: Text(l10n.accountCenterComicAccount),
-                trailing: _comicSelect(l10n),
+              _accountSelectTile(
+                Icons.menu_book_rounded,
+                l10n.accountCenterComicAccount,
+                _comicSelect(l10n),
               ),
-              ListTile(
-                leading: const Icon(Icons.auto_stories_rounded),
-                title: Text(l10n.accountCenterNovelAccount),
-                trailing: _novelSelect(l10n),
+              _accountSelectTile(
+                Icons.auto_stories_rounded,
+                l10n.accountCenterNovelAccount,
+                _novelSelect(l10n),
               ),
             ],
           ),

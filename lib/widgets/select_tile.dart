@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
+import '../theme/app_spacing.dart';
 
 /// 「最多显示 N 个字符」对应的宽度上限。
 ///
@@ -153,12 +154,17 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _measureLabelWidth();
+    _refreshMenuAfterLayout();
   }
 
   @override
   void didUpdateWidget(covariant SelectTile<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     _measureLabelWidth();
+    _refreshMenuAfterLayout();
+  }
+
+  void _refreshMenuAfterLayout() {
     if (_menuEntry == null) return;
     // Refresh labels/selection and measure the capsule after its new layout.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -166,6 +172,26 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
       _menuWidth = context.size?.width;
       _menuEntry?.markNeedsBuild();
     });
+  }
+
+  ({double width, double horizontalOffset}) _menuGeometry() {
+    final preferredWidth = _labelWidth == null
+        ? _menuWidth ?? 0
+        : math.max(_menuWidth ?? 0, _labelWidth! + AppSpacing.lg * 2);
+    final box = context.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlayBox == null) {
+      return (width: preferredWidth, horizontalOffset: 0);
+    }
+    // 宽菜单向屏幕内平移；再宽也不能超出安全区两侧。
+    final padding = MediaQuery.of(context).padding;
+    final left = padding.left + AppSpacing.sm;
+    final right = overlayBox.size.width - padding.right - AppSpacing.sm;
+    final width = math.min(preferredWidth, math.max(0.0, right - left));
+    final triggerLeft = box.localToGlobal(Offset.zero, ancestor: overlayBox).dx;
+    final menuLeft = triggerLeft.clamp(left, math.max(left, right - width));
+    return (width: width, horizontalOffset: menuLeft - triggerLeft);
   }
 
   void _dismissMenu() {
@@ -204,89 +230,93 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     _menuEntry = OverlayEntry(
-      builder: (context) => Stack(
-        children: [
-          // 全屏透明捕获层：点外部收起（带方向性返回手势穿透）。
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _dismissMenu,
-              onPanStart: (_) => _dismissMenu(),
+      builder: (context) {
+        final geometry = _menuGeometry();
+        return Stack(
+          children: [
+            // 全屏透明捕获层：点外部收起（带方向性返回手势穿透）。
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _dismissMenu,
+                onPanStart: (_) => _dismissMenu(),
+              ),
             ),
-          ),
-          CompositedTransformFollower(
-            link: _layerLink,
-            targetAnchor: openUpward ? Alignment.topLeft : Alignment.bottomLeft,
-            followerAnchor: openUpward
-                ? Alignment.bottomLeft
-                : Alignment.topLeft,
-            child: SizedBox(
-              // 默认与触发器等宽；设了字符上限时按「最长标签（封顶后）」定宽，
-              // 但不比触发器窄，短列表仍保持原有的等宽观感。
-              width: _labelWidth == null
-                  ? _menuWidth
-                  : math.max(_menuWidth ?? 0, _labelWidth! + 32),
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(12),
-                clipBehavior: Clip.antiAlias,
-                color: cs.surfaceContainerHigh,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final item in widget.items)
-                      InkWell(
-                        onTap: () {
-                          widget.onChanged(item.value);
-                          _dismissMenu();
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          child: Row(
-                            children: [
-                              if (item.icon != null) ...[
-                                Icon(
-                                  item.icon,
-                                  size: 18,
-                                  color:
-                                      item.color ??
-                                      (item.value == widget.value
-                                          ? cs.primary
-                                          : cs.onSurfaceVariant),
-                                ),
-                                const SizedBox(width: 10),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  item.label,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: tt.bodyMedium?.copyWith(
+            CompositedTransformFollower(
+              link: _layerLink,
+              offset: Offset(geometry.horizontalOffset, 0),
+              targetAnchor: openUpward
+                  ? Alignment.topLeft
+                  : Alignment.bottomLeft,
+              followerAnchor: openUpward
+                  ? Alignment.bottomLeft
+                  : Alignment.topLeft,
+              child: SizedBox(
+                // 默认与触发器等宽；设了字符上限时按「最长标签（封顶后）」定宽，
+                // 但不比触发器窄，短列表仍保持原有的等宽观感。
+                width: geometry.width,
+                child: Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(12),
+                  clipBehavior: Clip.antiAlias,
+                  color: cs.surfaceContainerHigh,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final item in widget.items)
+                        InkWell(
+                          onTap: () {
+                            widget.onChanged(item.value);
+                            _dismissMenu();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                if (item.icon != null) ...[
+                                  Icon(
+                                    item.icon,
+                                    size: 18,
                                     color:
                                         item.color ??
                                         (item.value == widget.value
                                             ? cs.primary
-                                            : cs.onSurface),
-                                    fontWeight: item.value == widget.value
-                                        ? FontWeight.w600
-                                        : null,
+                                            : cs.onSurfaceVariant),
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                                Expanded(
+                                  child: Text(
+                                    item.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: tt.bodyMedium?.copyWith(
+                                      color:
+                                          item.color ??
+                                          (item.value == widget.value
+                                              ? cs.primary
+                                              : cs.onSurface),
+                                      fontWeight: item.value == widget.value
+                                          ? FontWeight.w600
+                                          : null,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
     overlay.insert(_menuEntry!);
   }

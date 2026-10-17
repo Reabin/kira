@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -160,7 +161,10 @@ void main() {
     expect(secureCalls, isEmpty, reason: 'Credentials must only use prefs');
   });
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    TextScaler textScaler = TextScaler.noScaling,
+  }) async {
     final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, _) => const AccountCenterPage()),
@@ -183,6 +187,10 @@ void main() {
         routerConfig: router,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+          child: child!,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -480,6 +488,54 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final layout in [
+    (width: 320.0, scale: 1.0),
+    (width: 320.0, scale: 2.0),
+    (width: 369.0, scale: 1.0),
+    (width: 369.0, scale: 1.5),
+    (width: 800.0, scale: 1.0),
+    (width: 800.0, scale: 2.0),
+  ]) {
+    testWidgets('long account names preserve titles and keep menus on screen '
+        'at ${layout.width}dp/${layout.scale}x', (tester) async {
+      await tester.binding.setSurfaceSize(Size(layout.width, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final account = _copyA.copyWith(
+        username: 'account_with_a_very_long_name_123456789',
+      );
+      await user.authenticateAndLogin(
+        source: 'copy',
+        authenticate: () async => account.toJson(),
+      );
+      await pump(tester, textScaler: TextScaler.linear(layout.scale));
+
+      for (final title in ['漫画账号', '轻小说账号']) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(title).first,
+        );
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: title.length),
+        );
+        expect(boxes.map((box) => box.top).toSet(), hasLength(1));
+      }
+      for (final key in ['comic-account-select', 'novel-account-select']) {
+        final pill = find.byKey(ValueKey(key));
+        await tester.tap(pill);
+        await tester.pumpAndSettle();
+        final menuItem = find.ancestor(
+          of: find.text(account.username).last,
+          matching: find.byType(InkWell),
+        );
+        final rect = tester.getRect(menuItem);
+        expect(rect.left, greaterThanOrEqualTo(8));
+        expect(rect.right, lessThanOrEqualTo(layout.width - 8));
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('top dropdowns select domains independently without a sheet', (
     tester,

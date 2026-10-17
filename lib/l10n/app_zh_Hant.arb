@@ -404,6 +404,7 @@
   "appearanceBottomNavLabelModeHiddenDesc": "膠囊導覽，只顯示圖示",
   "appearanceBottomNavLabelModeAlways": "始終顯示文字",
   "appearanceBottomNavLabelModeAlwaysDesc": "經典導覽，文字顯示在圖示下方",
+  "appearanceFloatingNavLabelModeHint": "懸浮底欄不支援始終顯示文字，已改為選中時顯示",
   "appearanceNavOrder": "導覽列順序",
   "appearanceNavOrderDragHint": "長按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑動切換頁面",
@@ -1532,6 +1533,7 @@
   "cacheImageCacheSection": "圖片快取",
   "cacheNovelTextSection": "輕小說快取",
   "cacheDataCacheSection": "資料快取",
+  "cacheDataCacheWarning": "資料快取包含書架、閱讀設定、閱讀歷史等本地資料，請勿隨意刪除，以免遺失。",
   "cacheNoLocalKeyValueData": "沒有可顯示的本地鍵值資料",
   "cacheEntryCountSize": "{count} 項 · {size}",
   "@cacheEntryCountSize": {

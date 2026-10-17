@@ -675,6 +675,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceBottomNavLabelModeAlwaysDesc => '经典导航，文字显示在图标下方';
 
   @override
+  String get appearanceFloatingNavLabelModeHint => '悬浮底栏不支持始终显示文字，已改为选中时显示';
+
+  @override
   String get appearanceNavOrder => '导航栏顺序';
 
   @override
@@ -2384,6 +2387,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cacheDataCacheSection => '数据缓存';
+
+  @override
+  String get cacheDataCacheWarning => '数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。';
 
   @override
   String get cacheNoLocalKeyValueData => '没有可显示的本地键值数据';
@@ -4790,6 +4796,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceBottomNavLabelModeAlwaysDesc => '經典導覽，文字顯示在圖示下方';
 
   @override
+  String get appearanceFloatingNavLabelModeHint => '懸浮底欄不支援始終顯示文字，已改為選中時顯示';
+
+  @override
   String get appearanceNavOrder => '導覽列順序';
 
   @override
@@ -6499,6 +6508,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get cacheDataCacheSection => '資料快取';
+
+  @override
+  String get cacheDataCacheWarning => '資料快取包含書架、閱讀設定、閱讀歷史等本地資料，請勿隨意刪除，以免遺失。';
 
   @override
   String get cacheNoLocalKeyValueData => '沒有可顯示的本地鍵值資料';
