@@ -62,6 +62,22 @@ git clone https://github.com/caolib/kira.git
 cd kira
 ```
 
+**设置 pub 源**：`pubspec.lock` 记录的是每个包的完整下载地址，地址里的域名跟随 `PUB_HOSTED_URL`。源不一致时依赖解析结果可能不同，本地与 CI/发布包就不是同一套依赖。
+
+```sh
+export PUB_HOSTED_URL=https://pub.flutter-io.cn
+export FLUTTER_STORAGE_BASE_URL=https://storage.flutter-io.cn
+```
+
+Windows PowerShell：
+
+```powershell
+$env:PUB_HOSTED_URL = "https://pub.flutter-io.cn"
+$env:FLUTTER_STORAGE_BASE_URL = "https://storage.flutter-io.cn"
+```
+
+拉依赖用 `flutter pub get --enforce-lockfile`：解析结果与 lock 不一致时直接报错，而不是悄悄升级依赖。注意它要求源的域名也与 lock 一致——用别的源会报 `Unable to satisfy pubspec.yaml using pubspec.lock`。想换源，就先用普通 `flutter pub get` 重新生成 lock 并提交，不要绕过校验。
+
 如果是移动端设备，第一次调试先 build 一次，后续如果 clean 了需要重新 build
 ```sh
 flutter build apk --debug
