@@ -289,6 +289,24 @@ abstract class AppLocalizations {
   /// **'重试'**
   String get retryButton;
 
+  /// No description provided for @startupFailedTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动失败'**
+  String get startupFailedTitle;
+
+  /// No description provided for @startupFailedBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。'**
+  String get startupFailedBody;
+
+  /// No description provided for @startupFailedDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'错误信息'**
+  String get startupFailedDetails;
+
   /// No description provided for @noContent.
   ///
   /// In zh, this message translates to:

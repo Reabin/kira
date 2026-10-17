@@ -35,11 +35,22 @@ try {
         '--target-platform', $TargetPlatform
     )
     if ($copyAuthKeyDefine) { $buildArgs += $copyAuthKeyDefine }
-    & flutter @buildArgs
+
+    $buildLog = Join-Path ([System.IO.Path]::GetTempPath()) 'kira_build_apk.log'
+    & flutter @buildArgs 2>&1 | Tee-Object -FilePath $buildLog
 
     if ($LASTEXITCODE -ne 0) {
         throw "flutter build apk 失败 (exit code: $LASTEXITCODE)"
     }
+
+    # 重复类 = 插件 Dart/native 版本不一致,这种包装机即白屏
+    $duplicates = Select-String -Path $buildLog -Pattern 'is defined multiple times', 'Duplicate class'
+    if ($duplicates) {
+        $duplicates | Select-Object -First 20 | ForEach-Object { Write-Host $_.Line -ForegroundColor DarkYellow }
+        throw "构建日志出现重复类，APK 自洽性检查失败（Dart 侧与 native 侧插件版本不一致）"
+    }
+
+    Write-Host "自洽性检查通过：未发现重复类" -ForegroundColor Green
 
     # 定位输出 APK
     $apkDir = 'build\app\outputs\flutter-apk'

@@ -107,6 +107,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retryButton => '重试';
 
   @override
+  String get startupFailedTitle => '启动失败';
+
+  @override
+  String get startupFailedBody =>
+      '应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。';
+
+  @override
+  String get startupFailedDetails => '错误信息';
+
+  @override
   String get noContent => '暂无内容';
 
   @override
@@ -4223,6 +4233,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get retryButton => '重試';
+
+  @override
+  String get startupFailedTitle => '啟動失敗';
+
+  @override
+  String get startupFailedBody =>
+      '應用程式初始化沒有完成，通常是安裝包與裝置環境不匹配。可先重試；若仍失敗，請解除安裝後重新安裝，或把下面的錯誤資訊回饋給開發者。';
+
+  @override
+  String get startupFailedDetails => '錯誤資訊';
 
   @override
   String get noContent => '暫無內容';
