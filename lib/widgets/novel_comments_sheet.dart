@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
-import '../api/novel/novel_api.dart' show NovelApiException;
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/user_manager.dart';
@@ -282,7 +282,11 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
         ),
       );
       if (mounted && generation == _accountGeneration) {
-        showToast(context, l10n.novelCommentFailed, isError: true);
+        showToast(
+          context,
+          novelErrorMessage(e, fallback: l10n.novelCommentFailed),
+          isError: true,
+        );
       }
       return false;
     } finally {
@@ -444,10 +448,10 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
         : name;
   }
 
+  /// Surface the upstream text (code 210 keeps the whole body) instead of
+  /// hiding it behind a generic label.
   String _errorMessage(Object? error, String fallback) =>
-      error is NovelApiException && error.isDiagnosticResponse
-      ? error.message
-      : fallback;
+      novelErrorMessage(error, fallback: fallback);
 
   // ── 屏蔽过滤（与漫画评论区共用 UserManager 的屏蔽配置） ────────────────
 

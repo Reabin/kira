@@ -11,6 +11,7 @@ import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
@@ -84,19 +85,17 @@ class _NoticeCenterPageState extends State<NoticeCenterPage> {
       );
       if (!mounted) return;
       RemoteNoticeService.unreadActiveCount.value = 0;
+      final l10n = AppLocalizations.of(context)!;
+      final detail = NetworkError.message(e, l10n: l10n);
       setState(() {
         _notices = const [];
         _seenKeys = const {};
         _error = refreshRemote
-            ? AppLocalizations.of(context)!.noticeRefreshFailed
-            : AppLocalizations.of(context)!.noticeReadFailed;
+            ? l10n.noticeRefreshFailedDetail(detail)
+            : l10n.noticeReadFailedDetail(detail);
       });
       if (refreshRemote) {
-        showToast(
-          context,
-          AppLocalizations.of(context)!.noticeRefreshFailed,
-          isError: true,
-        );
+        showToast(context, l10n.noticeRefreshFailedDetail(detail), isError: true);
       }
     } finally {
       if (mounted) {

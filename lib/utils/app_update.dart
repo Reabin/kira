@@ -683,12 +683,17 @@ class InstallState {
   final int total; // bytes, -1 when unknown
   final bool needsPermission; // true when the failure is a missing install perm
 
+  /// Raw failure cause for the error state, so the UI can show what actually
+  /// failed instead of only a generic label. Null when unknown.
+  final String? errorDetail;
+
   const InstallState._({
     required this.status,
     this.assetName,
     this.received = 0,
     this.total = -1,
     this.needsPermission = false,
+    this.errorDetail,
   });
 
   const InstallState.idle() : this._(status: InstallStatus.idle);
@@ -707,12 +712,16 @@ class InstallState {
   const InstallState.installing(String name)
     : this._(status: InstallStatus.installing, assetName: name);
   const InstallState.done() : this._(status: InstallStatus.done);
-  const InstallState.error(String name, {bool needsPermission = false})
-    : this._(
-        status: InstallStatus.error,
-        assetName: name,
-        needsPermission: needsPermission,
-      );
+  const InstallState.error(
+    String name, {
+    bool needsPermission = false,
+    String? errorDetail,
+  }) : this._(
+         status: InstallStatus.error,
+         assetName: name,
+         needsPermission: needsPermission,
+         errorDetail: errorDetail,
+       );
 
   bool get isBusy =>
       status == InstallStatus.preparing ||
@@ -874,6 +883,7 @@ class InAppInstaller with WidgetsBindingObserver {
       state.value = InstallState.error(
         asset.name,
         needsPermission: e is PlatformException,
+        errorDetail: e.toString(),
       );
     } finally {
       _busy = false;

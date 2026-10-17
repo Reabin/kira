@@ -18,6 +18,7 @@ import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
@@ -395,9 +396,10 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.refreshFailedDetail(NetworkError.message(e, l10n: l10n)),
           isError: true,
         );
       }

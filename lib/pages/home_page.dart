@@ -254,7 +254,7 @@ class _HomePageState extends ConsumerState<HomePage>
     if (_error != null && !hasData) {
       return Scaffold(
         floatingActionButton: _buildSourceFab(),
-        body: ErrorRetryView(onRetry: _load),
+        body: ErrorRetryView(message: _error, onRetry: _load),
       );
     }
 

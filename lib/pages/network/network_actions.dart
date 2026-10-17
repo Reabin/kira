@@ -152,12 +152,18 @@ extension _NetworkActions on _NetworkPageState {
         _latencyResults = latencyResults;
         _pendingLatencyHosts = {};
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       _setState(() {
         _testingLatency = false;
         _pendingLatencyHosts = {};
       });
+      _showToast(
+        AppLocalizations.of(context)!.networkSpeedTestFailedDetail(
+          NetworkError.message(e),
+        ),
+        isError: true,
+      );
     }
   }
 

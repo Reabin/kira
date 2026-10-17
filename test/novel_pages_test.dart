@@ -506,7 +506,7 @@ void main() {
     h.api.books = (_, _, _) async => throw const NovelApiException('offline');
     await h.pump(tester, const NovelHomePage());
     await tester.pumpAndSettle();
-    expect(find.text('书籍加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     h.api.books = (_, _, _) async => _page<NovelBook>([]);
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
@@ -1125,7 +1125,7 @@ void main() {
     h.repository.detail = () async => throw const NovelApiException('offline');
     await h.pump(tester, const NovelDetailPage(pathWord: 'book'));
     await tester.pumpAndSettle();
-    expect(find.text('书籍加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     expect(h.readerVolume, 'local-volume');
@@ -1462,7 +1462,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('评论加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     expect(find.text('暂无评论'), findsNothing);
     h.api.comments = (_, _) async =>
         _page([const NovelComment(id: 'public', comment: '恢复后的评论')]);

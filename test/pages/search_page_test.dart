@@ -167,7 +167,8 @@ void main() {
       await pumpSearchFrames(tester);
 
       expect(find.byType(SliverErrorRetryView), findsOneWidget);
-      expect(find.text(_l10n(tester).searchRequestFailed), findsOneWidget);
+      // 失败原因直接展示（不再替换成固定文案）。
+      expect(find.textContaining('受控请求失败'), findsOneWidget);
       expect(find.text('测试热搜'), findsNothing);
       await tester.tap(find.text(_l10n(tester).retryButton));
       await pumpSearchFrames(tester);
@@ -574,7 +575,7 @@ void main() {
       await _selectFilter(tester, '冒险');
       rig.manga.listings.last.fail();
       await pumpSearchFrames(tester);
-      expect(find.text(_l10n(tester).discoverRequestFailed), findsOneWidget);
+      expect(find.textContaining('受控请求失败'), findsOneWidget);
       expect(find.byType(SliverErrorRetryView), findsOneWidget);
       await tester.tap(find.text(_l10n(tester).retryButton));
       await pumpSearchFrames(tester);

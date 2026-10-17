@@ -246,7 +246,9 @@ class _LoginPageState extends State<LoginPage> {
         _showError(
           blocked
               ? l10n.profileLoginIpBlockedHint
-              : l10n.profileLoginFailedProxyHint,
+              : l10n.profileLoginFailedDetail(
+                  NetworkError.message(e, l10n: l10n),
+                ),
           warning: blocked,
         );
         _loading = false;
@@ -423,7 +425,7 @@ class _LoginPageState extends State<LoginPage> {
               setDialogState(() {
                 dialogError = e is CopyAccountStorageException
                     ? l10n.copyAccountStorageFailed
-                    : l10n.profileTokenInvalidOrExpired;
+                    : NetworkError.message(e, l10n: l10n);
                 dialogLoading = false;
               });
             }

@@ -21,6 +21,7 @@ import '../utils/bookmark_store.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/kira_links.dart';
+import '../utils/network_error.dart';
 import '../utils/novel_download_manager.dart';
 import '../utils/reading_history.dart';
 import '../utils/time_format.dart';
@@ -95,6 +96,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   String _selectedGroup = 'default';
   bool _loadingComic = true;
   bool _refreshingComic = false;
+  String? _comicError;
   bool _loadingChapters = false;
   bool _keepShowingCachedChapters = false;
   int _chapterTotal = 0;
@@ -330,6 +332,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       // 收藏态在下方照常拉新。
       final data = await _repo.load();
       if (!mounted) return;
+      if (_comicError != null) setState(() => _comicError = null);
       final comic = data.comic;
       final selectedGroup = _resolveSelectedGroup(
         comic,
@@ -361,6 +364,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         setState(() {
           _loadingComic = false;
           _refreshingComic = false;
+          _comicError = NetworkError.message(e);
         });
       }
     }
@@ -543,7 +547,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       body: _loadingComic
           ? const Center(child: ExpressiveLoadingIndicator())
           : _comic == null
-          ? ErrorRetryView(icon: Icons.error_outline, onRetry: _loadComic)
+          ? ErrorRetryView(
+              icon: Icons.error_outline,
+              message: _comicError,
+              onRetry: _loadComic,
+            )
           : Stack(
               children: [
                 _buildBody(cs, tt),

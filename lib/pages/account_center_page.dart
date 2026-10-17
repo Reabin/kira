@@ -13,6 +13,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/toast.dart';
 import '../widgets/account_avatar.dart';
@@ -58,14 +59,18 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       await action();
     } on CopyAccountStorageException {
       _toast(l10n.copyAccountStorageFailed, isError: true);
-    } catch (_) {
+    } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
-          StateError('Account action failed'),
+          error,
+          stackTrace: stack,
           source: 'account_center.action',
         ),
       );
-      _toast(l10n.userInfoRefreshFailedToast, isError: true);
+      _toast(
+        l10n.userInfoRefreshFailedDetail(NetworkError.message(error)),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }

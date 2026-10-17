@@ -203,9 +203,10 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.refreshFailedDetail(NetworkError.message(e, l10n: l10n)),
           isError: true,
         );
       }
@@ -822,6 +823,7 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
   List<NovelReadingProgress> _items = [];
   bool _loading = true;
   bool _failed = false;
+  Object? _loadError;
   bool _deleting = false;
   bool _opening = false;
   bool _hasMore = false;
@@ -874,7 +876,10 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
         ),
       );
       if (mounted && generation == _generation) {
-        setState(() => _failed = true);
+        setState(() {
+          _failed = true;
+          _loadError = e;
+        });
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -1041,7 +1046,10 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
                   )
                 else if (_failed && _items.isEmpty)
                   SliverErrorRetryView(
-                    message: l10n.novelHistoryFailed,
+                    message: _loadError == null
+                        ? l10n.novelHistoryFailed
+                        : '${l10n.novelHistoryFailed}：'
+                              '${NetworkError.message(_loadError!)}',
                     onRetry: _load,
                   )
                 else if (_items.isEmpty)

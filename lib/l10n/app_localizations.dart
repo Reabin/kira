@@ -709,6 +709,12 @@ abstract class AppLocalizations {
   /// **'刷新失败'**
   String get refreshFailed;
 
+  /// No description provided for @refreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败：{detail}'**
+  String refreshFailedDetail(String detail);
+
   /// No description provided for @loginExpiredTitle.
   ///
   /// In zh, this message translates to:
@@ -1248,6 +1254,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'刷新失败，请重试'**
   String get userInfoRefreshFailedToast;
+
+  /// No description provided for @userInfoRefreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败：{detail}'**
+  String userInfoRefreshFailedDetail(String detail);
 
   /// No description provided for @copyProfileRefreshUnavailable.
   ///
@@ -1800,6 +1812,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'正在检测各节点...'**
   String get networkTestingNodes;
+
+  /// No description provided for @networkSpeedTestFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'测速失败：{detail}'**
+  String networkSpeedTestFailedDetail(String detail);
 
   /// No description provided for @networkHighLatencyProxySuggestion.
   ///
@@ -2994,6 +3012,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'登录失败，建议开启代理后重试'**
   String get profileLoginFailedProxyHint;
+
+  /// No description provided for @profileLoginFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败：{detail}'**
+  String profileLoginFailedDetail(String detail);
 
   /// No description provided for @profileLoginIpBlockedHint.
   ///
@@ -5489,6 +5513,12 @@ abstract class AppLocalizations {
   /// **'后台自动总结失败：{error}'**
   String readerAutoSummaryFailed(String error);
 
+  /// No description provided for @readerChainChapterFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载相邻章节失败：{detail}'**
+  String readerChainChapterFailedDetail(String detail);
+
   /// No description provided for @readerNoPreviousChapter.
   ///
   /// In zh, this message translates to:
@@ -5711,6 +5741,12 @@ abstract class AppLocalizations {
   /// **'下载失败，请稍后重试'**
   String get updateDownloadFailed;
 
+  /// No description provided for @updateDownloadFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：{detail}'**
+  String updateDownloadFailedDetail(String detail);
+
   /// No description provided for @updateDownloadFallback.
   ///
   /// In zh, this message translates to:
@@ -5722,6 +5758,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'无法启动安装，请改用浏览器下载'**
   String get updateInstallFailed;
+
+  /// No description provided for @updateInstallFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法启动安装：{detail}'**
+  String updateInstallFailedDetail(String detail);
 
   /// No description provided for @updateInstallPermissionNeeded.
   ///
@@ -5801,11 +5843,23 @@ abstract class AppLocalizations {
   /// **'刷新通知失败，请稍后重试'**
   String get noticeRefreshFailed;
 
+  /// No description provided for @noticeRefreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新通知失败：{detail}'**
+  String noticeRefreshFailedDetail(String detail);
+
   /// No description provided for @noticeReadFailed.
   ///
   /// In zh, this message translates to:
   /// **'读取通知失败'**
   String get noticeReadFailed;
+
+  /// No description provided for @noticeReadFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取通知失败：{detail}'**
+  String noticeReadFailedDetail(String detail);
 
   /// No description provided for @noticeAllMarkedRead.
   ///
@@ -6575,6 +6629,12 @@ abstract class AppLocalizations {
   /// **'操作失败，请检查文件权限和可用空间后重试。'**
   String get backupOperationFailed;
 
+  /// No description provided for @backupOperationFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败：{detail}'**
+  String backupOperationFailedDetail(String detail);
+
   /// No description provided for @backupWebDavInvalidConfig.
   ///
   /// In zh, this message translates to:
@@ -6911,6 +6971,18 @@ abstract class AppLocalizations {
   /// **'收藏操作失败，请重试'**
   String get novelCollectFailed;
 
+  /// No description provided for @novelCollectFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏操作失败：{detail}'**
+  String novelCollectFailedDetail(String detail);
+
+  /// No description provided for @novelDownloadEnqueueFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入下载失败：{detail}'**
+  String novelDownloadEnqueueFailed(String detail);
+
   /// No description provided for @novelQueryFailed.
   ///
   /// In zh, this message translates to:
@@ -7168,6 +7240,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'卷册加载失败，重试'**
   String get novelReaderVolumesRetry;
+
+  /// No description provided for @novelReaderVolumesRetryDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷册加载失败：{detail}（点击重试）'**
+  String novelReaderVolumesRetryDetail(String detail);
 
   /// No description provided for @novelReaderPrevious.
   ///

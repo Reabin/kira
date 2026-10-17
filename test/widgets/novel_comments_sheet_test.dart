@@ -476,7 +476,7 @@ void main() {
     };
     await h.pump(tester, replyId: _parentId);
     await tester.pumpAndSettle();
-    expect(find.text('评论加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
     expect(find.text('恢复的回复'), findsOneWidget);

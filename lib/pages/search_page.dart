@@ -17,6 +17,7 @@ import '../routing/branch_activation.dart';
 import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/search_history.dart';
 import '../widgets/back_to_top_button.dart';

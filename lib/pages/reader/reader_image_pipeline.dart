@@ -438,7 +438,7 @@ extension _ReaderImagePipeline on _ReaderPageState {
           color: ReaderChrome.surface,
           child: const Center(child: ExpressiveLoadingIndicator()),
         ),
-        errorWidget: (_, _, _) {
+        errorWidget: (_, _, error) {
           final attempts = _imageRetryCounts[key] ?? 0;
           final retryLimit = _user.imageRetryCount;
           final canAutoRetry = attempts < retryLimit;
@@ -447,7 +447,8 @@ extension _ReaderImagePipeline on _ReaderPageState {
           }
           final pageLabel = '${chapter.name} · ${localIndex + 1}';
           final failedLabel =
-              '${AppLocalizations.of(context)!.loadingFailed}\n$pageLabel';
+              '${AppLocalizations.of(context)!.loadingFailed}：'
+              '${NetworkError.message(error)}\n$pageLabel';
 
           return Container(
             width: estimatedPlaceholderW,

@@ -17,6 +17,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/copy_web_login.dart';
+import '../utils/network_error.dart';
 
 /// 官网登录凭据抓取脚本。
 ///
@@ -694,10 +695,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           _error = l10n.copyAccountLoginSuperseded;
         });
       }
-    } catch (error) {
+    } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
-          'COPY WebView login failed',
+          error,
+          stackTrace: stack,
           source: 'webview_login.validate',
         ),
       );
@@ -706,7 +708,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           _completing = false;
           _error = error is CopyAccountStorageException
               ? l10n.copyAccountStorageFailed
-              : l10n.profileWebLoginFailed;
+              : NetworkError.message(error, l10n: l10n);
         });
       }
     }

@@ -20,6 +20,7 @@ import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
@@ -64,6 +65,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
   bool _refreshing = false;
   bool _forceLoading = false;
   bool _failed = false;
+  String? _loadError;
   bool _moreFailed = false;
   bool _unauthorized = false;
   bool _showingLoginPrompt = false;
@@ -239,6 +241,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         _total = data.total;
         _offset = data.nextOffset;
         _cacheTime = data.cacheTime;
+        _loadError = null;
       });
       if (!silent && mounted) {
         showToast(context, AppLocalizations.of(context)!.refreshSuccess);
@@ -251,11 +254,15 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
-        setState(() => _failed = true);
+        setState(() {
+          _failed = true;
+          _loadError = NetworkError.message(error);
+        });
         if (!silent && mounted) {
+          final l10n = AppLocalizations.of(context)!;
           showToast(
             context,
-            AppLocalizations.of(context)!.refreshFailed,
+            l10n.refreshFailedDetail(NetworkError.message(error, l10n: l10n)),
             isError: true,
           );
         }
@@ -419,9 +426,10 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.novelCollectFailed,
+          l10n.novelCollectFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -709,7 +717,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                         padding: EdgeInsets.symmetric(horizontal: hp),
                         sliver: SliverToBoxAdapter(
                           child: InlineRetryNotice(
-                            message: l10n.refreshFailed,
+                            message: _loadError ?? l10n.refreshFailed,
                             onRetry: () => unawaited(_load(force: true)),
                           ),
                         ),
@@ -728,6 +736,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                       )
                     else if (_failed && _items.isEmpty)
                       SliverErrorRetryView(
+                        message: _loadError,
                         onRetry: () => unawaited(_load(force: true)),
                       )
                     else if (_items.isEmpty)

@@ -239,7 +239,7 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
         if (_error != null && _topic == null && _comics.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: ErrorRetryView(onRetry: _load),
+            child: ErrorRetryView(message: _error, onRetry: _load),
           )
         else ...[
           if (_topic != null)

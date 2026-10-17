@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../providers/novel_providers.dart';
@@ -73,6 +74,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   String? _query;
   bool _themesLoading = true;
   bool _themesFailed = false;
+  Object? _themesError;
   bool _tagListExpanded = false;
   bool _hasSearchText = false;
   bool _canScrollUp = false;
@@ -223,7 +225,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
         ),
       );
       if (mounted && epoch == _themesEpoch) {
-        setState(() => _themesFailed = true);
+        setState(() {
+          _themesFailed = true;
+          _themesError = e;
+        });
       }
     } finally {
       if (mounted && epoch == _themesEpoch) {
@@ -392,7 +397,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
           ],
           if (_themesFailed)
             InlineRetryNotice(
-              message: l10n.novelThemesFailed,
+              message: novelErrorMessage(
+                _themesError,
+                fallback: l10n.novelThemesFailed,
+              ),
               onRetry: () => unawaited(_loadThemes()),
             ),
           FilterChipRow(
@@ -568,9 +576,12 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                         )
                       else if (_visibleFailed)
                         SliverErrorRetryView(
-                          message: _idle
-                              ? l10n.novelLoadFailed
-                              : l10n.novelSearchFailed,
+                          message: novelErrorMessage(
+                            _idle ? _books.error : _results.error,
+                            fallback: _idle
+                                ? l10n.novelLoadFailed
+                                : l10n.novelSearchFailed,
+                          ),
                           onRetry: _idle
                               ? () => unawaited(_books.refresh())
                               : () => unawaited(_results.refresh()),
@@ -618,9 +629,12 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: hp),
                               child: InlineRetryNotice(
-                                message: _idle
-                                    ? l10n.novelLoadFailed
-                                    : l10n.novelSearchFailed,
+                                message: novelErrorMessage(
+                                  _visible.refreshError,
+                                  fallback: _idle
+                                      ? l10n.novelLoadFailed
+                                      : l10n.novelSearchFailed,
+                                ),
                                 onRetry: () => unawaited(
                                   _visible.refresh(keepItems: true),
                                 ),

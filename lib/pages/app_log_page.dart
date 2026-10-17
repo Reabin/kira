@@ -223,7 +223,10 @@ class _AppLogPageState extends State<AppLogPage> {
                 // 读取失败必须与「没有日志」区分开：否则目录不可用会被当成
                 // 一切正常，用户拿不到任何可提供的证据。
                 if (snapshot.hasError) {
-                  return ErrorRetryView(onRetry: () => unawaited(_retry()));
+                  return ErrorRetryView(
+                    message: '${snapshot.error}',
+                    onRetry: () => unawaited(_retry()),
+                  );
                 }
 
                 final entries = snapshot.data ?? const <AppLogEntry>[];

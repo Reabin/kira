@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/novel_download.dart';
@@ -76,14 +77,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   bool _enqueuingDownloads = false;
   bool _detailLoading = true;
   bool _detailFailed = false;
+  Object? _detailError;
   bool _refreshingDetail = false;
   bool _volumesLoading = true;
   bool _volumesFailed = false;
+  Object? _volumesError;
   bool _refreshingVolumes = false;
   bool _queryLoading = true;
   bool _queryFailed = false;
+  Object? _queryError;
   bool _progressLoading = true;
   bool _progressFailed = false;
+  Object? _progressError;
   bool? _collected;
   bool _collecting = false;
   bool _opening = false;
@@ -285,7 +290,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'load');
       if (mounted && generation == _detailGeneration) {
-        setState(() => _detailFailed = true);
+        setState(() {
+          _detailFailed = true;
+          _detailError = e;
+        });
       }
     } finally {
       if (mounted && generation == _detailGeneration) {
@@ -322,7 +330,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'volumes');
       if (mounted && generation == _volumeGeneration) {
-        setState(() => _volumesFailed = true);
+        setState(() {
+          _volumesFailed = true;
+          _volumesError = e;
+        });
       }
     } finally {
       if (mounted && generation == _volumeGeneration) {
@@ -355,7 +366,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'query');
       if (mounted && generation == _queryGeneration) {
-        setState(() => _queryFailed = true);
+        setState(() {
+          _queryFailed = true;
+          _queryError = e;
+        });
       }
     } finally {
       if (mounted && generation == _queryGeneration) {
@@ -379,7 +393,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'progress');
       if (mounted && generation == _progressGeneration) {
-        setState(() => _progressFailed = true);
+        setState(() {
+          _progressFailed = true;
+          _progressError = e;
+        });
       }
     } finally {
       if (mounted && generation == _progressGeneration) {
@@ -417,9 +434,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       _log(e, stack, 'collect');
       if (mounted && account == _accountGeneration) {
         setState(() => _collecting = false);
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.novelCollectFailed,
+          l10n.novelCollectFailedDetail(novelErrorMessage(e)),
           isError: true,
         );
       }
@@ -674,9 +692,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (error, stack) {
       _log(error, stack, 'download');
       if (mounted && widget.pathWord == pathWord) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.novelDownloadEnqueueFailed(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -990,7 +1009,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: () => _loadDetail(refresh: true),
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelLoadFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _detailError,
+                    fallback: l10n.novelLoadFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1004,7 +1028,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: _loadQuery,
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelQueryFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _queryError,
+                    fallback: l10n.novelQueryFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1018,7 +1047,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: _loadProgress,
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelHistoryFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _progressError,
+                    fallback: l10n.novelHistoryFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1058,7 +1092,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       else if (_volumesFailed && _volumes.isEmpty)
         SliverToBoxAdapter(
           child: ErrorRetryView(
-            message: l10n.novelVolumesFailed,
+            message: novelErrorMessage(
+              _volumesError,
+              fallback: l10n.novelVolumesFailed,
+            ),
             onRetry: () => _loadVolumes(refresh: true),
           ),
         )
@@ -1280,7 +1317,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             (_detailLoading
                 ? const Center(child: ExpressiveLoadingIndicator())
                 : ErrorRetryView(
-                    message: l10n.novelLoadFailed,
+                    message: novelErrorMessage(
+                      _detailError,
+                      fallback: l10n.novelLoadFailed,
+                    ),
                     onRetry: () => _loadDetail(refresh: true),
                   ))
           else

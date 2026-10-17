@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel_reading_progress.dart';
 import '../providers/novel_providers.dart';
@@ -45,6 +46,7 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
   ScaffoldMessengerState? _messenger;
   bool _loading = true;
   bool _failed = false;
+  Object? _loadError;
   bool _updating = false;
 
   bool get hasBookmarks =>
@@ -143,7 +145,12 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
       if (mounted) setState(() => _failed = false);
     } catch (error, stack) {
       _logFailure(error, stack);
-      if (mounted) setState(() => _failed = true);
+      if (mounted) {
+        setState(() {
+          _failed = true;
+          _loadError = error;
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -446,7 +453,10 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
         slivers: [
           if (_failed)
             SliverErrorRetryView(
-              message: l10n.bookmarksLoadFailed,
+              message: _loadError == null
+                  ? l10n.bookmarksLoadFailed
+                  : '${l10n.bookmarksLoadFailed}：'
+                        '${novelErrorMessage(_loadError)}',
               onRetry: () => _load(refresh: true),
             )
           else if (entries.isEmpty)

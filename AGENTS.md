@@ -98,6 +98,7 @@ Android is the only **released** target (`build_apk.ps1` + `.github/workflows/re
 - `PascalCase` for classes/widgets, `camelCase` for members/methods, `snake_case.dart` for filenames, leading `_` for private APIs.
 - **Never** use `as` type casts on dynamic JSON — use the safe JSON helpers (`jsonString`, `jsonInt`, `jsonList`, `jsonMap`, `jsonDouble`, `jsonBool`, `NullIfEmptyString`) from `lib/utils/`.
 - **Never** leave empty catch blocks — use `AppLogger.recordWarning(error, stackTrace)`.
+- **Never hide the real error from the user.** When a request/operation fails, show the underlying cause instead of replacing it with a generic fixed string. Use `NetworkError.message(e, l10n: l10n)` for Dio/network errors and `novelErrorMessage(e, fallback: ...)` for novel API errors; a fixed l10n string may only serve as the fallback when the error carries no text. Keep the original exception in logs (never a synthesized `StateError`). Only deliberate exceptions: IP-block guidance copy, and novel code 210 which intentionally shows the full response body.
 - **Never** use `@ts-ignore`-equivalent suppression; fix the type error instead.
 - Prefer `const` constructors where possible.
 - Import `comic.dart` with `hide Theme` to avoid Flutter `Theme` conflict.

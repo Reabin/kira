@@ -178,6 +178,14 @@
   "backToTop": "回到頂部",
   "refreshSuccess": "重新整理成功",
   "refreshFailed": "重新整理失敗",
+  "refreshFailedDetail": "重新整理失敗：{detail}",
+  "@refreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "loginExpiredTitle": "登入已過期",
   "loginExpiredBookshelfContent": "書架需要登入後才能繼續使用，是否現在重新登入？",
   "loginExpiredFeatureContent": "{featureName}需要登入後才能繼續使用，是否現在重新登入？",
@@ -385,6 +393,14 @@
   "logoutConfirmContent": "確定要登出嗎？",
   "userInfoRefreshedToast": "使用者資訊已重新整理",
   "userInfoRefreshFailedToast": "重新整理失敗，請重試",
+  "userInfoRefreshFailedDetail": "重新整理失敗：{detail}",
+  "@userInfoRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "copyProfileRefreshUnavailable": "暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱",
   "tokenUnavailableToast": "暫無可複製的權杖",
   "tokenCopiedToast": "權杖已複製到剪貼簿",
@@ -598,6 +614,14 @@
     }
   },
   "networkTestingNodes": "正在檢測各節點...",
+  "networkSpeedTestFailedDetail": "測速失敗：{detail}",
+  "@networkSpeedTestFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "networkHighLatencyProxySuggestion": "目前延遲較大，建議開啟代理",
   "networkRateLimitMessage": "請求過於頻繁，已被限速，請稍後再試",
   "networkRequestFailedCode": "請求失敗（code: {code}）",
@@ -937,6 +961,14 @@
   "appDisclaimerFooter": "繼續使用本軟體，即表示您已仔細閱讀、充分理解並同意接受上述全部條款的約束。如您不同意任一條款，請立即停止使用並解除安裝本軟體。",
   "profileUsernamePasswordRequired": "請輸入使用者名稱和密碼",
   "profileLoginFailedProxyHint": "登入失敗，建議開啟代理後重試",
+  "profileLoginFailedDetail": "登入失敗：{detail}",
+  "@profileLoginFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "profileLoginIpBlockedHint": "目前 IP 已被封鎖，請更換網路環境或代理節點後重試",
   "profileTokenRequired": "請輸入權杖",
   "profileTokenInvalidOrExpired": "權杖無效或已過期",
@@ -1949,6 +1981,14 @@
   },
   "readerLocalChapterNoRefresh": "本地章節無需重新整理",
   "readerAutoSummaryFailed": "背景自動總結失敗：{error}",
+  "readerChainChapterFailedDetail": "載入相鄰章節失敗：{detail}",
+  "@readerChainChapterFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "@readerAutoSummaryFailed": {
     "placeholders": {
       "error": {
@@ -2017,6 +2057,14 @@
     }
   },
   "updateDownloadFailed": "下載失敗，請稍後重試",
+  "updateDownloadFailedDetail": "下載失敗：{detail}",
+  "@updateDownloadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "updateDownloadFallback": "下載源切換中（第 {count} 個備用源）",
   "@updateDownloadFallback": {
     "placeholders": {
@@ -2026,6 +2074,14 @@
     }
   },
   "updateInstallFailed": "無法啟動安裝，請改用瀏覽器下載",
+  "updateInstallFailedDetail": "無法啟動安裝：{detail}",
+  "@updateInstallFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "updateInstallPermissionNeeded": "需要「安裝未知應用」權限才能安裝更新",
   "updateDownloadPreparing": "準備下載…",
   "updateInstalling": "正在安裝…",
@@ -2039,7 +2095,23 @@
   "maleAudience": "男生",
   "femaleAudience": "女生",
   "noticeRefreshFailed": "重新整理通知失敗，請稍後重試",
+  "noticeRefreshFailedDetail": "重新整理通知失敗：{detail}",
+  "@noticeRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeReadFailed": "讀取通知失敗",
+  "noticeReadFailedDetail": "讀取通知失敗：{detail}",
+  "@noticeReadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeAllMarkedRead": "所有通知已標記為已讀",
   "noticeMarkAllReadTooltip": "全部已讀",
   "noticeRefreshTooltip": "重新整理通知",
@@ -2269,6 +2341,14 @@
   "backupRecoveryRequired": "資料還原尚未完成。請解鎖裝置、檢查可用空間後重試。",
   "backupRecoveryTitle": "回復本機資料",
   "backupOperationFailed": "操作失敗，請檢查檔案權限和可用空間後重試。",
+  "backupOperationFailedDetail": "操作失敗：{detail}",
+  "@backupOperationFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "backupWebDavInvalidConfig": "請檢查伺服器位址、使用者名稱和資料夾路徑。",
   "backupWebDavAuthentication": "登入失敗，請檢查使用者名稱和密碼。",
   "backupWebDavForbidden": "沒有操作權限，請檢查伺服器設定。",
@@ -2360,6 +2440,22 @@
   "novelNoBrief": "暫無簡介",
   "novelUncollect": "取消收藏",
   "novelCollectFailed": "收藏操作失敗，請重試",
+  "novelCollectFailedDetail": "收藏操作失敗：{detail}",
+  "@novelCollectFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "novelDownloadEnqueueFailed": "加入下載失敗：{detail}",
+  "@novelDownloadEnqueueFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelQueryFailed": "閱讀與收藏狀態載入失敗",
   "novelAccountRequired": "閱讀權限由拷貝帳戶決定，可登入後重試",
   "novelLocked": "目前內容受限，可嘗試切換拷貝帳戶",
@@ -2424,6 +2520,14 @@
   "novelReaderBookmark": "書籤",
   "novelReaderCopiedToast": "段落已複製到剪貼簿",
   "novelReaderVolumesRetry": "卷冊載入失敗，重試",
+  "novelReaderVolumesRetryDetail": "卷冊載入失敗：{detail}（點擊重試）",
+  "@novelReaderVolumesRetryDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelReaderPrevious": "上一卷",
   "novelReaderNext": "下一卷",
   "novelReaderSettings": "閱讀設定",

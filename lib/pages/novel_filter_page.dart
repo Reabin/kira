@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/api_ordering.dart';
 import '../models/novel.dart';
@@ -190,7 +191,7 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                       )
                     else if (_books.items.isEmpty && _books.error != null)
                       SliverErrorRetryView(
-                        message: l10n.novelLoadFailed,
+                        message: novelErrorMessage(_books.error),
                         onRetry: () => unawaited(_books.refresh()),
                       )
                     else if (_books.items.isEmpty)
@@ -212,7 +213,9 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                           child: Padding(
                             padding: EdgeInsets.symmetric(horizontal: hp),
                             child: InlineRetryNotice(
-                              message: l10n.novelLoadFailed,
+                              message: novelErrorMessage(
+                                _books.refreshError,
+                              ),
                               onRetry: () => unawaited(_refresh()),
                             ),
                           ),

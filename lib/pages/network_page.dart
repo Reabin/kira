@@ -15,6 +15,7 @@ import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
+import '../utils/network_error.dart';
 import '../utils/network_proxy.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';

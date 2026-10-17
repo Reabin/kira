@@ -1458,7 +1458,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         ? l10n.novelReaderEmptyVolume
         : unauthorized
         ? l10n.novelReaderLoginRequired
-        : l10n.novelReaderLoadFailed;
+        : novelErrorMessage(error, fallback: l10n.novelReaderLoadFailed);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Column(

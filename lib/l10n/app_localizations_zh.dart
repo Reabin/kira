@@ -338,6 +338,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshFailed => '刷新失败';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登录已过期';
 
   @override
@@ -636,6 +641,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get userInfoRefreshFailedToast => '刷新失败，请重试';
+
+  @override
+  String userInfoRefreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
 
   @override
   String get copyProfileRefreshUnavailable => '暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名';
@@ -945,6 +955,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkTestingNodes => '正在检测各节点...';
+
+  @override
+  String networkSpeedTestFailedDetail(String detail) {
+    return '测速失败：$detail';
+  }
 
   @override
   String get networkHighLatencyProxySuggestion => '当前延迟较大，建议开启代理';
@@ -1599,6 +1614,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get profileLoginFailedProxyHint => '登录失败，建议开启代理后重试';
+
+  @override
+  String profileLoginFailedDetail(String detail) {
+    return '登录失败：$detail';
+  }
 
   @override
   String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或代理节点后重试';
@@ -3010,6 +3030,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '加载相邻章节失败：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '当前已无上一话';
 
   @override
@@ -3127,12 +3152,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateDownloadFailed => '下载失败，请稍后重试';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下载失败：$detail';
+  }
+
+  @override
   String updateDownloadFallback(int count) {
     return '下载源切换中（第 $count 个备用源）';
   }
 
   @override
   String get updateInstallFailed => '无法启动安装，请改用浏览器下载';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '无法启动安装：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安装未知应用」权限才能安装更新';
@@ -3174,7 +3209,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noticeRefreshFailed => '刷新通知失败，请稍后重试';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '刷新通知失败：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '读取通知失败';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '读取通知失败：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已标记为已读';
@@ -3580,6 +3625,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupOperationFailed => '操作失败，请检查文件权限和可用空间后重试。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失败：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '请检查服务器地址、用户名和文件夹路径。';
 
   @override
@@ -3758,6 +3808,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelCollectFailed => '收藏操作失败，请重试';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失败：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下载失败：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '阅读与收藏状态加载失败';
 
   @override
@@ -3893,6 +3953,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
+
+  @override
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷册加载失败：$detail（点击重试）';
+  }
 
   @override
   String get novelReaderPrevious => '上一卷';
@@ -4466,6 +4531,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get refreshFailed => '重新整理失敗';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登入已過期';
 
   @override
@@ -4764,6 +4834,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get userInfoRefreshFailedToast => '重新整理失敗，請重試';
+
+  @override
+  String userInfoRefreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
 
   @override
   String get copyProfileRefreshUnavailable => '暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱';
@@ -5073,6 +5148,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkTestingNodes => '正在檢測各節點...';
+
+  @override
+  String networkSpeedTestFailedDetail(String detail) {
+    return '測速失敗：$detail';
+  }
 
   @override
   String get networkHighLatencyProxySuggestion => '目前延遲較大，建議開啟代理';
@@ -5727,6 +5807,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get profileLoginFailedProxyHint => '登入失敗，建議開啟代理後重試';
+
+  @override
+  String profileLoginFailedDetail(String detail) {
+    return '登入失敗：$detail';
+  }
 
   @override
   String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或代理節點後重試';
@@ -7138,6 +7223,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '載入相鄰章節失敗：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '目前已無上一話';
 
   @override
@@ -7255,12 +7345,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get updateDownloadFailed => '下載失敗，請稍後重試';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下載失敗：$detail';
+  }
+
+  @override
   String updateDownloadFallback(int count) {
     return '下載源切換中（第 $count 個備用源）';
   }
 
   @override
   String get updateInstallFailed => '無法啟動安裝，請改用瀏覽器下載';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '無法啟動安裝：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安裝未知應用」權限才能安裝更新';
@@ -7302,7 +7402,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get noticeRefreshFailed => '重新整理通知失敗，請稍後重試';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '重新整理通知失敗：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '讀取通知失敗';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '讀取通知失敗：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已標記為已讀';
@@ -7708,6 +7818,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get backupOperationFailed => '操作失敗，請檢查檔案權限和可用空間後重試。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失敗：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '請檢查伺服器位址、使用者名稱和資料夾路徑。';
 
   @override
@@ -7886,6 +8001,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelCollectFailed => '收藏操作失敗，請重試';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失敗：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下載失敗：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '閱讀與收藏狀態載入失敗';
 
   @override
@@ -8021,6 +8146,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';
+
+  @override
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷冊載入失敗：$detail（點擊重試）';
+  }
 
   @override
   String get novelReaderPrevious => '上一卷';

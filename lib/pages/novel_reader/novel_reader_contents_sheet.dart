@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
+import '../../api/novel/novel_api.dart' show novelErrorMessage;
 import '../../l10n/app_localizations.dart';
 import '../../models/novel.dart';
 import '../../repositories/novel_reader_source.dart';
@@ -68,7 +69,9 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
   bool _loading = false;
   bool _volumesLoading = true;
   bool _volumesFailed = false;
+  Object? _volumesError;
   bool _detailFailed = false;
+  Object? _detailError;
   int _request = 0;
   final _itemScrollController = ItemScrollController();
 
@@ -108,7 +111,12 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
           source: 'novel_reader.contents.volumes',
         ),
       );
-      if (mounted) setState(() => _volumesFailed = true);
+      if (mounted) {
+        setState(() {
+          _volumesFailed = true;
+          _volumesError = error;
+        });
+      }
     } finally {
       if (mounted) setState(() => _volumesLoading = false);
     }
@@ -137,7 +145,12 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
           source: 'novel_reader.contents.detail',
         ),
       );
-      if (mounted && request == _request) setState(() => _detailFailed = true);
+      if (mounted && request == _request) {
+        setState(() {
+          _detailFailed = true;
+          _detailError = error;
+        });
+      }
     } finally {
       if (mounted && request == _request) setState(() => _loading = false);
     }
@@ -222,7 +235,11 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
               child: TextButton.icon(
                 onPressed: _loadVolumes,
                 icon: const Icon(Icons.refresh, size: AppIconSize.md),
-                label: Text(l10n.novelReaderVolumesRetry),
+                label: Text(
+                  l10n.novelReaderVolumesRetryDetail(
+                    novelErrorMessage(_volumesError),
+                  ),
+                ),
               ),
             ),
           const Divider(height: 1),
@@ -235,7 +252,7 @@ class _NovelReaderContentsSheetState extends State<NovelReaderContentsSheet> {
                       child: ErrorRetryView(
                         message: _source.localOnly
                             ? l10n.novelDownloadUnavailable
-                            : null,
+                            : novelErrorMessage(_detailError),
                         onRetry: () => unawaited(_loadDetail(_selected)),
                       ),
                     ),

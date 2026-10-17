@@ -9,10 +9,12 @@ import '../models/api_ordering.dart';
 import '../models/comic.dart' hide Theme;
 import '../routing/app_router.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import 'home_page.dart';
 
@@ -53,6 +55,7 @@ class _RankingPageState extends State<RankingPage> {
   final _api = ApiClient();
   List<Comic> _comics = [];
   bool _loading = true;
+  String? _error;
   int _offset = 0;
   int _total = 0;
   bool _loadingMore = false;
@@ -112,6 +115,7 @@ class _RankingPageState extends State<RankingPage> {
   Future<void> _load() async {
     setState(() {
       _loading = true;
+      _error = null;
       _comics = [];
       _offset = 0;
     });
@@ -136,7 +140,12 @@ class _RankingPageState extends State<RankingPage> {
           source: 'ranking_page.load',
         ),
       );
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = NetworkError.message(e);
+        });
+      }
     }
   }
 
@@ -249,7 +258,12 @@ class _RankingPageState extends State<RankingPage> {
                   if (_comics.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: Center(child: Text(_emptyText(l10n))),
+                      child: _error == null
+                          ? Center(child: Text(_emptyText(l10n)))
+                          : ErrorRetryView(
+                              message: _error,
+                              onRetry: _load,
+                            ),
                     )
                   else
                     SliverPadding(

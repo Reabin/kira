@@ -178,6 +178,14 @@
   "backToTop": "回到顶部",
   "refreshSuccess": "刷新成功",
   "refreshFailed": "刷新失败",
+  "refreshFailedDetail": "刷新失败：{detail}",
+  "@refreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "loginExpiredTitle": "登录已过期",
   "loginExpiredBookshelfContent": "书架需要登录后才能继续使用，是否现在重新登录？",
   "loginExpiredFeatureContent": "{featureName}需要登录后才能继续使用，是否现在重新登录？",
@@ -385,6 +393,14 @@
   "logoutConfirmContent": "确定要退出登录吗？",
   "userInfoRefreshedToast": "用户信息已刷新",
   "userInfoRefreshFailedToast": "刷新失败，请重试",
+  "userInfoRefreshFailedDetail": "刷新失败：{detail}",
+  "@userInfoRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "copyProfileRefreshUnavailable": "暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名",
   "tokenUnavailableToast": "暂无可复制的令牌",
   "tokenCopiedToast": "令牌已复制到剪贴板",
@@ -598,6 +614,14 @@
     }
   },
   "networkTestingNodes": "正在检测各节点...",
+  "networkSpeedTestFailedDetail": "测速失败：{detail}",
+  "@networkSpeedTestFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "networkHighLatencyProxySuggestion": "当前延迟较大，建议开启代理",
   "networkRateLimitMessage": "请求过于频繁，已被限速，请稍后再试",
   "networkRequestFailedCode": "请求失败（code: {code}）",
@@ -966,6 +990,14 @@
   "appDisclaimerFooter": "继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。",
   "profileUsernamePasswordRequired": "请输入用户名和密码",
   "profileLoginFailedProxyHint": "登录失败，建议开启代理后重试",
+  "profileLoginFailedDetail": "登录失败：{detail}",
+  "@profileLoginFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "profileLoginIpBlockedHint": "当前 IP 被封禁，请更换网络环境或代理节点后重试",
   "profileTokenRequired": "请输入令牌",
   "profileTokenInvalidOrExpired": "令牌无效或已过期",
@@ -2002,6 +2034,14 @@
   },
   "readerLocalChapterNoRefresh": "本地章节无需刷新",
   "readerAutoSummaryFailed": "后台自动总结失败：{error}",
+  "readerChainChapterFailedDetail": "加载相邻章节失败：{detail}",
+  "@readerChainChapterFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "@readerAutoSummaryFailed": {
     "placeholders": {
       "error": {
@@ -2070,6 +2110,14 @@
     }
   },
   "updateDownloadFailed": "下载失败，请稍后重试",
+  "updateDownloadFailedDetail": "下载失败：{detail}",
+  "@updateDownloadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "updateDownloadFallback": "下载源切换中（第 {count} 个备用源）",
   "@updateDownloadFallback": {
     "placeholders": {
@@ -2079,6 +2127,14 @@
     }
   },
   "updateInstallFailed": "无法启动安装，请改用浏览器下载",
+  "updateInstallFailedDetail": "无法启动安装：{detail}",
+  "@updateInstallFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "updateInstallPermissionNeeded": "需要「安装未知应用」权限才能安装更新",
   "updateDownloadPreparing": "准备下载…",
   "updateInstalling": "正在安装…",
@@ -2092,7 +2148,23 @@
   "maleAudience": "男生",
   "femaleAudience": "女生",
   "noticeRefreshFailed": "刷新通知失败，请稍后重试",
+  "noticeRefreshFailedDetail": "刷新通知失败：{detail}",
+  "@noticeRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeReadFailed": "读取通知失败",
+  "noticeReadFailedDetail": "读取通知失败：{detail}",
+  "@noticeReadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeAllMarkedRead": "所有通知已标记为已读",
   "noticeMarkAllReadTooltip": "全部已读",
   "noticeRefreshTooltip": "刷新通知",
@@ -2300,6 +2372,14 @@
   "backupRecoveryRequired": "数据恢复尚未完成。请解锁设备、检查可用空间后重试。",
   "backupRecoveryTitle": "恢复本机数据",
   "backupOperationFailed": "操作失败，请检查文件权限和可用空间后重试。",
+  "backupOperationFailedDetail": "操作失败：{detail}",
+  "@backupOperationFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "backupWebDavInvalidConfig": "请检查服务器地址、用户名和文件夹路径。",
   "backupWebDavAuthentication": "登录失败，请检查用户名和密码。",
   "backupWebDavForbidden": "没有操作权限，请检查服务器设置。",
@@ -2391,6 +2471,22 @@
   "novelNoBrief": "暂无简介",
   "novelUncollect": "取消收藏",
   "novelCollectFailed": "收藏操作失败，请重试",
+  "novelCollectFailedDetail": "收藏操作失败：{detail}",
+  "@novelCollectFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "novelDownloadEnqueueFailed": "加入下载失败：{detail}",
+  "@novelDownloadEnqueueFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelQueryFailed": "阅读与收藏状态加载失败",
   "novelAccountRequired": "阅读权限由拷贝账户决定，可登录后重试",
   "novelLocked": "当前内容受限，可尝试切换拷贝账户",
@@ -2455,6 +2551,14 @@
   "novelReaderBookmark": "书签",
   "novelReaderCopiedToast": "段落已复制到剪贴板",
   "novelReaderVolumesRetry": "卷册加载失败，重试",
+  "novelReaderVolumesRetryDetail": "卷册加载失败：{detail}（点击重试）",
+  "@novelReaderVolumesRetryDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelReaderPrevious": "上一卷",
   "novelReaderNext": "下一卷",
   "novelReaderSettings": "阅读设置",
