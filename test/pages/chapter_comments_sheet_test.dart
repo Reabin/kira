@@ -4,6 +4,7 @@ import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/chapter_comment.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/chapter_comments_sheet.dart';
+import 'package:kira/widgets/load_more_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -38,7 +39,12 @@ void main() {
     );
   }
 
-  Future<void> pumpCommentsSheet(WidgetTester tester) async {
+  Future<void> pumpCommentsSheet(
+    WidgetTester tester, {
+    List<ChapterComment>? comments,
+    int? initialTotal,
+    Size viewSize = const Size(593, 279),
+  }) async {
     SharedPreferences.setMockInitialValues({
       'comment_compact_layout': true,
       'comment_show_avatar': false,
@@ -48,11 +54,11 @@ void main() {
     await UserManager().init();
 
     tester.view.devicePixelRatio = 1.0;
-    tester.view.physicalSize = const Size(593, 279);
+    tester.view.physicalSize = viewSize;
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
-    final comments = <ChapterComment>[
+    comments ??= <ChapterComment>[
       ...mergedComments('会赢的', 101, 1000),
       ...mergedComments('圣地巡礼', 5, 2000),
       ...mergedComments('想你了，牢师', 3, 3000),
@@ -72,7 +78,7 @@ void main() {
             chapterUuid: 'chapter-1',
             chapterName: '第 1 话',
             initialComments: comments,
-            initialTotal: comments.length,
+            initialTotal: initialTotal ?? comments.length,
           ),
         ),
       ),
@@ -153,6 +159,31 @@ void main() {
 
     expect(tester.getSize(find.text('会赢的')).height, lessThan(30));
     expect(tester.getSize(find.text('圣地巡礼')).height, lessThan(30));
+  });
+
+  testWidgets('shows a load more footer for the remaining pages', (
+    tester,
+  ) async {
+    await pumpCommentsSheet(
+      tester,
+      comments: mergedComments('会赢的', 10, 1000),
+      initialTotal: 78,
+      viewSize: const Size(593, 1200),
+    );
+    // 首屏补页会等 1 秒再请求下一页；测试环境下网络请求直接失败并结束循环。
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoadMoreFooter), findsOneWidget);
+    expect(find.text('加载更多（10/78）'), findsOneWidget);
+  });
+
+  testWidgets('hides the load more footer once everything is loaded', (
+    tester,
+  ) async {
+    await pumpCommentsSheet(tester);
+
+    expect(find.byType(LoadMoreFooter), findsNothing);
   });
 
   testWidgets('floating buttons reappear at the bottom', (tester) async {

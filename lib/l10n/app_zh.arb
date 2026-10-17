@@ -1250,7 +1250,6 @@
   "chapterCommentsPlusOneSent": "+1 已发送",
   "chapterCommentsPostFailed": "发表评论失败",
   "chapterCommentsTitle": "章节评论",
-  "chapterCommentsLoadAllTooltip": "加载全部评论",
   "chapterCommentsAiSummaryTooltip": "AI 总结评论",
   "chapterCommentsRegenerateAiSummaryTooltip": "重新生成 AI 总结",
   "chapterCommentsSwitchToListLayout": "切换为列表布局",

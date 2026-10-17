@@ -3690,12 +3690,6 @@ abstract class AppLocalizations {
   /// **'章节评论'**
   String get chapterCommentsTitle;
 
-  /// No description provided for @chapterCommentsLoadAllTooltip.
-  ///
-  /// In zh, this message translates to:
-  /// **'加载全部评论'**
-  String get chapterCommentsLoadAllTooltip;
-
   /// No description provided for @chapterCommentsAiSummaryTooltip.
   ///
   /// In zh, this message translates to:

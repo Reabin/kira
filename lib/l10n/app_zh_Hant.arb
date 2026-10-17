@@ -1221,7 +1221,6 @@
   "chapterCommentsPlusOneSent": "+1 已傳送",
   "chapterCommentsPostFailed": "發表評論失敗",
   "chapterCommentsTitle": "章節評論",
-  "chapterCommentsLoadAllTooltip": "載入全部評論",
   "chapterCommentsAiSummaryTooltip": "AI 總結評論",
   "chapterCommentsRegenerateAiSummaryTooltip": "重新生成 AI 總結",
   "chapterCommentsSwitchToListLayout": "切換為列表版面",

@@ -360,6 +360,7 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
       onNotification: handleScrollNotification,
       child: ListView.separated(
         controller: scrollController,
+        physics: CommentScrollBehavior.alwaysDraggablePhysics,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, _listBottomPadding),
         itemCount: _groupedEntries.length + (_loadingMore ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),

@@ -1990,9 +1990,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chapterCommentsTitle => '章节评论';
 
   @override
-  String get chapterCommentsLoadAllTooltip => '加载全部评论';
-
-  @override
   String get chapterCommentsAiSummaryTooltip => 'AI 总结评论';
 
   @override
@@ -6109,9 +6106,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chapterCommentsTitle => '章節評論';
-
-  @override
-  String get chapterCommentsLoadAllTooltip => '載入全部評論';
 
   @override
   String get chapterCommentsAiSummaryTooltip => 'AI 總結評論';
