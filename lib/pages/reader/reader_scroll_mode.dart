@@ -173,27 +173,18 @@ extension _ReaderScrollMode on _ReaderPageState {
     return false;
   }
 
-  /// 滚动模式：最后一话时，"当前已无下一话"组件顶边滚到屏幕约 1/4 处则返回目录。
-  /// 横向滚动的末尾空白页较窄（不足视口 3/5），改为完全进入视口后仍继续
-  /// 向前滑（含到头后的 overscroll）才返回目录。
-  bool _shouldScrollToCatalog(ScrollNotification notification) {
-    if (_scrollTailIndex < 0 || _loading || _autoAdvancingChapter) return false;
+  /// 纵向滚动：末话提示顶边到屏幕约 1/4 处时返回目录；横向需主动点击目录。
+  bool _shouldScrollToCatalog() {
+    if (_isHorizontalScrollMode ||
+        _scrollTailIndex < 0 ||
+        _loading ||
+        _autoAdvancingChapter) {
+      return false;
+    }
 
     final positions = _itemPositionsListener.itemPositions.value;
     for (final p in positions) {
       if (p.index != _scrollTailIndex) continue;
-      if (_isHorizontalScrollMode) {
-        final fullyVisible =
-            p.itemLeadingEdge >= -0.05 && p.itemTrailingEdge <= 1.05;
-        if (!fullyVisible) return false;
-        if (notification is ScrollUpdateNotification) {
-          return (notification.scrollDelta ?? 0) > 0;
-        }
-        if (notification is OverscrollNotification) {
-          return notification.overscroll > 0;
-        }
-        return false;
-      }
       // 尾部组件顶边滚到屏幕高度约 1/4 处时触发跳转。阈值调小会让末尾卡
       // 需要多滚一截才退出，降低误触返回详情页的概率。
       if (p.itemLeadingEdge <= 0.25) {
@@ -351,7 +342,7 @@ extension _ReaderScrollMode on _ReaderPageState {
             if (_continuousReading) {
               _maybeAppendNextChainOnScroll();
               _maybePrependPrevChainOnScroll();
-              if (_shouldScrollToCatalog(n)) {
+              if (_shouldScrollToCatalog()) {
                 _autoAdvancingChapter = true;
                 _exitToCatalog();
               }
@@ -359,7 +350,7 @@ extension _ReaderScrollMode on _ReaderPageState {
               if (_shouldAutoAdvanceScrollChapter(n)) {
                 _autoAdvanceToNextChapter();
               }
-              if (_shouldScrollToCatalog(n)) {
+              if (_shouldScrollToCatalog()) {
                 _autoAdvancingChapter = true;
                 _exitToCatalog();
               }
