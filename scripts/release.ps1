@@ -1,4 +1,4 @@
-# 支持 -ResumeTag v1.2.3 直接从 CLI 恢复指定版本（跳过版本选择交互）
+﻿# 支持 -ResumeTag v1.2.3 直接从 CLI 恢复指定版本（跳过版本选择交互）
 param([string]$ResumeTag = '')
 
 . "$PSScriptRoot\common.ps1"

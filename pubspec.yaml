@@ -1,7 +1,7 @@
 name: kira
 description: "A comic reader app."
 publish_to: "none"
-version: 1.7.3+544
+version: 1.7.3+545
 environment:
   sdk: ^3.11.0
 
@@ -15,7 +15,7 @@ dependencies:
   charset: ^2.0.1
   cached_network_image: ^3.4.1
   flutter_cache_manager: ^3.4.1
-  # 版本�?pubspec.lock 固定；升�?2.5.x(native 绑定变更)前必须真机验证冷启动
+  # 版本由 pubspec.lock 固定；升到 2.5.x(native 绑定变更)前必须真机验证冷启动
   shared_preferences: ^2.3.0
   package_info_plus: ^10.1.0
   path: ^1.9.1

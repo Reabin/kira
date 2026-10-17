@@ -1,4 +1,4 @@
-# 架构参数供 CI 多 ABI 构建复用；缺省保持本地单架构 arm64-v8a 行为
+﻿# 架构参数供 CI 多 ABI 构建复用；缺省保持本地单架构 arm64-v8a 行为
 param(
     [string]$TargetPlatform = 'android-arm64',
     [string]$Abi = 'arm64-v8a'

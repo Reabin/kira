@@ -1,4 +1,4 @@
-. "$PSScriptRoot\common.ps1"
+﻿. "$PSScriptRoot\common.ps1"
 
 Write-Host "`n=== Kira Windows 安装包构建脚本 ===" -ForegroundColor Green
 
