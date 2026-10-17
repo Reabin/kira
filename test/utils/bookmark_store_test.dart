@@ -208,6 +208,30 @@ void main() {
     expect(removedAgain, isEmpty);
   });
 
+  test('空分组可删除并持久化，撤销恢复原始元数据但不覆盖新分组', () async {
+    final store = BookmarkStore();
+    await store.addGroup(pathWord: 'comic-a', comicName: '漫画A');
+    await store.addGroup(pathWord: 'comic-b', comicName: '漫画B');
+    final original = store.groups.firstWhere((g) => g.pathWord == 'comic-a');
+    expect(await store.removeGroup('comic-a'), isEmpty);
+    await store.reload();
+    expect(store.hasGroup('comic-a'), isFalse);
+    expect(store.hasGroup('comic-b'), isTrue);
+
+    await store.restoreAll(const [], groups: [original, original]);
+    await store.reload();
+    expect(store.groups, hasLength(2));
+    expect(
+      store.groups.firstWhere((g) => g.pathWord == 'comic-a').toJson(),
+      original.toJson(),
+    );
+    expect(store.bookmarks, isEmpty);
+    await store.removeGroup('comic-a');
+    await store.addGroup(pathWord: 'comic-a', comicName: '新名称');
+    await store.restoreAll(const [], groups: [original]);
+    expect(store.groups.first.comicName, '新名称');
+  });
+
   test('restoreAll re-adds removed bookmarks sorted newest first', () async {
     final store = BookmarkStore();
     final older = ComicBookmark(

@@ -154,6 +154,42 @@ void main() {
     },
   );
 
+  test('空分组可删除并持久化，撤销恢复原始元数据但不覆盖新分组', () async {
+    await store.addGroup(pathWord: 'novel-a', name: '小说 A');
+    await store.addGroup(pathWord: 'novel-b', name: '小说 B');
+    final original = store.groups.firstWhere((g) => g.pathWord == 'novel-a');
+    expect(await store.removeGroup('novel-a'), isEmpty);
+    await store.reload();
+    expect(store.hasGroup('novel-a'), isFalse);
+    expect(store.hasGroup('novel-b'), isTrue);
+
+    await store.restoreAll(const [], groups: [original, original]);
+    await store.reload();
+    expect(store.groups, hasLength(2));
+    expect(
+      store.groups.firstWhere((g) => g.pathWord == 'novel-a').toJson(),
+      original.toJson(),
+    );
+    expect(store.bookmarks, isEmpty);
+    await store.removeGroup('novel-a');
+    await store.addGroup(pathWord: 'novel-a', name: '新名称');
+    await store.restoreAll(const [], groups: [original]);
+    expect(store.groups.first.name, '新名称');
+  });
+
+  test('空分组删除写入失败时保留组头，随后仍可删除', () async {
+    await store.addGroup(pathWord: 'novel-a', name: '小说 A');
+    final controlled = _ControlledPreferences(prefs)..failNextWrite = true;
+    store.dispose();
+    store = NovelBookmarkStore.forTesting(prefs: Future.value(controlled));
+    await store.ensureLoaded();
+    await expectLater(store.removeGroup('novel-a'), throwsStateError);
+    expect(store.hasGroup('novel-a'), isTrue);
+    await store.removeGroup('novel-a');
+    await store.reload();
+    expect(store.groups, isEmpty);
+  });
+
   test('single/group/all deletions support deduplicating undo', () async {
     await store.toggle(progress: _position());
     await store.toggle(progress: _position().copyWith(paragraphIndex: 40));

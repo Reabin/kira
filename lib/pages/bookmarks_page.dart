@@ -384,7 +384,11 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
         bookmark.chapterName.toLowerCase().contains(query);
   }
 
-  void _showUndoSnackBar(String message, List<ComicBookmark> removed) {
+  void _showUndoSnackBar(
+    String message,
+    List<ComicBookmark> removed, {
+    List<ComicBookmarkGroup> removedGroups = const [],
+  }) {
     final l10n = AppLocalizations.of(context)!;
     // 与消息正文同色,避免默认 primary 蓝色按钮在通知条上过于扎眼。
     final btnStyle = TextButton.styleFrom(
@@ -403,7 +407,7 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
               TextButton(
                 style: btnStyle,
                 onPressed: () {
-                  _store.restoreAll(removed);
+                  _store.restoreAll(removed, groups: removedGroups);
                   _messenger?.hideCurrentSnackBar();
                 },
                 child: Text(l10n.bookmarkUndo),
@@ -427,11 +431,19 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
     _showUndoSnackBar(l10n.bookmarkDeleted, [bookmark]);
   }
 
-  Future<void> _clearGroup(List<ComicBookmark> group) async {
-    final removed = await _store.removeForComic(group.first.pathWord);
-    if (!mounted || removed.isEmpty) return;
+  Future<void> _clearGroup(String pathWord) async {
+    final group = _groupMetaOf(pathWord);
+    final empty = !_store.bookmarks.any((b) => b.pathWord == pathWord);
+    final removed = await (empty
+        ? _store.removeGroup(pathWord)
+        : _store.removeForComic(pathWord));
+    if (!mounted || (removed.isEmpty && (!empty || group == null))) return;
     final l10n = AppLocalizations.of(context)!;
-    _showUndoSnackBar(l10n.bookmarksGroupDeleted(removed.length), removed);
+    _showUndoSnackBar(
+      empty ? l10n.bookmarkDeleted : l10n.bookmarksGroupDeleted(removed.length),
+      removed,
+      removedGroups: empty && group != null ? [group] : const [],
+    );
   }
 
   Future<void> _clearAll() async {
@@ -534,7 +546,7 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
         onOpenBookmark: _openBookmark,
         onContinue: () => _continueReading(group.key),
         onRemove: _remove,
-        onClearGroup: _clearGroup,
+        onClearGroup: () => _clearGroup(group.key),
       );
     }
 
@@ -660,7 +672,7 @@ class _BookmarkGroupCard extends StatelessWidget {
   final ValueChanged<ComicBookmark> onOpenBookmark;
   final VoidCallback onContinue;
   final Future<void> Function(ComicBookmark) onRemove;
-  final Future<void> Function(List<ComicBookmark>) onClearGroup;
+  final Future<void> Function() onClearGroup;
 
   const _BookmarkGroupCard({
     required this.pathWord,
@@ -708,9 +720,7 @@ class _BookmarkGroupCard extends StatelessWidget {
         children: [
           Dismissible(
             key: ValueKey('bookmark_group_$pathWord'),
-            direction: empty
-                ? DismissDirection.none
-                : DismissDirection.endToStart,
+            direction: DismissDirection.endToStart,
             background: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
@@ -720,7 +730,7 @@ class _BookmarkGroupCard extends StatelessWidget {
             // 等待落盘后由 store 通知刷新；组头即使书签被删光也仍在，
             // 因此不能用 onDismissed（会命中「已 dismiss 的 Dismissible 仍在树上」断言）。
             confirmDismiss: (_) async {
-              await onClearGroup(bookmarks);
+              await onClearGroup();
               return false;
             },
             child: InkWell(

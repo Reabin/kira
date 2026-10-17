@@ -354,7 +354,10 @@ class BookmarkStore extends ChangeNotifier {
   }
 
   /// 批量恢复书签（撤销删除），按标记时间倒序归并。
-  Future<void> restoreAll(List<ComicBookmark> items) async {
+  Future<void> restoreAll(
+    List<ComicBookmark> items, {
+    List<ComicBookmarkGroup> groups = const [],
+  }) async {
     await ensureLoaded();
     if (_restoring) return;
     final existing = _bookmarks.map((b) => b.id).toSet();
@@ -362,6 +365,12 @@ class BookmarkStore extends ChangeNotifier {
     _bookmarks.sort(_byNewest);
     if (_bookmarks.length > maxBookmarks) {
       _bookmarks.removeRange(maxBookmarks, _bookmarks.length);
+    }
+    final knownGroups = _groups.map((group) => group.pathWord).toSet();
+    _groups.addAll(groups.where((group) => knownGroups.add(group.pathWord)));
+    _groups.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    if (_groups.length > maxBookmarks) {
+      _groups.removeRange(maxBookmarks, _groups.length);
     }
     await _persist();
   }

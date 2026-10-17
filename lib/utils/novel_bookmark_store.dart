@@ -268,23 +268,37 @@ class NovelBookmarkStore extends ChangeNotifier {
       if (removed.isEmpty && !hasGroup(pathWord)) {
         return const <NovelBookmark>[];
       }
-      _groups = List.unmodifiable(
-        _groups.where((group) => group.pathWord != pathWord),
+      await _commit(
+        _bookmarks.where((item) => item.pathWord != pathWord),
+        groups: _groups.where((group) => group.pathWord != pathWord),
       );
-      await _commit(_bookmarks.where((item) => item.pathWord != pathWord));
       return removed;
     },
   );
 
   /// 撤销只补回缺失的书签，不覆盖用户随后重新标记的位置。
-  Future<void> restoreAll(List<NovelBookmark> items) {
+  Future<void> restoreAll(
+    List<NovelBookmark> items, {
+    List<NovelBookmarkGroup> groups = const [],
+  }) {
     final snapshot = List<NovelBookmark>.of(items);
+    final groupSnapshot = List<NovelBookmarkGroup>.of(groups);
     return _mutate<void>(
       blocked: () {},
       action: () async {
         final ids = _bookmarks.map((item) => item.id).toSet();
         final added = snapshot.where((item) => ids.add(item.id)).toList();
-        if (added.isNotEmpty) await _commit([..._bookmarks, ...added]);
+        final knownGroups = _groups.map((group) => group.pathWord).toSet();
+        final addedGroups = groupSnapshot
+            .where((group) => knownGroups.add(group.pathWord))
+            .toList();
+        if (added.isEmpty && addedGroups.isEmpty) return;
+        final nextGroups = [..._groups, ...addedGroups]
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        await _commit([
+          ..._bookmarks,
+          ...added,
+        ], groups: nextGroups.take(maxBookmarks));
       },
     );
   }
@@ -428,8 +442,14 @@ class NovelBookmarkStore extends ChangeNotifier {
     );
   }
 
-  Future<void> _commit(Iterable<NovelBookmark> items) async {
+  Future<void> _commit(
+    Iterable<NovelBookmark> items, {
+    Iterable<NovelBookmarkGroup>? groups,
+  }) async {
     final next = _normalize(items);
+    final nextGroups = groups == null
+        ? _groups
+        : List<NovelBookmarkGroup>.unmodifiable(groups);
     final encoded = jsonEncode(next.map((item) => item.toJson()).toList());
     final prefs = await _preferences;
     if (!await prefs.setString(storageKey, encoded)) {
@@ -438,8 +458,9 @@ class NovelBookmarkStore extends ChangeNotifier {
     // 分组元数据与书签同一次提交落盘：书签被删光后组头仍要保留。
     await prefs.setString(
       groupsStorageKey,
-      jsonEncode(_groups.map((group) => group.toJson()).toList()),
+      jsonEncode(nextGroups.map((group) => group.toJson()).toList()),
     );
+    _groups = nextGroups;
     _bookmarks = next;
     notifyListeners();
   }

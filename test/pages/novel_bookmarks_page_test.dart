@@ -15,6 +15,8 @@ import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/novel_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late NovelBookmarkStore novelStore;
@@ -38,7 +40,10 @@ void main() {
     await novelStore.toggle(progress: _position());
   }
 
+  setUp(setupSecureCredentialStoreForTest);
+
   tearDown(() async {
+    teardownSecureCredentialStoreForTest();
     await novelStore.flush();
     novelStore.dispose();
     await BookmarkStore().flush();
@@ -133,6 +138,49 @@ void main() {
     expect(novelStore.bookmarks.single.paragraphAlignment, -0.35);
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in [360.0, 800.0]) {
+    testWidgets('删光轻小说书签后空组头可左滑删除、撤销与持久化：${width}dp', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await seedBookmarks();
+      final saved = novelStore.bookmarks.single;
+      await _pump(tester, novelStore);
+      await _showNovels(tester);
+      await tester.drag(
+        find.byKey(ValueKey('novel_bookmark_${saved.id}')),
+        const Offset(-550, 0),
+      );
+      await _settleBookmarks(tester, novelStore);
+      final group = novelStore.groups.single;
+      expect(find.text('0 条书签'), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(const ValueKey('novel_bookmark_group_novel-a')),
+        const Offset(-550, 0),
+      );
+      await _settleBookmarks(tester, novelStore);
+      expect(novelStore.hasGroup('novel-a'), isFalse);
+      expect(find.text('小说 A'), findsNothing);
+      expect(find.text('还没有书签'), findsOneWidget);
+      await novelStore.reload();
+      await tester.pumpAndSettle();
+      expect(novelStore.groups, isEmpty);
+      expect(BookmarkStore().bookmarks, hasLength(1));
+
+      await tester.tap(find.text('撤销'));
+      await _settleBookmarks(tester, novelStore);
+      expect(novelStore.bookmarks, isEmpty);
+      expect(novelStore.groups.single.toJson(), group.toJson());
+      expect(find.text('0 条书签'), findsOneWidget);
+      await novelStore.reload();
+      await tester.pumpAndSettle();
+      expect(novelStore.hasGroup('novel-a'), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('swiping one novel bookmark does not remove its sibling', (
     tester,

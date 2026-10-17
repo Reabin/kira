@@ -8,10 +8,13 @@ import 'package:kira/routing/app_router.dart';
 import 'package:kira/utils/bookmark_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     BookmarkStore().debugReset();
     await BookmarkStore().toggle(
@@ -24,7 +27,10 @@ void main() {
     );
   });
 
-  tearDown(() => BookmarkStore().debugReset());
+  tearDown(() {
+    BookmarkStore().debugReset();
+    teardownSecureCredentialStoreForTest();
+  });
 
   testWidgets('single bookmark still renders as a list and card opens detail', (
     tester,
@@ -96,6 +102,50 @@ void main() {
     expect(find.text('0 条书签'), findsOneWidget);
     expect(find.text('还没有书签'), findsNothing);
   });
+
+  for (final width in [360.0, 800.0]) {
+    testWidgets('删光书签后空组头可左滑删除、撤销与持久化：${width}dp', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final router = _createRouter();
+      addTearDown(router.dispose);
+      await tester.pumpWidget(_buildTestApp(router));
+      await tester.pumpAndSettle();
+      final store = BookmarkStore();
+      await tester.drag(
+        find.byKey(const ValueKey('bookmark_chapter-1:7')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(store.bookmarks, isEmpty);
+      final group = store.groups.single;
+      expect(find.text('0 条书签'), findsOneWidget);
+
+      await tester.drag(
+        find.byKey(const ValueKey('bookmark_group_comic-a')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(store.hasGroup('comic-a'), isFalse);
+      expect(_groupFinder('comic-a'), findsNothing);
+      expect(find.text('还没有书签'), findsOneWidget);
+      await store.reload();
+      await tester.pumpAndSettle();
+      expect(store.groups, isEmpty);
+
+      await tester.tap(find.text('撤销'));
+      await tester.pumpAndSettle();
+      expect(store.bookmarks, isEmpty);
+      expect(store.groups.single.toJson(), group.toJson());
+      expect(find.text('0 条书签'), findsOneWidget);
+      await store.reload();
+      await tester.pumpAndSettle();
+      expect(store.hasGroup('comic-a'), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('搜索按漫画名与章节名过滤，命中即整组展示，无结果与空态区分', (tester) async {
     // 同一漫画再存一条：用于验证命中一条时整组都显示。

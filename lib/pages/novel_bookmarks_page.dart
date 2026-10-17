@@ -165,13 +165,18 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
   Future<void> _update(
     Future<List<NovelBookmark>> Function() action, {
     bool undo = false,
+    List<NovelBookmarkGroup> removedGroups = const [],
   }) async {
     if (_updating) return;
     setState(() => _updating = true);
     widget.onChanged();
     try {
       final removed = await action();
-      if (mounted && !undo && removed.isNotEmpty) _showUndo(removed);
+      if (mounted &&
+          !undo &&
+          (removed.isNotEmpty || removedGroups.isNotEmpty)) {
+        _showUndo(removed, removedGroups: removedGroups);
+      }
     } catch (error, stack) {
       _logFailure(error, stack);
       if (mounted) {
@@ -194,8 +199,16 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
     return removed == null ? const [] : [removed];
   });
 
-  Future<void> _clearGroup(String pathWord) =>
-      _update(() => _store.removeForNovel(pathWord));
+  Future<void> _clearGroup(String pathWord) {
+    final group = _groupMetaOf(pathWord);
+    final empty = !_store.bookmarks.any((b) => b.pathWord == pathWord);
+    return _update(
+      () => empty
+          ? _store.removeGroup(pathWord)
+          : _store.removeForNovel(pathWord),
+      removedGroups: empty && group != null ? [group] : const [],
+    );
+  }
 
   Future<void> clearAll() async {
     if (!hasBookmarks) return;
@@ -220,7 +233,10 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
     if (confirmed == true && mounted) await _update(_store.clear);
   }
 
-  void _showUndo(List<NovelBookmark> removed) {
+  void _showUndo(
+    List<NovelBookmark> removed, {
+    List<NovelBookmarkGroup> removedGroups = const [],
+  }) {
     final l10n = AppLocalizations.of(context)!;
     final style = TextButton.styleFrom(
       foregroundColor: Theme.of(context).colorScheme.onInverseSurface,
@@ -235,7 +251,7 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
             children: [
               Expanded(
                 child: Text(
-                  removed.length == 1
+                  removed.length <= 1
                       ? l10n.bookmarkDeleted
                       : l10n.bookmarksGroupDeleted(removed.length),
                 ),
@@ -246,7 +262,7 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
                   _messenger?.hideCurrentSnackBar();
                   unawaited(
                     _update(() async {
-                      await _store.restoreAll(removed);
+                      await _store.restoreAll(removed, groups: removedGroups);
                       return const [];
                     }, undo: true),
                   );
@@ -573,12 +589,9 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
     required Widget child,
     required Future<void> Function() remove,
     required ColorScheme cs,
-    bool enabled = true,
   }) => Dismissible(
     key: ValueKey(id),
-    direction: (updating || !enabled)
-        ? DismissDirection.none
-        : DismissDirection.endToStart,
+    direction: updating ? DismissDirection.none : DismissDirection.endToStart,
     background: Container(
       alignment: Alignment.centerRight,
       padding: const EdgeInsets.only(right: AppSpacing.xl),
@@ -609,7 +622,6 @@ class _NovelBookmarkGroupCard extends StatelessWidget {
           _dismissible(
             id: 'novel_bookmark_group_$pathWord',
             cs: cs,
-            enabled: !empty,
             remove: onClear,
             child: InkWell(
               key: ValueKey('novel_bookmark_details_$pathWord'),
