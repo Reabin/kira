@@ -30,6 +30,7 @@ class NovelReaderPageView extends StatefulWidget {
     required this.emptyChapterText,
     required this.contentPadding,
     required this.onPosition,
+    required this.toolbarVisible,
     required this.onTap,
     this.onParagraphLongPress,
     this.isBookmarkedParagraph,
@@ -53,7 +54,10 @@ class NovelReaderPageView extends StatefulWidget {
   final EdgeInsets contentPadding;
   final ValueChanged<NovelReaderLocation> onPosition;
 
-  /// 页面中间区域点击（切换工具栏）。
+  /// 工具栏显示时，正文点击只切换工具栏，不触发分区翻页。
+  final bool toolbarVisible;
+
+  /// 工具栏显示时点击任意区域，或隐藏时点击中间区域（切换工具栏）。
   final VoidCallback onTap;
 
   /// 长按段落（复制/书签菜单）；回携带落点全局坐标供菜单定位。
@@ -475,6 +479,10 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
 
   void _handleTap(Offset globalPosition) {
     if (_restoring) return;
+    if (widget.toolbarVisible) {
+      widget.onTap();
+      return;
+    }
     final box = context.findRenderObject() as RenderBox?;
     final width = _size?.width ?? box?.size.width ?? 0;
     if (box == null || width <= 0) return;

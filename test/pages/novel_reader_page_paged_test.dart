@@ -324,30 +324,64 @@ void main() {
     await _remove(tester);
   });
 
-  testWidgets('paged mode turns pages from the side zones and taps center', (
-    tester,
-  ) async {
-    await _mount(tester, repository: repository, store: store);
-    expect(find.byType(NovelReaderPageView), findsOneWidget);
-    expect(find.byType(NovelReaderViewport), findsNothing);
-    final start = _pagedLocation(tester);
-    // 右 1/3：下一页；翻页同时收起工具栏。
-    await tester.tapAt(const Offset(700, 300));
-    await _settle(tester);
-    final next = _pagedLocation(tester);
-    expect(next.progress, greaterThan(start.progress));
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
-    // 左 1/3：上一页。
-    await tester.tapAt(const Offset(100, 300));
-    await _settle(tester);
-    expect(_pagedLocation(tester).progress, closeTo(start.progress, 1e-9));
-    // 中间区域：唤回工具栏。
-    await tester.tapAt(const Offset(400, 300));
-    await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await _remove(tester);
-  });
+  for (final realistic in [true, false]) {
+    for (final instant in [true, false]) {
+      testWidgets(
+        'paged taps dismiss toolbar before turning realistic=$realistic instant=$instant',
+        (tester) async {
+          await _mount(
+            tester,
+            repository: repository,
+            store: store,
+            settings: NovelReaderSettings(
+              mode: NovelReaderMode.paged,
+              realisticPageTurn: realistic,
+              instantPageTurn: instant,
+            ),
+          );
+          expect(find.byType(NovelReaderPageView), findsOneWidget);
+          expect(find.byType(NovelReaderViewport), findsNothing);
+          final toolbar = find.byKey(const ValueKey('novel-reader-back'));
+          final start = _pagedLocation(tester).progress;
+          expect(toolbar, findsOneWidget);
+
+          // 工具栏显示时点右侧只收起；再次点击才翻到下一页。
+          await tester.tapAt(const Offset(700, 300));
+          await _settle(tester);
+          expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+          expect(toolbar, findsNothing);
+          await tester.tapAt(const Offset(700, 300));
+          await _settle(tester);
+          final next = _pagedLocation(tester).progress;
+          expect(next, greaterThan(start));
+
+          // 在可回翻的页面唤出工具栏，点左侧同样先收起、不翻页。
+          await tester.tapAt(const Offset(400, 300));
+          await _settle(tester);
+          expect(toolbar, findsOneWidget);
+          expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
+          await tester.tapAt(const Offset(100, 300));
+          await _settle(tester);
+          expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
+          expect(toolbar, findsNothing);
+          await tester.tapAt(const Offset(100, 300));
+          await _settle(tester);
+          expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+
+          // 中间区域只切换工具栏，不改变位置。
+          await tester.tapAt(const Offset(400, 300));
+          await _settle(tester);
+          expect(toolbar, findsOneWidget);
+          await tester.tapAt(const Offset(400, 300));
+          await _settle(tester);
+          expect(toolbar, findsNothing);
+          expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+          expect(tester.takeException(), isNull);
+          await _remove(tester);
+        },
+      );
+    }
+  }
 
   testWidgets('switching scroll to paged keeps the reading position', (
     tester,
@@ -441,6 +475,15 @@ void main() {
     });
     await _mount(tester, repository: repository, store: store);
     await _slideTo(tester, 5);
+    final last = _pagedLocation(tester).progress;
+    await tester.tapAt(const Offset(700, 300));
+    await _settle(tester);
+    expect(_pagedLocation(tester).progress, closeTo(last, 1e-9));
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v2/')),
+      isFalse,
+    );
+    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     expect(
@@ -461,6 +504,8 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository: repository, store: store);
+    await tester.tapAt(const Offset(400, 300));
+    await _settle(tester);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     await tester.pump(const Duration(milliseconds: 400));
@@ -490,6 +535,8 @@ void main() {
       0,
       reason: '前提：末页页首仍属于第 1 章',
     );
+    await tester.tapAt(const Offset(400, 300));
+    await _settle(tester);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     expect(
@@ -510,6 +557,15 @@ void main() {
       'v2': _volume(id: 'v2', entryTexts: _texts('v2', [6]), previous: 'v1'),
     });
     await _mount(tester, repository: repository, store: store, volume: 'v2');
+    final start = _pagedLocation(tester).progress;
+    await tester.tapAt(const Offset(100, 300));
+    await _settle(tester);
+    expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+    expect(
+      repository.calls.any((call) => call.startsWith('book/v1/')),
+      isFalse,
+    );
+    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
     expect(
@@ -560,6 +616,8 @@ void main() {
         paragraphSpacing: 32,
       ),
     );
+    await tester.tapAt(const Offset(400, 300));
+    await _settle(tester);
     for (var turn = 1; turn <= 6; turn++) {
       await tester.tapAt(const Offset(700, 300));
       await _settle(tester);

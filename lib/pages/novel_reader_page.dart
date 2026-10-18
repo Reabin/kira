@@ -1245,6 +1245,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         emptyChapterText: l10n.novelReaderEmptyChapter,
         contentPadding: _systemPadding ?? EdgeInsets.zero,
         onPosition: onPosition,
+        toolbarVisible: _toolbarVisible,
         onTap: () => _setToolbarVisible(!_toolbarVisible),
         onParagraphLongPress: (paragraph, position) =>
             unawaited(_showParagraphMenu(paragraph, position)),

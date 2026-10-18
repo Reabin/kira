@@ -29,7 +29,8 @@ class _Harness {
   int jumpRevision = 0;
   int bookmarkRevision = 0;
   int turns = 0;
-  int centerTaps = 0;
+  int toolbarTaps = 0;
+  bool toolbarVisible = false;
   int longPresses = 0;
   final boundaries = <bool>[];
   final positions = <NovelReaderLocation>[];
@@ -56,7 +57,8 @@ class _Harness {
               emptyChapterText: 'empty',
               contentPadding: const EdgeInsets.all(24),
               onPosition: positions.add,
-              onTap: () => centerTaps++,
+              toolbarVisible: toolbarVisible,
+              onTap: () => toolbarTaps++,
               onPageTurned: () => turns++,
               onBoundary: boundaries.add,
               onParagraphLongPress: (_, _) => longPresses++,
@@ -132,6 +134,69 @@ void main() {
         expect(harness.progress, start);
         expect(harness.turns, 2);
       });
+
+      testWidgets(
+        'toolbar visibility gates taps realistic=$realistic instant=$instant',
+        (tester) async {
+          final harness = _Harness()
+            ..toolbarVisible = true
+            ..settings = NovelReaderSettings(
+              mode: NovelReaderMode.paged,
+              realisticPageTurn: realistic,
+              instantPageTurn: instant,
+            );
+          await harness.mount(tester);
+          final start = harness.progress;
+          final rect = tester.getRect(find.byKey(_surfaceKey));
+          for (final fraction in [1 / 6, 5 / 6, 1 / 2]) {
+            await tester.tapAt(
+              Offset(rect.left + rect.width * fraction, rect.center.dy),
+            );
+            await _settle(tester);
+            expect(harness.progress, start);
+            expect(harness.turns, 0);
+            expect(harness.boundaries, isEmpty);
+          }
+          expect(harness.toolbarTaps, 3);
+
+          harness.toolbarVisible = false;
+          await harness.mount(tester);
+          await tester.tapAt(Offset(rect.right - 20, rect.center.dy));
+          await _settle(tester);
+          expect(harness.progress, greaterThan(start));
+          await tester.tapAt(Offset(rect.left + 20, rect.center.dy));
+          await _settle(tester);
+          expect(harness.progress, start);
+          expect(harness.turns, 2);
+          expect(harness.toolbarTaps, 3);
+        },
+      );
+
+      testWidgets(
+        'visible toolbar allows direct and drag turns realistic=$realistic instant=$instant',
+        (tester) async {
+          final harness = _Harness()
+            ..toolbarVisible = true
+            ..settings = NovelReaderSettings(
+              mode: NovelReaderMode.paged,
+              realisticPageTurn: realistic,
+              instantPageTurn: instant,
+            );
+          await harness.mount(tester);
+          final start = harness.progress;
+          harness.key.currentState!.nextPage();
+          await _settle(tester);
+          expect(harness.progress, greaterThan(start));
+          expect(harness.turns, 1);
+
+          final gesture = await _drag(tester, 200);
+          await gesture.up();
+          await _settle(tester);
+          expect(harness.progress, start);
+          expect(harness.turns, 2);
+          expect(harness.toolbarTaps, 0);
+        },
+      );
     }
 
     testWidgets('instant long drag turns only once realistic=$realistic', (
@@ -264,7 +329,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 40));
         await tester.tapAt(tester.getCenter(find.byKey(_surfaceKey)));
         await _settle(tester);
-        expect(harness.centerTaps, 1);
+        expect(harness.toolbarTaps, 1);
         expect(harness.turns, 1);
       },
     );
