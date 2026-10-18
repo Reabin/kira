@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api_client.dart';
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/comic.dart' hide Theme;
 import '../models/novel_reading_progress.dart';
@@ -83,8 +84,13 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
 
   List<BrowseHistoryItem> _comicItems = [];
   bool _loading = true;
+
+  /// 首屏加载失败的原因。此前失败只是把列表留空，用户看到的是「没有记录」，
+  /// 完全掩盖了真实错误。
+  String? _loadError;
   bool _refreshing = false;
   bool _loadingMore = false;
+  String? _loadMoreError;
   bool _showingLoginPrompt = false;
   int _offset = 0;
   int _total = 0;
@@ -173,9 +179,16 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
     _refreshing = true;
     final isInitial = _currentItemsEmpty;
     if (isInitial) {
-      setState(() => _loading = true);
+      setState(() {
+        _loading = true;
+        _loadError = null;
+        _loadMoreError = null;
+      });
     } else {
-      setState(() {});
+      setState(() {
+        _loadError = null;
+        _loadMoreError = null;
+      });
     }
     _offset = 0;
 
@@ -187,6 +200,7 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
         _total = data.total;
         _offset = data.list.length;
         _loading = false;
+        _loadError = null;
       });
       if (!silent && mounted) {
         showToast(context, AppLocalizations.of(context)!.refreshSuccess);
@@ -199,7 +213,12 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
           source: 'browse_history_page.load',
         ),
       );
-      if (isInitial && mounted) setState(() => _loading = false);
+      if (isInitial && mounted) {
+        setState(() {
+          _loading = false;
+          _loadError = NetworkError.message(e);
+        });
+      }
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
@@ -218,7 +237,10 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
 
   Future<void> _loadMore() async {
     if (_loadingMore || _refreshing || _offset >= _total) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _api.user.getBrowseHistory(offset: _offset);
       if (!mounted) return;
@@ -236,6 +258,8 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
       );
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
+      } else if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
       }
     } finally {
       if (mounted) {
@@ -369,7 +393,15 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
                     const SliverToBoxAdapter(
                       child: LinearProgressIndicator(minHeight: 2),
                     ),
-                  if (_currentItemsEmpty)
+                  if (_currentItemsEmpty && _loadError != null)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: ErrorRetryView(
+                        message: l10n.browseHistoryLoadFailed(_loadError!),
+                        onRetry: () => _load(force: true),
+                      ),
+                    )
+                  else if (_currentItemsEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(
@@ -466,6 +498,7 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
                           loading: _loadingMore,
                           onPressed: _loadMore,
                           label: l10n.loadMoreProgress(_offset, _total),
+                          detail: _loadMoreError,
                           horizontalPadding: hp,
                         ),
                       ),
@@ -981,7 +1014,13 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
         ),
       );
       if (mounted) {
-        showToast(context, l10n.novelHistoryDeleteFailed, isError: true);
+        showToast(
+          context,
+          l10n.novelHistoryDeleteFailedDetail(
+            NetworkError.message(e),
+          ),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) {
@@ -1130,6 +1169,7 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
                       label: _failed
                           ? l10n.novelLoadMoreFailed
                           : l10n.novelLoadMore,
+                      detail: _failed ? novelErrorMessage(_loadError) : null,
                       horizontalPadding: hp,
                     ),
                   ),

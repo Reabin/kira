@@ -189,7 +189,9 @@ class NovelBookmarksPageState extends ConsumerState<NovelBookmarksPage>
       if (mounted) {
         showToast(
           context,
-          AppLocalizations.of(context)!.bookmarksUpdateFailed,
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }

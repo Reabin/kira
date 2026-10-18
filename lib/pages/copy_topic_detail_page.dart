@@ -11,6 +11,7 @@ import '../providers/repository_providers.dart';
 import '../repositories/copy_topic_repository.dart';
 import '../routing/app_router.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
@@ -44,6 +45,7 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
   int _offset = 0;
   int _total = 0;
   String? _error;
+  String? _loadMoreError;
   bool _showBackToTop = false;
 
   String get _scope => 'copy-topic-${widget.pathWord}';
@@ -77,6 +79,7 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
       _offset = 0;
       _total = 0;
       _error = null;
+      _loadMoreError = null;
       _topic = null;
       _comics.clear();
     });
@@ -108,7 +111,7 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
       );
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = NetworkError.message(e);
         _loading = false;
         _hasMore = false;
       });
@@ -117,7 +120,10 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _repository.loadTopicComics(
         widget.pathWord,
@@ -138,6 +144,9 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
           source: 'copy_topic_detail_page.load_more',
         ),
       );
+      if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
+      }
     }
     if (mounted) {
       setState(() => _loadingMore = false);
@@ -283,6 +292,7 @@ class _CopyTopicDetailPageState extends ConsumerState<CopyTopicDetailPage> {
                 loading: _loadingMore,
                 onPressed: _loadMore,
                 label: l10n.loadMoreProgress(_offset, _total),
+                detail: _loadMoreError,
                 horizontalPadding: hp,
               ),
             ),

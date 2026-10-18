@@ -259,6 +259,9 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                           label: _books.error == null
                               ? l10n.novelLoadMore
                               : l10n.novelLoadMoreFailed,
+                          detail: _books.error == null
+                              ? null
+                              : novelErrorMessage(_books.error),
                           horizontalPadding: hp,
                         ),
                       ),

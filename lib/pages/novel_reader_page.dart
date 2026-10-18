@@ -297,7 +297,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.toggle');
       if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+        showToast(
+          context,
+          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _bookmarking = false);
@@ -912,7 +916,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.remove');
       if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+        showToast(
+          context,
+          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _bookmarking = false);
@@ -951,7 +959,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.toggle');
       if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+        showToast(
+          context,
+          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _bookmarking = false);

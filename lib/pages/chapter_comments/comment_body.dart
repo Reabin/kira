@@ -20,6 +20,15 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
   /// 服务端每页只给 10 条，宽屏下一屏就能铺满且列表不可滚动，近底自动加载
   /// 永远等不到触发，这个按钮是那种场景下的兜底（与书架页一致）。
   Widget? _buildLoadMoreFooter(AppLocalizations l10n) {
+    // 翻页失败时也要留入口：既显示真实原因，也能手动重试。
+    if (_error != null && _comments.isNotEmpty) {
+      return LoadMoreFooter(
+        loading: false,
+        onPressed: () => _loadComments(loadMore: true),
+        label: l10n.loadMoreFailed,
+        detail: _error,
+      );
+    }
     if (_allCommentsLoaded || _total <= 0) return null;
     return LoadMoreFooter(
       loading: _loadingMore,

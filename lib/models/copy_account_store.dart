@@ -408,10 +408,13 @@ class CopyAccountStore extends ChangeNotifier {
     return previous == null ? run() : previous.then((_) => run());
   }
 
-  static void _logStorageFailure(String operation) {
+  /// [error] 只用于日志：界面文案刻意不含底层存储错误（可能带密钥内容），
+  /// 但日志至少要留下异常类型，否则「保存失败」永远无从定位。
+  static void _logStorageFailure(String operation, [Object? error]) {
     unawaited(
       AppLogger.instance.recordWarning(
-        const CopyAccountStorageException(),
+        'COPY account storage unavailable (${(error ?? const CopyAccountStorageException()).runtimeType})',
+        stackTrace: error == null ? null : StackTrace.current,
         source: 'copy_account.$operation',
       ),
     );
@@ -480,9 +483,9 @@ class CopyAccountStore extends ChangeNotifier {
           if (!primaryPrepared) return;
           try {
             await rollback?.call();
-          } catch (_) {
+          } catch (error) {
             // Compensation failure must not discard the readable COPY snapshot.
-            _logStorageFailure('restore_primary');
+            _logStorageFailure('restore_primary', error);
           }
         }
 
@@ -508,7 +511,7 @@ class CopyAccountStore extends ChangeNotifier {
             return;
           }
           onCommitted?.call(merge);
-        } catch (_) {
+        } catch (error) {
           // Keep both readable snapshots when either side fails. Normal startup
           // can retry the cleanup; it must not report a half-committed identity.
           await rollbackPrimary();
@@ -519,12 +522,12 @@ class CopyAccountStore extends ChangeNotifier {
               } else {
                 await _restorePublishedRecord();
               }
-            } catch (_) {
-              _logStorageFailure('restore_copy');
+            } catch (error) {
+              _logStorageFailure('restore_copy', error);
             }
           }
           handled = originalHandled;
-          _logStorageFailure('migrate');
+          _logStorageFailure('migrate', error);
           merge = CopyAccountMerge(
             accounts: originalAccounts,
             activeId: _reachable(originalActiveId, originalAccounts),
@@ -537,9 +540,9 @@ class CopyAccountStore extends ChangeNotifier {
         _migrationHandled = handled;
         _cleared = cleared && _accounts.isEmpty;
         notifyListeners();
-      } catch (_) {
+      } catch (error) {
         // Storage failures never block or clear the primary account.
-        _logStorageFailure('init');
+        _logStorageFailure('init', error);
       }
     });
   }
@@ -667,8 +670,8 @@ class CopyAccountStore extends ChangeNotifier {
           await _restorePublishedRecord();
           return false;
         }
-      } catch (_) {
-        _logStorageFailure('save');
+      } catch (error) {
+        _logStorageFailure('save', error);
         throw const CopyAccountStorageException();
       }
       if (superseded()) return false;
@@ -732,8 +735,8 @@ class CopyAccountStore extends ChangeNotifier {
           await _restorePublishedRecord();
           return false;
         }
-      } catch (_) {
-        _logStorageFailure('refresh');
+      } catch (error) {
+        _logStorageFailure('refresh', error);
         throw const CopyAccountStorageException();
       }
       if (!current()) return false;
@@ -791,8 +794,8 @@ class CopyAccountStore extends ChangeNotifier {
           await _restorePublishedRecord();
           return false;
         }
-      } catch (_) {
-        _logStorageFailure('sync');
+      } catch (error) {
+        _logStorageFailure('sync', error);
         throw const CopyAccountStorageException();
       }
       if (!current()) return false;
@@ -818,8 +821,8 @@ class CopyAccountStore extends ChangeNotifier {
           await _restorePublishedRecord();
           return false;
         }
-      } catch (_) {
-        _logStorageFailure('select');
+      } catch (error) {
+        _logStorageFailure('select', error);
         throw const CopyAccountStorageException();
       }
       if (revision != _revision) return false;
@@ -843,8 +846,8 @@ class CopyAccountStore extends ChangeNotifier {
       ];
       try {
         await _writeRecord(next, _activeId);
-      } catch (_) {
-        _logStorageFailure('rename');
+      } catch (error) {
+        _logStorageFailure('rename', error);
         throw const CopyAccountStorageException();
       }
       if (revision != _revision) return false;
@@ -871,8 +874,8 @@ class CopyAccountStore extends ChangeNotifier {
         } else {
           await _writeRecord(next, activeId);
         }
-      } catch (_) {
-        _logStorageFailure('remove');
+      } catch (error) {
+        _logStorageFailure('remove', error);
         throw const CopyAccountStorageException();
       }
       _accounts = next;
@@ -895,8 +898,8 @@ class CopyAccountStore extends ChangeNotifier {
     return _serialize(() async {
       try {
         await _writeClearedRecord();
-      } catch (_) {
-        _logStorageFailure('clear');
+      } catch (error) {
+        _logStorageFailure('clear', error);
         throw const CopyAccountStorageException();
       }
       _accounts = const [];

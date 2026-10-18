@@ -817,6 +817,12 @@ abstract class AppLocalizations {
   /// **'加载更多'**
   String get loadMore;
 
+  /// No description provided for @loadMoreFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载更多失败，请重试'**
+  String get loadMoreFailed;
+
   /// No description provided for @loadMoreProgress.
   ///
   /// In zh, this message translates to:
@@ -2515,11 +2521,11 @@ abstract class AppLocalizations {
   /// **'书签加载失败，请重试'**
   String get bookmarksLoadFailed;
 
-  /// No description provided for @bookmarksUpdateFailed.
+  /// No description provided for @bookmarksUpdateFailedDetail.
   ///
   /// In zh, this message translates to:
-  /// **'书签保存失败，请重试'**
-  String get bookmarksUpdateFailed;
+  /// **'书签保存失败：{detail}'**
+  String bookmarksUpdateFailedDetail(String detail);
 
   /// No description provided for @bookmarksSearchHint.
   ///
@@ -4332,6 +4338,12 @@ abstract class AppLocalizations {
   /// **'浏览过的漫画会同步显示在这里'**
   String get browseHistoryLoginHintComicOnly;
 
+  /// No description provided for @browseHistoryLoadFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'浏览记录加载失败：{detail}'**
+  String browseHistoryLoadFailed(String detail);
+
   /// No description provided for @browseHistoryEmptyTitle.
   ///
   /// In zh, this message translates to:
@@ -5651,11 +5663,11 @@ abstract class AppLocalizations {
   /// **'图片已保存到相册'**
   String get readerImageSaved;
 
-  /// No description provided for @readerSaveImageFailed.
+  /// No description provided for @readerSaveImageFailedDetail.
   ///
   /// In zh, this message translates to:
-  /// **'图片保存失败'**
-  String get readerSaveImageFailed;
+  /// **'图片保存失败：{detail}'**
+  String readerSaveImageFailedDetail(String detail);
 
   /// No description provided for @readerSaveImagePermissionDenied.
   ///
@@ -7043,11 +7055,11 @@ abstract class AppLocalizations {
   /// **'移除阅读记录'**
   String get novelRemoveHistory;
 
-  /// No description provided for @novelHistoryDeleteFailed.
+  /// No description provided for @novelHistoryDeleteFailedDetail.
   ///
   /// In zh, this message translates to:
-  /// **'移除失败，请重试'**
-  String get novelHistoryDeleteFailed;
+  /// **'移除失败：{detail}'**
+  String novelHistoryDeleteFailedDetail(String detail);
 
   /// No description provided for @novelBookDetails.
   ///

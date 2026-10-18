@@ -454,6 +454,8 @@ void main() {
       tester.element(find.byType(NovelCommentsSheet)),
     )!;
     expect(find.text(l10n.novelLoadMoreFailed), findsOneWidget);
+    // 失败原因必须可见，否则截图只有「加载失败」无从排查。
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.text(l10n.novelLoadMoreFailed));
     await tester.pumpAndSettle();
     expect(find.text('下一页评论'), findsOneWidget);

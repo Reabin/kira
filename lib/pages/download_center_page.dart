@@ -805,6 +805,17 @@ class _NovelQueueTaskCard extends StatelessWidget {
                   ],
                 ],
               ),
+              // 失败原因一直存在 task.error 里却从未展示过；用户只能看到
+              // 「下载失败」四个字，既无法判断原因也无法反馈。
+              if (task.error != null && task.error!.trim().isNotEmpty) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  task.error!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.labelSmall?.copyWith(color: cs.error),
+                ),
+              ],
               if (status == NovelDownloadStatus.downloading ||
                   status == NovelDownloadStatus.queued ||
                   status == NovelDownloadStatus.partial) ...[

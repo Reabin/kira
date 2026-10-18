@@ -240,24 +240,52 @@ class AllTagsGrid extends StatelessWidget {
 /// 非阻断错误：保留已有筛选/内容，且只有显式点击才会重试。
 class InlineRetryNotice extends StatelessWidget {
   final String message;
+
+  /// 失败的具体原因（`NetworkError.describe` 的结果），单独一行显示，
+  /// 与固定文案分开，避免把可排查的信息压成一句「失败，请重试」。
+  final String? detail;
+
   final VoidCallback onRetry;
 
   const InlineRetryNotice({
     super.key,
     required this.message,
+    this.detail,
     required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final detail = this.detail?.trim() ?? '';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Semantics(
         liveRegion: true,
         child: Row(
           children: [
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(message),
+                  if (detail.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        detail,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(width: AppSpacing.sm),
             TextButton.icon(
               onPressed: onRetry,

@@ -400,6 +400,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loadMore => '加载更多';
 
   @override
+  String get loadMoreFailed => '加载更多失败，请重试';
+
+  @override
   String loadMoreProgress(int loaded, int total) {
     return '加载更多（$loaded/$total）';
   }
@@ -1346,7 +1349,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarksLoadFailed => '书签加载失败，请重试';
 
   @override
-  String get bookmarksUpdateFailed => '书签保存失败，请重试';
+  String bookmarksUpdateFailedDetail(String detail) {
+    return '书签保存失败：$detail';
+  }
 
   @override
   String get bookmarksSearchHint => '搜索书名或章节';
@@ -2353,6 +2358,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get browseHistoryLoginHintComicOnly => '浏览过的漫画会同步显示在这里';
 
   @override
+  String browseHistoryLoadFailed(String detail) {
+    return '浏览记录加载失败：$detail';
+  }
+
+  @override
   String browseHistoryEmptyTitle(String mode) {
     return '还没有$mode浏览记录';
   }
@@ -3103,7 +3113,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerImageSaved => '图片已保存到相册';
 
   @override
-  String get readerSaveImageFailed => '图片保存失败';
+  String readerSaveImageFailedDetail(String detail) {
+    return '图片保存失败：$detail';
+  }
 
   @override
   String get readerSaveImagePermissionDenied => '没有相册写入权限，保存失败';
@@ -3848,7 +3860,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelRemoveHistory => '移除阅读记录';
 
   @override
-  String get novelHistoryDeleteFailed => '移除失败，请重试';
+  String novelHistoryDeleteFailedDetail(String detail) {
+    return '移除失败：$detail';
+  }
 
   @override
   String get novelBookDetails => '查看详情';
@@ -4591,6 +4605,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get loadMore => '載入更多';
+
+  @override
+  String get loadMoreFailed => '載入更多失敗，請重試';
 
   @override
   String loadMoreProgress(int loaded, int total) {
@@ -5539,7 +5556,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarksLoadFailed => '書籤載入失敗，請重試';
 
   @override
-  String get bookmarksUpdateFailed => '書籤儲存失敗，請重試';
+  String bookmarksUpdateFailedDetail(String detail) {
+    return '書籤儲存失敗：$detail';
+  }
 
   @override
   String get bookmarksSearchHint => '搜尋書名或章節';
@@ -6546,6 +6565,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get browseHistoryLoginHintComicOnly => '瀏覽過的漫畫會同步顯示在這裡';
 
   @override
+  String browseHistoryLoadFailed(String detail) {
+    return '瀏覽紀錄載入失敗：$detail';
+  }
+
+  @override
   String browseHistoryEmptyTitle(String mode) {
     return '還沒有$mode瀏覽紀錄';
   }
@@ -7296,7 +7320,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerImageSaved => '圖片已儲存到相簿';
 
   @override
-  String get readerSaveImageFailed => '圖片儲存失敗';
+  String readerSaveImageFailedDetail(String detail) {
+    return '圖片儲存失敗：$detail';
+  }
 
   @override
   String get readerSaveImagePermissionDenied => '沒有相簿寫入權限，儲存失敗';
@@ -8041,7 +8067,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelRemoveHistory => '移除閱讀記錄';
 
   @override
-  String get novelHistoryDeleteFailed => '移除失敗，請重試';
+  String novelHistoryDeleteFailedDetail(String detail) {
+    return '移除失敗：$detail';
+  }
 
   @override
   String get novelBookDetails => '查看詳情';

@@ -288,6 +288,9 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
   bool get canLoadMore =>
       !_loading &&
       !_loadingMore &&
+      // 上一页失败后不再由滚动自动重试：失败原因已显示在列表底部，
+      // 交给用户显式点击，避免近底滚动反复打同一个失败请求。
+      _error == null &&
       // 首屏补页与全量加载期间由它们自己按 offset 追加，避免近底自动翻页
       // 抢跑、同一 offset 并发请求。
       !_prefetchingInitialPages &&

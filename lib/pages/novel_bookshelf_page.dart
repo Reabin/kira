@@ -67,6 +67,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
   bool _failed = false;
   String? _loadError;
   bool _moreFailed = false;
+  String? _moreError;
   bool _unauthorized = false;
   bool _showingLoginPrompt = false;
   bool _showBackToTop = false;
@@ -212,6 +213,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       _forceLoading = force;
       _loading = _items.isEmpty;
       _loadingMore = _failed = _moreFailed = false;
+      _moreError = null;
     });
     return _loadFuture = _performLoad(
       generation,
@@ -303,6 +305,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     setState(() {
       _loadingMore = true;
       _moreFailed = false;
+      _moreError = null;
     });
     try {
       final page = await _repo.loadPage(offset: offset, ordering: _ordering);
@@ -323,7 +326,10 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
-        setState(() => _moreFailed = true);
+        setState(() {
+          _moreFailed = true;
+          _moreError = NetworkError.message(error);
+        });
       }
     } finally {
       if (_isCurrent(generation, scope)) {
@@ -760,6 +766,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                           label: _moreFailed
                               ? l10n.retryButton
                               : l10n.loadMoreProgress(_offset, _total),
+                          detail: _moreFailed ? _moreError : null,
                           horizontalPadding: hp,
                         ),
                       ),

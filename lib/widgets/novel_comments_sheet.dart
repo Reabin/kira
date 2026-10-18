@@ -992,6 +992,7 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
                         loading: false,
                         onPressed: _comments.loadMore,
                         label: l10n.novelLoadMoreFailed,
+                        detail: _errorMessage(_comments.error, ''),
                       )
                     : _comments.loading
                     ? const Padding(

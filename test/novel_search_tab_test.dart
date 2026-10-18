@@ -178,6 +178,34 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('${searching ? '搜索' : '浏览'}分页失败显示上游原因而不是只有通用标签', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(500, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final api = _Api();
+      Future<NovelPage<NovelBook>> load(int offset) async {
+        if (offset == 0) return _page([_book, _book], total: 3);
+        throw const NovelApiException('小说请求失败：HTTP 503');
+      }
+
+      api.books = (_, _, offset) => load(offset);
+      api.search = (_, offset) => load(offset);
+      await _pump(tester, api);
+      await tester.pumpAndSettle();
+      if (searching) await _search(tester, '关键词');
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(NovelSearchTab)),
+      )!;
+      await tester.tap(find.text(l10n.novelLoadMore));
+      await tester.pumpAndSettle();
+
+      // 用户/开发者必须能在界面上看到失败原因，否则截图无从排查。
+      expect(find.text('小说请求失败：HTTP 503'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
   }
 
   testWidgets('历史只在未搜索时显示，点历史搜索及清空均保留浏览结果', (tester) async {

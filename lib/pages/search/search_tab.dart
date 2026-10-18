@@ -35,6 +35,7 @@ class _SearchTabState extends State<_SearchTab>
   Object? _searchError;
   bool _loadingMore = false;
   bool _loadMoreFailed = false;
+  Object? _loadMoreError;
   bool _hasMore = false;
   bool _hasSearchText = false;
   bool _hotSearchExpanded = true;
@@ -190,6 +191,7 @@ class _SearchTabState extends State<_SearchTab>
       _searchFailed = false;
       _loadingMore = false;
       _loadMoreFailed = false;
+      _loadMoreError = null;
       _hasMore = false;
       _searchQuery = keyword;
       _comics = [];
@@ -237,6 +239,7 @@ class _SearchTabState extends State<_SearchTab>
     setState(() {
       _loadingMore = true;
       _loadMoreFailed = false;
+      _loadMoreError = null;
     });
     try {
       final result = await widget.api.manga.searchComics(query, offset: offset);
@@ -251,7 +254,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!_isCurrentResult(epoch)) return;
       _recordWarning(error, stack, 'load_more');
-      setState(() => _loadMoreFailed = true);
+      setState(() {
+        _loadMoreFailed = true;
+        _loadMoreError = error;
+      });
     } finally {
       if (_isCurrentResult(epoch)) {
         setState(() => _loadingMore = false);
@@ -271,6 +277,7 @@ class _SearchTabState extends State<_SearchTab>
       _searchFailed = false;
       _loadingMore = false;
       _loadMoreFailed = false;
+      _loadMoreError = null;
       _hasMore = false;
       _canScrollUp = false;
     });
@@ -564,6 +571,16 @@ class _SearchTabState extends State<_SearchTab>
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
+                                  if (_loadMoreError != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      NetworkError.describe(_loadMoreError!),
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.error,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                   const SizedBox(height: AppSpacing.sm),
                                   OutlinedButton.icon(
                                     onPressed: () => _loadMore(retry: true),

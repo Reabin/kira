@@ -700,6 +700,9 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             label: _visible.error == null
                                 ? l10n.novelLoadMore
                                 : l10n.novelLoadMoreFailed,
+                            detail: _visible.error == null
+                                ? null
+                                : novelErrorMessage(_visible.error),
                             horizontalPadding: hp,
                           ),
                         ),

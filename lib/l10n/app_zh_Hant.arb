@@ -224,6 +224,7 @@
   "popularOrder": "熱度",
   "updateOrder": "更新",
   "loadMore": "載入更多",
+  "loadMoreFailed": "載入更多失敗，請重試",
   "loadMoreProgress": "載入更多（{loaded}/{total}）",
   "@loadMoreProgress": {
     "placeholders": {
@@ -829,7 +830,14 @@
   },
   "novelBookmarksEmptySubtitle": "閱讀輕小說時，點擊工具列右上角新增書籤",
   "bookmarksLoadFailed": "書籤載入失敗，請重試",
-  "bookmarksUpdateFailed": "書籤儲存失敗，請重試",
+  "bookmarksUpdateFailedDetail": "書籤儲存失敗：{detail}",
+  "@bookmarksUpdateFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "bookmarksSearchHint": "搜尋書名或章節",
   "bookmarksSearchEmpty": "沒有找到相關書籤，試試其他關鍵詞",
   "statsTitle": "閱讀統計",
@@ -1483,6 +1491,14 @@
   "browseHistoryLoginExpiredContent": "瀏覽紀錄需要登入後才能繼續查看，是否現在重新登入？",
   "browseHistoryLoginToView": "登入後可繼續查看瀏覽紀錄",
   "browseHistoryLoginHintComicOnly": "瀏覽過的漫畫會同步顯示在這裡",
+  "browseHistoryLoadFailed": "瀏覽紀錄載入失敗：{detail}",
+  "@browseHistoryLoadFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "browseHistoryEmptyTitle": "還沒有{mode}瀏覽紀錄",
   "@browseHistoryEmptyTitle": {
     "placeholders": {
@@ -2028,7 +2044,14 @@
   "readerCopyImageUrl": "複製圖片連結",
   "readerSaveImage": "儲存圖片",
   "readerImageSaved": "圖片已儲存到相簿",
-  "readerSaveImageFailed": "圖片儲存失敗",
+  "readerSaveImageFailedDetail": "圖片儲存失敗：{detail}",
+  "@readerSaveImageFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "readerSaveImagePermissionDenied": "沒有相簿寫入權限，儲存失敗",
   "updateAlreadyLatest": "目前已是最新版本",
   "updateNoPackageForPlatform": "目前平台暫無安裝包",
@@ -2466,7 +2489,14 @@
   "novelClearHistory": "清空閱讀記錄",
   "novelClearHistoryConfirm": "僅清除本機輕小說閱讀進度，不會取消書架收藏。",
   "novelRemoveHistory": "移除閱讀記錄",
-  "novelHistoryDeleteFailed": "移除失敗，請重試",
+  "novelHistoryDeleteFailedDetail": "移除失敗：{detail}",
+  "@novelHistoryDeleteFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelBookDetails": "查看詳情",
   "novelNoComments": "暫無評論",
   "novelCommentsFailed": "評論載入失敗",

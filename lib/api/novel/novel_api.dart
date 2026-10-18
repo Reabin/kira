@@ -40,16 +40,8 @@ class NovelIdentityChangedException extends NovelApiException {
 /// User-facing text for a novel failure. Keeps the upstream detail instead of
 /// collapsing every failure into a generic label; [fallback] is only used when
 /// the error carries no text at all.
-String novelErrorMessage(Object? error, {String? fallback}) {
-  if (error == null) return fallback ?? '';
-  if (error is NovelApiException) {
-    final text = error.message.trim();
-    return text.isEmpty ? (fallback ?? '') : text;
-  }
-  if (error is DioException) return NetworkError.message(error);
-  final text = error.toString().trim();
-  return text.isEmpty ? (fallback ?? '') : text;
-}
+String novelErrorMessage(Object? error, {String? fallback}) =>
+    NetworkError.describe(error, fallback: fallback ?? '');
 
 /// An in-memory request snapshot. Credentials are private and never serialized.
 class NovelRequestIdentity {
@@ -424,14 +416,20 @@ class NovelApi {
       );
       ensureIdentity(identity);
       if (response.statusCode != 200 || response.data == null) {
-        throw NovelApiException('正文或插图获取失败', statusCode: response.statusCode);
+        throw NovelApiException(
+          '正文或插图获取失败（HTTP ${response.statusCode ?? '无响应'}）',
+          statusCode: response.statusCode,
+        );
       }
       return response.data!;
     } on DioException catch (error) {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(error.message, statusCode: error.response?.statusCode),
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }
@@ -608,7 +606,10 @@ class NovelApi {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(error.message, statusCode: error.response?.statusCode),
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }

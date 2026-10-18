@@ -63,6 +63,24 @@ bool isIpBlockedLoginError(Object error) {
   return false;
 }
 
+/// 组合「固定前缀 + HTTP 状态 + 上游结构化文案」，供界面直接展示。
+String _describeResponseFailure(
+  String prefix,
+  Response<dynamic> response,
+  Object? data,
+) {
+  final status = response.statusCode;
+  final upstream = data is Map
+      ? (data['message'] ?? (data['results'] is Map
+                ? (data['results'] as Map)['detail']
+                : null))
+            ?.toString()
+            .trim()
+      : null;
+  final detail = upstream == null || upstream.isEmpty ? '' : '：$upstream';
+  return status == null ? '$prefix$detail' : '$prefix（HTTP $status）$detail';
+}
+
 class UserApi {
   final ApiTransport _t;
   final Dio Function(BaseOptions options)? copyDioFactory;
@@ -326,7 +344,12 @@ class UserApi {
         requestOptions: response.requestOptions,
         response: response,
         type: DioExceptionType.badResponse,
-        message: 'Account profile request failed',
+        // 带上状态码与上游文案：只写一句固定英文，界面和日志都看不出原因。
+        message: _describeResponseFailure(
+          '账号资料请求失败',
+          response,
+          data,
+        ),
       );
     } finally {
       dio.close();
@@ -382,7 +405,12 @@ class UserApi {
         requestOptions: response.requestOptions,
         response: response,
         type: DioExceptionType.badResponse,
-        message: 'COPY profile request failed',
+        // 只取结构化字段，不把整段响应体带进提示。
+        message: _describeResponseFailure(
+          'COPY 账号资料请求失败',
+          response,
+          data,
+        ),
       );
     } finally {
       dio.close();

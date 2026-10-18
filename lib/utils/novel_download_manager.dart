@@ -18,6 +18,7 @@ import '../repositories/novel_repository.dart';
 import 'app_logger.dart';
 import 'download_manager.dart';
 import 'json_helpers.dart';
+import 'network_error.dart';
 import 'novel_download_store.dart';
 
 export '../models/novel_download.dart';
@@ -788,8 +789,8 @@ class NovelDownloadManager extends ChangeNotifier {
                 ? NovelDownloadStatus.partial
                 : NovelDownloadStatus.failed;
             task.error = local?.isReadable == true
-                ? '正文可读，部分插图下载失败'
-                : '小说下载失败，请重试';
+                ? '正文可读，部分插图下载失败：${NetworkError.describe(error)}'
+                : '小说下载失败：${NetworkError.describe(error)}';
             return;
           }
           await _owned(Future<void>.delayed(retryDelay * task.attempts), run);
@@ -805,7 +806,7 @@ class NovelDownloadManager extends ChangeNotifier {
       _log(error, stack);
       if (_isCurrent(task, run)) {
         task.status = NovelDownloadStatus.failed;
-        task.error = '小说下载失败，请重试';
+        task.error = '小说下载失败：${NetworkError.describe(error)}';
       }
     }
   }

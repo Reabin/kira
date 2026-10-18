@@ -19,6 +19,7 @@ import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/comment_skeleton.dart';
+import '../widgets/load_more_footer.dart';
 import '../widgets/text_controller_scope.dart';
 import 'chapter_comments/comment_paging.dart';
 import 'chapter_comments/comment_scroll_behavior.dart';
@@ -75,7 +76,12 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
 
   @override
   bool get canLoadMore =>
-      !_loading && !_loadingMore && _comments.length < _total;
+      !_loading &&
+      !_loadingMore &&
+      // 上一页失败后不再由滚动自动重试：失败原因已显示在列表底部，
+      // 交给用户显式点击，避免近底滚动反复打同一个失败请求。
+      _error == null &&
+      _comments.length < _total;
 
   @override
   void loadMoreComments() => _loadComments(loadMore: true);
@@ -362,13 +368,24 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
         controller: scrollController,
         physics: CommentScrollBehavior.alwaysDraggablePhysics,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, _listBottomPadding),
-        itemCount: _groupedEntries.length + (_loadingMore ? 1 : 0),
+        itemCount:
+            _groupedEntries.length +
+            (_loadingMore || (_error != null && _comments.isNotEmpty) ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, index) {
-          if (index == _groupedEntries.length && _loadingMore) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: ExpressiveLoadingIndicator()),
+          if (index == _groupedEntries.length) {
+            if (_loadingMore) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: ExpressiveLoadingIndicator()),
+              );
+            }
+            // 翻页失败：保留已加载评论，同时把真实原因和重试入口放到列表底部。
+            return LoadMoreFooter(
+              loading: false,
+              onPressed: () => _loadComments(loadMore: true),
+              label: l10n.loadMoreFailed,
+              detail: _error,
             );
           }
 
