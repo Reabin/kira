@@ -147,10 +147,29 @@ void main() {
     expect(find.text('通用'), findsOneWidget);
   });
 
+  testWidgets('wide screen puts the data card in the right column', (
+    tester,
+  ) async {
+    // 900 逻辑宽触发宽屏双列:左列账号/通用 + 关于,右列数据卡(下载中心…)。
+    tester.view.devicePixelRatio = 3.0;
+    tester.view.physicalSize = const Size(900 * 3, 1000 * 3);
+    addTearDown(tester.view.reset);
+
+    await pumpProfilePage(tester);
+
+    final download = tester.getTopLeft(find.text('下载中心'));
+    final general = tester.getTopLeft(find.text('通用'));
+    final about = tester.getTopLeft(find.text('关于'));
+
+    expect(download.dx, greaterThan(general.dx));
+    expect(about.dx, general.dx);
+    expect(about.dy, greaterThan(general.dy));
+  });
+
   testWidgets('notice center follows AI configuration and keeps its red dot', (
     tester,
   ) async {
-    // 单列分组：通用/网络 → 下载 → AI/通知/关于。
+    // 单列分组：通用/网络 → 下载/记录 → 统计/AI/通知/关于。
     // 显式使用600逻辑宽，避免默认800宽触发双列布局。
     tester.view.devicePixelRatio = 3.0;
     tester.view.physicalSize = const Size(600 * 3, 1000 * 3);
@@ -166,9 +185,11 @@ void main() {
     final aiTop = tester.getTopLeft(find.text('AI配置')).dy;
     final noticeTop = tester.getTopLeft(find.text('通知中心')).dy;
     final downloadTop = tester.getTopLeft(find.text('下载中心')).dy;
+    final statsTop = tester.getTopLeft(find.text('阅读统计')).dy;
 
     expect(downloadTop, greaterThan(networkTop));
-    expect(downloadTop, lessThan(aiTop));
+    expect(downloadTop, lessThan(statsTop));
+    expect(statsTop, lessThan(aiTop));
     expect(noticeTop, greaterThan(aiTop));
     expect(noticeTop, lessThan(tester.getTopLeft(find.text('关于')).dy));
   });

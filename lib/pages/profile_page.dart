@@ -148,23 +148,23 @@ class _ProfilePageState extends State<ProfilePage> {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(hp, 0, hp, 16),
-              // 宽屏双栏：左列为通用设置卡片，右列为下载/记录卡片 + 关于卡片；
-              // 窄屏维持原来的单列纵向排布。
+              // 宽屏双栏：左列为账号/通用设置卡片 + 关于卡片，
+              // 右列为下载/记录卡片，独占一列（入口最多）；窄屏维持单列纵向排布。
               child: isWide
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _buildGeneralSettingsCard()),
-                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             children: [
-                              _buildDataSettingsCard(),
+                              _buildGeneralSettingsCard(),
                               const SizedBox(height: AppSpacing.md),
                               _buildAboutCard(),
                             ],
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: _buildDataSettingsCard()),
                       ],
                     )
                   : Column(

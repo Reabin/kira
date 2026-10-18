@@ -142,6 +142,8 @@ class _NetworkPageState extends State<NetworkPage>
 
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
+    final isWide =
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
 
     return Scaffold(
       appBar: AppBar(
@@ -171,7 +173,7 @@ class _NetworkPageState extends State<NetworkPage>
           const SizedBox(height: AppSpacing.md),
           _buildProxySection(l10n, tt, cs),
           const SizedBox(height: AppSpacing.md),
-          _buildNodesSection(l10n, tt, cs),
+          _buildNodesSection(l10n, tt, cs, isWide: isWide),
           const SizedBox(height: AppSpacing.md),
           _buildAdvancedSection(l10n, tt, cs),
         ],

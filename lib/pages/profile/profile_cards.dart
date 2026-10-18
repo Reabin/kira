@@ -208,22 +208,22 @@ extension _ProfileCards on _ProfilePageState {
         ),
         ?_buildContinueReadingTile(),
         ?_buildContinueNovelTile(),
+      ],
+    );
+  }
+
+  /// 第三块设置卡片：阅读统计 / AI 配置 / 通知中心 / 关于。
+  Widget _buildAboutCard() {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return SettingTileGroup(
+      children: [
         ListTile(
           leading: const _SettingIcon(icon: Icons.bar_chart_rounded),
           title: Text(l10n.statsTitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.pushNamed(AppRoutes.stats),
         ),
-      ],
-    );
-  }
-
-  /// 第三块设置卡片：AI 配置 / 通知中心 / 关于。
-  Widget _buildAboutCard() {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    return SettingTileGroup(
-      children: [
         ListTile(
           leading: const _SettingIcon(icon: Icons.smart_toy_outlined),
           title: Text(l10n.aiConfigTitle),

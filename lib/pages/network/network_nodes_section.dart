@@ -8,10 +8,25 @@ extension _NetworkNodesSection on _NetworkPageState {
   Widget _buildNodesSection(
     AppLocalizations l10n,
     TextTheme tt,
-    ColorScheme cs,
-  ) {
+    ColorScheme cs, {
+    required bool isWide,
+  }) {
     final isFixed =
         _user.networkSelectionMode == NetworkSelectionMode.fixedNode;
+    // 两种模式都始终展示全部线路：未测速时延迟显示为「—」，
+    // 用户无需等测速完成即可点选。
+    final cards = [
+      for (var r = 0; r < routes.length; r++)
+        _buildRouteCard(
+          routeIndex: r,
+          isFixed: isFixed,
+          l10n: l10n,
+          tt: tt,
+          cs: cs,
+        ),
+      if (_latencyResults[-1]?.isNotEmpty ?? false)
+        _buildExtraGroup(l10n, tt, cs),
+    ];
 
     return SettingsSection(
       icon: Icons.alt_route_rounded,
@@ -32,22 +47,21 @@ extension _NetworkNodesSection on _NetworkPageState {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: AppSpacing.md),
-          // 两种模式都始终展示全部线路：未测速时延迟显示为「—」，
-          // 用户无需等测速完成即可点选。
-          for (var r = 0; r < routes.length; r++) ...[
-            if (r > 0) const SizedBox(height: AppSpacing.md),
-            _buildRouteCard(
-              routeIndex: r,
-              isFixed: isFixed,
-              l10n: l10n,
-              tt: tt,
-              cs: cs,
-            ),
-          ],
-          if (_latencyResults[-1]?.isNotEmpty ?? false) ...[
-            const SizedBox(height: AppSpacing.md),
-            _buildExtraGroup(l10n, tt, cs),
-          ],
+          if (isWide)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < cards.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpacing.md),
+                  Expanded(child: cards[i]),
+                ],
+              ],
+            )
+          else
+            for (var i = 0; i < cards.length; i++) ...[
+              if (i > 0) const SizedBox(height: AppSpacing.md),
+              cards[i],
+            ],
         ],
       ),
     );
