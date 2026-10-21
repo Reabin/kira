@@ -56,6 +56,8 @@ extension _CacheEntryFormat on _CacheManagementPageState {
       'comment_',
       'auto_check_',
       'skipped_update_',
+      'update_mirror_',
+      'use_update_mirror',
       'disclaimer_',
       'api_route',
       'banner_',

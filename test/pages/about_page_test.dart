@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/about_page.dart';
+import 'package:kira/theme/app_status_colors.dart';
 import 'package:kira/utils/app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -260,18 +261,36 @@ void main() {
       expect(requests.single.$1.path, endsWith('/releases/latest'));
 
       await tester.tap(find.text('稳定版'));
-      await tester.pump(const Duration(milliseconds: 400));
-      await tester.tap(find.text('预览版（Beta）'));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('beta'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('是否切换?'), findsOneWidget);
+      expect(find.text('预览版更新更快,问题也可能更多'), findsOneWidget);
+      // 测试宿主是 Windows(非 Android arm64),arm64 提示应标成警告色。
+      final danger = AppStatusColors.danger(
+        Theme.of(tester.element(find.byType(AboutPage))).colorScheme,
+      );
+      expect(
+        tester.widget<Text>(find.text('仅限 Android arm64 设备。')).style?.color,
+        danger,
+      );
+      // 探测到设备环境时补一行「当前设备:...」,同样是警示色。
+      final deviceLine = find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').startsWith('当前设备:'),
+      );
+      expect(deviceLine, findsOneWidget);
+      expect(tester.widget<Text>(deviceLine).style?.color, danger);
       await tester.tap(find.text('确认'));
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 300));
       await waitForRequest(tester, 1);
       expect(requests.last.$1.path, endsWith('/releases/tags/CI'));
       respond(1, beta: true);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('知道了'));
+      expect(AppUpdateService.state.value.info!.isBetaChannel, isTrue);
       await tester.pumpAndSettle();
       expect(AppUpdateService.state.value.info!.isBetaChannel, isTrue);
+      // 不支持的设备上,Beta 徽标换成警告图标(与红色提示一致)。
+      expect(find.byIcon(Icons.error_outline_rounded), findsOneWidget);
 
       // The stale stable-channel response completes late; it must not
       // replace the fresh beta result — success or failure alike.
@@ -287,11 +306,9 @@ void main() {
       expect(AppUpdateService.hasUnseenUpdate.value, isFalse);
 
       // The reverse switch also replaces the old card and rechecks at once.
-      await tester.tap(find.text('Beta'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('稳定版 (Stable)'));
-      await tester.pump();
-      await tester.tap(find.text('确认'));
+      await tester.tap(find.text('beta'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('稳定版'));
       await tester.pump(const Duration(milliseconds: 400));
       await waitForRequest(tester, 2);
       expect(AppUpdateService.state.value.status, AppUpdateStatus.checking);
@@ -302,4 +319,73 @@ void main() {
       expect(find.text('跳过此版本'), findsOneWidget);
     });
   }
+
+  group('更新镜像源', () {
+    // 页面打开后更新检查一直处于 checking（CircularProgressIndicator 常驻动画），
+    // 因此这里一律用固定时长的 pump，不用 pumpAndSettle；弹出菜单的收起动画
+    // 比 300ms 长，需要多给一轮才能等到菜单真正从树上移除。
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+    }
+
+    testWidgets('自定义镜像在下拉里可删除，删除后回落默认', (tester) async {
+      final user = UserManager();
+      await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+      await user.setUpdateMirrorPrefix('https://my.mirror');
+
+      await pumpAbout(tester);
+      final mirrorRow = find.byTooltip('设置镜像源');
+      await tester.ensureVisible(mirrorRow);
+      await settle(tester);
+      // 按钮上显示当前镜像的主机名。
+      expect(find.text('my.mirror'), findsOneWidget);
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('删除'));
+      await settle(tester);
+
+      expect(user.customUpdateMirrorPrefixes, isEmpty);
+      expect(user.updateMirrorPrefix, UserManager.defaultUpdateMirrorPrefix);
+      // 删除后菜单立即收起，按钮回落到默认镜像主机名。
+      expect(find.byType(AboutPage), findsOneWidget, reason: 'about 页不应被 pop');
+      expect(find.byType(PopupMenuItem<String>), findsNothing);
+      expect(find.text('gh-proxy.org'), findsOneWidget);
+      // 再打开下拉，已删除的自定义项不再出现。
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsNothing);
+    });
+
+    testWidgets('切换内置镜像后自定义项仍留在下拉里', (tester) async {
+      final user = UserManager();
+      await user.addCustomUpdateMirrorPrefix('https://my.mirror');
+
+      await pumpAbout(tester);
+      final mirrorRow = find.byTooltip('设置镜像源');
+      await tester.ensureVisible(mirrorRow);
+      await settle(tester);
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      await tester.tap(find.text('https://my.mirror/'));
+      await settle(tester);
+      expect(user.updateMirrorPrefix, 'https://my.mirror/');
+
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      await tester.tap(find.text('https://ghproxy.net/'));
+      await settle(tester);
+
+      expect(user.updateMirrorPrefix, 'https://ghproxy.net/');
+      expect(user.customUpdateMirrorPrefixes, ['https://my.mirror/']);
+      await tester.tap(mirrorRow);
+      await settle(tester);
+      expect(find.text('https://my.mirror/'), findsOneWidget);
+    });
+  });
 }

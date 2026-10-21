@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,7 +7,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
-import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
 import '../api/ai_api.dart';
 import '../api/api_client.dart';
@@ -21,13 +19,16 @@ import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
+import '../utils/chapter_comment_paging.dart';
 import '../utils/chapter_summary_cache.dart';
 import '../utils/comment_text.dart';
+import '../utils/log_sanitizer.dart';
 import '../utils/network_error.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/confetti_celebration.dart';
+import '../widgets/load_more_footer.dart';
 import '../widgets/text_controller_scope.dart';
 import 'chapter_comment_display.dart';
 import 'chapter_comments/comment_paging.dart';
@@ -76,7 +77,8 @@ class ChapterCommentsSheet extends StatefulWidget {
 
 class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
     with CommentScrollBehavior<ChapterCommentsSheet> {
-  static const _pageSize = 100;
+  /// 服务端实际页宽，见 [chapterCommentPageSize]。
+  static const _pageSize = chapterCommentPageSize;
   bool _confettiShown = false;
   static const _commentRowSpacing = 8.0;
   static const _commentListBottomPadding = 124.0;
@@ -93,6 +95,12 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
   bool _loading = true;
   bool _loadingMore = false;
   bool _loadingAll = false;
+
+  /// 首屏补页进行中：期间把手动翻页交给它，避免同一 offset 并发请求。
+  bool _prefetchingInitialPages = false;
+
+  /// 递增即作废正在跑的补页循环（首屏重试、刷新首屏时）。
+  int _prefetchGeneration = 0;
   String? _error;
   int _total = 0;
   int _blockedCount = 0;
@@ -199,16 +207,17 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
       // 初始评论已达撒花条件时立即触发（此前仅 _loadAllComments 路径会检查，
       // 导致已加载完成的评论区永远不触发）。
       _maybeShowConfetti();
-      if (_user.commentAutoLoadAll && _comments.length < _total) {
-        _loadAllComments();
+      // 缓存/下载的评论可能只有第一页，继续按默认页数补齐。
+      if (_comments.length < _total) {
+        if (_user.commentAutoLoadAll) {
+          _loadAllComments();
+        } else {
+          _prefetchInitialPages();
+        }
       }
       return;
     }
-    _loadComments().then((_) {
-      if (_user.commentAutoLoadAll && _comments.length < _total) {
-        _loadAllComments();
-      }
-    });
+    _loadComments();
   }
 
   @override
@@ -277,7 +286,13 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
 
   @override
   bool get canLoadMore =>
-      !_loading && !_loadingMore && _comments.length < _total;
+      !_loading &&
+      !_loadingMore &&
+      // 首屏补页与全量加载期间由它们自己按 offset 追加，避免近底自动翻页
+      // 抢跑、同一 offset 并发请求。
+      !_prefetchingInitialPages &&
+      !_loadingAll &&
+      _comments.length < _total;
 
   @override
   void loadMoreComments() => _loadComments(loadMore: true);
@@ -358,24 +373,6 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
                                   ],
                                 ),
                               ),
-                              if (!_allCommentsLoaded)
-                                _loadingAll
-                                    ? const SizedBox(
-                                        width: 24,
-                                        height: 24,
-                                        child: Padding(
-                                          padding: EdgeInsets.all(2),
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                      )
-                                    : IconButton(
-                                        tooltip:
-                                            l10n.chapterCommentsLoadAllTooltip,
-                                        onPressed: _loadAllComments,
-                                        icon: const Icon(Icons.refresh),
-                                      ),
                               if (_aiSettings.hasApiKey &&
                                   _aiSettings.summaryEnabled) ...[
                                 IconButton(

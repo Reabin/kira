@@ -319,7 +319,7 @@ class _ReaderSettingsPanelState extends State<_ReaderSettingsPanel> {
               // 翻页设置
               if (isPageMode) ...[
                 _buildSectionHeader(l10n.readerPageSection, cs, tt),
-                if (Platform.isAndroid || Platform.isIOS)
+                if (Platform.isAndroid)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(l10n.readerVolumeKeyPageTurn),

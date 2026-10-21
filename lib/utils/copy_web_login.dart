@@ -5,6 +5,21 @@ import '../api/user/user_api.dart';
 import '../models/user_manager.dart';
 import 'app_logger.dart';
 
+/// 官网各端登录接口路径。
+///
+/// 桌面站（`/web/login/loginByAccount`）打 `/api/kb/web/login`，h5 站
+/// （`/h5/login`）打 `/api/v3/login`（实测其前端配置 `VUE_APP_CORE_URL` 为
+/// `api.copy4000.com`），旧版站点打 `/api/v1/login`。只认这些路径，避免把
+/// 注册/找回密码的请求当成登录。
+///
+/// `/api/v3/login` 是 `/api/v3/login/mobile` 的前缀，但手机登录的表单体是
+/// `mobile`/`region`/`code`，解析层取不到 username + password 会直接丢弃。
+const copyLoginSubmitPaths = [
+  '/api/kb/web/login',
+  '/api/v3/login',
+  '/api/v1/login',
+];
+
 /// 从拷贝官网 cookie 或 storage 中提取的候选登录凭证。
 class CopyWebCredentials {
   final String token;
@@ -25,62 +40,11 @@ class CopyWebCredentials {
     required this.avatar,
     this.profileBoundToToken = false,
   });
-
-  /// 该凭证是否与本机已保存的某个拷贝账号是同一个。
-  ///
-  /// WebView 里的登录态是持久的，官网登录页一打开就可能带着旧账号的
-  /// cookie/storage。用于区分「本机认识的账号」（停提示条确认）与
-  /// 「本次新登录的账号」。
-  bool matchesSavedAccount(UserManager user) {
-    final candidate = token.trim();
-    if (candidate.isEmpty) return false;
-    for (final account in user.copyAccount.accounts) {
-      if (account.token == candidate) return true;
-      if (userId.isNotEmpty && account.userId == userId) return true;
-      if (username.isNotEmpty && account.username == username) return true;
-    }
-    for (final account in [?user.currentCredential, ...user.savedCredentials]) {
-      if (account.source != 'copy') continue;
-      if (account.token == candidate) return true;
-      if (userId.isNotEmpty && account.userId == userId) return true;
-      if (username.isNotEmpty && account.username == username) return true;
-    }
-    return false;
-  }
 }
 
-/// WebView 提取到登录态后的处置动作。
-enum WebLoginDisposition {
-  /// 直接完成登录。
-  complete,
-
-  /// 停在提示条上让用户确认（已保存的账号）。
-  knownAccount,
-
-  /// 静默不动，把页面留给用户去登录别的账号。
-  ignore,
-}
-
-/// 决定 WebView 里提取到的登录态如何处置。
-///
-/// 只有 [submittedLogin]（本次会话里钩到了一次真实的官网登录提交）才证明
-/// 这份登录态是用户刚刚登录的结果；没有它，提取到的只能是进入页面前残留
-/// 的旧会话。旧会话一律不自动完成——尤其该账号刚被登出/删除时，自动完成
-/// 会在用户输入新账号前把它抢登回来：已保存的停在提示条上让用户确认，
-/// 未保存的静默。用户点「我已完成登录」时走 [manual]，是明确意图，照常完成。
-WebLoginDisposition disposeWebLoginCredentials({
-  required CopyWebCredentials credentials,
-  required UserManager user,
-  required bool submittedLogin,
-  bool manual = false,
-}) {
-  if (manual) return WebLoginDisposition.complete;
-  final known = credentials.matchesSavedAccount(user);
-  if (known) return WebLoginDisposition.knownAccount;
-  return submittedLogin
-      ? WebLoginDisposition.complete
-      : WebLoginDisposition.ignore;
-}
+// 注意：WebView 里的登录态是持久的，页面一打开就可能带着上次的 cookie/
+// storage。调用方必须用「本次是否钩到真实登录提交」来判定能否完成登录，
+// 否则刚被登出/删除的账号会在用户输入新账号前被抢登回来。
 
 /// 官网登录页表单里抓到的账号密码。
 ///
@@ -115,6 +79,7 @@ Future<bool> completeCopyWebLogin({
   required UserManager user,
   required UserApi api,
   required CopyWebCredentials credentials,
+  Future<void> Function()? persistLoginFormPasswords,
 }) async {
   final saved = await user.authenticateAndLogin(
     source: 'copy',
@@ -149,6 +114,8 @@ Future<bool> completeCopyWebLogin({
     },
   );
   if (saved) {
+    // 补写登录名可能归并账号并推进 revision，必须先完成，再发起资料刷新。
+    await persistLoginFormPasswords?.call();
     final session = user.copyAccount.accounts
         .where((account) => account.token == credentials.token.trim())
         .firstOrNull;
@@ -272,8 +239,20 @@ String? _storageToken(Map<dynamic, dynamic> map) {
   return token.isEmpty ? null : token;
 }
 
-String _profileField(Map<dynamic, dynamic> map, String key) =>
-    map[key]?.toString().trim() ?? '';
+/// 官网两端的账号字段名不一致：桌面站的 cookie 用 `user_id`，h5 站
+/// localStorage 里的 `user` 对象用 **`userid`**（无下划线，见 h5 站
+/// `localStorage.setItem("user", ...)`）。两个都要认，否则手机端登录提取到的
+/// 凭证会丢掉唯一身份，同一账号每次登录（官网每次都会轮换 token）都被当成
+/// 新账号，账号中心就堆出重复卡片。
+const _userIdKeys = ['user_id', 'userid'];
+
+String _profileField(Map<dynamic, dynamic> map, String key) {
+  for (final candidate in key == 'user_id' ? _userIdKeys : [key]) {
+    final value = map[candidate]?.toString().trim();
+    if (value != null && value.isNotEmpty) return value;
+  }
+  return '';
+}
 
 Iterable<Map<dynamic, dynamic>> _storageMaps(
   Object? node,

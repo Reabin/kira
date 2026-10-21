@@ -324,31 +324,44 @@ void main() {
     },
   );
 
-  test('manifest write failure cannot leave an in-memory completed snapshot', () async {
-    var fail = true;
-    final failing = NovelDownloadStore.forTesting(rootDirectory: root, beforeWrite: (path) async {
-      if (fail && path == p.join(root.path, NovelDownloadStore.manifestName)) {
-        throw const FileSystemException('disk full');
-      }
-    });
-    await failing.init();
-    await expectLater(saveFixture(failing), throwsA(isA<FileSystemException>()));
-    expect(await failing.readVolumeSnapshot('book', 'v1'), isNull);
-    fail = false;
-    await saveFixture(failing, complete: true);
-    final restored = NovelDownloadStore.forTesting(rootDirectory: root);
-    await restored.init();
-    expect(restored.downloadedVolumes('book'), {'v1'});
-  });
+  test(
+    'manifest write failure cannot leave an in-memory completed snapshot',
+    () async {
+      var fail = true;
+      final failing = NovelDownloadStore.forTesting(
+        rootDirectory: root,
+        beforeWrite: (path) async {
+          if (fail &&
+              path == p.join(root.path, NovelDownloadStore.manifestName)) {
+            throw const FileSystemException('disk full');
+          }
+        },
+      );
+      await failing.init();
+      await expectLater(
+        saveFixture(failing),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await failing.readVolumeSnapshot('book', 'v1'), isNull);
+      fail = false;
+      await saveFixture(failing, complete: true);
+      final restored = NovelDownloadStore.forTesting(rootDirectory: root);
+      await restored.init();
+      expect(restored.downloadedVolumes('book'), {'v1'});
+    },
+  );
 
-  test('migration can return to the default root without orphan empty directories', () async {
-    await saveFixture(store, complete: true);
-    await store.migrateTo(p.join(parent.path, 'other'));
-    expect(await root.list().isEmpty, isTrue);
-    await store.migrateTo(root.path);
-    expect(store.downloadedVolumes('book'), {'v1'});
-    expect(await store.readVolumeSnapshot('book', 'v1'), isNotNull);
-  });
+  test(
+    'migration can return to the default root without orphan empty directories',
+    () async {
+      await saveFixture(store, complete: true);
+      await store.migrateTo(p.join(parent.path, 'other'));
+      expect(await root.list().isEmpty, isTrue);
+      await store.migrateTo(root.path);
+      expect(store.downloadedVolumes('book'), {'v1'});
+      expect(await store.readVolumeSnapshot('book', 'v1'), isNotNull);
+    },
+  );
 
   test('concurrent init awaits full manifest validation', () async {
     await saveFixture(store, complete: true);

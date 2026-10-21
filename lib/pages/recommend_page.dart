@@ -8,10 +8,12 @@ import '../l10n/app_localizations.dart';
 import '../models/comic.dart' hide Theme;
 import '../routing/app_router.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import 'home_page.dart';
 
@@ -27,6 +29,7 @@ class _RecommendPageState extends State<RecommendPage> {
   final _api = ApiClient();
   List<Comic> _comics = [];
   bool _loading = true;
+  String? _error;
   int _offset = 0;
   bool _loadingMore = false;
   // 推荐接口不返回 total：以「某页返回空列表」作为到底标志。
@@ -57,6 +60,7 @@ class _RecommendPageState extends State<RecommendPage> {
   }
 
   Future<void> _load() async {
+    if (_error != null) setState(() => _error = null);
     try {
       final data = await _api.manga.getRecommendations(limit: 21);
       if (!mounted) return;
@@ -74,7 +78,12 @@ class _RecommendPageState extends State<RecommendPage> {
           source: 'recommend_page.load',
         ),
       );
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = NetworkError.message(e);
+        });
+      }
     }
   }
 
@@ -127,7 +136,9 @@ class _RecommendPageState extends State<RecommendPage> {
       floatingActionButton: _showBackToTop
           ? BackToTopButton(onPressed: _scrollToTop)
           : null,
-      body: _loading
+      body: _error != null && _comics.isEmpty
+          ? ErrorRetryView(message: _error, onRetry: _load)
+          : _loading
           ? GridView.builder(
               padding: EdgeInsets.symmetric(horizontal: hp, vertical: 12),
               itemCount: 21,

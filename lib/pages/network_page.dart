@@ -7,6 +7,7 @@ import '../api/api_transport.dart'
         routes,
         defaultCopyApiHost,
         defaultCopyAppVersion,
+        defaultCopyVersionCode,
         defaultCopyLoginHost,
         copyLoginHostOptions;
 import '../l10n/app_localizations.dart';
@@ -14,6 +15,7 @@ import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
+import '../utils/network_error.dart';
 import '../utils/network_proxy.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
@@ -52,6 +54,7 @@ class _NetworkPageState extends State<NetworkPage>
   final _proxyAddressController = TextEditingController();
   final _copyApiHostController = TextEditingController();
   final _copyAppVersionController = TextEditingController();
+  final _copyVersionCodeController = TextEditingController();
   final _customLoginHostController = TextEditingController();
 
   bool _testingLatency = false;
@@ -82,6 +85,7 @@ class _NetworkPageState extends State<NetworkPage>
     _proxyAddressController.text = _manualProxyAddress;
     _copyApiHostController.text = _user.copyApiHost;
     _copyAppVersionController.text = _user.copyAppVersion;
+    _copyVersionCodeController.text = _user.copyVersionCode;
     _manualProxyType = _user.networkProxyType;
     _user.addListener(_onChanged);
     // 进入页面即自动测速一次,让用户第一时间看到各线路/节点延迟。
@@ -116,6 +120,7 @@ class _NetworkPageState extends State<NetworkPage>
     _proxyAddressController.dispose();
     _copyApiHostController.dispose();
     _copyAppVersionController.dispose();
+    _copyVersionCodeController.dispose();
     _customLoginHostController.dispose();
     super.dispose();
   }
@@ -156,6 +161,8 @@ class _NetworkPageState extends State<NetworkPage>
 
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
+    final isWide =
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
 
     return Scaffold(
       appBar: AppBar(
@@ -185,7 +192,7 @@ class _NetworkPageState extends State<NetworkPage>
           const SizedBox(height: AppSpacing.md),
           _buildProxySection(l10n, tt, cs),
           const SizedBox(height: AppSpacing.md),
-          _buildNodesSection(l10n, tt, cs),
+          _buildNodesSection(l10n, tt, cs, isWide: isWide),
           const SizedBox(height: AppSpacing.md),
           _buildAdvancedSection(l10n, tt, cs),
         ],

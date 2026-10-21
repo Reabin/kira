@@ -18,11 +18,13 @@ import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/back_to_top_button.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/load_more_footer.dart';
@@ -394,9 +396,10 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.refreshFailedDetail(NetworkError.message(e, l10n: l10n)),
           isError: true,
         );
       }
@@ -487,19 +490,6 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
 
   Future<void> _handleUnauthorized() async {
     if (_showingLoginPrompt || !mounted) return;
-
-    // 自动登录开启时，拦截器已尝试自动登录但失败了，静默提示即可
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(
-          context,
-          AppLocalizations.of(context)!.autoLoginFailed,
-          isError: true,
-        );
-      }
-      return;
-    }
 
     _showingLoginPrompt = true;
 
@@ -631,7 +621,9 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
                     horizontalPadding: hp,
                   ),
                 ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+              const SliverToBoxAdapter(
+                child: BranchBottomSlack(extra: AppSpacing.xxl),
+              ),
             ],
           ),
         ),

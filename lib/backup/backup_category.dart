@@ -57,6 +57,7 @@ abstract final class BackupSchema {
     'copy_auto_update',
     'download_chapter_comments',
     'image_viewer_auto_rotate_landscape',
+    'nav_floating_enabled',
     'nav_swipe_enabled',
     'reader_auto_scroll_enabled',
     'reader_auto_scroll_resume',
@@ -130,6 +131,7 @@ abstract final class BackupSchema {
     'bottom_nav_label_mode',
     'copy_api_host',
     'copy_app_version',
+    'copy_version_code',
     'copy_home_section_collapsed',
     'copy_login_host',
     'desktop_font_family',
@@ -171,6 +173,7 @@ abstract final class BackupSchema {
     'nav_order',
     'reader_reading_stats_section_order',
     'reader_status_overlay_order',
+    'update_mirror_custom_prefixes',
     'zhipu_custom_models',
   };
 
@@ -180,7 +183,10 @@ abstract final class BackupSchema {
       return BackupCategory.readingHistory;
     }
     if (key == 'reading_stats_v1') return BackupCategory.readingStatistics;
-    if (key == 'comic_bookmarks_v1' || key == 'novel_bookmarks_v1') {
+    if (key == 'comic_bookmarks_v1' ||
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return BackupCategory.bookmarks;
     }
     if (accountKeys.contains(key)) return BackupCategory.account;
@@ -198,7 +204,9 @@ abstract final class BackupSchema {
         key.startsWith('novel_reading_history_') ||
         key == 'reading_stats_v1' ||
         key == 'comic_bookmarks_v1' ||
-        key == 'novel_bookmarks_v1') {
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return 'string';
     }
     // In particular: backup_*, cache_*, AI conversations/summaries, download

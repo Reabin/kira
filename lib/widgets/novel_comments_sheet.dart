@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
-import '../api/novel/novel_api.dart' show NovelApiException;
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/user_manager.dart';
@@ -282,7 +282,11 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
         ),
       );
       if (mounted && generation == _accountGeneration) {
-        showToast(context, l10n.novelCommentFailed, isError: true);
+        showToast(
+          context,
+          novelErrorMessage(e, fallback: l10n.novelCommentFailed),
+          isError: true,
+        );
       }
       return false;
     } finally {
@@ -444,10 +448,10 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
         : name;
   }
 
+  /// Surface the upstream text (code 210 keeps the whole body) instead of
+  /// hiding it behind a generic label.
   String _errorMessage(Object? error, String fallback) =>
-      error is NovelApiException && error.isDiagnosticResponse
-      ? error.message
-      : fallback;
+      novelErrorMessage(error, fallback: fallback);
 
   // ── 屏蔽过滤（与漫画评论区共用 UserManager 的屏蔽配置） ────────────────
 
@@ -467,9 +471,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
       : _comments.items.where(_isCommentVisible).toList(growable: false);
 
   /// 已加载评论中被屏蔽隐藏的条数，用于标题栏「显示数/总数|屏蔽数」。
-  int get _blockedCount => !_hasBlockFilters
-      ? 0
-      : _comments.items.length - _visibleComments.length;
+  int get _blockedCount =>
+      !_hasBlockFilters ? 0 : _comments.items.length - _visibleComments.length;
 
   /// 评论区计数文案，与漫画评论区一致：全部加载且无屏蔽时显示「N 条」；
   /// 有屏蔽时为「显示数/总数|屏蔽数」，屏蔽为 0 则不显示 |屏蔽数。
@@ -763,9 +766,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
           ? [
               ...current.replies,
               ...page.list.where(
-                (item) => !current.replies.any(
-                  (existing) => existing.id == item.id,
-                ),
+                (item) =>
+                    !current.replies.any((existing) => existing.id == item.id),
               ),
             ]
           : [...page.list];

@@ -80,10 +80,17 @@ class _Repository implements NovelRepository {
   }
 
   @override
+  Future<NovelDetail?> loadDetailFromCache(String pathWord) async => null;
+
+  @override
   Future<List<NovelVolume>> loadVolumes(
     String pathWord, {
     bool refresh = false,
   }) async => const [];
+
+  @override
+  Future<List<NovelVolume>?> loadVolumesFromCache(String pathWord) async =>
+      null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

@@ -53,6 +53,7 @@ class ThemeSettings extends PrefsStore {
   static const _keyBottomNavLabelMode = 'bottom_nav_label_mode';
   static const _keyNavOrder = 'nav_order';
   static const _keyNavSwipeEnabled = 'nav_swipe_enabled';
+  static const _keyFloatingNavEnabled = 'nav_floating_enabled';
   static const _keyBackExitConfirm = 'back_exit_confirm';
   static const _keyShowNovel = 'nav_show_novel';
   static const _keyLastNavKey = 'last_nav_key';
@@ -76,6 +77,7 @@ class ThemeSettings extends PrefsStore {
   BottomNavLabelMode _bottomNavLabelMode = BottomNavLabelMode.selectedOnly;
   List<String> _navOrder = defaultNavOrder;
   bool _navSwipeEnabled = true;
+  bool _floatingNavEnabled = true;
   bool _backExitConfirm = true;
   bool _showNovel = true;
   String _lastNavKey = defaultNavKey;
@@ -105,6 +107,14 @@ class ThemeSettings extends PrefsStore {
 
   /// Whether a horizontal swipe on the main shell switches bottom-nav tabs.
   bool get navSwipeEnabled => _navSwipeEnabled;
+
+  /// Whether the bottom navigation bar floats above page content.
+  ///
+  /// 悬浮底栏浮在内容之上，经典模式（标签始终显示）的满宽不透明条撑在
+  /// 内容外面会露出 Scaffold 背景色，只能切到胶囊样式；因此开启悬浮时
+  /// 顺带把标签模式从 [BottomNavLabelMode.always] 降为
+  /// [BottomNavLabelMode.selectedOnly]，无需提醒用户。
+  bool get floatingNavEnabled => _floatingNavEnabled;
 
   /// Whether back on a bottom-nav root asks for a second press before exiting.
   bool get backExitConfirm => _backExitConfirm;
@@ -174,6 +184,15 @@ class ThemeSettings extends PrefsStore {
       await prefs.setStringList(_keyNavOrder, _navOrder);
     }
     _navSwipeEnabled = prefs.getBool(_keyNavSwipeEnabled) ?? true;
+    _floatingNavEnabled = prefs.getBool(_keyFloatingNavEnabled) ?? true;
+    // 旧数据可能同时留着悬浮 + 「始终显示文字」；沿用 setter 的互斥规则。
+    if (_floatingNavEnabled &&
+        _bottomNavLabelMode == BottomNavLabelMode.always) {
+      _bottomNavLabelMode = BottomNavLabelMode.selectedOnly;
+      if (persistMigrations) {
+        await prefs.setString(_keyBottomNavLabelMode, _bottomNavLabelMode.name);
+      }
+    }
     _backExitConfirm = prefs.getBool(_keyBackExitConfirm) ?? true;
     _showNovel = prefs.getBool(_keyShowNovel) ?? true;
     final savedLastNavKey = prefs.getString(_keyLastNavKey);
@@ -273,13 +292,19 @@ class ThemeSettings extends PrefsStore {
     );
   }
 
+  /// 「始终显示文字」只在非悬浮时可选：悬浮底栏是浮在内容上的胶囊，
+  /// 满宽不透明条撑在内容外面会露出 Scaffold 背景色。悬浮开着时把它降为
+  /// 选中项显示，用户不用被告知，也不会遇到那个错配的样式。
   Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) async {
-    if (_bottomNavLabelMode == mode) return;
-    _bottomNavLabelMode = mode;
+    final next = mode == BottomNavLabelMode.always && _floatingNavEnabled
+        ? BottomNavLabelMode.selectedOnly
+        : mode;
+    if (_bottomNavLabelMode == next) return;
+    _bottomNavLabelMode = next;
     final p = await prefs;
-    await p.setString(_keyBottomNavLabelMode, mode.name);
+    await p.setString(_keyBottomNavLabelMode, next.name);
     // Keep legacy bool in sync for older builds / external readers.
-    await p.setBool(_keyBottomNavShowLabels, mode != BottomNavLabelMode.hidden);
+    await p.setBool(_keyBottomNavShowLabels, next != BottomNavLabelMode.hidden);
     notifyListeners();
   }
 
@@ -292,6 +317,18 @@ class ThemeSettings extends PrefsStore {
     if (_navSwipeEnabled == enabled) return;
     _navSwipeEnabled = enabled;
     await setBool(_keyNavSwipeEnabled, enabled);
+  }
+
+  Future<void> setFloatingNavEnabled(bool enabled) async {
+    if (_floatingNavEnabled == enabled) return;
+    _floatingNavEnabled = enabled;
+    await setBool(_keyFloatingNavEnabled, enabled, notify: false);
+    // 悬浮与「始终显示文字」互斥，见 floatingNavEnabled 的说明。
+    if (enabled && _bottomNavLabelMode == BottomNavLabelMode.always) {
+      await setBottomNavLabelMode(BottomNavLabelMode.selectedOnly);
+      return;
+    }
+    notifyListeners();
   }
 
   Future<void> setBackExitConfirm(bool enabled) async {

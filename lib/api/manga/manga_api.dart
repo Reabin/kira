@@ -9,6 +9,7 @@ import '../../models/chapter_comment.dart';
 import '../../models/comic.dart';
 import '../../models/comic_comment.dart';
 import '../../utils/app_dio.dart';
+import '../../utils/chapter_comment_paging.dart';
 import '../../utils/comment_text.dart';
 import '../../utils/json_helpers.dart';
 import '../../utils/network_error.dart';
@@ -601,6 +602,37 @@ class MangaApi {
       list: list,
       total: jsonInt(results, 'total', fallback: list.length),
     );
+  }
+
+  /// 连续拉取章节评论前 [pages] 页，页间隔 [chapterCommentPageGap]。
+  ///
+  /// 服务端每页固定 10 条，单独请求 `limit: 100` 也只能拿到一页。
+  Future<({List<ChapterComment> list, int total})> getChapterCommentsPages(
+    String chapterId, {
+    int pages = chapterCommentInitialPages,
+  }) async {
+    final first = await getChapterComments(
+      chapterId,
+      limit: chapterCommentPageSize,
+    );
+    var list = first.list;
+    var total = first.total;
+
+    for (var page = 1; page < pages && list.length < total; page++) {
+      await Future<void>.delayed(chapterCommentPageGap);
+      final next = await getChapterComments(
+        chapterId,
+        limit: chapterCommentPageSize,
+        offset: list.length,
+      );
+      final seen = list.map((c) => c.id).toSet();
+      final before = list.length;
+      list = [...list, ...next.list.where((c) => seen.add(c.id))];
+      total = next.total;
+      // 服务端在分页边界重复返回同一批数据时停止，避免死循环。
+      if (list.length == before) break;
+    }
+    return (list: list, total: total);
   }
 
   // 9.2 Post chapter comment

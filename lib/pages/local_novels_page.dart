@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel_reading_progress.dart';
 import '../providers/novel_providers.dart';
@@ -193,7 +194,11 @@ class _LocalNovelDetailPageState extends ConsumerState<LocalNovelDetailPage> {
         ),
       );
       if (mounted) {
-        showToast(context, l10n.refreshFailed, isError: true);
+        showToast(
+          context,
+          l10n.novelDownloadEnqueueFailed(novelErrorMessage(error)),
+          isError: true,
+        );
       }
       return;
     }

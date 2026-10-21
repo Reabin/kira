@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/api_ordering.dart';
 import '../models/novel.dart';
@@ -16,6 +17,7 @@ import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart'
     show FilterChipOption, FilterChipRow, InlineRetryNotice;
 import '../widgets/load_more_footer.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_paged_controller.dart';
 import '../widgets/novel_widgets.dart';
@@ -170,7 +172,8 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                               label: l10n.updateOrder,
                               value: ApiOrdering.datetimeUpdated,
                               icon: Icons.schedule,
-                              selected: _ordering == ApiOrdering.datetimeUpdated,
+                              selected:
+                                  _ordering == ApiOrdering.datetimeUpdated,
                             ),
                           ],
                           onTap: (option) =>
@@ -188,7 +191,7 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                       )
                     else if (_books.items.isEmpty && _books.error != null)
                       SliverErrorRetryView(
-                        message: l10n.novelLoadFailed,
+                        message: novelErrorMessage(_books.error),
                         onRetry: () => unawaited(_books.refresh()),
                       )
                     else if (_books.items.isEmpty)
@@ -210,7 +213,7 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                           child: Padding(
                             padding: EdgeInsets.symmetric(horizontal: hp),
                             child: InlineRetryNotice(
-                              message: l10n.novelLoadFailed,
+                              message: novelErrorMessage(_books.refreshError),
                               onRetry: () => unawaited(_refresh()),
                             ),
                           ),
@@ -219,29 +222,29 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
                         padding: EdgeInsets.symmetric(horizontal: hp),
                         sliver: SliverGrid(
                           gridDelegate: grid,
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final book = _books.items[index];
-                              final heroTagBase = NovelHeroTags.base(
-                                scope: 'novel-filter',
-                                pathWord: book.pathWord,
-                                index: index,
-                              );
-                              return NovelBookCard(
-                                book: book,
-                                heroTagBase: heroTagBase,
-                                onTap: () => context.pushNamed(
-                                  AppRoutes.novelDetail,
-                                  pathParameters: {'pathWord': book.pathWord},
-                                  extra: NovelDetailExtra(
-                                    initialBook: book,
-                                    heroTagBase: heroTagBase,
-                                  ),
+                          delegate: SliverChildBuilderDelegate((
+                            context,
+                            index,
+                          ) {
+                            final book = _books.items[index];
+                            final heroTagBase = NovelHeroTags.base(
+                              scope: 'novel-filter',
+                              pathWord: book.pathWord,
+                              index: index,
+                            );
+                            return NovelBookCard(
+                              book: book,
+                              heroTagBase: heroTagBase,
+                              onTap: () => context.pushNamed(
+                                AppRoutes.novelDetail,
+                                pathParameters: {'pathWord': book.pathWord},
+                                extra: NovelDetailExtra(
+                                  initialBook: book,
+                                  heroTagBase: heroTagBase,
                                 ),
-                              );
-                            },
-                            childCount: _books.items.length,
-                          ),
+                              ),
+                            );
+                          }, childCount: _books.items.length),
                         ),
                       ),
                     ],
@@ -267,7 +270,8 @@ class _NovelFilterPageState extends ConsumerState<NovelFilterPage> {
             if (_canScrollUp)
               Positioned(
                 right: AppSpacing.lg,
-                bottom: AppSpacing.lg,
+                // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+                bottom: AppSpacing.lg + NavBarInset.of(context),
                 child: BackToTopButton(onPressed: _scrollToTop),
               ),
           ],

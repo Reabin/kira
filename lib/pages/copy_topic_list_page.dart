@@ -185,7 +185,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
         if (_error != null && _topics.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: ErrorRetryView(onRetry: _load),
+            child: ErrorRetryView(message: _error, onRetry: _load),
           )
         else if (_topics.isEmpty)
           SliverFillRemaining(

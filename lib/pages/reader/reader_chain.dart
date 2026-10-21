@@ -268,9 +268,25 @@ extension _ReaderChain on _ReaderPageState {
       // 追加后立即预加载该话评论，使分隔区评论按钮能显示数量
       if (_user.commentPreload) unawaited(_preloadComments(chapter: next));
       _scheduleChainLoadingReset(isPrev: false);
-    } catch (_) {
+    } catch (e, stack) {
       _loadingNextChainChapter = false;
-      // 追加失败保持链不变，用户可手动重试（继续翻页会再次触发）
+      // 追加失败保持链不变，用户可手动重试（继续翻页会再次触发）。
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'reader.chain.append',
+        ),
+      );
+      if (mounted) {
+        showToast(
+          context,
+          AppLocalizations.of(
+            context,
+          )!.readerChainChapterFailedDetail(NetworkError.message(e)),
+          isError: true,
+        );
+      }
     }
   }
 
@@ -351,10 +367,17 @@ extension _ReaderChain on _ReaderPageState {
       if (_user.commentPreload) unawaited(_preloadComments(chapter: prev));
       _scheduleChainLoadingReset(isPrev: true);
       return true;
-    } catch (_) {
+    } catch (e, stack) {
       _loadingPrevChainChapter = false;
       if (mounted) _setState(() {});
       // 拼接失败保持链不变：滚动模式可继续上滑重试；翻页模式由调用方降级整章跳转。
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'reader.chain.prepend',
+        ),
+      );
       return false;
     }
   }

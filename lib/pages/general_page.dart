@@ -8,6 +8,7 @@ import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/dialog_width.dart';
+import '../utils/screen_layout.dart';
 import '../utils/settings_backup.dart';
 import '../utils/settings_reload.dart';
 import '../utils/toast.dart';
@@ -87,100 +88,112 @@ class _GeneralPageState extends State<GeneralPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final tt = Theme.of(context).textTheme;
-    final canAutoLogin =
-        _user.isLoggedIn &&
-        _user.savedUsername != null &&
-        _user.savedPassword != null;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final hp = ScreenLayout.horizontalPadding(screenWidth);
+    final isWide =
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
+
+    // 宽屏双栏:左列设置组,右列备份 + 重置;窄屏维持单列纵向排布。
+    final settingsGroup = SettingTileGroup(
+      children: [
+        SwitchListTile(
+          secondary: const Icon(Icons.view_carousel_outlined),
+          title: Text(l10n.bannerVisibleTitle),
+          subtitle: Text(l10n.bannerVisibleDesc, style: tt.bodySmall),
+          value: _user.bannerVisible,
+          onChanged: _user.setBannerVisible,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.exit_to_app_rounded),
+          title: Text(l10n.backExitConfirmTitle),
+          value: _user.theme.backExitConfirm,
+          onChanged: _user.theme.setBackExitConfirm,
+        ),
+        SwitchListTile(
+          secondary: const Icon(Icons.auto_stories_outlined),
+          title: Text(l10n.novelTitle),
+          value: _user.showNovel,
+          onChanged: _user.theme.setShowNovel,
+        ),
+        ListTile(
+          leading: const Icon(Icons.language_rounded),
+          title: Text(l10n.languageTitle),
+          trailing: SelectTile<String>(
+            value: _user.locale,
+            items: [
+              SelectItem('', l10n.languageSystem),
+              SelectItem('zh', l10n.languageSimplified),
+              SelectItem('zh-Hant', l10n.languageTraditional),
+            ],
+            onChanged: _user.setLocale,
+          ),
+        ),
+        ListTile(
+          leading: const Icon(Icons.storage_rounded),
+          title: Text(l10n.cacheManagementTitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            context.pushNamed(AppRoutes.cacheManagement);
+          },
+        ),
+      ],
+    );
+    final backupGroup = SettingTileGroup(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.backup_outlined),
+          title: Text(l10n.backupTitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.pushNamed(AppRoutes.backup),
+        ),
+      ],
+    );
+    final resetGroup = SettingTileGroup(
+      children: [
+        ListTile(
+          leading: const Icon(Icons.restart_alt_rounded),
+          title: Text(l10n.resetAppTitle),
+          trailing: _resetting
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.chevron_right),
+          onTap: _resetting ? null : _resetApp,
+        ),
+      ],
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.generalTitle)),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.fromLTRB(hp, 8, hp, 8),
         children: [
-          SettingTileGroup(
-            children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.login_rounded),
-                title: Text(l10n.autoLoginTitle),
-                subtitle: Text(
-                  canAutoLogin
-                      ? l10n.autoLoginEnabledDesc
-                      : l10n.autoLoginUnavailableDesc,
-                  style: tt.bodySmall,
+          if (isWide)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: settingsGroup),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    children: [
+                      backupGroup,
+                      const SizedBox(height: AppSpacing.md),
+                      resetGroup,
+                    ],
+                  ),
                 ),
-                value: canAutoLogin ? _user.autoLogin : false,
-                onChanged: canAutoLogin ? _user.setAutoLogin : null,
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.view_carousel_outlined),
-                title: Text(l10n.bannerVisibleTitle),
-                subtitle: Text(l10n.bannerVisibleDesc, style: tt.bodySmall),
-                value: _user.bannerVisible,
-                onChanged: _user.setBannerVisible,
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.exit_to_app_rounded),
-                title: Text(l10n.backExitConfirmTitle),
-                value: _user.theme.backExitConfirm,
-                onChanged: _user.theme.setBackExitConfirm,
-              ),
-              SwitchListTile(
-                secondary: const Icon(Icons.auto_stories_outlined),
-                title: Text(l10n.novelTitle),
-                value: _user.showNovel,
-                onChanged: _user.theme.setShowNovel,
-              ),
-              ListTile(
-                leading: const Icon(Icons.language_rounded),
-                title: Text(l10n.languageTitle),
-                trailing: SelectTile<String>(
-                  value: _user.locale,
-                  items: [
-                    SelectItem('', l10n.languageSystem),
-                    SelectItem('zh', l10n.languageSimplified),
-                    SelectItem('zh-Hant', l10n.languageTraditional),
-                  ],
-                  onChanged: _user.setLocale,
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.storage_rounded),
-                title: Text(l10n.cacheManagementTitle),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  context.pushNamed(AppRoutes.cacheManagement);
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          SettingTileGroup(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.backup_outlined),
-                title: Text(l10n.backupTitle),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.pushNamed(AppRoutes.backup),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          SettingTileGroup(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.restart_alt_rounded),
-                title: Text(l10n.resetAppTitle),
-                trailing: _resetting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.chevron_right),
-                onTap: _resetting ? null : _resetApp,
-              ),
-            ],
-          ),
+              ],
+            )
+          else ...[
+            settingsGroup,
+            const SizedBox(height: AppSpacing.md),
+            backupGroup,
+            const SizedBox(height: AppSpacing.md),
+            resetGroup,
+          ],
         ],
       ),
     );

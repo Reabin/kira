@@ -27,7 +27,7 @@ class NovelReaderViewport extends StatefulWidget {
     required this.jumpRevision,
     required this.onPosition,
     required this.onTap,
-    this.onParagraphTap,
+    this.onParagraphLongPress,
     this.isBookmarkedParagraph,
     this.onBookmarkMarkerTap,
     this.highlight,
@@ -43,11 +43,10 @@ class NovelReaderViewport extends StatefulWidget {
   final ValueChanged<NovelReaderLocation> onPosition;
   final VoidCallback onTap;
 
-  /// 点按段落（立即回调，无双击识别延迟；外层 surface 继续负责页边空白）。
-  /// 工具栏切换由本组件 onTap 完成，阅读页自行用两次回调的时间差
-  /// 识别双击并弹出上下文菜单；回携带落点全局坐标供菜单定位。
+  /// 长按段落弹出上下文菜单（与翻页模式同一手势）；回携带落点全局坐标
+  /// 供菜单定位。点按仍然只切换工具栏（由外层 surface 统一处理）。
   final void Function(NovelReaderParagraph paragraph, Offset position)?
-  onParagraphTap;
+  onParagraphLongPress;
 
   /// 段落是否已有书签（决定是否渲染小书签标记）。
   final bool Function(NovelReaderParagraph paragraph)? isBookmarkedParagraph;
@@ -89,9 +88,6 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   /// 猛滑后点一下只是给惯性刹车，这种点击不切换工具栏（与漫画阅读器一致）。
   final _flingBrakeGuard = FlingBrakeTapGuard();
 
-  /// 最近一次段落点按落点的全局坐标（onTapUp 先于 onTap 到达）。
-  Offset _paragraphTapPosition = Offset.zero;
-
   /// Null during any restoration: callers may flush their last valid snapshot,
   /// but must not replace it with a transient layout position.
   NovelReaderLocation? get currentLocation =>
@@ -130,7 +126,9 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         }
       }
       // 可见项里没有正文时按目录顺序向外找（先向前）。
-      center = fallback ?? _nearestTextItemAway(center.index, center.itemLeadingEdge);
+      center =
+          fallback ??
+          _nearestTextItemAway(center.index, center.itemLeadingEdge);
       if (center == null) return null;
     }
     final extent = center.itemTrailingEdge - center.itemLeadingEdge;
@@ -471,14 +469,11 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         child: body,
       );
     }
-    if (widget.onParagraphTap != null) {
+    if (widget.onParagraphLongPress != null) {
       body = GestureDetector(
-        onTapUp: (details) => _paragraphTapPosition = details.globalPosition,
-        onTap: () {
-          if (_flingBrakeGuard.consumeTap()) return;
-          widget.onTap();
-          widget.onParagraphTap!(paragraph, _paragraphTapPosition);
-        },
+        behavior: HitTestBehavior.translucent,
+        onLongPressStart: (details) =>
+            widget.onParagraphLongPress!(paragraph, details.globalPosition),
         child: body,
       );
     }

@@ -476,7 +476,7 @@ void main() {
     };
     await h.pump(tester, replyId: _parentId);
     await tester.pumpAndSettle();
-    expect(find.text('评论加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
     expect(find.text('恢复的回复'), findsOneWidget);
@@ -892,19 +892,22 @@ void main() {
     var failed = false;
     h.api.load = (_, offset) async {
       if (offset == 0) {
-        return _page(
-          [const NovelComment(id: 'a', comment: '第一条', userName: '甲')],
-          total: 3,
-        );
+        return _page([
+          const NovelComment(id: 'a', comment: '第一条', userName: '甲'),
+        ], total: 3);
       }
       if (!failed) {
         failed = true;
         throw const NovelApiException('offline');
       }
-      return _page([
-        const NovelComment(id: 'b', comment: '第二条', userName: '乙'),
-        const NovelComment(id: 'c', comment: '第三条', userName: '丙'),
-      ], total: 3, offset: 1);
+      return _page(
+        [
+          const NovelComment(id: 'b', comment: '第二条', userName: '乙'),
+          const NovelComment(id: 'c', comment: '第三条', userName: '丙'),
+        ],
+        total: 3,
+        offset: 1,
+      );
     };
     await h.pump(tester, bookName: '魔法图书');
     await tester.pumpAndSettle();

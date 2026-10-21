@@ -235,7 +235,7 @@ class _ReaderImageViewerState extends State<_ReaderImageViewer> {
       if (mounted) showToast(context, l10n.readerImageSaved);
     } catch (error, stackTrace) {
       unawaited(
-        AppLogger().recordWarning(
+        AppLogger.instance.recordWarning(
           '保存图片失败: $error',
           stackTrace: stackTrace,
           source: 'reader_image_viewer',

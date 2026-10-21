@@ -107,6 +107,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get retryButton => '重试';
 
   @override
+  String get startupFailedTitle => '启动失败';
+
+  @override
+  String get startupFailedBody =>
+      '应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。';
+
+  @override
+  String get startupFailedDetails => '错误信息';
+
+  @override
   String get noContent => '暂无内容';
 
   @override
@@ -328,6 +338,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshFailed => '刷新失败';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登录已过期';
 
   @override
@@ -343,9 +358,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get goLoginButton => '去登录';
-
-  @override
-  String get autoLoginFailed => '自动登录失败，请手动重新登录';
 
   @override
   String get loginToViewBookshelf => '登录后可继续查看书架';
@@ -415,15 +427,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get generalTitle => '通用';
 
   @override
-  String get autoLoginTitle => '自动登录';
-
-  @override
-  String get autoLoginEnabledDesc => '登录过期时自动重新登录';
-
-  @override
-  String get autoLoginUnavailableDesc => '登录并保存账号密码后可用';
-
-  @override
   String get remoteNoticeTitle => '通知';
 
   @override
@@ -436,7 +439,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bannerVisibleTitle => '显示Banner';
 
   @override
-  String get bannerVisibleDesc => '关闭后漫画和动漫主页顶部Banner不显示';
+  String get bannerVisibleDesc => '关闭后漫画主页顶部Banner不显示';
 
   @override
   String get backExitConfirmTitle => '返回两次退出应用';
@@ -613,6 +616,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileHotCredentialLabel => '热辣漫画';
 
   @override
+  String get accountAddedToast => '账号已添加';
+
+  @override
   String get accountSwitchedToast => '账号已切换';
 
   @override
@@ -635,6 +641,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get userInfoRefreshFailedToast => '刷新失败，请重试';
+
+  @override
+  String userInfoRefreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
 
   @override
   String get copyProfileRefreshUnavailable => '暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名';
@@ -684,6 +695,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceBottomNavLabelModeAlwaysDesc => '经典导航，文字显示在图标下方';
 
   @override
+  String get appearanceFloatingNavLabelModeHint => '悬浮底栏不支持始终显示文字，已改为选中时显示';
+
+  @override
   String get appearanceNavOrder => '导航栏顺序';
 
   @override
@@ -694,6 +708,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceNavSwipeDesc => '关闭后只能点击底部导航按钮切换页面';
+
+  @override
+  String get appearanceFloatingNavTitle => '悬浮底部导航栏';
+
+  @override
+  String get appearanceFloatingNavDesc => '关闭后导航栏固定在页面底部';
 
   @override
   String get appearanceAppIcon => '应用图标';
@@ -937,6 +957,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkTestingNodes => '正在检测各节点...';
 
   @override
+  String networkSpeedTestFailedDetail(String detail) {
+    return '测速失败：$detail';
+  }
+
+  @override
   String get networkHighLatencyProxySuggestion => '当前延迟较大，建议开启代理';
 
   @override
@@ -1016,6 +1041,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkCopyAppVersion => 'COPY 请求版本号';
+
+  @override
+  String get networkCopyVersionCode => 'COPY versionCode';
 
   @override
   String get networkCopyAutoUpdate => '每天自动更新';
@@ -1321,6 +1349,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarksUpdateFailed => '书签保存失败，请重试';
 
   @override
+  String get bookmarksSearchHint => '搜索书名或章节';
+
+  @override
+  String get bookmarksSearchEmpty => '没有找到相关书签，试试其他关键词';
+
+  @override
   String get statsTitle => '阅读统计';
 
   @override
@@ -1483,6 +1517,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkRemoved => '已取消书签';
 
   @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '该作品有 $count 条书签，取消书签会一并删除。';
+  }
+
+  @override
   String bookmarkPage(int page) {
     return '第 $page 页';
   }
@@ -1577,7 +1616,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileLoginFailedProxyHint => '登录失败，建议开启代理后重试';
 
   @override
-  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或开启代理后重试';
+  String profileLoginFailedDetail(String detail) {
+    return '登录失败：$detail';
+  }
+
+  @override
+  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或代理节点后重试';
 
   @override
   String get profileTokenRequired => '请输入令牌';
@@ -1598,52 +1642,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileTokenLoginEntry => '令牌登录';
 
   @override
-  String get profileWebLoginButton => '官网登录';
+  String get copyAccountChannelWebApi => '网页接口';
 
   @override
-  String get profileWebLoginRecommendedTag => '推荐';
+  String get copyAccountChannelWeb => '网页';
+
+  @override
+  String get copyAccountChannelApp => 'App接口';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
+    return '登录失败：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官网登录';
 
   @override
-  String get profileWebLoginHint =>
-      '在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态';
+  String get profileWebLoginHint => '在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。';
 
   @override
   String get profileWebLoginCompleting => '已获取登录信息，正在验证…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登录';
-
-  @override
-  String get profileWebLoginNotDetected => '未检测到登录信息，请先在官网中完成登录';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官网登录状态';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官网登录状态，请登录其他账号';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '检测到本机已保存的账号「$name」，尚未自动登录';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已保存的账号';
-
-  @override
-  String get profileWebLoginUseAccount => '使用该账号';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切换其他账号';
-
-  @override
-  String get profileWebLoginRetryButton => '重新检测登录';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官网登录状态失败，请重试';
 
   @override
   String get profileWebLoginFailed => '官网登录失败';
@@ -1714,28 +1733,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutStableChannelShort => '稳定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切换?';
 
   @override
-  String get aboutStableChannelTitle => '稳定版 (Stable)';
+  String get aboutBetaChannelNote => '预览版更新更快,问题也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '仅检查正式发布版本';
+  String get aboutBetaChannelArm64Only => '仅限 Android arm64 设备。';
 
   @override
-  String get aboutBetaChannelTitle => '预览版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '从最新提交构建的版本，可能不稳定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切换到预览版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '预览版一般用于测试新功能或修复问题，可能存在更多问题。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '当前设备:$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '仓库';
@@ -2009,9 +2018,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get chapterCommentsTitle => '章节评论';
-
-  @override
-  String get chapterCommentsLoadAllTooltip => '加载全部评论';
 
   @override
   String get chapterCommentsAiSummaryTooltip => 'AI 总结评论';
@@ -2410,6 +2416,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cacheDataCacheSection => '数据缓存';
 
   @override
+  String get cacheDataCacheWarning => '数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。';
+
+  @override
   String get cacheNoLocalKeyValueData => '没有可显示的本地键值数据';
 
   @override
@@ -2549,6 +2558,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appLogEmpty => '暂无错误日志';
 
   @override
+  String get appLogDisabledTitle => '日志记录已关闭';
+
+  @override
   String get appLogCopied => '日志已复制到剪贴板';
 
   @override
@@ -2596,6 +2608,17 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appLogSearchHint => '搜索日志（消息、来源、堆栈、上下文）';
+
+  @override
+  String get appLogExportTooltip => '导出日志文件';
+
+  @override
+  String get appLogExported => '日志已导出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '导出失败：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日志';
@@ -3007,6 +3030,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '加载相邻章节失败：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '当前已无上一话';
 
   @override
@@ -3034,13 +3062,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerRefresh => '刷新本话';
 
   @override
-  String get readerAlreadyFirstChapter => '已经是第一章';
+  String get readerAlreadyFirstChapter => '梦开始的地方';
 
   @override
   String get readerContinuePageNextChapter => '继续翻页进入下一话';
 
   @override
-  String get readerAlreadyLastChapter => '已经是最后一话';
+  String get readerAlreadyLastChapter => '当前已无下一话';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '继续下滑或点击按钮进入下一话';
@@ -3124,7 +3152,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateDownloadFailed => '下载失败，请稍后重试';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下载失败：$detail';
+  }
+
+  @override
+  String updateDownloadFallback(int count) {
+    return '下载源切换中（第 $count 个备用源）';
+  }
+
+  @override
   String get updateInstallFailed => '无法启动安装，请改用浏览器下载';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '无法启动安装：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安装未知应用」权限才能安装更新';
@@ -3166,7 +3209,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noticeRefreshFailed => '刷新通知失败，请稍后重试';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '刷新通知失败：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '读取通知失败';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '读取通知失败：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已标记为已读';
@@ -3572,6 +3625,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupOperationFailed => '操作失败，请检查文件权限和可用空间后重试。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失败：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '请检查服务器地址、用户名和文件夹路径。';
 
   @override
@@ -3750,6 +3808,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelCollectFailed => '收藏操作失败，请重试';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失败：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下载失败：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '阅读与收藏状态加载失败';
 
   @override
@@ -3887,13 +3955,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
 
   @override
-  String get novelReaderPrevious => '上一章节';
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷册加载失败：$detail（点击重试）';
+  }
 
   @override
-  String get novelReaderNext => '下一章节';
+  String get novelReaderPrevious => '上一卷';
+
+  @override
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '阅读设置';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻页';
 
   @override
   String get novelReaderFontSize => '字号';
@@ -4270,6 +4346,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get retryButton => '重試';
 
   @override
+  String get startupFailedTitle => '啟動失敗';
+
+  @override
+  String get startupFailedBody =>
+      '應用程式初始化沒有完成，通常是安裝包與裝置環境不匹配。可先重試；若仍失敗，請解除安裝後重新安裝，或把下面的錯誤資訊回饋給開發者。';
+
+  @override
+  String get startupFailedDetails => '錯誤資訊';
+
+  @override
   String get noContent => '暫無內容';
 
   @override
@@ -4491,6 +4577,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get refreshFailed => '重新整理失敗';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登入已過期';
 
   @override
@@ -4506,9 +4597,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get goLoginButton => '去登入';
-
-  @override
-  String get autoLoginFailed => '自動登入失敗，請手動重新登入';
 
   @override
   String get loginToViewBookshelf => '登入後可繼續檢視書架';
@@ -4578,15 +4666,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get generalTitle => '通用';
 
   @override
-  String get autoLoginTitle => '自動登入';
-
-  @override
-  String get autoLoginEnabledDesc => '登入過期時自動重新登入';
-
-  @override
-  String get autoLoginUnavailableDesc => '登入並儲存帳號密碼後可用';
-
-  @override
   String get remoteNoticeTitle => '通知';
 
   @override
@@ -4599,7 +4678,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bannerVisibleTitle => '顯示 Banner';
 
   @override
-  String get bannerVisibleDesc => '關閉後漫畫和動漫首頁頂部 Banner 不顯示';
+  String get bannerVisibleDesc => '關閉後漫畫首頁頂部 Banner 不顯示';
 
   @override
   String get backExitConfirmTitle => '返回兩次退出應用';
@@ -4776,6 +4855,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileHotCredentialLabel => '熱辣漫畫';
 
   @override
+  String get accountAddedToast => '帳號已新增';
+
+  @override
   String get accountSwitchedToast => '帳號已切換';
 
   @override
@@ -4798,6 +4880,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get userInfoRefreshFailedToast => '重新整理失敗，請重試';
+
+  @override
+  String userInfoRefreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
 
   @override
   String get copyProfileRefreshUnavailable => '暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱';
@@ -4847,6 +4934,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceBottomNavLabelModeAlwaysDesc => '經典導覽，文字顯示在圖示下方';
 
   @override
+  String get appearanceFloatingNavLabelModeHint => '懸浮底欄不支援始終顯示文字，已改為選中時顯示';
+
+  @override
   String get appearanceNavOrder => '導覽列順序';
 
   @override
@@ -4857,6 +4947,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceNavSwipeDesc => '關閉後只能點擊底部導覽按鈕切換頁面';
+
+  @override
+  String get appearanceFloatingNavTitle => '懸浮底部導覽列';
+
+  @override
+  String get appearanceFloatingNavDesc => '關閉後導覽列固定在頁面底部';
 
   @override
   String get appearanceAppIcon => '應用圖示';
@@ -5100,6 +5196,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get networkTestingNodes => '正在檢測各節點...';
 
   @override
+  String networkSpeedTestFailedDetail(String detail) {
+    return '測速失敗：$detail';
+  }
+
+  @override
   String get networkHighLatencyProxySuggestion => '目前延遲較大，建議開啟代理';
 
   @override
@@ -5179,6 +5280,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkCopyAppVersion => 'COPY 請求版本號';
+
+  @override
+  String get networkCopyVersionCode => 'COPY versionCode';
 
   @override
   String get networkCopyAutoUpdate => '每天自動更新';
@@ -5484,6 +5588,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarksUpdateFailed => '書籤儲存失敗，請重試';
 
   @override
+  String get bookmarksSearchHint => '搜尋書名或章節';
+
+  @override
+  String get bookmarksSearchEmpty => '沒有找到相關書籤，試試其他關鍵詞';
+
+  @override
   String get statsTitle => '閱讀統計';
 
   @override
@@ -5646,6 +5756,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarkRemoved => '已取消書籤';
 
   @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '該作品有 $count 條書籤，取消書籤會一併刪除。';
+  }
+
+  @override
   String bookmarkPage(int page) {
     return '第 $page 頁';
   }
@@ -5740,7 +5855,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileLoginFailedProxyHint => '登入失敗，建議開啟代理後重試';
 
   @override
-  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或開啟代理後重試';
+  String profileLoginFailedDetail(String detail) {
+    return '登入失敗：$detail';
+  }
+
+  @override
+  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或代理節點後重試';
 
   @override
   String get profileTokenRequired => '請輸入權杖';
@@ -5761,52 +5881,27 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileTokenLoginEntry => '權杖登入';
 
   @override
-  String get profileWebLoginButton => '官網登入';
+  String get copyAccountChannelWebApi => '網頁介面';
 
   @override
-  String get profileWebLoginRecommendedTag => '推薦';
+  String get copyAccountChannelWeb => '網頁';
+
+  @override
+  String get copyAccountChannelApp => 'App介面';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
+    return '登入失敗：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官網登入';
 
   @override
-  String get profileWebLoginHint =>
-      '在官網中登入拷貝漫畫帳號，登入成功後將自動完成；若要換成其他帳號，請先點右上角清除登入狀態';
+  String get profileWebLoginHint => '在應用內開啟拷貝官網登入頁並自動填入帳號密碼，由網頁完成登入後自動回填。';
 
   @override
   String get profileWebLoginCompleting => '已獲取登入資訊，正在驗證…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登入';
-
-  @override
-  String get profileWebLoginNotDetected => '未偵測到登入資訊，請先在官網中完成登入';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官網登入狀態';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官網登入狀態，請登入其他帳號';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '偵測到本機已儲存的帳號「$name」，尚未自動登入';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已儲存的帳號';
-
-  @override
-  String get profileWebLoginUseAccount => '使用該帳號';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切換其他帳號';
-
-  @override
-  String get profileWebLoginRetryButton => '重新偵測登入';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官網登入狀態失敗，請重試';
 
   @override
   String get profileWebLoginFailed => '官網登入失敗';
@@ -5877,28 +5972,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutStableChannelShort => '穩定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切換?';
 
   @override
-  String get aboutStableChannelTitle => '穩定版 (Stable)';
+  String get aboutBetaChannelNote => '預覽版更新更快,問題也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '僅檢查正式發布版本';
+  String get aboutBetaChannelArm64Only => '僅限 Android arm64 裝置。';
 
   @override
-  String get aboutBetaChannelTitle => '預覽版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '從最新提交建置的版本，可能不穩定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切換到預覽版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '預覽版一般用於測試新功能或修復問題，可能存在更多問題。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '目前裝置：$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '倉庫';
@@ -6172,9 +6257,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get chapterCommentsTitle => '章節評論';
-
-  @override
-  String get chapterCommentsLoadAllTooltip => '載入全部評論';
 
   @override
   String get chapterCommentsAiSummaryTooltip => 'AI 總結評論';
@@ -6573,6 +6655,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get cacheDataCacheSection => '資料快取';
 
   @override
+  String get cacheDataCacheWarning => '資料快取包含書架、閱讀設定、閱讀歷史等本地資料，請勿隨意刪除，以免遺失。';
+
+  @override
   String get cacheNoLocalKeyValueData => '沒有可顯示的本地鍵值資料';
 
   @override
@@ -6712,6 +6797,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appLogEmpty => '暫無錯誤日誌';
 
   @override
+  String get appLogDisabledTitle => '日誌記錄已關閉';
+
+  @override
   String get appLogCopied => '日誌已複製到剪貼簿';
 
   @override
@@ -6759,6 +6847,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appLogSearchHint => '搜尋日誌（訊息、來源、堆疊、上下文）';
+
+  @override
+  String get appLogExportTooltip => '匯出日誌檔案';
+
+  @override
+  String get appLogExported => '日誌已匯出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '匯出失敗：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日誌';
@@ -7170,6 +7269,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '載入相鄰章節失敗：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '目前已無上一話';
 
   @override
@@ -7197,13 +7301,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerRefresh => '重新整理本話';
 
   @override
-  String get readerAlreadyFirstChapter => '已經是第一章';
+  String get readerAlreadyFirstChapter => '夢開始的地方';
 
   @override
   String get readerContinuePageNextChapter => '繼續翻頁進入下一話';
 
   @override
-  String get readerAlreadyLastChapter => '已經是最後一話';
+  String get readerAlreadyLastChapter => '當前已無下一話';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '繼續下滑或點擊按鈕進入下一話';
@@ -7287,7 +7391,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get updateDownloadFailed => '下載失敗，請稍後重試';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下載失敗：$detail';
+  }
+
+  @override
+  String updateDownloadFallback(int count) {
+    return '下載源切換中（第 $count 個備用源）';
+  }
+
+  @override
   String get updateInstallFailed => '無法啟動安裝，請改用瀏覽器下載';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '無法啟動安裝：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安裝未知應用」權限才能安裝更新';
@@ -7329,7 +7448,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get noticeRefreshFailed => '重新整理通知失敗，請稍後重試';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '重新整理通知失敗：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '讀取通知失敗';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '讀取通知失敗：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已標記為已讀';
@@ -7735,6 +7864,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get backupOperationFailed => '操作失敗，請檢查檔案權限和可用空間後重試。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失敗：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '請檢查伺服器位址、使用者名稱和資料夾路徑。';
 
   @override
@@ -7913,6 +8047,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelCollectFailed => '收藏操作失敗，請重試';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失敗：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下載失敗：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '閱讀與收藏狀態載入失敗';
 
   @override
@@ -8050,13 +8194,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';
 
   @override
-  String get novelReaderPrevious => '上一章節';
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷冊載入失敗：$detail（點擊重試）';
+  }
 
   @override
-  String get novelReaderNext => '下一章節';
+  String get novelReaderPrevious => '上一卷';
+
+  @override
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '閱讀設定';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻頁';
 
   @override
   String get novelReaderFontSize => '字級';

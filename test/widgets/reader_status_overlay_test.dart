@@ -13,30 +13,27 @@ void main() {
     await settings.initFromPrefs(await SharedPreferences.getInstance());
   });
 
-  testWidgets(
-    'novel percentage follows the shared comic page toggle',
-    (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: ReaderStatusOverlay(progressLabel: '42%'),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      // 默认页码段关闭：小说百分比与漫画页码一致，都不显示。
-      expect(find.text('42%'), findsNothing);
-      await tester.runAsync(() => settings.setStatusOverlayPage(true));
-      await tester.pumpAndSettle();
-      expect(find.text('42%'), findsOneWidget);
-      expect(find.textContaining('FPS'), findsNothing);
-      expect(tester.binding.hasScheduledFrame, isFalse);
-      await tester.runAsync(() => settings.setStatusOverlayPage(false));
-      await tester.pumpAndSettle();
-      expect(find.text('42%'), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  testWidgets('novel percentage follows the shared comic page toggle', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: ReaderStatusOverlay(progressLabel: '42%')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // 默认页码段关闭：小说百分比与漫画页码一致，都不显示。
+    expect(find.text('42%'), findsNothing);
+    await tester.runAsync(() => settings.setStatusOverlayPage(true));
+    await tester.pumpAndSettle();
+    expect(find.text('42%'), findsOneWidget);
+    expect(find.textContaining('FPS'), findsNothing);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    await tester.runAsync(() => settings.setStatusOverlayPage(false));
+    await tester.pumpAndSettle();
+    expect(find.text('42%'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('comic page labels still follow the existing setting', (
     tester,

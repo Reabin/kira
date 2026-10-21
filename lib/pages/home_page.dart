@@ -24,6 +24,7 @@ import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/time_format.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/cover_placeholder.dart';
@@ -259,7 +260,7 @@ class _HomePageState extends ConsumerState<HomePage>
     if (_error != null && !hasData) {
       return Scaffold(
         floatingActionButton: _buildSourceFab(),
-        body: ErrorRetryView(onRetry: _load),
+        body: ErrorRetryView(message: _error, onRetry: _load),
       );
     }
 
@@ -423,7 +424,7 @@ class _HomePageState extends ConsumerState<HomePage>
       }
     }
 
-    slivers.add(const SliverPadding(padding: EdgeInsets.only(bottom: 88)));
+    slivers.add(const SliverToBoxAdapter(child: BranchBottomSlack(extra: 88)));
 
     return Scaffold(
       floatingActionButton: _buildSourceFab(),

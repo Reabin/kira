@@ -1,10 +1,19 @@
-function Get-CurrentTag {
+﻿function Get-CurrentTag {
     # 必须 @() 包裹：单个 tag 时原样返回字符串，[0] 会取到首字符而非整行
     $tags = @(git tag --sort=-v:refname 2>$null)
     # 忽略 beta 预发布 tag，基线版本从最新正式版算起
     $tags = @($tags | Where-Object { $_ -notmatch 'beta' })
     if ($tags.Count -gt 0) { return $tags[0] }
     return 'v0.0.0'
+}
+
+function Get-CopyAuthKeyDefine {
+    # 拷贝接口登录的签名密钥 = 官方 APK 签名证书 DER 的 MD5 hex。
+    # 它不入库：从环境变量 COPY_AUTH_KEY 读取，取不到就返回空（接口登录
+    # 入口在应用里自动隐藏）。
+    $key = $env:COPY_AUTH_KEY
+    if ([string]::IsNullOrWhiteSpace($key)) { return '' }
+    return "--dart-define=COPY_AUTH_KEY=$($key.Trim())"
 }
 
 function Update-PubspecVersion {

@@ -19,18 +19,30 @@ class NovelReaderPalette {
       onSurface: foreground,
     ),
     iconTheme: base.iconTheme.copyWith(color: foreground),
-    textTheme: base.textTheme.apply(bodyColor: foreground, displayColor: foreground),
+    textTheme: base.textTheme.apply(
+      bodyColor: foreground,
+      displayColor: foreground,
+    ),
   );
 
   static NovelReaderPalette resolve(
     NovelReaderSettings settings,
     Brightness systemBrightness,
-  ) => forThemeId(settings, settings.themeIdFor(dark: systemBrightness == Brightness.dark));
+  ) => forThemeId(
+    settings,
+    settings.themeIdFor(dark: systemBrightness == Brightness.dark),
+  );
 
-  static NovelReaderPalette forThemeId(NovelReaderSettings settings, String id) {
+  static NovelReaderPalette forThemeId(
+    NovelReaderSettings settings,
+    String id,
+  ) {
     for (final theme in settings.customThemes) {
       if (theme.id == id) {
-        return NovelReaderPalette(Color(theme.backgroundColor), Color(theme.textColor));
+        return NovelReaderPalette(
+          Color(theme.backgroundColor),
+          Color(theme.textColor),
+        );
       }
     }
     return switch (id) {
@@ -38,7 +50,10 @@ class NovelReaderPalette {
         Color(NovelReaderSettings.defaultCustomBackgroundColor),
         Color(NovelReaderSettings.defaultCustomTextColor),
       ),
-      'dark' => const NovelReaderPalette(ReaderChrome.surface, ReaderChrome.onSurfaceMuted),
+      'dark' => const NovelReaderPalette(
+        ReaderChrome.surface,
+        ReaderChrome.onSurfaceMuted,
+      ),
       'green' => const NovelReaderPalette(Color(0xFFE0EAD7), Color(0xFF2F3A30)),
       _ => const NovelReaderPalette(Color(0xFFFFFFFF), Color(0xFF212121)),
     };

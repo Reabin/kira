@@ -9,6 +9,9 @@ import '../utils/json_helpers.dart';
 
 enum NovelReaderTheme { paper, dark, white, green }
 
+/// 阅读模式：连续滚动 / 整页翻页。翻页模式固定左到右横向翻页。
+enum NovelReaderMode { scroll, paged }
+
 /// ID 与名称分离：重命名不会改变浅色/深色模式的选择。
 @immutable
 class NovelReaderCustomTheme {
@@ -33,10 +36,16 @@ class NovelReaderCustomTheme {
       NovelReaderCustomTheme(
         id: jsonString(json, 'id').trim(),
         name: jsonString(json, 'name').trim(),
-        backgroundColor: jsonInt(json, 'backgroundColor',
-            fallback: NovelReaderSettings.defaultCustomBackgroundColor),
-        textColor: jsonInt(json, 'textColor',
-            fallback: NovelReaderSettings.defaultCustomTextColor),
+        backgroundColor: jsonInt(
+          json,
+          'backgroundColor',
+          fallback: NovelReaderSettings.defaultCustomBackgroundColor,
+        ),
+        textColor: jsonInt(
+          json,
+          'textColor',
+          fallback: NovelReaderSettings.defaultCustomTextColor,
+        ),
       );
 
   Map<String, dynamic> toJson() => {
@@ -46,18 +55,24 @@ class NovelReaderCustomTheme {
     'textColor': textColor,
   };
 
-  NovelReaderCustomTheme copyWith({String? name, int? backgroundColor, int? textColor}) =>
-      NovelReaderCustomTheme(
-        id: id,
-        name: name ?? this.name,
-        backgroundColor: backgroundColor ?? this.backgroundColor,
-        textColor: textColor ?? this.textColor,
-      );
+  NovelReaderCustomTheme copyWith({
+    String? name,
+    int? backgroundColor,
+    int? textColor,
+  }) => NovelReaderCustomTheme(
+    id: id,
+    name: name ?? this.name,
+    backgroundColor: backgroundColor ?? this.backgroundColor,
+    textColor: textColor ?? this.textColor,
+  );
 
   @override
-  bool operator ==(Object other) => other is NovelReaderCustomTheme &&
-      id == other.id && name == other.name &&
-      backgroundColor == other.backgroundColor && textColor == other.textColor;
+  bool operator ==(Object other) =>
+      other is NovelReaderCustomTheme &&
+      id == other.id &&
+      name == other.name &&
+      backgroundColor == other.backgroundColor &&
+      textColor == other.textColor;
 
   @override
   int get hashCode => Object.hash(id, name, backgroundColor, textColor);
@@ -73,6 +88,10 @@ class NovelReaderSettings {
     this.lightThemeId = defaultLightThemeId,
     this.darkThemeId = defaultDarkThemeId,
     this.keepScreenOn = true,
+    this.mode = NovelReaderMode.scroll,
+    this.realisticPageTurn = true,
+    this.instantPageTurn = false,
+    this.volumeKey = true,
   }) : _customThemes = const [],
        fontSize = fontSize != fontSize
            ? defaultFontSize
@@ -96,14 +115,20 @@ class NovelReaderSettings {
            ? maxParagraphSpacing
            : paragraphSpacing;
 
-  NovelReaderSettings._withThemes(NovelReaderSettings base, List<NovelReaderCustomTheme> themes)
-      : fontSize = base.fontSize,
-        lineHeight = base.lineHeight,
-        paragraphSpacing = base.paragraphSpacing,
-        lightThemeId = base.lightThemeId,
-        darkThemeId = base.darkThemeId,
-        keepScreenOn = base.keepScreenOn,
-        _customThemes = List.unmodifiable(themes);
+  NovelReaderSettings._withThemes(
+    NovelReaderSettings base,
+    List<NovelReaderCustomTheme> themes,
+  ) : fontSize = base.fontSize,
+      lineHeight = base.lineHeight,
+      paragraphSpacing = base.paragraphSpacing,
+      lightThemeId = base.lightThemeId,
+      darkThemeId = base.darkThemeId,
+      keepScreenOn = base.keepScreenOn,
+      mode = base.mode,
+      realisticPageTurn = base.realisticPageTurn,
+      instantPageTurn = base.instantPageTurn,
+      volumeKey = base.volumeKey,
+      _customThemes = List.unmodifiable(themes);
 
   static const storageKey = 'reader_novel_settings_v1';
   static const minFontSize = 10.0;
@@ -128,18 +153,31 @@ class NovelReaderSettings {
   final String lightThemeId;
   final String darkThemeId;
   final bool keepScreenOn;
+  final NovelReaderMode mode;
+
+  /// 翻页模式下使用仿真翻页，关闭时使用平移动画；[instantPageTurn] 优先。
+  final bool realisticPageTurn;
+
+  /// 翻页模式下瞬时跳页（无过渡动画），与漫画阅读器的「无动画翻页」同一语义。
+  final bool instantPageTurn;
+
+  /// 翻页模式下允许音量键翻页（音量+上一页、音量-下一页）。
+  final bool volumeKey;
   final List<NovelReaderCustomTheme> _customThemes;
   List<NovelReaderCustomTheme> get customThemes => _customThemes;
 
   static Future<void>? _queue;
 
-  bool hasTheme(String id) => NovelReaderTheme.values.any((theme) => theme.name == id) ||
+  bool hasTheme(String id) =>
+      NovelReaderTheme.values.any((theme) => theme.name == id) ||
       _customThemes.any((theme) => theme.id == id);
 
   /// 对未知/已删除 ID 的回退与存储分离，旧备份也能立即安全显示。
   String themeIdFor({required bool dark}) {
     final id = dark ? darkThemeId : lightThemeId;
-    return hasTheme(id) ? id : (dark ? defaultDarkThemeId : defaultLightThemeId);
+    return hasTheme(id)
+        ? id
+        : (dark ? defaultDarkThemeId : defaultLightThemeId);
   }
 
   String newCustomThemeId() {
@@ -161,29 +199,60 @@ class NovelReaderSettings {
       for (final raw in rawThemes) {
         if (raw is! Map<String, dynamic>) continue;
         final theme = NovelReaderCustomTheme.fromJson(raw);
-        if (theme.id.isEmpty || theme.name.isEmpty || !seen.add(theme.id)) continue;
+        if (theme.id.isEmpty || theme.name.isEmpty || !seen.add(theme.id)) {
+          continue;
+        }
         themes.add(theme);
       }
     } else if (legacyTheme == 'custom' ||
-        json.containsKey('customBackgroundColor') || json.containsKey('customTextColor')) {
-      themes.add(NovelReaderCustomTheme(
-        id: legacyCustomThemeId,
-        name: '自定义',
-        backgroundColor: jsonInt(json, 'customBackgroundColor', fallback: defaultCustomBackgroundColor),
-        textColor: jsonInt(json, 'customTextColor', fallback: defaultCustomTextColor),
-      ));
+        json.containsKey('customBackgroundColor') ||
+        json.containsKey('customTextColor')) {
+      themes.add(
+        NovelReaderCustomTheme(
+          id: legacyCustomThemeId,
+          name: '自定义',
+          backgroundColor: jsonInt(
+            json,
+            'customBackgroundColor',
+            fallback: defaultCustomBackgroundColor,
+          ),
+          textColor: jsonInt(
+            json,
+            'customTextColor',
+            fallback: defaultCustomTextColor,
+          ),
+        ),
+      );
     }
     final legacyId = legacyTheme == 'custom'
         ? legacyCustomThemeId
         : NovelReaderTheme.values.any((theme) => theme.name == legacyTheme)
-        ? legacyTheme : null;
+        ? legacyTheme
+        : null;
     return NovelReaderSettings(
       fontSize: jsonDouble(json, 'fontSize', fallback: defaultFontSize),
       lineHeight: jsonDouble(json, 'lineHeight', fallback: defaultLineHeight),
-      paragraphSpacing: jsonDouble(json, 'paragraphSpacing', fallback: defaultParagraphSpacing),
-      lightThemeId: jsonString(json, 'lightThemeId', fallback: legacyId ?? defaultLightThemeId),
-      darkThemeId: jsonString(json, 'darkThemeId', fallback: legacyId ?? defaultDarkThemeId),
+      paragraphSpacing: jsonDouble(
+        json,
+        'paragraphSpacing',
+        fallback: defaultParagraphSpacing,
+      ),
+      lightThemeId: jsonString(
+        json,
+        'lightThemeId',
+        fallback: legacyId ?? defaultLightThemeId,
+      ),
+      darkThemeId: jsonString(
+        json,
+        'darkThemeId',
+        fallback: legacyId ?? defaultDarkThemeId,
+      ),
       keepScreenOn: jsonBool(json, 'keepScreenOn', fallback: true),
+      // 未知/缺失的阅读模式回退滚动：旧版本记录与损坏数据都安全。
+      mode: _modeFromJson(jsonString(json, 'mode')),
+      realisticPageTurn: jsonBool(json, 'realisticPageTurn', fallback: true),
+      instantPageTurn: jsonBool(json, 'instantPageTurn'),
+      volumeKey: jsonBool(json, 'volumeKey', fallback: true),
     ).copyWith(customThemes: themes);
   }
 
@@ -195,6 +264,10 @@ class NovelReaderSettings {
     'darkThemeId': themeIdFor(dark: true),
     'customThemes': _customThemes.map((theme) => theme.toJson()).toList(),
     'keepScreenOn': keepScreenOn,
+    'mode': mode.name,
+    'realisticPageTurn': realisticPageTurn,
+    'instantPageTurn': instantPageTurn,
+    'volumeKey': volumeKey,
   };
 
   NovelReaderSettings copyWith({
@@ -205,6 +278,10 @@ class NovelReaderSettings {
     String? darkThemeId,
     List<NovelReaderCustomTheme>? customThemes,
     bool? keepScreenOn,
+    NovelReaderMode? mode,
+    bool? realisticPageTurn,
+    bool? instantPageTurn,
+    bool? volumeKey,
   }) {
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -213,21 +290,33 @@ class NovelReaderSettings {
       lightThemeId: lightThemeId ?? this.lightThemeId,
       darkThemeId: darkThemeId ?? this.darkThemeId,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
+      mode: mode ?? this.mode,
+      realisticPageTurn: realisticPageTurn ?? this.realisticPageTurn,
+      instantPageTurn: instantPageTurn ?? this.instantPageTurn,
+      volumeKey: volumeKey ?? this.volumeKey,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();
-    final themes = (customThemes ?? _customThemes).where((theme) =>
-      theme.id.isNotEmpty && theme.name.trim().isNotEmpty && seen.add(theme.id)).toList();
+    final themes = (customThemes ?? _customThemes)
+        .where(
+          (theme) =>
+              theme.id.isNotEmpty &&
+              theme.name.trim().isNotEmpty &&
+              seen.add(theme.id),
+        )
+        .toList();
     // 绑定 ID 原样保留：upsert 顺序上主题可能刚要进入列表，此时不能把
     // 绑定改写成回退值；未知 ID 的兜底只发生在 themeIdFor 展示时。
     return NovelReaderSettings._withThemes(base, themes);
   }
 
-  NovelReaderSettings upsertCustomTheme(NovelReaderCustomTheme theme) => copyWith(
-    customThemes: [
-      for (final saved in _customThemes) if (saved.id != theme.id) saved,
-      theme,
-    ],
-  );
+  NovelReaderSettings upsertCustomTheme(NovelReaderCustomTheme theme) =>
+      copyWith(
+        customThemes: [
+          for (final saved in _customThemes)
+            if (saved.id != theme.id) saved,
+          theme,
+        ],
+      );
 
   NovelReaderSettings removeCustomTheme(String id) => copyWith(
     customThemes: _customThemes.where((theme) => theme.id != id).toList(),
@@ -250,11 +339,13 @@ class NovelReaderSettings {
       }
       return NovelReaderSettings.fromJson(json);
     } catch (error, stack) {
-      unawaited(AppLogger.instance.recordWarning(
-        'Ignored invalid novel reader settings (${error.runtimeType})',
-        stackTrace: stack,
-        source: 'novel_reader_settings.load',
-      ));
+      unawaited(
+        AppLogger.instance.recordWarning(
+          'Ignored invalid novel reader settings (${error.runtimeType})',
+          stackTrace: stack,
+          source: 'novel_reader_settings.load',
+        ),
+      );
       return const NovelReaderSettings();
     }
   });
@@ -273,13 +364,18 @@ class NovelReaderSettings {
     void releaseIfIdle() {
       if (identical(_queue, tail)) _queue = null;
     }
+
     tail = operation.then<void>(
       (_) => releaseIfIdle(),
       onError: (Object error, StackTrace stack) {
         releaseIfIdle();
-        unawaited(AppLogger.instance.recordWarning(
-          error, stackTrace: stack, source: 'novel_reader_settings',
-        ));
+        unawaited(
+          AppLogger.instance.recordWarning(
+            error,
+            stackTrace: stack,
+            source: 'novel_reader_settings',
+          ),
+        );
       },
     );
     _queue = tail;
@@ -287,14 +383,38 @@ class NovelReaderSettings {
   }
 
   @override
-  bool operator ==(Object other) => other is NovelReaderSettings &&
-      fontSize == other.fontSize && lineHeight == other.lineHeight &&
+  bool operator ==(Object other) =>
+      other is NovelReaderSettings &&
+      fontSize == other.fontSize &&
+      lineHeight == other.lineHeight &&
       paragraphSpacing == other.paragraphSpacing &&
       themeIdFor(dark: false) == other.themeIdFor(dark: false) &&
       themeIdFor(dark: true) == other.themeIdFor(dark: true) &&
-      listEquals(_customThemes, other._customThemes) && keepScreenOn == other.keepScreenOn;
+      listEquals(_customThemes, other._customThemes) &&
+      keepScreenOn == other.keepScreenOn &&
+      mode == other.mode &&
+      realisticPageTurn == other.realisticPageTurn &&
+      instantPageTurn == other.instantPageTurn &&
+      volumeKey == other.volumeKey;
 
   @override
-  int get hashCode => Object.hash(fontSize, lineHeight, paragraphSpacing,
-      themeIdFor(dark: false), themeIdFor(dark: true), Object.hashAll(_customThemes), keepScreenOn);
+  int get hashCode => Object.hash(
+    fontSize,
+    lineHeight,
+    paragraphSpacing,
+    themeIdFor(dark: false),
+    themeIdFor(dark: true),
+    Object.hashAll(_customThemes),
+    keepScreenOn,
+    mode,
+    realisticPageTurn,
+    instantPageTurn,
+    volumeKey,
+  );
 }
+
+/// 未知/缺失的阅读模式一律回退到滚动，保证旧记录与损坏数据可读。
+NovelReaderMode _modeFromJson(String raw) => NovelReaderMode.values.firstWhere(
+  (mode) => mode.name == raw,
+  orElse: () => NovelReaderMode.scroll,
+);

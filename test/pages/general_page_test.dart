@@ -85,4 +85,31 @@ void main() {
     expect(find.byType(SettingActionTile), findsNothing);
     expect(find.textContaining('备份'), findsWidgets);
   });
+
+  testWidgets('wide screen puts backup and reset in the right column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await UserManager().init();
+
+    await tester.pumpWidget(
+      wrapWithApp(const GeneralPage(), wrapInScaffold: false),
+    );
+    await tester.pumpAndSettle();
+
+    final settings = tester.getTopLeft(find.text('显示Banner'));
+    final backup = tester.getTopLeft(find.text('备份与同步'));
+    final reset = tester.getTopLeft(find.text('重置应用'));
+
+    // 左列设置组,右列备份在上、重置在下。
+    expect(backup.dx, greaterThan(settings.dx));
+    expect(reset.dx, backup.dx);
+    expect(reset.dy, greaterThan(backup.dy));
+  });
 }

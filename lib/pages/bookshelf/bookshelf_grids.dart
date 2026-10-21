@@ -9,7 +9,7 @@ extension _BookshelfGrids on _BookshelfPageState {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bookmark_border, size: 64, color: cs.onSurfaceVariant),
+          Icon(Icons.favorite_border, size: 64, color: cs.onSurfaceVariant),
           const SizedBox(height: AppSpacing.lg),
           Text(
             l10n.bookshelfEmpty,

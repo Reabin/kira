@@ -250,7 +250,7 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
             else if (_error != null && _comics.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
-                child: _CopyListError(onRetry: _load),
+                child: _CopyListError(message: _error, onRetry: _load),
               )
             else ...[
               SliverPadding(
@@ -375,13 +375,14 @@ class _CopyRankControls extends StatelessWidget {
 }
 
 class _CopyListError extends StatelessWidget {
+  final String? message;
   final VoidCallback onRetry;
 
-  const _CopyListError({required this.onRetry});
+  const _CopyListError({this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
-    return ErrorRetryView(onRetry: onRetry);
+    return ErrorRetryView(message: message, onRetry: onRetry);
   }
 }
 

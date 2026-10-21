@@ -18,9 +18,11 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
+import '../utils/bookmark_store.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/kira_links.dart';
+import '../utils/network_error.dart';
 import '../utils/novel_download_manager.dart';
 import '../utils/reading_history.dart';
 import '../utils/time_format.dart';
@@ -95,6 +97,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   String _selectedGroup = 'default';
   bool _loadingComic = true;
   bool _refreshingComic = false;
+  String? _comicError;
   bool _loadingChapters = false;
   bool _keepShowingCachedChapters = false;
   int _chapterTotal = 0;
@@ -126,6 +129,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   /// [setState]，统一经由这个转发方法。
   void _setState(VoidCallback fn) => setState(fn);
 
+  final _bookmarkStore = BookmarkStore();
+
+  /// 这部漫画是否已出现在书签页（只有分组也算）。
+  bool _bookmarkGrouped = false;
+
   @override
   void initState() {
     super.initState();
@@ -137,14 +145,71 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
     _lastBrowseName = widget.lastBrowseName;
     _readerSettings.addListener(_handleReaderSettingsChanged);
     _downloads.addListener(_handleDownloadChanged);
+    _bookmarkStore.addListener(_handleBookmarkChanged);
+    unawaited(_loadBookmarkGroup());
     unawaited(_initializePage());
   }
 
   @override
   void dispose() {
     _readerSettings.removeListener(_handleReaderSettingsChanged);
+    _bookmarkStore.removeListener(_handleBookmarkChanged);
     _downloads.removeListener(_handleDownloadChanged);
     super.dispose();
+  }
+
+  Future<void> _loadBookmarkGroup() async {
+    await _bookmarkStore.ensureLoaded();
+    _handleBookmarkChanged();
+  }
+
+  void _handleBookmarkChanged() {
+    if (!mounted) return;
+    setState(() => _bookmarkGrouped = _bookmarkStore.hasGroup(widget.pathWord));
+  }
+
+  /// 右上角书签按钮：把这部漫画加进书签页。只登记分组、不写具体书签，
+  /// 所以在书签页里表现为「只有组头、没有条目」。
+  ///
+  /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
+  Future<void> _toggleBookmarkGroup() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_bookmarkStore.hasGroup(widget.pathWord)) {
+      final count = _bookmarkStore.bookmarks
+          .where((bookmark) => bookmark.pathWord == widget.pathWord)
+          .length;
+      if (count > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.bookmarkRemove),
+            content: Text(l10n.bookmarkRemoveGroupContent(count)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancelButton),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      await _bookmarkStore.removeGroup(widget.pathWord);
+      if (!mounted) return;
+      showToast(context, l10n.bookmarkRemoved);
+      return;
+    }
+    await _bookmarkStore.addGroup(
+      pathWord: widget.pathWord,
+      comicName: _comic?.name ?? '',
+      cover: _comic?.cover ?? '',
+    );
+    if (!mounted) return;
+    showToast(context, l10n.bookmarkAdded);
   }
 
   Future<void> _initializePage() async {
@@ -275,6 +340,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       // 收藏态在下方照常拉新。
       final data = await _repo.load();
       if (!mounted) return;
+      if (_comicError != null) setState(() => _comicError = null);
       final comic = data.comic;
       final selectedGroup = _resolveSelectedGroup(
         comic,
@@ -306,6 +372,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         setState(() {
           _loadingComic = false;
           _refreshingComic = false;
+          _comicError = NetworkError.message(e);
         });
       }
     }
@@ -467,6 +534,18 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         title: Text(_comic?.name ?? ''),
         actions: [
           IconButton(
+            key: const ValueKey('comic_detail_bookmark'),
+            icon: Icon(
+              _bookmarkGrouped
+                  ? Icons.bookmark_added
+                  : Icons.bookmark_add_outlined,
+            ),
+            tooltip: _bookmarkGrouped
+                ? AppLocalizations.of(context)!.bookmarkRemove
+                : AppLocalizations.of(context)!.bookmarkAdd,
+            onPressed: _toggleBookmarkGroup,
+          ),
+          IconButton(
             icon: const Icon(Icons.share),
             tooltip: AppLocalizations.of(context)!.comicDetailShare,
             onPressed: _shareComic,
@@ -476,7 +555,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       body: _loadingComic
           ? const Center(child: ExpressiveLoadingIndicator())
           : _comic == null
-          ? ErrorRetryView(icon: Icons.error_outline, onRetry: _loadComic)
+          ? ErrorRetryView(
+              icon: Icons.error_outline,
+              message: _comicError,
+              onRetry: _loadComic,
+            )
           : Stack(
               children: [
                 _buildBody(cs, tt),

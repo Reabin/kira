@@ -29,8 +29,10 @@ class _SearchTabState extends State<_SearchTab>
   List<Comic> _comics = [];
   bool _keywordsLoading = true;
   bool _keywordsFailed = false;
+  Object? _keywordsError;
   bool _searching = false;
   bool _searchFailed = false;
+  Object? _searchError;
   bool _loadingMore = false;
   bool _loadMoreFailed = false;
   bool _hasMore = false;
@@ -135,7 +137,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!mounted || epoch != _keywordsEpoch) return;
       _recordWarning(error, stack, 'load_keywords');
-      setState(() => _keywordsFailed = true);
+      setState(() {
+        _keywordsFailed = true;
+        _keywordsError = error;
+      });
     } finally {
       if (mounted && epoch == _keywordsEpoch) {
         setState(() => _keywordsLoading = false);
@@ -206,7 +211,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!_isCurrentResult(epoch)) return;
       _recordWarning(error, stack, 'search');
-      setState(() => _searchFailed = true);
+      setState(() {
+        _searchFailed = true;
+        _searchError = error;
+      });
     } finally {
       if (_isCurrentResult(epoch)) {
         setState(() => _searching = false);
@@ -466,12 +474,17 @@ class _SearchTabState extends State<_SearchTab>
                           _buildHotKeywords(l10n, cs, hp),
                         if (_keywordsFailed)
                           SliverErrorRetryView(
+                            message: _keywordsError == null
+                                ? null
+                                : NetworkError.message(_keywordsError!),
                             onRetry: () => _loadKeywords(forceRefresh: true),
                           ),
                       ],
                       if (!_idle && !_searching && _searchFailed)
                         SliverErrorRetryView(
-                          message: l10n.searchRequestFailed,
+                          message: _searchError == null
+                              ? l10n.searchRequestFailed
+                              : NetworkError.message(_searchError!),
                           onRetry: () => _doSearch(_searchQuery!),
                         ),
                       if (!_idle &&
@@ -571,8 +584,10 @@ class _SearchTabState extends State<_SearchTab>
                             ),
                           ),
                       ],
-                      // 底部留白：给右下角回到顶部按钮让位。
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                      // 底部留白：让开悬浮底栏，并给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(
+                        child: BranchBottomSlack(extra: 72),
+                      ),
                     ],
                   ),
                 ),
@@ -583,11 +598,9 @@ class _SearchTabState extends State<_SearchTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.lg + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

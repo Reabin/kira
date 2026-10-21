@@ -51,7 +51,7 @@ class _AppearancePageState extends State<AppearancePage>
     'comic': (Icons.menu_book_outlined, Icons.menu_book),
     'novel': (Icons.auto_stories_outlined, Icons.auto_stories),
     'search': (Icons.search_outlined, Icons.search),
-    'bookshelf': (Icons.bookmark_border, Icons.bookmark),
+    'bookshelf': (Icons.favorite_border, Icons.favorite),
     'profile': (Icons.person_outline, Icons.person),
   };
 
@@ -183,37 +183,6 @@ class _AppearancePageState extends State<AppearancePage>
     }
   }
 
-  Future<void> _showBottomNavLabelModeSheet(AppLocalizations l10n) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: RadioGroup<BottomNavLabelMode>(
-            groupValue: _user.bottomNavLabelMode,
-            onChanged: (value) {
-              if (value == null) return;
-              _user.setBottomNavLabelMode(value);
-              Navigator.of(sheetContext).pop();
-            },
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final mode in BottomNavLabelMode.values)
-                  RadioListTile<BottomNavLabelMode>(
-                    value: mode,
-                    title: Text(_bottomNavLabelModeLabel(mode, l10n)),
-                    subtitle: Text(_bottomNavLabelModeDesc(mode, l10n)),
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   String _bottomNavLabelModeLabel(
     BottomNavLabelMode mode,
     AppLocalizations l10n,
@@ -233,6 +202,21 @@ class _AppearancePageState extends State<AppearancePage>
     BottomNavLabelMode.hidden => l10n.appearanceBottomNavLabelModeHiddenDesc,
     BottomNavLabelMode.always => l10n.appearanceBottomNavLabelModeAlwaysDesc,
   };
+
+  Future<void> _selectBottomNavLabelMode(BottomNavLabelMode mode) async {
+    await _user.setBottomNavLabelMode(mode);
+    if (!mounted ||
+        mode != BottomNavLabelMode.always ||
+        !_user.theme.floatingNavEnabled ||
+        _user.bottomNavLabelMode != BottomNavLabelMode.selectedOnly) {
+      return;
+    }
+    showToast(
+      context,
+      AppLocalizations.of(context)!.appearanceFloatingNavLabelModeHint,
+      duration: const Duration(seconds: 3),
+    );
+  }
 
   /// Give the selected capsule a bit more room so icon+label doesn't overflow
   /// the equally-split preview slots. On narrow screens, fall back to a
@@ -333,11 +317,20 @@ class _AppearancePageState extends State<AppearancePage>
         ListTile(
           leading: Icon(Icons.text_fields_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceBottomNavLabelMode),
+          // 与主题模式一致用下拉列表；选中项说明保留在副标题里，
+          // 免得「胶囊导航 / 经典导航」的差异只藏在弹层里。
           subtitle: Text(
-            _bottomNavLabelModeLabel(_user.bottomNavLabelMode, l10n),
+            _bottomNavLabelModeDesc(_user.bottomNavLabelMode, l10n),
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => _showBottomNavLabelModeSheet(l10n),
+          trailing: SelectTile<BottomNavLabelMode>(
+            value: _user.bottomNavLabelMode,
+            items: [
+              for (final mode in BottomNavLabelMode.values)
+                SelectItem(mode, _bottomNavLabelModeLabel(mode, l10n)),
+            ],
+            onChanged: _selectBottomNavLabelMode,
+          ),
         ),
         SwitchListTile(
           secondary: Icon(Icons.swipe_outlined, color: cs.onSurfaceVariant),
@@ -349,6 +342,17 @@ class _AppearancePageState extends State<AppearancePage>
           value: _user.theme.navSwipeEnabled,
           onChanged: (value) =>
               unawaited(_user.theme.setNavSwipeEnabled(value)),
+        ),
+        SwitchListTile(
+          secondary: Icon(Icons.layers_outlined, color: cs.onSurfaceVariant),
+          title: Text(l10n.appearanceFloatingNavTitle),
+          subtitle: Text(
+            l10n.appearanceFloatingNavDesc,
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          value: _user.theme.floatingNavEnabled,
+          onChanged: (value) =>
+              unawaited(_user.theme.setFloatingNavEnabled(value)),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),

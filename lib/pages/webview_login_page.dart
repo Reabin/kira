@@ -17,7 +17,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/copy_web_login.dart';
-import '../utils/toast.dart';
+import '../utils/network_error.dart';
 
 /// 官网登录凭据抓取脚本。
 ///
@@ -25,19 +25,30 @@ import '../utils/toast.dart';
 /// 层，从真实的登录请求里解出账号密码，通过 `copyLoginForm` 桥回 Flutter。
 ///
 /// 依据（取自官网静态资源，非猜测）：
-/// - 页面是 Vue + Element UI，使用 **axios** 且通过 `XMLHttpRequest` 发包；
-/// - 登录接口 `POST /api/kb/web/login`，表单体为
-///   `username=<账号>&password=<base64(密码-salt)>&salt=<6位随机>&platform=2…`；
+/// - 页面是 Vue + Element UI（桌面站）或 Vant（h5 站），都使用 **axios** 且
+///   通过 `XMLHttpRequest` 发包；
+/// - 登录接口见 [copyLoginSubmitPaths]，表单体为
+///   `username=<账号>&password=<base64(密码-salt)>&salt=<随机>&platform=…`；
 /// - 密码框默认明文（源码 `visiablePassword: true`），DOM 上没有 type=password，
 ///   所以不靠 DOM 结构识别。
 ///
 /// 只有从真实网络请求里解出的凭据才会回报，因此不存在「把没提交的输入框内容
 /// 当登录」的问题。官网改版导致钩子失效时脚本静默退出（只是不再保存密码），
 /// 不影响登录本身。
-const _loginFormScript = r'''
+final _loginFormScript = buildCopyLoginFormScript();
+
+/// 官网登录凭据抓包脚本（见上方说明）。独立成公开函数便于离线测试。
+String buildCopyLoginFormScript() =>
+    r'''
 (function () {
   if (window.__copyLoginProbe) return;
   window.__copyLoginProbe = true;
+
+  // 自动填表脚本每次导航都会重新注入，同一账号可能被提交两次（自动填表先点
+  // 了一次、用户随后又手点一次）。解除上报去重，让第二次提交也能被看到。
+  window.__copyLoginProbeReset = function () {
+    window.__copyLoginReported = null;
+  };
 
   function report(username, password) {
     if (!username || !password) return;
@@ -51,10 +62,17 @@ const _loginFormScript = r'''
   }
 
   // 只认登录接口，避免把注册/找回密码的请求当成登录。
+  var loginPaths = ''' +
+    jsonEncode(copyLoginSubmitPaths) +
+    r''';
+
   function isLoginUrl(url) {
     if (!url) return false;
     var s = String(url);
-    return s.indexOf('/api/kb/web/login') >= 0 || s.indexOf('/api/v1/login') >= 0;
+    for (var i = 0; i < loginPaths.length; i++) {
+      if (s.indexOf(loginPaths[i]) >= 0) return true;
+    }
+    return false;
   }
 
   function decodeBody(body) {
@@ -140,19 +158,40 @@ const _loginFormScript = r'''
 ///   `--plain`，不会混淆）。
 ///
 /// 两者都是 Vue（Element UI / Vant）+ v-model，需要 native setter + input
-/// 事件才能让框架感知输入。脚本自身用 `__copyAutoLoginInjected` 防重入，
-/// 重复注入无效。登录被拒时通过 `copyAutoLogin` 桥回报错误文案（Element 的
-/// `.el-message--error` 与 Vant 的 `.van-toast`，后者无法从 class 区分类型，
-/// 靠「成功」字样过滤）。
+/// 事件才能让框架感知输入。
+///
+/// 脚本**可重复注入**：官网 h5 站是 history 路由 SPA，首次进入会被强制送到
+/// 线路选择页 `/h5/init`，用户选完线路才 `replace` 回 `/h5/login`（不重新加载
+/// 文档），所以要等登录表单真的出现才注入；而表单可能比 8 秒更晚出现，单次
+/// 注入超时后就没机会了。因此每次调用都重置脚本状态并重新计时，只有表单已经
+/// 填过、且仍在等待结果时才跳过（[skipFilled]）。登录被拒时通过 `copyAutoLogin`
+/// 桥回报错误文案（Element 的 `.el-message--error` 与 Vant 的 `.van-toast`，
+/// 后者无法从 class 区分类型，靠「成功」字样过滤）。
 String buildCopyLoginFillScript({
   required String username,
   required String password,
+  bool skipFilled = false,
 }) {
   final payload = jsonEncode({'username': username, 'password': password});
+  final skipFilledLiteral = skipFilled ? 'true' : 'false';
   return '''
 (function () {
-  if (window.__copyAutoLoginInjected) return;
+  var skipFilled = $skipFilledLiteral;
+  var filled = window.__copyAutoLoginFilled;
+  if (filled) {
+    // 已填过：默认不重复点击（用户可能正在改密码），仍在等结果时也不重复。
+    if (!skipFilled) return;
+    if (window.__copyAutoLoginPending) return;
+    window.__copyAutoLoginPending = true;
+  }
   window.__copyAutoLoginInjected = true;
+
+  // 每次注入都从干净状态开始，用户选完线路回到登录页后能重新识别表单。
+  if (window.__copyAutoLoginTimer) clearInterval(window.__copyAutoLoginTimer);
+  if (window.__copyAutoLoginObserver) window.__copyAutoLoginObserver.disconnect();
+  if (window.__copyLoginProbeReset) window.__copyLoginProbeReset();
+  window.__copyAutoLoginFilled = false;
+
   var params = $payload;
 
   function report(event, detail) {
@@ -165,6 +204,7 @@ String buildCopyLoginFillScript({
   function finish(event, detail) {
     if (reported) return;
     reported = true;
+    window.__copyAutoLoginPending = false;
     report(event, detail);
   }
 
@@ -222,6 +262,7 @@ String buildCopyLoginFillScript({
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+    window.__copyAutoLoginObserver = observer;
     // 登录结果只会出现在提交后的短时间内，之后停止观察。
     setTimeout(function () { observer.disconnect(); }, 15000);
   }
@@ -234,18 +275,23 @@ String buildCopyLoginFillScript({
   }
 
   var attempts = 0;
-  var timer = setInterval(function () {
+  window.__copyAutoLoginTimer = setInterval(function () {
     attempts++;
     var targets = findTargets();
     if (targets) {
-      clearInterval(timer);
+      clearInterval(window.__copyAutoLoginTimer);
+      window.__copyAutoLoginTimer = null;
+      window.__copyAutoLoginFilled = true;
+      window.__copyAutoLoginPending = true;
       setValue(targets.username, params.username);
       setValue(targets.password, params.password);
       targets.button.click();
       watchErrors();
       setTimeout(function () { checkFieldErrors(); }, 2000);
-    } else if (attempts * 300 >= 8000) {
-      clearInterval(timer);
+    } else if (attempts * 300 >= 30000) {
+      clearInterval(window.__copyAutoLoginTimer);
+      window.__copyAutoLoginTimer = null;
+      window.__copyAutoLoginPending = false;
       finish('form_not_found', '');
     }
   }, 300);
@@ -253,14 +299,71 @@ String buildCopyLoginFillScript({
 ''';
 }
 
-/// 通过应用内 WebView 登录拷贝官网：用户在网页中完成登录后，
-/// 从 cookie 中提取 token 并走令牌登录流程。
-class WebViewLoginPage extends ConsumerStatefulWidget {
-  const WebViewLoginPage({super.key, this.autoFill});
+/// 清空 WebView 里残留的登录态，让本次登录从全新环境开始。
+///
+/// 官网的登录态是持久的：cookie 与 localStorage 都会跨会话保留，上次登录
+/// 的痕迹会干扰本次登录（例如页面带着旧 token 直接跳登录后首页、自动填表
+/// 提交被旧会话顶掉）。所以在加载登录页之前先清一次。
+///
+/// 各平台能力不同（依据 flutter_inappwebview 官方文档与插件源码）：
+/// - Android：`deleteAllData()` 清 Web Storage，`deleteAllCookies()` 清 cookie；
+/// - iOS / macOS：没有 `deleteAllData()`，要用 `fetchDataRecords()` 找到记录后
+///   `removeDataFor()` 删除；`deleteAllCookies()` 内部同样是按 cookies 类型删；
+/// - Windows：插件只实现了 cookie 管理，没有 Web Storage 原生实现，
+///   清不到 localStorage（登录页本身仍可用，只是 h5 站残留会留着）；
+/// - Linux / Web：插件没有对应实现，直接跳过。
+///
+/// 清理失败不阻断登录：登录流程本身有「本次是否真的提交过登录」的判定
+/// （[_WebViewLoginPageState._submittedLogin]），清不掉也不会误登旧账号。
+Future<void> clearWebViewLoginState() async {
+  if (kIsWeb) return;
+  try {
+    await CookieManager.instance().deleteAllCookies();
+  } catch (_, st) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        'Unable to clear COPY WebView cookies',
+        stackTrace: st,
+        source: 'webview_login.clear_cookies',
+      ),
+    );
+  }
+  try {
+    final storage = WebStorageManager.instance();
+    if (Platform.isAndroid) {
+      await storage.deleteAllData();
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      final records = await storage.fetchDataRecords(
+        dataTypes: WebsiteDataType.values,
+      );
+      await storage.removeDataFor(
+        dataTypes: WebsiteDataType.values,
+        dataRecords: records,
+      );
+    }
+  } catch (_, st) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        'Unable to clear COPY WebView storage',
+        stackTrace: st,
+        source: 'webview_login.clear_storage',
+      ),
+    );
+  }
+}
 
-  /// 非空时页面加载完成后自动填表并触发登录；失败时用户仍可在网页里
-  /// 手动改密码重试。
-  final ({String username, String password})? autoFill;
+/// 通过应用内 WebView 登录拷贝官网。
+///
+/// 用户在 kira 登录页填好账号密码后进入本页，脚本自动填表并触发表单提交，
+/// 网页自己发出登录请求；登录成功后从 cookie/storage 提取 token，走令牌
+/// 登录落库。进入页面时会先清空 WebView 残留的登录态（见
+/// [clearWebViewLoginState]），保证每次登录都是全新环境。
+class WebViewLoginPage extends ConsumerStatefulWidget {
+  const WebViewLoginPage({super.key, required this.autoFill});
+
+  /// 登录页填好的账号密码；页面加载完成后自动填表并触发表单提交，
+  /// 失败时用户仍可在网页里手动改密码重试。
+  final ({String username, String password}) autoFill;
 
   @override
   ConsumerState<WebViewLoginPage> createState() => _WebViewLoginPageState();
@@ -278,9 +381,9 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   /// 旧会话。
   bool _submittedLogin = false;
 
-  /// 页面上自动识别出的、本机已保存过的账号；非 null 时展示选择栏而不是
-  /// 直接完成登录。
-  CopyWebCredentials? _knownAccount;
+  /// 自动填表提交后被官网明确拒绝（错误提示条）。此时不再自动重填，把页面
+  /// 留给用户改密码，避免在页面导航时反复提交同一个错误密码。
+  bool _autoFillRejected = false;
 
   /// 表单抓取到的密码，按用户名暂存，登录完成时一并落到对应账号上。
   final _loginFormPasswords = <String, String>{};
@@ -289,6 +392,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   /// 靠轮询保证拿到新 token。
   Timer? _autoFillPoll;
 
+  /// 清空残留登录态的异步任务。WebView 要等它完成后才创建，否则清理与页面
+  /// 加载会互相竞争（清掉的 cookie 可能又被加载中的页面写回来）。
+  late final Future<void> _cleared = clearWebViewLoginState();
+
   @override
   void dispose() {
     _autoFillPoll?.cancel();
@@ -296,8 +403,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   String get _host => ref.read(userManagerProvider).copyLoginHost;
-
-  WebUri get _baseUri => WebUri('https://$_host');
 
   /// 官网按 UA 分流：移动 WebView（Android/iOS）会被重定向到 Vant 版 h5
   /// 站点，登录页是 `/h5/login`；桌面 WebView2 的登录页才是
@@ -327,9 +432,12 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   }
 
   /// 自动填表提交后轮询 cookie；页面跳转（onUpdateVisitedHistory/onLoadStop）
-  /// 会先一步完成登录，轮询只是兜底，最多跑 10 秒。提示条出现时轮询继续：
-  /// 自动填表可能随后把会话换成另一个账号，后续提取会覆盖提示条。
-  void _startAutoFillPoll() {
+  /// 会先一步完成登录，轮询只是兜底。提示条出现时轮询继续：自动填表可能随后
+  /// 把会话换成另一个账号，后续提取会覆盖提示条。
+  ///
+  /// 窗口按「h5 站的登录请求是 XHR、成功后不跳路由」放宽：单次提取可能早于
+  /// cookie/localStorage 写入，必须留够重试时间（官网配置的请求超时是 10 秒）。
+  void _startCredentialPoll() {
     _autoFillPoll?.cancel();
     var tries = 0;
     _autoFillPoll = Timer.periodic(const Duration(milliseconds: 500), (timer) {
@@ -337,7 +445,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         timer.cancel();
         return;
       }
-      if (++tries > 20) {
+      if (++tries > 80) {
         timer.cancel();
         return;
       }
@@ -349,6 +457,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
   void _onAutoLoginEvent(List<dynamic> arguments) {
     if (arguments.isEmpty || arguments.first is! String) return;
     if (arguments.first as String != 'error') return;
+    _autoFillRejected = true;
     final detail = arguments.length > 1 ? (arguments[1]?.toString() ?? '') : '';
     if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
@@ -360,13 +469,20 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     });
   }
 
-  /// 自动填表：页面加载到官网登录页时注入脚本，交由网页自己提交登录。
+  /// 自动填表：只要当前地址是官网登录页就（重新）注入脚本，交由网页自己提交
+  /// 登录。
+  ///
+  /// h5 站是 history 路由 SPA：首次进入会被强制送到线路选择页 `/h5/init`，
+  /// 用户选完线路才 `replace` 回 `/h5/login`（不重新加载文档）。所以既要在
+  /// `onLoadStop` 注入，也要在 `onUpdateVisitedHistory`（SPA 导航）注入；脚本
+  /// 自身负责「表单已填过就不重复点、找不到表单就继续等」。
   Future<void> _injectAutoFill(
     InAppWebViewController controller,
     WebUri? url,
   ) async {
     final fill = widget.autoFill;
-    if (fill == null) return;
+    // 已被官网拒绝时不再自动重填，把页面留给用户改密码重试。
+    if (_autoFillRejected && _submittedLogin) return;
     final path = url?.toString() ?? '';
     final isLoginPage =
         path.contains('/web/login/loginByAccount') ||
@@ -377,9 +493,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         source: buildCopyLoginFillScript(
           username: fill.username,
           password: fill.password,
+          // 用户手动改密码重试时，已填过也要重新填一遍新密码。
+          skipFilled: _submittedLogin,
         ),
       );
-      _startAutoFillPoll();
+      _startCredentialPoll();
     } catch (_, st) {
       unawaited(
         AppLogger.instance.recordWarning(
@@ -396,6 +514,23 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     if (_loginFormPasswords.isEmpty) return;
     final pending = Map<String, String>.from(_loginFormPasswords);
     _loginFormPasswords.clear();
+    // 一次成功的提交就足以锚定账号；清掉钩子侧的去重，让用户改密码后的
+    // 下一次提交也能被看到。
+    _autoFillRejected = false;
+    try {
+      await _controller?.evaluateJavascript(
+        source:
+            'window.__copyLoginProbeReset && window.__copyLoginProbeReset();',
+      );
+    } catch (_, st) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          'Unable to reset COPY login probe',
+          stackTrace: st,
+          source: 'webview_login.reset_probe',
+        ),
+      );
+    }
     await user.saveLoginFormPasswords(pending);
   }
 
@@ -407,7 +542,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     final base = _host.startsWith('www.') ? _host.substring(4) : _host;
     final candidates = <WebUri>{
       if (currentUrl != null && _isLoginHost(currentUrl.host)) currentUrl,
-      _baseUri,
+      WebUri('https://$_host'),
       WebUri('https://$base'),
       WebUri('https://www.$base'),
     };
@@ -490,9 +625,8 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     }
   }
 
-  Future<void> _tryExtractAndFinish({bool manual = false}) async {
+  Future<void> _tryExtractAndFinish() async {
     if (_completing || _readingCredentials) return;
-    final l10n = AppLocalizations.of(context)!;
 
     _readingCredentials = true;
     CopyWebCredentials? credentials;
@@ -519,27 +653,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       _readingCredentials = false;
     }
     if (!mounted) return;
-    if (credentials == null) {
-      if (manual) showToast(context, l10n.profileWebLoginNotDetected);
-      return;
-    }
-
-    // 残留的旧会话（打开页面时就带着的登录态）不是本次登录的结果，永不
-    // 自动完成：否则刚被登出/删除的账号会在用户输入新账号前被抢登回来。
-    // 只有钩到过真实登录提交、或用户手动点「我已完成登录」，才允许完成。
-    switch (disposeWebLoginCredentials(
-      credentials: credentials,
-      user: ref.read(userManagerProvider),
-      submittedLogin: _submittedLogin,
-      manual: manual,
-    )) {
-      case WebLoginDisposition.complete:
-        await _completeLogin(credentials);
-      case WebLoginDisposition.knownAccount:
-        setState(() => _knownAccount = credentials);
-      case WebLoginDisposition.ignore:
-        setState(() => _knownAccount = null);
-    }
+    // 页面一打开就可能带着上次的官网会话。只有本次真的提交过登录，才能
+    // 认定提取到的是用户刚登录的账号；否则一律不动，免得把已登出/已删除的
+    // 账号在用户输入新账号前抢登回来。
+    if (credentials == null || !_submittedLogin) return;
+    await _completeLogin(credentials);
   }
 
   Future<void> _completeLogin(CopyWebCredentials credentials) async {
@@ -557,20 +675,19 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
         user: user,
         api: api,
         credentials: credentials,
-      );
-      if (!mounted) return;
-      if (saved) {
-        // 登录已经成功，保存密码只是附带收益：失败也不影响本次登录。
-        await _persistLoginFormPasswords(user);
-        // 自动填表时账号密码是用户在 kira 里输入的，登录请求（尤其移动版
-        // h5）的表单体不一定解析得到，直接按本次登录的 token 锚定并回。
-        final fill = widget.autoFill;
-        if (fill != null) {
+        persistLoginFormPasswords: () async {
+          if (!mounted) return;
+          // 登录已成功；先补回表单密码，再用最终账号 revision 刷新资料。
+          await _persistLoginFormPasswords(user);
+          // 移动版 h5 的表单体不一定可解析，以本次登录 token 锚定自动填表密码。
+          final fill = widget.autoFill;
           await user.saveLoginFormPasswords({
             fill.username: fill.password,
           }, anchorToken: credentials.token);
-        }
-        if (!mounted) return;
+        },
+      );
+      if (!mounted) return;
+      if (saved) {
         context.pop(true);
       } else {
         setState(() {
@@ -578,10 +695,11 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           _error = l10n.copyAccountLoginSuperseded;
         });
       }
-    } catch (error) {
+    } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
-          'COPY WebView login failed',
+          error,
+          stackTrace: stack,
           source: 'webview_login.validate',
         ),
       );
@@ -590,63 +708,10 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
           _completing = false;
           _error = error is CopyAccountStorageException
               ? l10n.copyAccountStorageFailed
-              : l10n.profileWebLoginFailed;
+              : NetworkError.message(error, l10n: l10n);
         });
       }
     }
-  }
-
-  /// 重新识别当前网页里的登录态。走的是自动流程，所以若还是那个已保存的
-  /// 账号，会重新停在提示条上；只有用户真的换成了另一个账号才自动完成。
-  Future<void> _retryExtraction() async {
-    setState(() {
-      _error = null;
-      _knownAccount = null;
-    });
-    await _tryExtractAndFinish();
-  }
-
-  /// Wipe every trace of the previous web session before loading the login
-  /// page. Cookies alone are not enough: the official site also persists the
-  /// token in localStorage/sessionStorage, and either one makes the next
-  /// visit silently land on the previously logged-in account, which is why
-  /// switching to another account looked impossible.
-  Future<void> _resetWebSession() async {
-    final l10n = AppLocalizations.of(context)!;
-    final manager = CookieManager.instance();
-    try {
-      await manager.deleteAllCookies();
-      // WebView storage is per-origin and is not covered by cookie deletion.
-      await WebStorageManager.instance().deleteAllData();
-    } catch (_, st) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          'Unable to clear COPY WebView session',
-          stackTrace: st,
-          source: 'webview_login.reset_session',
-        ),
-      );
-      if (mounted) showToast(context, l10n.profileWebLoginResetFailed);
-    }
-    if (!mounted) return;
-    setState(() {
-      _error = null;
-      _knownAccount = null;
-      // 会话已清空，重新开始观察本次的登录提交。
-      _submittedLogin = false;
-    });
-    await _controller?.loadUrl(urlRequest: URLRequest(url: _loginUri));
-    if (mounted) showToast(context, l10n.profileWebLoginResetDone);
-  }
-
-  /// 已保存账号的展示名：优先用户名，其次昵称，最后回落到通用文案，
-  /// 避免在页面上暴露完整的账号标识。
-  String _knownName(CopyWebCredentials credentials) {
-    final l10n = AppLocalizations.of(context)!;
-    for (final candidate in [credentials.username, credentials.nickname]) {
-      if (candidate.trim().isNotEmpty) return candidate.trim();
-    }
-    return l10n.profileWebLoginKnownAccountFallback;
   }
 
   @override
@@ -655,28 +720,7 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.profileWebLoginPageTitle),
-        actions: [
-          IconButton(
-            tooltip: l10n.profileWebLoginResetTooltip,
-            onPressed: _completing ? null : _resetWebSession,
-            icon: const Icon(Icons.restart_alt),
-          ),
-          TextButton(
-            onPressed: _completing
-                ? null
-                : () => _knownAccount == null
-                      ? _tryExtractAndFinish(manual: true)
-                      : _retryExtraction(),
-            child: Text(
-              _knownAccount == null
-                  ? l10n.profileWebLoginManualButton
-                  : l10n.profileWebLoginRetryButton,
-            ),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(l10n.profileWebLoginPageTitle)),
       body: Stack(
         children: [
           Column(
@@ -699,13 +743,6 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                   ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ),
-              if (_knownAccount case final known?)
-                _KnownAccountBanner(
-                  key: const ValueKey('web-login-known-account'),
-                  accountName: _knownName(known),
-                  onUse: () => _completeLogin(known),
-                  onSwitch: _resetWebSession,
-                ),
               if (_error != null)
                 Container(
                   width: double.infinity,
@@ -722,35 +759,16 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
                   ),
                 ),
               Expanded(
-                child: InAppWebView(
-                  initialUrlRequest: URLRequest(url: _loginUri),
-                  initialUserScripts: UnmodifiableListView([
-                    UserScript(
-                      source: _loginFormScript,
-                      injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
-                      allowedOriginRules: _scriptOriginRules,
-                    ),
-                  ]),
-                  onWebViewCreated: (controller) {
-                    _controller = controller;
-                    controller.addJavaScriptHandler(
-                      handlerName: 'copyLoginForm',
-                      callback: _onLoginFormReported,
-                    );
-                    controller.addJavaScriptHandler(
-                      handlerName: 'copyAutoLogin',
-                      callback: _onAutoLoginEvent,
-                    );
+                // 等残留登录态清干净再建 WebView：边清边加载会让页面把清掉的
+                // cookie 又写回来，等于没清。
+                child: FutureBuilder<void>(
+                  future: _cleared,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState != ConnectionState.done) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    return _buildWebView();
                   },
-                  onProgressChanged: (controller, progress) {
-                    setState(() => _progress = progress / 100);
-                  },
-                  onLoadStop: (controller, url) {
-                    _tryExtractAndFinish();
-                    _injectAutoFill(controller, url);
-                  },
-                  onUpdateVisitedHistory: (controller, url, isReload) =>
-                      _tryExtractAndFinish(),
                 ),
               ),
             ],
@@ -781,63 +799,42 @@ class _WebViewLoginPageState extends ConsumerState<WebViewLoginPage> {
       ),
     );
   }
-}
 
-/// 官网登录页检测到的「本机已保存账号」提示条。
-///
-/// 自动完成会让用户没有机会切换账号，所以这里停下来问一句：直接用这个账号，
-/// 还是清掉登录态去登另一个。
-class _KnownAccountBanner extends StatelessWidget {
-  const _KnownAccountBanner({
-    super.key,
-    required this.accountName,
-    required this.onUse,
-    required this.onSwitch,
-  });
-
-  final String accountName;
-  final VoidCallback onUse;
-  final VoidCallback onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Container(
-      width: double.infinity,
-      color: cs.secondaryContainer,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.lg,
-        AppSpacing.sm,
-        AppSpacing.sm,
-        AppSpacing.sm,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            l10n.profileWebLoginKnownAccount(accountName),
-            style: tt.bodySmall?.copyWith(color: cs.onSecondaryContainer),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                key: const ValueKey('web-login-switch-account'),
-                onPressed: onSwitch,
-                child: Text(l10n.profileWebLoginSwitchAccount),
-              ),
-              TextButton(
-                key: const ValueKey('web-login-use-account'),
-                onPressed: onUse,
-                child: Text(l10n.profileWebLoginUseAccount),
-              ),
-            ],
-          ),
-        ],
-      ),
+  Widget _buildWebView() {
+    return InAppWebView(
+      initialUrlRequest: URLRequest(url: _loginUri),
+      initialUserScripts: UnmodifiableListView([
+        UserScript(
+          source: _loginFormScript,
+          injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          allowedOriginRules: _scriptOriginRules,
+        ),
+      ]),
+      onWebViewCreated: (controller) {
+        _controller = controller;
+        controller.addJavaScriptHandler(
+          handlerName: 'copyLoginForm',
+          callback: _onLoginFormReported,
+        );
+        controller.addJavaScriptHandler(
+          handlerName: 'copyAutoLogin',
+          callback: _onAutoLoginEvent,
+        );
+      },
+      onProgressChanged: (controller, progress) {
+        setState(() => _progress = progress / 100);
+      },
+      onLoadStop: (controller, url) {
+        _tryExtractAndFinish();
+        _injectAutoFill(controller, url);
+      },
+      // h5 站登录成功后只写 cookie/localStorage、不跳路由，此时只能靠上面的
+      // 轮询；这里覆盖桌面站的整页跳转，以及用户手动改完密码后 h5 站可能发生
+      // 的 SPA 导航（顺带重新注入脚本）。
+      onUpdateVisitedHistory: (controller, url, isReload) {
+        _tryExtractAndFinish();
+        _injectAutoFill(controller, url);
+      },
     );
   }
 }

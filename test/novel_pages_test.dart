@@ -20,6 +20,7 @@ import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/providers/settings_providers.dart';
 import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/routing/app_router.dart';
+import 'package:kira/utils/novel_bookmark_store.dart';
 import 'package:kira/utils/novel_download_manager.dart';
 import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/comment_skeleton.dart';
@@ -358,6 +359,9 @@ class _Harness {
   final downloads = _Downloads();
   final store = _Store();
   final user = _User();
+  late final bookmarkStore = NovelBookmarkStore.forTesting(
+    prefs: SharedPreferences.getInstance(),
+  );
   late GoRouter router;
   NovelReaderExtra? readerExtra;
   String? readerVolume;
@@ -429,6 +433,10 @@ class _Harness {
     addTearDown(router.dispose);
     addTearDown(user.dispose);
     addTearDown(downloads.dispose);
+    addTearDown(() async {
+      await bookmarkStore.flush();
+      bookmarkStore.dispose();
+    });
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -437,6 +445,7 @@ class _Harness {
           novelDownloadManagerProvider.overrideWithValue(downloads),
           novelShelfRepoProvider.overrideWithValue(shelfRepository),
           novelReadingStoreProvider.overrideWithValue(store),
+          novelBookmarkStoreProvider.overrideWithValue(bookmarkStore),
           userManagerProvider.overrideWithValue(user),
           commentSettingsProvider.overrideWithValue(CommentSettings()),
         ],
@@ -497,7 +506,7 @@ void main() {
     h.api.books = (_, _, _) async => throw const NovelApiException('offline');
     await h.pump(tester, const NovelHomePage());
     await tester.pumpAndSettle();
-    expect(find.text('书籍加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     h.api.books = (_, _, _) async => _page<NovelBook>([]);
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
@@ -660,6 +669,27 @@ void main() {
       find.descendant(of: fab, matching: find.text('第四卷 · 75.00%')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('详情页书签提示改用顶部 toast，不再弹底部 SnackBar', (tester) async {
+    final h = _Harness();
+    await h.pump(tester, const NovelDetailPage(pathWord: 'book'));
+    await tester.pumpAndSettle();
+    final bookmark = find.byKey(const ValueKey('novel_detail_bookmark'));
+
+    await tester.tap(bookmark);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('已添加书签'), findsOneWidget);
+    expect(h.bookmarkStore.hasGroup('book'), isTrue);
+
+    await tester.tap(bookmark);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(SnackBar), findsNothing);
+    expect(find.text('已取消书签'), findsOneWidget);
+    expect(h.bookmarkStore.hasGroup('book'), isFalse);
   });
 
   testWidgets('详情长章节在窄屏大字体仍显示百分比且无溢出', (tester) async {
@@ -1095,7 +1125,7 @@ void main() {
     h.repository.detail = () async => throw const NovelApiException('offline');
     await h.pump(tester, const NovelDetailPage(pathWord: 'book'));
     await tester.pumpAndSettle();
-    expect(find.text('书籍加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     expect(h.readerVolume, 'local-volume');
@@ -1432,7 +1462,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('评论加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     expect(find.text('暂无评论'), findsNothing);
     h.api.comments = (_, _) async =>
         _page([const NovelComment(id: 'public', comment: '恢复后的评论')]);

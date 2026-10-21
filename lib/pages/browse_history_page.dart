@@ -27,6 +27,7 @@ import '../widgets/comic_hero_tags.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_widgets.dart';
 import '../widgets/shimmer_skeleton.dart';
 
@@ -202,9 +203,10 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.refreshFailedDetail(NetworkError.message(e, l10n: l10n)),
           isError: true,
         );
       }
@@ -250,14 +252,6 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
   Future<void> _handleUnauthorized() async {
     if (_showingLoginPrompt || !mounted) return;
     final l10n = AppLocalizations.of(context)!;
-
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(context, l10n.autoLoginFailed, isError: true);
-      }
-      return;
-    }
 
     _showingLoginPrompt = true;
 
@@ -829,6 +823,7 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
   List<NovelReadingProgress> _items = [];
   bool _loading = true;
   bool _failed = false;
+  Object? _loadError;
   bool _deleting = false;
   bool _opening = false;
   bool _hasMore = false;
@@ -881,7 +876,10 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
         ),
       );
       if (mounted && generation == _generation) {
-        setState(() => _failed = true);
+        setState(() {
+          _failed = true;
+          _loadError = e;
+        });
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -1048,7 +1046,10 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
                   )
                 else if (_failed && _items.isEmpty)
                   SliverErrorRetryView(
-                    message: l10n.novelHistoryFailed,
+                    message: _loadError == null
+                        ? l10n.novelHistoryFailed
+                        : '${l10n.novelHistoryFailed}：'
+                              '${NetworkError.message(_loadError!)}',
                     onRetry: _load,
                   )
                 else if (_items.isEmpty)
@@ -1140,11 +1141,9 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.md + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

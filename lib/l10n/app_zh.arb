@@ -32,6 +32,9 @@
   "deleteButton": "删除",
   "loadingFailed": "加载失败",
   "retryButton": "重试",
+  "startupFailedTitle": "启动失败",
+  "startupFailedBody": "应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。",
+  "startupFailedDetails": "错误信息",
   "noContent": "暂无内容",
   "hotRecommend": "热门推荐",
   "comicRanking": "漫画排行",
@@ -175,6 +178,14 @@
   "backToTop": "回到顶部",
   "refreshSuccess": "刷新成功",
   "refreshFailed": "刷新失败",
+  "refreshFailedDetail": "刷新失败：{detail}",
+  "@refreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "loginExpiredTitle": "登录已过期",
   "loginExpiredBookshelfContent": "书架需要登录后才能继续使用，是否现在重新登录？",
   "loginExpiredFeatureContent": "{featureName}需要登录后才能继续使用，是否现在重新登录？",
@@ -187,7 +198,6 @@
   },
   "laterButton": "稍后再说",
   "goLoginButton": "去登录",
-  "autoLoginFailed": "自动登录失败，请手动重新登录",
   "loginToViewBookshelf": "登录后可继续查看书架",
   "searchHint": "搜索{mode}...",
   "@searchHint": {
@@ -251,14 +261,11 @@
   "deleteToastSuffixComic": " 部本地漫画",
   "chapterUnit": "章",
   "generalTitle": "通用",
-  "autoLoginTitle": "自动登录",
-  "autoLoginEnabledDesc": "登录过期时自动重新登录",
-  "autoLoginUnavailableDesc": "登录并保存账号密码后可用",
   "remoteNoticeTitle": "通知",
   "remoteNoticeDesc": "开启后应用启动时自动检查通知；关闭后仅在进入通知中心时获取",
   "noticeSettingsTooltip": "通知设置",
   "bannerVisibleTitle": "显示Banner",
-  "bannerVisibleDesc": "关闭后漫画和动漫主页顶部Banner不显示",
+  "bannerVisibleDesc": "关闭后漫画主页顶部Banner不显示",
   "backExitConfirmTitle": "返回两次退出应用",
   "backExitConfirmDesc": "在底部导航页面第一次返回只提示，再次返回才退出",
   "backAgainToExitToast": "再次返回退出应用",
@@ -377,6 +384,7 @@
   "closeButton": "关闭",
   "profileCopyCredentialLabel": "拷贝漫画",
   "profileHotCredentialLabel": "热辣漫画",
+  "accountAddedToast": "账号已添加",
   "accountSwitchedToast": "账号已切换",
   "switchAccountTitle": "切换账号",
   "addAccountButton": "添加账号",
@@ -385,6 +393,14 @@
   "logoutConfirmContent": "确定要退出登录吗？",
   "userInfoRefreshedToast": "用户信息已刷新",
   "userInfoRefreshFailedToast": "刷新失败，请重试",
+  "userInfoRefreshFailedDetail": "刷新失败：{detail}",
+  "@userInfoRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "copyProfileRefreshUnavailable": "暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名",
   "tokenUnavailableToast": "暂无可复制的令牌",
   "tokenCopiedToast": "令牌已复制到剪贴板",
@@ -407,10 +423,13 @@
   "appearanceBottomNavLabelModeHiddenDesc": "胶囊导航，只显示图标",
   "appearanceBottomNavLabelModeAlways": "始终显示文字",
   "appearanceBottomNavLabelModeAlwaysDesc": "经典导航，文字显示在图标下方",
+  "appearanceFloatingNavLabelModeHint": "悬浮底栏不支持始终显示文字，已改为选中时显示",
   "appearanceNavOrder": "导航栏顺序",
   "appearanceNavOrderDragHint": "长按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑动切换页面",
   "appearanceNavSwipeDesc": "关闭后只能点击底部导航按钮切换页面",
+  "appearanceFloatingNavTitle": "悬浮底部导航栏",
+  "appearanceFloatingNavDesc": "关闭后导航栏固定在页面底部",
   "appearanceAppIcon": "应用图标",
   "appearanceAppIconRestartHint": "更换后重启应用生效",
   "appearanceRefreshRateTitle": "屏幕刷新率",
@@ -595,6 +614,14 @@
     }
   },
   "networkTestingNodes": "正在检测各节点...",
+  "networkSpeedTestFailedDetail": "测速失败：{detail}",
+  "@networkSpeedTestFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "networkHighLatencyProxySuggestion": "当前延迟较大，建议开启代理",
   "networkRateLimitMessage": "请求过于频繁，已被限速，请稍后再试",
   "networkRequestFailedCode": "请求失败（code: {code}）",
@@ -628,6 +655,7 @@
   "networkCopyLoginDomainEditTitle": "修改登录域名",
   "networkCopyLoginDomainDuplicate": "该域名已在列表中",
   "networkCopyAppVersion": "COPY 请求版本号",
+  "networkCopyVersionCode": "COPY versionCode",
   "networkCopyAutoUpdate": "每天自动更新",
   "networkCopyAutoUpdateNever": "尚未更新",
   "networkCopyAutoUpdateLast": "上次更新：{time}",
@@ -831,6 +859,8 @@
   "novelBookmarksEmptySubtitle": "阅读轻小说时，点击工具栏右上角添加书签",
   "bookmarksLoadFailed": "书签加载失败，请重试",
   "bookmarksUpdateFailed": "书签保存失败，请重试",
+  "bookmarksSearchHint": "搜索书名或章节",
+  "bookmarksSearchEmpty": "没有找到相关书签，试试其他关键词",
   "statsTitle": "阅读统计",
   "continueReadingTitle": "继续阅读",
   "continueReadingPageLabel": "第 {page} 页",
@@ -904,6 +934,14 @@
   "bookmarkRemove": "取消书签",
   "bookmarkAdded": "已添加书签",
   "bookmarkRemoved": "已取消书签",
+  "bookmarkRemoveGroupContent": "该作品有 {count} 条书签，取消书签会一并删除。",
+  "@bookmarkRemoveGroupContent": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "bookmarkPage": "第 {page} 页",
   "@bookmarkPage": {
     "placeholders": {
@@ -952,35 +990,35 @@
   "appDisclaimerFooter": "继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。",
   "profileUsernamePasswordRequired": "请输入用户名和密码",
   "profileLoginFailedProxyHint": "登录失败，建议开启代理后重试",
-  "profileLoginIpBlockedHint": "当前 IP 被封禁，请更换网络环境或开启代理后重试",
+  "profileLoginFailedDetail": "登录失败：{detail}",
+  "@profileLoginFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "profileLoginIpBlockedHint": "当前 IP 被封禁，请更换网络环境或代理节点后重试",
   "profileTokenRequired": "请输入令牌",
   "profileTokenInvalidOrExpired": "令牌无效或已过期",
   "profileLoginTitle": "登录",
   "profileAccountPasswordLoginMode": "账号密码",
   "profileTokenLoginMode": "令牌",
   "profileTokenLoginEntry": "令牌登录",
-  "profileWebLoginButton": "官网登录",
-  "profileWebLoginRecommendedTag": "推荐",
-  "profileWebLoginPageTitle": "官网登录",
-  "profileWebLoginHint": "在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态",
-  "profileWebLoginCompleting": "已获取登录信息，正在验证…",
-  "profileWebLoginManualButton": "我已完成登录",
-  "profileWebLoginNotDetected": "未检测到登录信息，请先在官网中完成登录",
-  "profileWebLoginResetTooltip": "清除官网登录状态",
-  "profileWebLoginResetDone": "已清除官网登录状态，请登录其他账号",
-  "profileWebLoginKnownAccount": "检测到本机已保存的账号「{name}」，尚未自动登录",
-  "@profileWebLoginKnownAccount": {
+  "copyAccountChannelWebApi": "网页接口",
+  "copyAccountChannelWeb": "网页",
+  "copyAccountChannelApp": "App接口",
+  "copyAccountInterfaceLoginFailed": "登录失败：{detail}",
+  "@copyAccountInterfaceLoginFailed": {
     "placeholders": {
-      "name": {
+      "detail": {
         "type": "String"
       }
     }
   },
-  "profileWebLoginKnownAccountFallback": "已保存的账号",
-  "profileWebLoginUseAccount": "使用该账号",
-  "profileWebLoginSwitchAccount": "切换其他账号",
-  "profileWebLoginRetryButton": "重新检测登录",
-  "profileWebLoginResetFailed": "清除官网登录状态失败，请重试",
+  "profileWebLoginPageTitle": "官网登录",
+  "profileWebLoginHint": "在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。",
+  "profileWebLoginCompleting": "已获取登录信息，正在验证…",
   "profileWebLoginFailed": "官网登录失败",
   "profileCopyAutoLoginRejected": "登录被拒绝：{detail}",
   "@profileCopyAutoLoginRejected": {
@@ -1010,14 +1048,16 @@
   "aboutSaveButton": "保存",
   "aboutMirrorPrefixSavedToast": "镜像源已保存",
   "aboutStableChannelShort": "稳定版",
-  "aboutUpdateChannelTitle": "更新渠道",
-  "aboutStableChannelTitle": "稳定版 (Stable)",
-  "aboutStableChannelDesc": "仅检查正式发布版本",
-  "aboutBetaChannelTitle": "预览版（Beta）",
-  "aboutBetaChannelDesc": "从最新提交构建的版本，可能不稳定",
-  "aboutBetaChannelSwitchedTitle": "已切换到预览版",
-  "aboutBetaChannelSwitchedContent": "预览版一般用于测试新功能或修复问题，可能存在更多问题。",
-  "aboutGotItButton": "知道了",
+  "aboutBetaChannelConfirmTitle": "是否切换?",
+  "aboutBetaChannelNote": "预览版更新更快,问题也可能更多",
+  "aboutBetaChannelArm64Only": "仅限 Android arm64 设备。",
+  "aboutBetaChannelDevice": "当前设备:{os} {arch}。",
+  "@aboutBetaChannelDevice": {
+    "placeholders": {
+      "os": { "type": "String" },
+      "arch": { "type": "String" }
+    }
+  },
   "aboutRepositoryLabel": "仓库",
   "aboutFeedbackLabel": "反馈",
   "aboutCheckUpdateTitle": "检查更新",
@@ -1245,7 +1285,6 @@
   "chapterCommentsPlusOneSent": "+1 已发送",
   "chapterCommentsPostFailed": "发表评论失败",
   "chapterCommentsTitle": "章节评论",
-  "chapterCommentsLoadAllTooltip": "加载全部评论",
   "chapterCommentsAiSummaryTooltip": "AI 总结评论",
   "chapterCommentsRegenerateAiSummaryTooltip": "重新生成 AI 总结",
   "chapterCommentsSwitchToListLayout": "切换为列表布局",
@@ -1557,6 +1596,7 @@
   "cacheImageCacheSection": "图片缓存",
   "cacheNovelTextSection": "轻小说缓存",
   "cacheDataCacheSection": "数据缓存",
+  "cacheDataCacheWarning": "数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。",
   "cacheNoLocalKeyValueData": "没有可显示的本地键值数据",
   "cacheEntryCountSize": "{count} 项 · {size}",
   "@cacheEntryCountSize": {
@@ -1622,6 +1662,7 @@
   "themeVariantRainbow": "彩虹",
   "themeVariantRainbowDesc": "跳脱主色限制，整体更活泼。",
   "appLogEmpty": "暂无错误日志",
+  "appLogDisabledTitle": "日志记录已关闭",
   "appLogCopied": "日志已复制到剪贴板",
   "appLogCopyFailed": "复制失败：{error}",
   "@appLogCopyFailed": {
@@ -1651,6 +1692,16 @@
   "appLogLevelWarning": "警告",
   "appLogLevelError": "错误",
   "appLogSearchHint": "搜索日志（消息、来源、堆栈、上下文）",
+  "appLogExportTooltip": "导出日志文件",
+  "appLogExported": "日志已导出",
+  "appLogExportFailed": "导出失败：{error}",
+  "@appLogExportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "appLogClearLogsTooltip": "清空日志",
   "appLogAllLevels": "全部",
   "appLogCopyThisLogTooltip": "复制此日志",
@@ -1983,6 +2034,14 @@
   },
   "readerLocalChapterNoRefresh": "本地章节无需刷新",
   "readerAutoSummaryFailed": "后台自动总结失败：{error}",
+  "readerChainChapterFailedDetail": "加载相邻章节失败：{detail}",
+  "@readerChainChapterFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "@readerAutoSummaryFailed": {
     "placeholders": {
       "error": {
@@ -1999,9 +2058,9 @@
   "readerLoadingPrevChapter": "正在加载上一话…",
   "readerScrollUpPrevChapter": "上滑加载上一话",
   "readerRefresh": "刷新本话",
-  "readerAlreadyFirstChapter": "已经是第一章",
+  "readerAlreadyFirstChapter": "梦开始的地方",
   "readerContinuePageNextChapter": "继续翻页进入下一话",
-  "readerAlreadyLastChapter": "已经是最后一话",
+  "readerAlreadyLastChapter": "当前已无下一话",
   "readerContinueScrollOrTapNextChapter": "继续下滑或点击按钮进入下一话",
   "readerImagePathCopied": "图片路径已复制到剪贴板",
   "readerImageUrlCopied": "图片链接已复制到剪贴板",
@@ -2051,7 +2110,31 @@
     }
   },
   "updateDownloadFailed": "下载失败，请稍后重试",
+  "updateDownloadFailedDetail": "下载失败：{detail}",
+  "@updateDownloadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloadFallback": "下载源切换中（第 {count} 个备用源）",
+  "@updateDownloadFallback": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "updateInstallFailed": "无法启动安装，请改用浏览器下载",
+  "updateInstallFailedDetail": "无法启动安装：{detail}",
+  "@updateInstallFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "updateInstallPermissionNeeded": "需要「安装未知应用」权限才能安装更新",
   "updateDownloadPreparing": "准备下载…",
   "updateInstalling": "正在安装…",
@@ -2065,7 +2148,23 @@
   "maleAudience": "男生",
   "femaleAudience": "女生",
   "noticeRefreshFailed": "刷新通知失败，请稍后重试",
+  "noticeRefreshFailedDetail": "刷新通知失败：{detail}",
+  "@noticeRefreshFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeReadFailed": "读取通知失败",
+  "noticeReadFailedDetail": "读取通知失败：{detail}",
+  "@noticeReadFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "noticeAllMarkedRead": "所有通知已标记为已读",
   "noticeMarkAllReadTooltip": "全部已读",
   "noticeRefreshTooltip": "刷新通知",
@@ -2273,6 +2372,14 @@
   "backupRecoveryRequired": "数据恢复尚未完成。请解锁设备、检查可用空间后重试。",
   "backupRecoveryTitle": "恢复本机数据",
   "backupOperationFailed": "操作失败，请检查文件权限和可用空间后重试。",
+  "backupOperationFailedDetail": "操作失败：{detail}",
+  "@backupOperationFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "backupWebDavInvalidConfig": "请检查服务器地址、用户名和文件夹路径。",
   "backupWebDavAuthentication": "登录失败，请检查用户名和密码。",
   "backupWebDavForbidden": "没有操作权限，请检查服务器设置。",
@@ -2364,6 +2471,22 @@
   "novelNoBrief": "暂无简介",
   "novelUncollect": "取消收藏",
   "novelCollectFailed": "收藏操作失败，请重试",
+  "novelCollectFailedDetail": "收藏操作失败：{detail}",
+  "@novelCollectFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "novelDownloadEnqueueFailed": "加入下载失败：{detail}",
+  "@novelDownloadEnqueueFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelQueryFailed": "阅读与收藏状态加载失败",
   "novelAccountRequired": "阅读权限由拷贝账户决定，可登录后重试",
   "novelLocked": "当前内容受限，可尝试切换拷贝账户",
@@ -2428,9 +2551,18 @@
   "novelReaderBookmark": "书签",
   "novelReaderCopiedToast": "段落已复制到剪贴板",
   "novelReaderVolumesRetry": "卷册加载失败，重试",
-  "novelReaderPrevious": "上一章节",
-  "novelReaderNext": "下一章节",
+  "novelReaderVolumesRetryDetail": "卷册加载失败：{detail}（点击重试）",
+  "@novelReaderVolumesRetryDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "novelReaderPrevious": "上一卷",
+  "novelReaderNext": "下一卷",
   "novelReaderSettings": "阅读设置",
+  "novelReaderRealisticPageTurn": "仿真翻页",
   "novelReaderFontSize": "字号",
   "novelReaderLineHeight": "行距",
   "novelReaderParagraphSpacing": "段距",

@@ -419,4 +419,113 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  for (final initialMode in [
+    BottomNavLabelMode.selectedOnly,
+    BottomNavLabelMode.hidden,
+  ]) {
+    testWidgets('悬浮底栏选择始终显示时提示降级：${initialMode.name}', (tester) async {
+      final user = UserManager();
+      await user.theme.setFloatingNavEnabled(true);
+      await user.setBottomNavLabelMode(initialMode);
+      await _showPage(tester);
+      final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+      await tester.scrollUntilVisible(
+        tile,
+        -400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      final select = find.descendant(
+        of: tile,
+        matching: find.byType(SelectTile<BottomNavLabelMode>),
+      );
+      await tester.tap(select);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('始终显示文字').last);
+      await tester.pumpAndSettle();
+
+      final l10n = AppLocalizations.of(tester.element(tile))!;
+      expect(
+        find.text(l10n.appearanceFloatingNavLabelModeHint),
+        findsOneWidget,
+      );
+      expect(user.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+      expect(user.theme.floatingNavEnabled, isTrue);
+      expect(
+        find.descendant(of: tile, matching: find.text('选中时显示')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets('非悬浮底栏允许始终显示文字且不提示降级', (tester) async {
+    final user = UserManager();
+    await user.theme.setFloatingNavEnabled(false);
+    await _showPage(tester);
+    final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+    await tester.scrollUntilVisible(
+      tile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    final select = find.descendant(
+      of: tile,
+      matching: find.byType(SelectTile<BottomNavLabelMode>),
+    );
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('始终显示文字').last);
+    await tester.pumpAndSettle();
+
+    final l10n = AppLocalizations.of(tester.element(tile))!;
+    expect(find.text(l10n.appearanceFloatingNavLabelModeHint), findsNothing);
+    expect(user.bottomNavLabelMode, BottomNavLabelMode.always);
+    expect(
+      find.descendant(of: tile, matching: find.text('始终显示文字')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('底部导航栏文字改为下拉列表，选中即生效且不再弹底部选择层', (tester) async {
+    await _showPage(tester);
+    final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+    await tester.scrollUntilVisible(
+      tile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    final select = find.descendant(
+      of: tile,
+      matching: find.byType(SelectTile<BottomNavLabelMode>),
+    );
+    expect(select, findsOneWidget);
+    expect(tester.widget<ListTile>(tile).onTap, isNull);
+    expect(
+      find.descendant(of: tile, matching: find.text('选中时显示')),
+      findsOneWidget,
+    );
+
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    await tester.tap(find.text('不显示文字').last);
+    await tester.pumpAndSettle();
+
+    expect(UserManager().bottomNavLabelMode, BottomNavLabelMode.hidden);
+    expect(
+      find.descendant(of: tile, matching: find.text('不显示文字')),
+      findsOneWidget,
+    );
+    expect(find.text('胶囊导航，只显示图标'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/novel_download.dart';
@@ -63,6 +64,10 @@ class NovelDetailPage extends ConsumerStatefulWidget {
 class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   late final UserManager _user = ref.read(userManagerProvider);
   late final _downloads = ref.read(novelDownloadManagerProvider);
+  late final _bookmarkStore = ref.read(novelBookmarkStoreProvider);
+
+  /// 这部轻小说是否已出现在书签页（只有分组也算）。
+  bool _bookmarkGrouped = false;
   NovelDetail? _detail;
   NovelQuery? _query;
   NovelReadingProgress? _progress;
@@ -72,14 +77,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   bool _enqueuingDownloads = false;
   bool _detailLoading = true;
   bool _detailFailed = false;
+  Object? _detailError;
   bool _refreshingDetail = false;
   bool _volumesLoading = true;
   bool _volumesFailed = false;
+  Object? _volumesError;
   bool _refreshingVolumes = false;
   bool _queryLoading = true;
   bool _queryFailed = false;
+  Object? _queryError;
   bool _progressLoading = true;
   bool _progressFailed = false;
+  Object? _progressError;
   bool? _collected;
   bool _collecting = false;
   bool _opening = false;
@@ -104,7 +113,64 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _token = _user.copyToken;
     _user.addListener(_onAccountChanged);
     _downloads.addListener(_onDownloadsChanged);
+    _bookmarkStore.addListener(_onBookmarksChanged);
+    unawaited(_loadBookmarkGroup());
     unawaited(_initializePage());
+  }
+
+  Future<void> _loadBookmarkGroup() async {
+    await _bookmarkStore.ensureLoaded();
+    _onBookmarksChanged();
+  }
+
+  void _onBookmarksChanged() {
+    if (!mounted) return;
+    setState(() => _bookmarkGrouped = _bookmarkStore.hasGroup(widget.pathWord));
+  }
+
+  /// 右上角书签按钮：把这部轻小说加进书签页。只登记分组、不写具体书签，
+  /// 所以在书签页里表现为「只有组头、没有条目」。
+  ///
+  /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
+  Future<void> _toggleBookmarkGroup() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_bookmarkStore.hasGroup(widget.pathWord)) {
+      final count = _bookmarkStore.bookmarks
+          .where((bookmark) => bookmark.pathWord == widget.pathWord)
+          .length;
+      if (count > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.bookmarkRemove),
+            content: Text(l10n.bookmarkRemoveGroupContent(count)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancelButton),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      await _bookmarkStore.removeGroup(widget.pathWord);
+      if (!mounted) return;
+      showToast(context, l10n.bookmarkRemoved);
+      return;
+    }
+    final book = _detail?.book;
+    await _bookmarkStore.addGroup(
+      pathWord: widget.pathWord,
+      name: book?.name ?? '',
+      cover: book?.cover ?? '',
+    );
+    if (!mounted) return;
+    showToast(context, l10n.bookmarkAdded);
   }
 
   @override
@@ -117,6 +183,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _progress = null;
     _volumes = [];
     _selectedDownloadVolumes.clear();
+    _onBookmarksChanged();
     _downloadSelectionMode = false;
     _collected = null;
     _collecting = false;
@@ -125,6 +192,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   @override
   void dispose() {
+    _bookmarkStore.removeListener(_onBookmarksChanged);
     _user.removeListener(_onAccountChanged);
     _downloads.removeListener(_onDownloadsChanged);
     super.dispose();
@@ -222,7 +290,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'load');
       if (mounted && generation == _detailGeneration) {
-        setState(() => _detailFailed = true);
+        setState(() {
+          _detailFailed = true;
+          _detailError = e;
+        });
       }
     } finally {
       if (mounted && generation == _detailGeneration) {
@@ -259,7 +330,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'volumes');
       if (mounted && generation == _volumeGeneration) {
-        setState(() => _volumesFailed = true);
+        setState(() {
+          _volumesFailed = true;
+          _volumesError = e;
+        });
       }
     } finally {
       if (mounted && generation == _volumeGeneration) {
@@ -292,7 +366,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'query');
       if (mounted && generation == _queryGeneration) {
-        setState(() => _queryFailed = true);
+        setState(() {
+          _queryFailed = true;
+          _queryError = e;
+        });
       }
     } finally {
       if (mounted && generation == _queryGeneration) {
@@ -316,7 +393,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'progress');
       if (mounted && generation == _progressGeneration) {
-        setState(() => _progressFailed = true);
+        setState(() {
+          _progressFailed = true;
+          _progressError = e;
+        });
       }
     } finally {
       if (mounted && generation == _progressGeneration) {
@@ -354,9 +434,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       _log(e, stack, 'collect');
       if (mounted && account == _accountGeneration) {
         setState(() => _collecting = false);
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.novelCollectFailed,
+          l10n.novelCollectFailedDetail(novelErrorMessage(e)),
           isError: true,
         );
       }
@@ -611,9 +692,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (error, stack) {
       _log(error, stack, 'download');
       if (mounted && widget.pathWord == pathWord) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.novelDownloadEnqueueFailed(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -752,8 +834,9 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             onPressed: _collecting || _queryLoading || book.uuid.isEmpty
                 ? null
                 : _toggleCollect,
+            // 用爱心区分「收藏」（服务端）与右上角的「书签」（本地）。
             icon: Icon(
-              _collected == true ? Icons.bookmark : Icons.bookmark_border,
+              _collected == true ? Icons.favorite : Icons.favorite_border,
               size: 18,
             ),
             label: Text(_collectLabel()),
@@ -926,7 +1009,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: () => _loadDetail(refresh: true),
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelLoadFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _detailError,
+                    fallback: l10n.novelLoadFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -940,7 +1028,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: _loadQuery,
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelQueryFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _queryError,
+                    fallback: l10n.novelQueryFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -954,7 +1047,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
               child: TextButton.icon(
                 onPressed: _loadProgress,
                 icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelHistoryFailed),
+                label: Text(
+                  novelErrorMessage(
+                    _progressError,
+                    fallback: l10n.novelHistoryFailed,
+                  ),
+                ),
               ),
             ),
           ),
@@ -994,7 +1092,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       else if (_volumesFailed && _volumes.isEmpty)
         SliverToBoxAdapter(
           child: ErrorRetryView(
-            message: l10n.novelVolumesFailed,
+            message: novelErrorMessage(
+              _volumesError,
+              fallback: l10n.novelVolumesFailed,
+            ),
             onRetry: () => _loadVolumes(refresh: true),
           ),
         )
@@ -1196,6 +1297,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            key: const ValueKey('novel_detail_bookmark'),
+            icon: Icon(
+              _bookmarkGrouped
+                  ? Icons.bookmark_added
+                  : Icons.bookmark_add_outlined,
+            ),
+            tooltip: _bookmarkGrouped ? l10n.bookmarkRemove : l10n.bookmarkAdd,
+            onPressed: _toggleBookmarkGroup,
+          ),
+        ],
       ),
       // 继续阅读固定在右下角，与漫画详情页的续读入口同款、同位置。
       body: Stack(
@@ -1204,7 +1317,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             (_detailLoading
                 ? const Center(child: ExpressiveLoadingIndicator())
                 : ErrorRetryView(
-                    message: l10n.novelLoadFailed,
+                    message: novelErrorMessage(
+                      _detailError,
+                      fallback: l10n.novelLoadFailed,
+                    ),
                     onRetry: () => _loadDetail(refresh: true),
                   ))
           else

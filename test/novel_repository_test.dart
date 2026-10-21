@@ -401,96 +401,131 @@ void main() {
   );
 
   for (final encoding in ['UTF-8', 'GBK']) {
-    test('snapshot keeps raw $encoding whitespace and directory indices', () async {
-      const text = '\r\n第一行\r\n\r\n末行\r\n';
-      final contentAdapter = NovelTestAdapter((options, body) => encoding == 'GBK'
-          ? ResponseBody.fromBytes(gbk.encode(text), 200)
-          : ResponseBody.fromString(text, 200));
+    test(
+      'snapshot keeps raw $encoding whitespace and directory indices',
+      () async {
+        const text = '\r\n第一行\r\n\r\n末行\r\n';
+        final contentAdapter = NovelTestAdapter(
+          (options, body) => encoding == 'GBK'
+              ? ResponseBody.fromBytes(gbk.encode(text), 200)
+              : ResponseBody.fromString(text, 200),
+        );
+        final client = NovelApi.withDio(
+          user: user,
+          dio: Dio()
+            ..httpClientAdapter = NovelTestAdapter(
+              (options, body) => novelJsonResponse(
+                novelFixtureDetail(encoding: encoding).toJson(),
+              ),
+            ),
+          contentDio: Dio()..httpClientAdapter = contentAdapter,
+        );
+        addTearDown(client.close);
+        final repo = NovelRepository(
+          api: client,
+          store: store,
+          now: () => store.now,
+        );
+        final snapshot = await repo.loadVolumeSnapshot('book', '7');
+        expect(snapshot.text, text);
+        expect(snapshot.content.entries.first.paragraphs, ['', '第一行']);
+        expect(snapshot.content.entries[1].entryIndex, 1);
+        expect(snapshot.detail.volume.txtEncoding, encoding);
+        final restored = await repo.loadVolumeSnapshot('book', '7');
+        expect(restored.text, text);
+        // 缓存命中后后台重放 txt 上报；detail 复用自身缓存。
+        await pumpEventQueue();
+        expect(contentAdapter.requests, hasLength(2));
+      },
+    );
+  }
+
+  test(
+    'refresh snapshot waits for old fetch then updates the paired cache',
+    () async {
+      final entered = Completer<void>();
+      final release = Completer<ResponseBody>();
+      var requests = 0;
+      final contentAdapter = NovelTestAdapter((options, body) {
+        if (++requests == 1) {
+          entered.complete();
+          return release.future;
+        }
+        return ResponseBody.fromString('新版本\n', 200);
+      });
       final client = NovelApi.withDio(
         user: user,
-        dio: Dio()..httpClientAdapter = NovelTestAdapter((options, body) =>
-            novelJsonResponse(novelFixtureDetail(encoding: encoding).toJson())),
+        dio: Dio()..httpClientAdapter = apiAdapter,
         contentDio: Dio()..httpClientAdapter = contentAdapter,
       );
       addTearDown(client.close);
-      final repo = NovelRepository(api: client, store: store, now: () => store.now);
-      final snapshot = await repo.loadVolumeSnapshot('book', '7');
-      expect(snapshot.text, text);
-      expect(snapshot.content.entries.first.paragraphs, ['', '第一行']);
-      expect(snapshot.content.entries[1].entryIndex, 1);
-      expect(snapshot.detail.volume.txtEncoding, encoding);
-      final restored = await repo.loadVolumeSnapshot('book', '7');
-      expect(restored.text, text);
-      // 缓存命中后后台重放 txt 上报；detail 复用自身缓存。
+      final repo = NovelRepository(
+        api: client,
+        store: store,
+        now: () => store.now,
+      );
+      final old = repo.loadVolumeSnapshot('book', '7');
+      await entered.future;
+      final fresh = repo.loadVolumeSnapshot('book', '7', refresh: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(requests, 1);
+      expect(apiAdapter.requests, hasLength(1));
+      release.complete(ResponseBody.fromString('旧版本\n', 200));
+      expect((await old).text, '旧版本\n');
+      expect((await fresh).text, '新版本\n');
+      expect((await repo.loadVolumeSnapshot('book', '7')).text, '新版本\n');
+      // 最后一次命中缓存，后台重放 txt 上报。
       await pumpEventQueue();
-      expect(contentAdapter.requests, hasLength(2));
-    });
-  }
+      expect(requests, 3);
+    },
+  );
 
-  test('refresh snapshot waits for old fetch then updates the paired cache', () async {
-    final entered = Completer<void>();
-    final release = Completer<ResponseBody>();
-    var requests = 0;
-    final contentAdapter = NovelTestAdapter((options, body) {
-      if (++requests == 1) {
-        entered.complete();
-        return release.future;
-      }
-      return ResponseBody.fromString('新版本\n', 200);
-    });
-    final client = NovelApi.withDio(user: user,
-      dio: Dio()..httpClientAdapter = apiAdapter,
-      contentDio: Dio()..httpClientAdapter = contentAdapter);
-    addTearDown(client.close);
-    final repo = NovelRepository(api: client, store: store, now: () => store.now);
-    final old = repo.loadVolumeSnapshot('book', '7');
-    await entered.future;
-    final fresh = repo.loadVolumeSnapshot('book', '7', refresh: true);
-    await Future<void>.delayed(Duration.zero);
-    expect(requests, 1);
-    expect(apiAdapter.requests, hasLength(1));
-    release.complete(ResponseBody.fromString('旧版本\n', 200));
-    expect((await old).text, '旧版本\n');
-    expect((await fresh).text, '新版本\n');
-    expect((await repo.loadVolumeSnapshot('book', '7')).text, '新版本\n');
-    // 最后一次命中缓存，后台重放 txt 上报。
-    await pumpEventQueue();
-    expect(requests, 3);
-  });
-
-  test('cancelling task-owned snapshot does not cancel shared reader fetch', () async {
-    final readerEntered = Completer<void>();
-    final taskEntered = Completer<void>();
-    final readerRelease = Completer<ResponseBody>();
-    final taskRelease = Completer<ResponseBody>();
-    var requests = 0;
-    final contentAdapter = NovelTestAdapter((options, body) {
-      if (++requests == 1) {
-        readerEntered.complete();
-        return readerRelease.future;
-      }
-      taskEntered.complete();
-      return taskRelease.future;
-    });
-    final client = NovelApi.withDio(user: user,
-      dio: Dio()..httpClientAdapter = apiAdapter,
-      contentDio: Dio()..httpClientAdapter = contentAdapter);
-    addTearDown(client.close);
-    final repo = NovelRepository(api: client, store: store, now: () => store.now);
-    final reader = repo.loadVolumeContent('book', '7');
-    await readerEntered.future;
-    final token = CancelToken();
-    final assertion = expectLater(repo.loadVolumeSnapshot('book', '7', cancelToken: token),
-      throwsA(isA<DioException>().having(CancelToken.isCancel, 'cancelled', isTrue)));
-    await taskEntered.future;
-    token.cancel();
-    await assertion;
-    readerRelease.complete(ResponseBody.fromString('阅读正文\n', 200));
-    expect((await reader).entries.first.paragraphs.first, '阅读正文');
-    taskRelease.complete(ResponseBody.fromString('已取消旧正文\n', 200));
-    await Future<void>.delayed(Duration.zero);
-    expect(store.texts.values.single.text, '阅读正文\n');
-  });
+  test(
+    'cancelling task-owned snapshot does not cancel shared reader fetch',
+    () async {
+      final readerEntered = Completer<void>();
+      final taskEntered = Completer<void>();
+      final readerRelease = Completer<ResponseBody>();
+      final taskRelease = Completer<ResponseBody>();
+      var requests = 0;
+      final contentAdapter = NovelTestAdapter((options, body) {
+        if (++requests == 1) {
+          readerEntered.complete();
+          return readerRelease.future;
+        }
+        taskEntered.complete();
+        return taskRelease.future;
+      });
+      final client = NovelApi.withDio(
+        user: user,
+        dio: Dio()..httpClientAdapter = apiAdapter,
+        contentDio: Dio()..httpClientAdapter = contentAdapter,
+      );
+      addTearDown(client.close);
+      final repo = NovelRepository(
+        api: client,
+        store: store,
+        now: () => store.now,
+      );
+      final reader = repo.loadVolumeContent('book', '7');
+      await readerEntered.future;
+      final token = CancelToken();
+      final assertion = expectLater(
+        repo.loadVolumeSnapshot('book', '7', cancelToken: token),
+        throwsA(
+          isA<DioException>().having(CancelToken.isCancel, 'cancelled', isTrue),
+        ),
+      );
+      await taskEntered.future;
+      token.cancel();
+      await assertion;
+      readerRelease.complete(ResponseBody.fromString('阅读正文\n', 200));
+      expect((await reader).entries.first.paragraphs.first, '阅读正文');
+      taskRelease.complete(ResponseBody.fromString('已取消旧正文\n', 200));
+      await Future<void>.delayed(Duration.zero);
+      expect(store.texts.values.single.text, '阅读正文\n');
+    },
+  );
 
   test(
     'file text snapshots persist large content without SharedPreferences',

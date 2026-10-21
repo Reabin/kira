@@ -357,15 +357,26 @@ class NetworkProxy {
         RegExp(r'^172\.(1[6-9]|2\d|3[0-1])\.').hasMatch(host);
   }
 
+  /// 镜像下载直连：候选镜像（当前选中 + 其余内置/自定义）都按直连处理，
+  /// 否则兜底切换到备用镜像时会被代理再绕一层。
   static bool _isUpdateMirrorUri(Uri uri) {
-    final mirrorUri = Uri.tryParse(_user.updateMirrorPrefix);
-    if (mirrorUri == null || !mirrorUri.hasScheme || !mirrorUri.hasAuthority) {
-      return false;
+    for (final prefix in UserManager.updateMirrorFallbackChain(
+      _user.updateMirrorPrefix,
+      _user.customUpdateMirrorPrefixes,
+    )) {
+      final mirrorUri = Uri.tryParse(prefix);
+      if (mirrorUri == null ||
+          !mirrorUri.hasScheme ||
+          !mirrorUri.hasAuthority) {
+        continue;
+      }
+      if (uri.scheme == mirrorUri.scheme &&
+          uri.host.toLowerCase() == mirrorUri.host.toLowerCase() &&
+          _effectivePort(uri) == _effectivePort(mirrorUri)) {
+        return true;
+      }
     }
-
-    return uri.scheme == mirrorUri.scheme &&
-        uri.host.toLowerCase() == mirrorUri.host.toLowerCase() &&
-        _effectivePort(uri) == _effectivePort(mirrorUri);
+    return false;
   }
 
   static int _effectivePort(Uri uri) {

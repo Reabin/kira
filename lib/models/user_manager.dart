@@ -11,6 +11,7 @@ import '../api/user/user_api.dart';
 import '../utils/app_icon_switcher.dart';
 import '../utils/app_logger.dart';
 import '../utils/copy_web_login.dart' show CopyWebLoginForm, canApplyLoginForm;
+import 'account_identity.dart';
 import 'api_ordering.dart';
 import 'app_theme_option.dart';
 import 'comment_settings.dart';
@@ -25,6 +26,7 @@ export 'network_proxy_types.dart';
 export 'network_settings.dart' show NetworkSelectionMode;
 export 'theme_settings.dart' show BottomNavLabelMode;
 
+part 'user_manager_parts/account_reconciliation.dart';
 part 'user_manager_parts/app_settings.dart';
 part 'user_manager_parts/comment.dart';
 part 'user_manager_parts/init.dart';
@@ -91,23 +93,17 @@ class SavedCredential {
           accountId?.trim().isNotEmpty == true &&
           token?.trim().isNotEmpty == true);
 
-  bool sameAccount(SavedCredential other) {
-    if (source != other.source) return false;
-    if (source == 'copy') {
-      if (token?.isNotEmpty == true && token == other.token) return true;
-      if (accountId?.isNotEmpty == true &&
-          other.accountId?.isNotEmpty == true) {
-        return accountId == other.accountId;
-      }
-      if (userId?.isNotEmpty == true && other.userId?.isNotEmpty == true) {
-        return userId == other.userId;
-      }
-    }
-    if (username.isNotEmpty && other.username.isNotEmpty) {
-      return username == other.username;
-    }
-    return userId?.isNotEmpty == true && userId == other.userId;
-  }
+  AccountIdentity get identity => AccountIdentity(
+    source: source,
+    username: username,
+    userId: userId,
+    token: token,
+    accountId: accountId,
+  );
+
+  /// Same-source nonempty login names are authoritative; incomplete identities
+  /// may use a trusted user id, token or existing binding, never display data.
+  bool sameAccount(SavedCredential other) => identity.matches(other.identity);
 
   SavedCredential copyWith({
     String? username,
@@ -166,13 +162,28 @@ class UserManager extends ChangeNotifier {
       ThemeSettings.defaultDisplayModeRefreshRate;
 
   /// GitHub 下载镜像默认前缀，也用于提示条等处的「默认值」语义。
-  static const defaultUpdateMirrorPrefix = 'https://gh.zwy.one/';
+  static const defaultUpdateMirrorPrefix = 'https://gh-proxy.org/';
 
-  /// 镜像源下拉可选项，第一项即默认；ghproxy.net 为旧版默认，保留供切换。
+  /// 镜像源下拉里内置的可选项，第一项即默认；其余为备选。
   static const updateMirrorPrefixOptions = <String>[
     defaultUpdateMirrorPrefix,
     'https://ghproxy.net/',
   ];
+
+  /// 应用内下载的镜像兜底顺序：选中的镜像优先，内置与自定义镜像依次尝试。
+  /// 选中的值不在列表里（如备份恢复的旧值）时也排在最前。
+  static List<String> updateMirrorFallbackChain(
+    String selected, [
+    List<String> custom = const [],
+  ]) {
+    final first = normalizeUpdateMirrorPrefix(selected);
+    final chain = <String>[first];
+    for (final option in [...updateMirrorPrefixOptions, ...custom]) {
+      final normalized = normalizeUpdateMirrorPrefix(option);
+      if (!chain.contains(normalized)) chain.add(normalized);
+    }
+    return chain;
+  }
 
   static const appLogoPaths = ThemeSettings.appLogoPaths;
 
@@ -221,9 +232,9 @@ class UserManager extends ChangeNotifier {
   static const _keyAutoCheckUpdate = 'auto_check_update';
   static const _keySkippedUpdateVersion = 'skipped_update_version';
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
+  static const _keyUpdateMirrorCustomPrefixes = 'update_mirror_custom_prefixes';
   static const _keyUpdateChannel = 'update_channel'; // stable | beta
   static const _keyUseUpdateMirror = 'use_update_mirror';
-  static const _keyAutoLogin = 'auto_login';
   static const _keyDisclaimerAccepted = 'disclaimer_accepted';
   static const _keyLoginSource = 'login_source';
   static const _keyApiRoute = 'api_route';
@@ -237,6 +248,7 @@ class UserManager extends ChangeNotifier {
   static const _keyCopyLoginHost = 'copy_login_host';
   static const _keyCustomCopyLoginHosts = 'copy_login_custom_hosts';
   static const _keyCopyAppVersion = 'copy_app_version';
+  static const _keyCopyVersionCode = 'copy_version_code';
   static const _keyCopyAutoUpdate = 'copy_auto_update';
   static const _keyCopySettingsUpdatedAt = 'copy_settings_updated_at';
   static const _keyCopyHomeSectionCollapsed = 'copy_home_section_collapsed';
@@ -292,9 +304,11 @@ class UserManager extends ChangeNotifier {
   bool _autoCheckUpdate = true;
   String? _skippedUpdateVersion;
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
+
+  /// 用户自定义的更新镜像源（内置 [updateMirrorPrefixOptions] 之外）。
+  List<String> _customUpdateMirrorPrefixes = [];
   String _updateChannel = 'stable'; // stable | beta
   bool _useUpdateMirror = true;
-  bool _autoLogin = false;
   bool _disclaimerAccepted = false;
   String _loginSource = 'hotmanga';
   int _apiRoute = 0; // 0=线路1(默认), 1=线路2
@@ -316,6 +330,7 @@ class UserManager extends ChangeNotifier {
   /// 用户自定义的拷贝登录域名（内置 [copyLoginHostOptions] 之外）。
   List<String> _customCopyLoginHosts = [];
   String _copyAppVersion = defaultCopyAppVersion;
+  String _copyVersionCode = defaultCopyVersionCode;
   bool _copyAutoUpdate = true;
   int? _copySettingsUpdatedAt;
   Map<String, bool> _copyHomeSectionCollapsed = {};
@@ -409,10 +424,13 @@ class UserManager extends ChangeNotifier {
   bool get autoCheckUpdate => _autoCheckUpdate;
   String? get skippedUpdateVersion => _skippedUpdateVersion;
   String get updateMirrorPrefix => _updateMirrorPrefix;
+
+  /// 用户自定义的更新镜像源（内置 [updateMirrorPrefixOptions] 之外）。
+  List<String> get customUpdateMirrorPrefixes =>
+      List.unmodifiable(_customUpdateMirrorPrefixes);
   String get updateChannel => _updateChannel;
   bool get isBetaUpdateChannel => _updateChannel == 'beta';
   bool get useUpdateMirror => _useUpdateMirror;
-  bool get autoLogin => _autoLogin;
   bool get disclaimerAccepted => _disclaimerAccepted;
   String get loginSource => _loginSource;
   int get apiRoute => _apiRoute;
@@ -446,6 +464,7 @@ class UserManager extends ChangeNotifier {
     ..._customCopyLoginHosts.where((h) => !copyLoginHostOptions.contains(h)),
   ]);
   String get copyAppVersion => _copyAppVersion;
+  String get copyVersionCode => _copyVersionCode;
   bool get copyAutoUpdate => _copyAutoUpdate;
   int? get copySettingsUpdatedAt => _copySettingsUpdatedAt;
   bool isCopyHomeSectionCollapsed(String key) =>
@@ -570,6 +589,12 @@ class UserManager extends ChangeNotifier {
     return version.isEmpty ? defaultCopyAppVersion : version;
   }
 
+  /// versioncode 只允许数字(服务端收到非数字会直接判无效);空值回落默认。
+  static String normalizeCopyVersionCode(String? value) {
+    final digits = (value ?? '').trim().replaceAll(RegExp(r'[^0-9]'), '');
+    return digits.isEmpty ? defaultCopyVersionCode : digits;
+  }
+
   static bool isValidProxyPort(int? port) =>
       port != null && port > 0 && port <= 65535;
 
@@ -586,6 +611,43 @@ class UserManager extends ChangeNotifier {
     }
   }
 
+  int _suppressCopyAccountNotification = 0;
+  bool _copyNotificationSuppressed = false;
+
+  void _onCopyAccountChanged() {
+    if (_suppressCopyAccountNotification > 0) {
+      // A COPY change (e.g. the user picking another novel account) can land
+      // while a login transaction is mid-flight. It must still reach facade
+      // listeners even if that transaction later rolls back and publishes
+      // nothing of its own.
+      _copyNotificationSuppressed = true;
+      return;
+    }
+    notifyListeners();
+  }
+
+  void _beginCopyAccountSuppression() => _suppressCopyAccountNotification++;
+
+  /// Releases one suppression level, forwarding a COPY change that was
+  /// swallowed while a transaction held the flag. Nested transactions release
+  /// their own level; only the outermost one can actually notify.
+  void _endCopyAccountSuppression() {
+    if (_suppressCopyAccountNotification > 0) {
+      _suppressCopyAccountNotification--;
+    }
+    if (_suppressCopyAccountNotification > 0) return;
+    final pending = _copyNotificationSuppressed;
+    _copyNotificationSuppressed = false;
+    if (pending) notifyListeners();
+  }
+
+  /// Publishes a committed transaction while suppression is active. The state
+  /// is already consistent, so releasing the flag later must not notify again.
+  void _notifySuppressedCommit() {
+    _copyNotificationSuppressed = false;
+    notifyListeners();
+  }
+
   void _onSubStoreChanged() {
     notifyListeners();
   }
@@ -596,7 +658,7 @@ class UserManager extends ChangeNotifier {
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
-    copyAccount.removeListener(_onSubStoreChanged);
+    copyAccount.removeListener(_onCopyAccountChanged);
     super.dispose();
   }
 
@@ -655,6 +717,14 @@ class UserManager extends ChangeNotifier {
           accountId: _accountId,
         );
 
+  SavedCredential? get _currentWithPassword {
+    final current = currentCredential;
+    if (current == null) return null;
+    return current.copyWith(
+      password: current.username == _savedUsername ? _savedPassword : null,
+    );
+  }
+
   static const _profileKeys = [
     _keyAccountId,
     _keyUserId,
@@ -682,14 +752,16 @@ class UserManager extends ChangeNotifier {
     }
   }
 
-  /// All explicit logins share one commit path: COPY selects both domains;
-  /// HOT selects comics only. Reserve revisions before network work so an old
-  /// response cannot undo a newer login, logout or manual account selection.
+  /// All explicit logins share one commit path: COPY adds to both domains;
+  /// HOT adds to comics only. A login never takes over an already selected
+  /// domain (see [_commitLogin]). Reserve revisions before network work so an
+  /// old response cannot undo a newer login, logout or manual selection.
   Future<bool> authenticateAndLogin({
     required String source,
     required Future<Map<String, dynamic>> Function() authenticate,
     String? password,
     bool syncCopyAccount = true,
+    bool fillOnlyIfEmpty = true,
   }) async {
     final revision = ++_accountRevision;
     final copyRevision = source == 'copy' && syncCopyAccount
@@ -720,6 +792,7 @@ class UserManager extends ChangeNotifier {
         revision: revision,
         copyRevision: copyRevision,
         password: password,
+        fillOnlyIfEmpty: fillOnlyIfEmpty,
       ),
     );
   }
@@ -733,6 +806,7 @@ class UserManager extends ChangeNotifier {
     bool syncCopyAccount = false,
     int? copyAccountRevision,
     String? loginSource,
+    bool fillOnlyIfEmpty = true,
   }) async {
     final revision = ++_accountRevision;
     final source = loginSource ?? _loginSource;
@@ -752,53 +826,22 @@ class UserManager extends ChangeNotifier {
         ),
         revision: revision,
         copyRevision: copyRevision,
+        fillOnlyIfEmpty: fillOnlyIfEmpty,
       ),
     );
   }
 
   SavedCredential _resolveCopyCredential(SavedCredential account) {
-    final known = [
-      ?currentCredential,
+    final merged = _mergeCredentials([
+      account,
+      ?_currentWithPassword,
       ..._savedCredentials,
-    ].where((item) => item.sameAccount(account)).firstOrNull;
-    // Resolve before either domain writes: a pre-existing novel binding wins,
-    // even if a restored primary credential has another local handle.
-    final session = copyAccount.resolveSession(
-      CopyAccountSession(
-        token: account.token!,
-        accountId:
-            known?.accountId ??
-            (known == null
-                ? account.accountId
-                : CopyAccountSession.identityOf(
-                        userId: known.userId ?? '',
-                        username: known.username,
-                      ) ??
-                      account.accountId),
-        userId: account.userId?.isNotEmpty == true
-            ? account.userId!
-            : known?.userId ?? '',
-        username: account.username.isNotEmpty
-            ? account.username
-            : known?.username ?? '',
-        nickname: account.nickname?.isNotEmpty == true
-            ? account.nickname!
-            : known?.nickname ?? '',
-        avatar: account.avatar?.isNotEmpty == true
-            ? account.avatar!
-            : known?.avatar ?? '',
-      ),
-    );
-    return SavedCredential(
-      username: session.username,
-      password: account.password,
-      token: session.token,
-      loginSource: 'copy',
-      userId: session.userId,
-      nickname: session.nickname,
-      avatar: session.avatar,
-      accountId: session.id,
-    );
+    ], incoming: account);
+    final known = merged.forAccount(account)!;
+    // Resolve before either domain writes: existing COPY handles win over an
+    // incoming token-only handle. A new unknown token borrows no current user.
+    final session = copyAccount.resolveSession(_copySession(known));
+    return _copyCredential(session).copyWith(password: known.password);
   }
 
   Future<bool> _commitLogin(
@@ -806,45 +849,88 @@ class UserManager extends ChangeNotifier {
     required int revision,
     int? copyRevision,
     String? password,
+    bool fillOnlyIfEmpty = false,
+    bool preserveSelection = false,
+    List<SavedCredential>? retainedCredentials,
   }) async {
+    final copyGuard = account.source == 'copy'
+        ? (copyRevision ?? copyAccount.revision)
+        : null;
     bool isCurrent() =>
         revision == _accountRevision &&
-        (copyRevision == null || copyRevision == copyAccount.revision);
+        (copyGuard == null || copyGuard == copyAccount.revision);
     if (!isCurrent()) return false;
     if (account.token?.trim().isNotEmpty != true ||
         (account.source != 'copy' && !account.hasIdentity)) {
       throw const FormatException('Invalid login account');
     }
     if (account.source == 'copy') account = _resolveCopyCredential(account);
-    final retained = [..._savedCredentials];
     final current = currentCredential;
-    if (current != null && current.hasAccountKey) {
-      final idx = retained.indexWhere((item) => item.sameAccount(current));
-      if (idx < 0) {
-        retained.add(current);
-      } else {
-        retained[idx] = current.copyWith(password: retained[idx].password);
-      }
-    }
-    final previous = retained.where((item) => item.sameAccount(account));
-    final updated = account.copyWith(
-      password: password ?? (previous.isEmpty ? '' : previous.first.password),
+    final currentWithPassword = _currentWithPassword;
+    final selectNovel =
+        !preserveSelection &&
+        (!fillOnlyIfEmpty || copyAccount.activeId == null);
+    final incoming = account.copyWith(password: password ?? account.password);
+    final projectedCopy = account.source == 'copy'
+        ? copyAccount.previewSession(
+            _copySession(incoming),
+            select: selectNovel,
+          )
+        : null;
+    final primaryMerge = _mergeCredentials(
+      [
+        incoming,
+        ?currentWithPassword,
+        ...(retainedCredentials ?? _savedCredentials),
+      ],
+      incoming: incoming,
+      overwriteIncomingPassword: password != null,
+      preferred: currentWithPassword,
+      // Only this explicitly synchronized COPY identity may project a token.
+      // Unrelated/HOT operations must preserve a read-only restored domain.
+      copyAccounts: projectedCopy?.incoming == null
+          ? const []
+          : [projectedCopy!.incoming!],
     );
-    final next = [
-      updated,
-      ...retained.where((item) => !item.sameAccount(account)),
-    ];
+    final next = primaryMerge.accounts;
+    final updated = primaryMerge.forAccount(incoming)!;
+    final mergedCurrent = primaryMerge.forAccount(currentWithPassword);
+    // Compare actual groups, not a possibly ambiguous fallback-id match.
+    final sameAsCurrent = identical(mergedCurrent, updated);
+    final selectPrimary = preserveSelection
+        ? sameAsCurrent
+        : !fillOnlyIfEmpty || current == null || sameAsCurrent;
+    final primary = selectPrimary ? updated : mergedCurrent;
+    final writePrimary =
+        selectPrimary ||
+        (current?.source == 'copy' &&
+            primary != null &&
+            jsonEncode(current!.toJson()) !=
+                jsonEncode(primary.copyWith(password: '').toJson()));
     final secure = SecureCredentialStore();
     final prefs = await SharedPreferences.getInstance();
+    // Read the actual stored snapshot: a read-only reload may have normalized
+    // the in-memory list while intentionally leaving historical rows on disk.
+    final previousCredentials = await secure.readCredentials();
+    final previousUsername = await secure.readUsername();
+    final previousPassword = await secure.readPassword();
+    final previousToken = await secure.readToken();
     final previousProfile = {
-      for (final key in _profileKeys) key: prefs.getString(key),
+      for (final key in [
+        ..._profileKeys,
+        _keyToken,
+        _keySavedCredentials,
+        _keySavedUsername,
+        _keySavedPassword,
+      ])
+        key: prefs.getString(key),
     };
 
     Future<void> restorePrimary() async {
-      await secure.writeCredentials(_savedCredentials);
-      await secure.writeUsername(_savedUsername);
-      await secure.writePassword(_savedPassword);
-      await secure.writeToken(_token);
+      await secure.writeCredentials(previousCredentials);
+      await secure.writeUsername(previousUsername);
+      await secure.writePassword(previousPassword);
+      await secure.writeToken(previousToken);
       for (final entry in previousProfile.entries) {
         final value = entry.value;
         await _requireAccountWrite(
@@ -857,24 +943,31 @@ class UserManager extends ChangeNotifier {
 
     void publishPrimary() {
       _savedCredentials = next;
-      _savedUsername = updated.username;
-      _savedPassword = updated.password;
-      _token = updated.token;
-      _userId = updated.userId;
-      _accountId = updated.accountId;
-      _username = updated.username;
-      _nickname = updated.nickname;
-      _avatar = updated.avatar;
-      _loginSource = updated.source;
+      // 已登录的漫画账号不被新登录顶掉：新账号只入库，保持当前选择。
+      if (!writePrimary || primary == null) return;
+      _savedUsername = primary.username;
+      _savedPassword = primary.password;
+      _token = primary.token;
+      _userId = primary.userId;
+      _accountId = primary.accountId;
+      _username = primary.username;
+      _nickname = primary.nickname;
+      _avatar = primary.avatar;
+      _loginSource = primary.source;
       ApiClient().user.clearAuthState();
     }
 
+    _beginCopyAccountSuppression();
     try {
       await secure.writeCredentials(next);
-      await secure.writeUsername(updated.username);
-      await secure.writePassword(updated.password);
-      await secure.writeToken(updated.token);
-      await _persistProfile(updated);
+      // 只入库不切换时，主账号的令牌与资料槽位保持原样；同身份归并则同步
+      // 其稳定绑定和令牌，不改变当前漫画账号所属的人或来源。
+      if (writePrimary && primary != null) {
+        await secure.writeUsername(primary.username);
+        await secure.writePassword(primary.password);
+        await secure.writeToken(primary.token);
+        await _persistProfile(primary);
+      }
       for (final key in [
         _keyToken,
         _keySavedCredentials,
@@ -899,6 +992,7 @@ class UserManager extends ChangeNotifier {
           ),
           expectedRevision: copyRevision,
           isCurrent: isCurrent,
+          select: selectNovel,
           onCommitted: publishPrimary,
         );
         if (!saved) {
@@ -924,16 +1018,19 @@ class UserManager extends ChangeNotifier {
               nickname: updated.nickname ?? '',
               avatar: updated.avatar ?? '',
             ),
-            isCurrent: isCurrent,
+            expectedRevision: copyGuard,
+            isCurrent: () => revision == _accountRevision,
+            onCommitted: (_) => publishPrimary(),
           );
           if (!synced) {
             await restorePrimary();
             return false;
           }
+        } else {
+          publishPrimary();
         }
-        publishPrimary();
       }
-      notifyListeners();
+      _notifySuppressedCommit();
       return true;
     } catch (_) {
       try {
@@ -949,6 +1046,8 @@ class UserManager extends ChangeNotifier {
       // Storage failure cannot masquerade as a completed COPY login while the
       // novel account is still empty (the original partial-success bug).
       throw const CopyAccountStorageException();
+    } finally {
+      _endCopyAccountSuppression();
     }
   }
 
@@ -994,6 +1093,7 @@ class UserManager extends ChangeNotifier {
     try {
       await _serializeAccounts(() async {
         var changed = false;
+        SavedCredential? anchoredUpdate;
         final next = <SavedCredential>[];
         for (final credential in _savedCredentials) {
           CopyWebLoginForm? match;
@@ -1044,19 +1144,38 @@ class UserManager extends ChangeNotifier {
             continue;
           }
           changed = true;
-          next.add(
-            credential.copyWith(
-              username: fillsLoginName ? form.username : null,
-              password: form.password,
-            ),
+          final updated = credential.copyWith(
+            username: fillsLoginName ? form.username : null,
+            password: form.password,
           );
+          next.add(updated);
+          if (anchored) anchoredUpdate = updated;
         }
         if (!changed) return;
-        await SecureCredentialStore().writeCredentials(next);
-        _savedCredentials = next;
+        final anchored = anchoredUpdate;
+        if (anchored != null) {
+          final stored = copyAccount.accounts.any(
+            (item) => item.identity.matches(anchored.identity),
+          );
+          await _commitLogin(
+            anchored,
+            revision: _accountRevision,
+            copyRevision: stored ? copyAccount.beginLogin() : null,
+            password: anchored.password,
+            preserveSelection: true,
+            retainedCredentials: next,
+          );
+          return;
+        }
+        final reconciled = _mergeCredentials(
+          next,
+          preferred: currentCredential,
+        ).accounts;
+        await SecureCredentialStore().writeCredentials(reconciled);
+        _savedCredentials = reconciled;
         final active = currentCredential;
         if (active != null) {
-          for (final credential in next) {
+          for (final credential in reconciled) {
             if (credential.sameAccount(active) &&
                 credential.password.isNotEmpty) {
               _savedPassword = credential.password;
@@ -1092,20 +1211,18 @@ class UserManager extends ChangeNotifier {
         password: password,
         loginSource: source,
       );
-      final existing = _savedCredentials.where(
-        (item) => item.sameAccount(identity),
+      final merged = _mergeCredentials(
+        [identity, ..._savedCredentials],
+        incoming: identity,
+        overwriteIncomingPassword: true,
       );
-      final next = [
-        existing.isEmpty
-            ? identity
-            : existing.first.copyWith(password: password),
-        ..._savedCredentials.where((item) => !item.sameAccount(identity)),
-      ];
+      final next = merged.accounts;
+      final saved = merged.forAccount(identity)!;
       await SecureCredentialStore().writeCredentials(next);
       await SecureCredentialStore().writeUsername(username);
-      await SecureCredentialStore().writePassword(password);
+      await SecureCredentialStore().writePassword(saved.password);
       _savedUsername = username;
-      _savedPassword = password;
+      _savedPassword = saved.password;
       _savedCredentials = next;
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_keySavedUsername);
@@ -1172,9 +1289,15 @@ class UserManager extends ChangeNotifier {
       password: '',
       loginSource: source,
       userId: userId,
+      accountId: accountId,
+      token: token,
     );
     bool matches(SavedCredential item) {
       if (source != item.source) return false;
+      if (item.sameAccount(identity)) return true;
+      if (item.username.trim().isNotEmpty && username.trim().isNotEmpty) {
+        return false;
+      }
       if (source == 'copy' && accountId?.isNotEmpty == true) {
         final key =
             item.accountId ??
@@ -1231,149 +1354,59 @@ class UserManager extends ChangeNotifier {
       }
       final stored = copyAccount.byId(id);
       if (stored == null || stored.token != token) return false;
-
-      String field(String key, String oldValue) {
-        final value = info[key];
-        return value is String && value.trim().isNotEmpty
-            ? value.trim()
-            : oldValue;
-      }
-
-      String? nullableField(String key, String? oldValue) {
-        final value = info[key];
-        return value is String && value.trim().isNotEmpty
-            ? value.trim()
-            : oldValue;
-      }
-
-      final returnedId = field('user_id', '');
-      final returnedName = field('username', '');
-      final returnedNickname = nullableField('nickname', null);
-      final returnedAvatar = nullableField('avatar', null);
-      if (returnedId.isEmpty &&
-          returnedName.isEmpty &&
-          returnedNickname == null &&
-          returnedAvatar == null) {
+      String field(String key) => info[key]?.toString().trim() ?? '';
+      if ([
+        'user_id',
+        'username',
+        'nickname',
+        'avatar',
+      ].every((key) => field(key).isEmpty)) {
         return false;
       }
-      if (returnedId.isNotEmpty &&
-          stored.userId.isNotEmpty &&
-          returnedId != stored.userId) {
+      if (!stored.acceptsProfile(
+        userId: field('user_id'),
+        username: field('username'),
+      )) {
         return false;
       }
-
-      final active = currentCredential;
-      final activeMatches = active?.source == 'copy' && active?.token == token;
-      final credentialIndex = _savedCredentials.indexWhere(
-        (item) => item.source == 'copy' && item.token == token,
+      String filled(String key, String previous) =>
+          field(key).isEmpty ? previous : field(key);
+      final updated = stored.copyWith(
+        userId: filled('user_id', stored.userId),
+        username: filled('username', stored.username),
+        nickname: filled('nickname', stored.nickname),
+        avatar: filled('avatar', stored.avatar),
       );
-      final saved = credentialIndex >= 0
-          ? _savedCredentials[credentialIndex]
-          : activeMatches
-          ? active
-          : null;
-      if (saved != null &&
-          returnedId.isNotEmpty &&
-          saved.userId?.isNotEmpty == true &&
-          returnedId != saved.userId) {
-        return false;
-      }
-
-      SavedCredential? updatedPrimary;
-      final nextCredentials = [..._savedCredentials];
-      if (saved != null) {
-        updatedPrimary = SavedCredential(
-          username: field('username', saved.username),
-          password: saved.password.isNotEmpty
-              ? saved.password
-              : (activeMatches ? _savedPassword ?? '' : ''),
-          token: token,
-          loginSource: 'copy',
-          userId: returnedId.isNotEmpty ? returnedId : saved.userId,
-          nickname: returnedNickname ?? saved.nickname,
-          avatar: returnedAvatar ?? saved.avatar,
-          accountId: id,
+      final belongsToPrimary = [?currentCredential, ..._savedCredentials].any(
+        (item) =>
+            item.identity.matches(stored.identity) ||
+            item.identity.matches(updated.identity),
+      );
+      if (belongsToPrimary) {
+        // A trusted profile may prove that a token-only login and an old saved
+        // entry are the same person. Reuse the dual-domain transaction so all
+        // aliases, tokens and selection pointers commit (or roll back) together.
+        return _commitLogin(
+          _copyCredential(updated),
+          revision: revision,
+          copyRevision: copyAccount.beginLogin(),
+          preserveSelection: true,
         );
-        if (credentialIndex >= 0) {
-          nextCredentials[credentialIndex] = updatedPrimary;
-        } else {
-          nextCredentials.insert(0, updatedPrimary);
-        }
       }
-
-      final prefs = await SharedPreferences.getInstance();
-      final previousProfile = {
-        for (final key in _profileKeys) key: prefs.getString(key),
-      };
-      final previousCredentials = _savedCredentials;
-      var credentialsTouched = false;
-      var profileTouched = false;
-
-      Future<void> restorePrimary() async {
-        if (credentialsTouched) {
-          await SecureCredentialStore().writeCredentials(previousCredentials);
-        }
-        if (profileTouched) {
-          for (final entry in previousProfile.entries) {
-            final value = entry.value;
-            await _requireAccountWrite(
-              value == null
-                  ? prefs.remove(entry.key)
-                  : prefs.setString(entry.key, value),
-            );
-          }
-        }
-      }
-
+      // A genuinely independent legacy COPY account stays independent.
+      _beginCopyAccountSuppression();
       try {
-        if (updatedPrimary != null) {
-          credentialsTouched = true;
-          await SecureCredentialStore().writeCredentials(nextCredentials);
-          if (activeMatches) {
-            profileTouched = true;
-            await _persistProfile(updatedPrimary);
-          }
-        }
-        if (revision != _accountRevision) {
-          await restorePrimary();
-          return false;
-        }
-        final updated = await copyAccount.updateProfile(
+        final saved = await copyAccount.updateProfile(
           id: id,
           token: token,
           profile: info,
           expectedRevision: copyRevision,
           isCurrent: () => revision == _accountRevision,
-          onCommitted: (_) {
-            _savedCredentials = nextCredentials;
-            if (activeMatches && updatedPrimary != null) {
-              _userId = updatedPrimary.userId;
-              _accountId = id;
-              _username = updatedPrimary.username;
-              _nickname = updatedPrimary.nickname;
-              _avatar = updatedPrimary.avatar;
-              _savedUsername = updatedPrimary.username;
-            }
-          },
         );
-        if (!updated) {
-          await restorePrimary();
-          return false;
-        }
-        notifyListeners();
-        return true;
-      } catch (_) {
-        try {
-          await restorePrimary();
-        } catch (_) {
-          unawaited(
-            AppLogger.instance.recordWarning(
-              const CopyAccountStorageException(),
-              source: 'user_manager.restore_copy_profile',
-            ),
-          );
-        }
-        throw const CopyAccountStorageException();
+        if (saved) _notifySuppressedCommit();
+        return saved;
+      } finally {
+        _endCopyAccountSuppression();
       }
     });
   }
@@ -1405,7 +1438,20 @@ class UserManager extends ChangeNotifier {
   Future<bool> refreshCredential(SavedCredential credential) async {
     final token = credential.token;
     if (token == null || token.isEmpty) return false;
+    if (credential.source == 'copy') {
+      final stored = copyAccount.accounts
+          .where(
+            (item) =>
+                item.token == token &&
+                credential.identity.matches(item.identity),
+          )
+          .firstOrNull;
+      if (stored != null) {
+        return refreshCopyCredential(stored, api: ApiClient().user);
+      }
+    }
     final revision = _accountRevision;
+    final copyRevision = copyAccount.revision;
     final info = await ApiClient().user.getCredentialInfo(
       token: token,
       source: credential.source,
@@ -1422,6 +1468,25 @@ class UserManager extends ChangeNotifier {
       final returnedId = info['user_id']?.toString() ?? '';
       final returnedName = info['username']?.toString() ?? '';
       if (returnedId.isEmpty && returnedName.isEmpty) return false;
+      if (credential.source == 'copy') {
+        if (copyRevision != copyAccount.revision ||
+            !_copySession(
+              credential,
+            ).acceptsProfile(userId: returnedId, username: returnedName)) {
+          return false;
+        }
+        final updated = credential.copyWith(
+          username: returnedName.isEmpty ? credential.username : returnedName,
+          userId: returnedId.isEmpty ? credential.userId : returnedId,
+          nickname: info['nickname']?.toString(),
+          avatar: info['avatar']?.toString(),
+        );
+        return _commitLogin(
+          updated,
+          revision: revision,
+          preserveSelection: true,
+        );
+      }
       if (credential.userId?.isNotEmpty == true &&
           returnedId.isNotEmpty &&
           credential.userId != returnedId) {
@@ -1483,16 +1548,29 @@ class UserManager extends ChangeNotifier {
   /// Prefer the new string key; fall back to the legacy bool for upgrades.
   static BottomNavLabelMode _loadBottomNavLabelMode(SharedPreferences prefs) {
     final saved = prefs.getString(_keyBottomNavLabelMode);
+    var mode = BottomNavLabelMode.selectedOnly;
     if (saved != null) {
-      for (final mode in BottomNavLabelMode.values) {
-        if (mode.name == saved) return mode;
+      for (final candidate in BottomNavLabelMode.values) {
+        if (candidate.name == saved) {
+          mode = candidate;
+          break;
+        }
       }
+    } else {
+      // Upgrades: old "show labels" becomes the new capsule selected-only
+      // mode so users pick up the new bar without staying on classic always.
+      final legacy = prefs.getBool(_keyBottomNavShowLabels);
+      mode = legacy == false
+          ? BottomNavLabelMode.hidden
+          : BottomNavLabelMode.selectedOnly;
     }
-    // Upgrades: old "show labels" becomes the new capsule selected-only
-    // mode so users pick up the new bar without staying on classic always.
-    final legacy = prefs.getBool(_keyBottomNavShowLabels);
-    if (legacy == false) return BottomNavLabelMode.hidden;
-    return BottomNavLabelMode.selectedOnly;
+    // 悬浮底栏是浮在内容上的胶囊，与「始终显示文字」的满宽不透明条互斥；
+    // 旧数据可能两者同时开着，这里按 setter 的规则降到选中项显示。
+    if (mode == BottomNavLabelMode.always &&
+        (prefs.getBool('nav_floating_enabled') ?? true)) {
+      return BottomNavLabelMode.selectedOnly;
+    }
+    return mode;
   }
 
   static int _normalizeDisplayModeRefreshRate(int? refreshRate) {

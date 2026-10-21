@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../api/novel/novel_api.dart';
@@ -27,8 +28,10 @@ import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/reader_status_overlay.dart';
+import 'novel_reader/novel_chapter_slider_track_shape.dart';
 import 'novel_reader/novel_reader_contents_sheet.dart';
 import 'novel_reader/novel_reader_document.dart';
+import 'novel_reader/novel_reader_page_view.dart';
 import 'novel_reader/novel_reader_settings_sheet.dart';
 import 'novel_reader/novel_reader_viewport.dart';
 
@@ -74,6 +77,9 @@ class NovelReaderPage extends ConsumerStatefulWidget {
 
 class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     with WidgetsBindingObserver {
+  /// 与漫画阅读器共用同一个音量键通道；同一时刻只有一个阅读页在前台，
+  /// 各自在 init/dispose 与设置变化时同步 enable/disable，避免双重拦截。
+  static const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
   late final NovelRepository _repository;
   late NovelReaderSource _source;
   late final NovelApi _api;
@@ -85,6 +91,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   bool _bookmarksLoaded = false;
   bool _bookmarking = false;
   GlobalKey<NovelReaderViewportState> _viewportKey = GlobalKey();
+  GlobalKey<NovelReaderPageViewState> _pageViewKey = GlobalKey();
   NovelReaderSettings _settings = const NovelReaderSettings();
   NovelVolumeContent? _content;
   NovelVolumeDetail? _accessDetail;
@@ -93,6 +100,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   NovelReaderAnchor _target = const NovelReaderAnchor(entryIndex: 0);
   NovelReadingProgress? _pendingProgress;
   List<NovelVolume> _volumes = [];
+  bool _volumesReady = false;
+  Future<List<NovelVolume>>? _volumesLoad;
+  final _volumeDetails = <String, NovelVolumeDetail>{};
   Object? _error;
   Timer? _saveTimer;
   Future<void> _lastWrite = Future<void>.value();
@@ -105,6 +115,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   int _session = 0;
   int _request = 0;
   int _jumpRevision = 0;
+
+  /// 书签集合版本号：翻页视图据此只重建受影响段落之后的分页。
+  int _bookmarkRevision = 0;
+  bool _volumeChannelAvailable = true;
   bool _loading = true;
   bool _toolbarVisible = true;
 
@@ -138,10 +152,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     WidgetsBinding.instance.addObserver(this);
     // 与漫画阅读器一致：阅读期间窗口允许延伸进刘海/挖孔区（SHORT_EDGES）。
     // 否则沉浸模式下挖孔区域不随窗口扩展，露出一条纯黑的窗口背景。
-    if (Platform.isAndroid) {
-      const MethodChannel(
-        'io.github.caolib.kira/volume',
-      ).invokeMethod('enableImmersive').catchError((_) {});
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+      _updateVolumeIntercept();
     }
     _beginSession();
   }
@@ -181,11 +195,58 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   }
 
   void _onBookmarksChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() => ++_bookmarkRevision);
+    }
   }
 
   void _onStatusSettingsChanged() {
     if (mounted) setState(() {});
+  }
+
+  // ── 阅读视图（滚动 / 翻页二选一）──
+
+  bool get _paged => _settings.mode == NovelReaderMode.paged;
+
+  /// 当前生效视图的位置快照；恢复中返回 null（由调用方回退到上次快照）。
+  NovelReaderLocation? get _viewerLocation => _paged
+      ? _pageViewKey.currentState?.currentLocation
+      : _viewportKey.currentState?.currentLocation;
+
+  /// 当前生效视图垂直中点处的段落（工具栏书签以此为准）。
+  NovelReaderLocation? get _viewerCenter => _paged
+      ? _pageViewKey.currentState?.anchorAtViewportCenter()
+      : _viewportKey.currentState?.anchorAtViewportCenter();
+
+  // ── 音量键翻页（仅翻页模式且开关开启时拦截）──
+
+  Future<dynamic> _handleVolumeMethod(MethodCall call) async {
+    if (!_settings.volumeKey || !_paged || _loading) return;
+    if (call.method == 'volumeUp') {
+      _pageViewKey.currentState?.prevPage();
+    } else if (call.method == 'volumeDown') {
+      _pageViewKey.currentState?.nextPage();
+    }
+  }
+
+  void _updateVolumeIntercept() {
+    unawaited(_setVolumeIntercept(_paged && _settings.volumeKey));
+  }
+
+  Future<void> _setVolumeIntercept(bool enabled) async {
+    if (defaultTargetPlatform != TargetPlatform.android ||
+        !_volumeChannelAvailable) {
+      return;
+    }
+    try {
+      await _volumeChannel.invokeMethod(enabled ? 'enable' : 'disable');
+    } on MissingPluginException {
+      // 桌面/测试环境没有音量键实现：静默降级，不再尝试。
+      _volumeChannelAvailable = false;
+    } on PlatformException catch (error) {
+      debugPrint('Volume channel unavailable: $error');
+      _volumeChannelAvailable = false;
+    }
   }
 
   /// 工具栏显隐的唯一入口（正文点击 / 滚动 / 状态浮层）。与漫画阅读器一致：
@@ -206,8 +267,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   /// 工具栏书签按钮的参照段落：视口垂直中点覆盖的段落（阅读习惯以
   /// 屏幕中间为基准），顶部首段仅在视口状态不可用时兜底。
   NovelReaderAnchor? get _bookmarkAnchor =>
-      _viewportKey.currentState?.anchorAtViewportCenter()?.anchor ??
-      _location?.anchor;
+      _viewerCenter?.anchor ?? _location?.anchor;
 
   bool get _isBookmarked {
     final anchor = _bookmarkAnchor;
@@ -222,9 +282,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Future<void> _toggleBookmark() async {
     if (_loading || _bookmarking) return;
-    final location =
-        _viewportKey.currentState?.anchorAtViewportCenter() ??
-        _viewportKey.currentState?.currentLocation;
+    final location = _viewerCenter ?? _viewerLocation;
     if (location == null || _content == null || _document == null) return;
     final progress = _progressAt(location, DateTime.now());
     final session = _session;
@@ -289,6 +347,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     _pendingProgress = null;
     _error = null;
     _volumes = [];
+    _volumesReady = false;
+    _volumesLoad = null;
+    _volumeDetails.clear();
     _highlightTimer?.cancel();
     _highlight = null;
     _saveTimer?.cancel();
@@ -322,6 +383,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (!_active(session)) return;
       _settings = settings;
       _setScreenOn(settings.keepScreenOn);
+      _updateVolumeIntercept();
     } catch (error, stack) {
       _warn(error, stack, 'settings.load');
     }
@@ -382,11 +444,36 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     await _loadVolume(volume, anchor: anchor);
   }
 
+  Future<List<NovelVolume>> _ensureVolumes(int session, String path) {
+    if (_volumesReady) return Future.value(_volumes);
+    if (_volumesLoad case final pending?) return pending;
+    final source = _source;
+    final loading = source
+        .loadVolumes(path)
+        .then(
+          (volumes) {
+            if (_active(session)) {
+              setState(() {
+                _volumes = volumes;
+                _volumesReady = true;
+              });
+            }
+            return volumes;
+          },
+          onError: (Object error, StackTrace stack) {
+            if (_active(session)) _volumesLoad = null;
+            Error.throwWithStackTrace(error, stack);
+          },
+        );
+    _volumesLoad = loading;
+    return loading;
+  }
+
   Future<void> _loadVolumes(int session, String path) async {
     try {
-      final volumes = await _source.loadVolumes(path);
-      if (_active(session)) setState(() => _volumes = volumes);
+      await _ensureVolumes(session, path);
     } catch (error, stack) {
+      if (_active(session)) _volumesLoad = null;
       // A missing remote directory must not prevent cached text from opening.
       _warn(error, stack, 'volumes.load');
     }
@@ -415,6 +502,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       _sliderValue = null;
       _offline = cachedOnly || _source.localOnly;
       _viewportKey = GlobalKey();
+      _pageViewKey = GlobalKey();
       _highlightTimer?.cancel();
       _highlight = null;
     });
@@ -431,6 +519,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         return;
       }
       if (content.detail.isLocked) throw NovelAccessException(content.detail);
+      _volumeDetails[volume] = content.detail;
       final document = NovelReaderDocument(content.entries);
       setState(() {
         _content = content;
@@ -438,7 +527,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         _accessDetail = content.detail;
         if (document.itemCount > 0) {
           _target = lastEntry
-              ? NovelReaderAnchor(entryIndex: document.entries.last.entryIndex)
+              // 回翻到上一卷：落在文档末段（最后一页附近），而不是末章开头。
+              ? document.anchorFor(document.itemCount - 1)
               : document.anchorFor(
                   document.itemFor(anchor),
                   alignment: anchor.alignment,
@@ -545,7 +635,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   /// volume snapshot, so slow saves never acquire a newer volume's metadata.
   Future<void> _flush() {
     _saveTimer?.cancel();
-    final current = _viewportKey.currentState?.currentLocation;
+    final current = _viewerLocation;
     if (current != null) {
       _recordLocation(current, rebuild: false, debounce: false);
     }
@@ -603,31 +693,22 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ) ??
       -1;
 
-  bool _canStep(int direction) {
-    final entries = _document?.entries ?? [];
-    final next = _entrySlot + direction;
-    return !_loading &&
-        ((next >= 0 && next < entries.length) ||
-            _adjacentVolume(direction) != null);
-  }
+  bool _canStepVolume(int direction) =>
+      !_loading && !_disposed && _adjacentVolume(direction) != null;
 
-  void _step(int direction) {
-    final entries = _document?.entries ?? [];
-    final next = _entrySlot + direction;
-    if (next >= 0 && next < entries.length) {
-      _jumpTo(NovelReaderAnchor(entryIndex: entries[next].entryIndex));
-    } else {
-      final volume = _adjacentVolume(direction);
-      if (volume != null) {
-        unawaited(
-          _loadVolume(
-            volume,
-            anchor: const NovelReaderAnchor(entryIndex: 0),
-            lastEntry: direction < 0,
-          ),
-        );
-      }
-    }
+  /// 工具栏与翻页卷界都直接切换相邻卷，不做卷内章跳。
+  /// 下一卷从首页开始，回翻上一卷落在末尾；卷内章节通过目录选择。
+  void _stepVolume(int direction) {
+    if (_loading || _disposed) return;
+    final volume = _adjacentVolume(direction);
+    if (volume == null) return;
+    unawaited(
+      _loadVolume(
+        volume,
+        anchor: const NovelReaderAnchor(entryIndex: 0),
+        lastEntry: direction < 0,
+      ),
+    );
   }
 
   Future<void> _showContents() async {
@@ -642,6 +723,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         volumeId: _volumeId,
         entryIndex: _location?.anchor.entryIndex ?? _target.entryIndex,
         detail: _accessDetail,
+        volumes: _volumesReady ? _volumes : null,
+        loadVolumes: () => _ensureVolumes(session, _pathWord),
+        volumeDetails: _volumeDetails,
+        onDetailLoaded: (detail) {
+          if (_active(session)) _volumeDetails[detail.volume.id] = detail;
+        },
       ),
     );
     if (!_active(session) || selection == null) return;
@@ -679,8 +766,16 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   void _changeSettings(NovelReaderSettings settings) {
     if (!mounted || _disposed) return;
     unawaited(_flush());
-    setState(() => _settings = settings);
+    // 切换阅读模式：以当前位置为锚点，新视图接管后进度与落点连续。
+    final anchor = settings.mode != _settings.mode
+        ? (_viewerLocation?.anchor ?? _location?.anchor)
+        : null;
+    setState(() {
+      _settings = settings;
+      if (anchor != null) _target = anchor;
+    });
     _setScreenOn(settings.keepScreenOn);
+    _updateVolumeIntercept();
     unawaited(
       settings.save().catchError((Object error, StackTrace stack) {
         _warn(error, stack, 'settings.save');
@@ -698,33 +793,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ),
   );
 
-  /// 段落上下文菜单的轻量双击识别：点按段落立即切换工具栏（无识别延迟），
-  /// 同一段落两次点按间隔小于窗口期时弹菜单。用真实时钟——
-  /// 与工具栏切换互不干扰（双击时工具栏切了两次，净效果不变）。
-  static const _doubleTapWindow = Duration(milliseconds: 300);
-  NovelReaderParagraph? _lastParagraphTap;
-  DateTime? _lastParagraphTapAt;
-
-  void _handleParagraphTap(NovelReaderParagraph paragraph, Offset position) {
-    final now = DateTime.now();
-    final last = _lastParagraphTap;
-    final lastAt = _lastParagraphTapAt;
-    final same =
-        last != null &&
-        last.entry.entryIndex == paragraph.entry.entryIndex &&
-        last.paragraphIndex == paragraph.paragraphIndex;
-    if (lastAt != null && same && now.isBefore(lastAt.add(_doubleTapWindow))) {
-      _lastParagraphTap = null;
-      _lastParagraphTapAt = null;
-      unawaited(_showParagraphMenu(paragraph, position));
-      return;
-    }
-    _lastParagraphTap = paragraph;
-    _lastParagraphTapAt = now;
-  }
-
-  /// 双击段落弹出的轻量上下文菜单：复制、书签。
-  /// 菜单贴着点按落点弹出；书签 id 与按钮书签一致（同段落仅一个）。
+  /// 长按段落弹出的轻量上下文菜单：复制、书签。两种阅读模式同一手势
+  /// （点按在翻页模式要翻页，双击识别会给单击引入延迟或先翻两页）。
+  /// 菜单贴着落点弹出；书签 id 与按钮书签一致（同段落仅一个）。
   Future<void> _showParagraphMenu(
     NovelReaderParagraph paragraph,
     Offset position,
@@ -971,11 +1042,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       SystemUiMode.manual,
       overlays: SystemUiOverlay.values,
     );
+    unawaited(_setVolumeIntercept(false));
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _volumeChannel.setMethodCallHandler(null);
+    }
     // 恢复默认的刘海区避让模式。
-    if (Platform.isAndroid) {
-      const MethodChannel(
-        'io.github.caolib.kira/volume',
-      ).invokeMethod('disableImmersive').catchError((_) {});
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
     }
     super.dispose();
   }
@@ -1003,8 +1076,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
           if (didPop) unawaited(_flush());
         },
         child: AnnotatedRegion<SystemUiOverlayStyle>(
-          // 与漫画阅读器一致：工具栏显示时状态栏透明、浅色图标（露出下方
-          // 黑色工具栏背景），沉浸时系统栏整体收起。
+          // 工具栏固定黑底白字，系统栏保持浅色图标。
           value: _toolbarVisible
               ? ReaderChrome.systemUiToolbar
               : ReaderChrome.systemUiImmersive,
@@ -1145,7 +1217,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final l10n = AppLocalizations.of(context)!;
     final document = _document;
     final request = _request;
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loading) return const Center(child: ExpressiveLoadingIndicator());
     if (_error != null) return _buildError();
     if (document == null || document.itemCount == 0) {
       return Center(
@@ -1161,25 +1233,57 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         ),
       );
     }
+    final palette = NovelReaderPalette.resolve(
+      _settings,
+      MediaQuery.platformBrightnessOf(context),
+    );
+    void onPosition(NovelReaderLocation location) {
+      if (_request == request && identical(_document, document)) {
+        _recordLocation(location);
+      }
+    }
+
+    if (_paged) {
+      return NovelReaderPageView(
+        key: _pageViewKey,
+        document: document,
+        settings: _settings,
+        palette: palette,
+        target: _target,
+        jumpRevision: _jumpRevision,
+        bookmarkRevision: _bookmarkRevision,
+        emptyChapterText: l10n.novelReaderEmptyChapter,
+        contentPadding: _systemPadding ?? EdgeInsets.zero,
+        onPosition: onPosition,
+        toolbarVisible: _toolbarVisible,
+        onTap: () => _setToolbarVisible(!_toolbarVisible),
+        onParagraphLongPress: (paragraph, position) =>
+            unawaited(_showParagraphMenu(paragraph, position)),
+        isBookmarkedParagraph: _isParagraphBookmarked,
+        onBookmarkMarkerTap: (paragraph) =>
+            unawaited(_removeParagraphBookmark(paragraph)),
+        highlight: _highlight,
+        onPageTurned: () {
+          _clearHighlight();
+          _setToolbarVisible(false);
+        },
+        // 卷末继续翻页进入下一卷首页；卷首回翻进入上一卷末页。
+        onBoundary: (forward) => _stepVolume(forward ? 1 : -1),
+      );
+    }
     return NovelReaderViewport(
       key: _viewportKey,
       document: document,
       settings: _settings,
       contentPadding: _systemPadding ?? EdgeInsets.zero,
-      palette: NovelReaderPalette.resolve(
-        _settings,
-        MediaQuery.platformBrightnessOf(context),
-      ),
+      palette: palette,
       target: _target,
       jumpRevision: _jumpRevision,
       highlight: _highlight,
-      onPosition: (location) {
-        if (_request == request && identical(_document, document)) {
-          _recordLocation(location);
-        }
-      },
+      onPosition: onPosition,
       onTap: () => _setToolbarVisible(!_toolbarVisible),
-      onParagraphTap: _handleParagraphTap,
+      onParagraphLongPress: (paragraph, position) =>
+          unawaited(_showParagraphMenu(paragraph, position)),
       isBookmarkedParagraph: _isParagraphBookmarked,
       onBookmarkMarkerTap: (paragraph) =>
           unawaited(_removeParagraphBookmark(paragraph)),
@@ -1214,6 +1318,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Widget _buildToolbar() {
     final l10n = AppLocalizations.of(context)!;
+    final primary = Theme.of(context).colorScheme.primary;
     final document = _document;
     final count = document?.itemCount ?? 0;
     final current =
@@ -1263,11 +1368,22 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                   ),
                 ),
                 SliderTheme(
+                  // 与漫画阅读器底栏进度条同一套配色/粗细/滑块；唯一差别是
+                  // 小说的「刻度」不是等距分页，而是按章节段落偏移定位的圆点。
                   data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    activeTrackColor: ReaderChrome.onSurface,
+                    trackHeight: 3,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 7,
+                    ),
+                    trackShape: NovelChapterSliderTrackShape(
+                      chapterStarts: document?.chapterStarts ?? const [],
+                      activeColor: primary,
+                      inactiveColor: ReaderChrome.trackInactive,
+                    ),
+                    activeTrackColor: primary,
                     inactiveTrackColor: ReaderChrome.trackInactive,
-                    thumbColor: ReaderChrome.onSurface,
+                    thumbColor: primary,
+                    overlayColor: primary.withValues(alpha: 0.2),
                   ),
                   child: Slider(
                     key: const ValueKey('novel-reader-progress'),
@@ -1288,11 +1404,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                     IconButton(
                       key: const ValueKey('novel-reader-previous'),
                       tooltip: l10n.novelReaderPrevious,
-                      onPressed: _canStep(-1) ? () => _step(-1) : null,
+                      onPressed: _canStepVolume(-1)
+                          ? () => _stepVolume(-1)
+                          : null,
                       // 与漫画阅读器底栏一致：颜色显式指定，禁用态仍可见。
                       icon: Icon(
                         Icons.skip_previous,
-                        color: _canStep(-1)
+                        color: _canStepVolume(-1)
                             ? ReaderChrome.onSurface
                             : ReaderChrome.onSurfaceFaint,
                       ),
@@ -1307,15 +1425,17 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       key: const ValueKey('novel-reader-settings'),
                       tooltip: l10n.novelReaderSettings,
                       onPressed: _loading ? null : _showSettings,
-                      icon: const Icon(Icons.text_fields),
+                      icon: const Icon(Icons.settings_outlined),
                     ),
                     IconButton(
                       key: const ValueKey('novel-reader-next'),
                       tooltip: l10n.novelReaderNext,
-                      onPressed: _canStep(1) ? () => _step(1) : null,
+                      onPressed: _canStepVolume(1)
+                          ? () => _stepVolume(1)
+                          : null,
                       icon: Icon(
                         Icons.skip_next,
-                        color: _canStep(1)
+                        color: _canStepVolume(1)
                             ? ReaderChrome.onSurface
                             : ReaderChrome.onSurfaceFaint,
                       ),
@@ -1349,7 +1469,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         ? l10n.novelReaderEmptyVolume
         : unauthorized
         ? l10n.novelReaderLoginRequired
-        : l10n.novelReaderLoadFailed;
+        : novelErrorMessage(error, fallback: l10n.novelReaderLoadFailed);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Column(
@@ -1404,5 +1524,5 @@ class _NoCachedVolume {
   const _NoCachedVolume();
 }
 
-/// 双击段落菜单的动作。
+/// 长按段落菜单的动作。
 enum _ParagraphAction { copy, toggleBookmark }

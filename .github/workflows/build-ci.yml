@@ -16,7 +16,11 @@ on:
       - "v*-beta*"
 
 env:
-  FLUTTER_VERSION: "3.44.0"
+  # 必须与开发机一致,否则 pub get 会重解析依赖并改写 lock
+  FLUTTER_VERSION: "3.44.2"
+  # lock 里的 hosted url 来自开发机的镜像,CI 必须用同一来源否则 enforce 失败
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
+  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
 
 jobs:
   build-android:
@@ -87,10 +91,25 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
+
+      - name: Assert lockfile untouched
+        run: git diff --exit-code -- pubspec.lock
 
       - name: Build APK (arm64-v8a)
-        run: flutter build apk --release --target-platform android-arm64
+        shell: bash
+        run: |
+          set -eo pipefail
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }} 2>&1 | tee /tmp/flutter_build.log
+
+          # 重复类 = 插件 Dart/native 版本不一致,这种包装机即白屏
+          if grep -E "is defined multiple times|Duplicate class" /tmp/flutter_build.log; then
+            echo "::error::构建日志出现重复类,APK 自洽性检查失败"
+            exit 1
+          fi
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
       - name: Rename APK
         shell: bash

@@ -67,12 +67,12 @@ extension UserManagerThemeNavPart on UserManager {
   }
 
   Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) async {
-    if (_bottomNavLabelMode == mode) return;
-
-    _bottomNavLabelMode = mode;
-    // ThemeSettings is the canonical store for appearance prefs; keep it
-    // aligned so direct ThemeSettings readers see the same mode.
+    // ThemeSettings 持有同一份偏好，且负责与悬浮的互斥降级；以它的结果为准。
     await theme.setBottomNavLabelMode(mode);
+    final next = theme.bottomNavLabelMode;
+    if (_bottomNavLabelMode == next) return;
+
+    _bottomNavLabelMode = next;
     _notifyListeners();
   }
 

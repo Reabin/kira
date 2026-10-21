@@ -174,22 +174,26 @@ extension _ReaderImagePipeline on _ReaderPageState {
   }
 
   /// 在横向滚动模式下，为指定图片源返回占位符的预估宽度。
-  /// 高度由外层 SizedBox 约束为视口高度，但宽度无约束——占位符会
-  /// 塌缩成加载指示器的宽度，图片加载完成后宽度突变导致页面跳动。
+  /// 高度由外层 SizedBox 约束为视口高度 × 横向图片大小（scale），宽度
+  /// 无约束——占位符会塌缩成加载指示器的宽度，图片加载完成后宽度突变
+  /// 导致页面跳动。预估必须与实际渲染高度同基准（乘上 scale）：scale < 1
+  /// 时若仍按整屏高度估算，每个 item 都偏大 (1/scale - 1) 倍，回滑已读
+  /// 区时图片加载完成后逐一塌缩，列表会一顿一顿地反向跳动。
   /// 与竖向模式同理：优先用该图缓存尺寸，其次用最常见宽高比估算，
-  /// 兜底为视口高度 ÷ 1.35（典型竖图比例）。
+  /// 兜底为渲染高度 ÷ 1.35（典型竖图比例）。
   double _estimatedPlaceholderWidth(String imageSource) {
-    final viewportHeight = MediaQuery.sizeOf(context).height;
+    final renderedHeight =
+        MediaQuery.sizeOf(context).height * _user.readerHorizontalImageScale;
     final cached = _imageNaturalSizes[imageSource];
     if (cached != null && cached.height > 0) {
-      return viewportHeight * (cached.width / cached.height);
+      return renderedHeight * (cached.width / cached.height);
     }
     final typicalRatio = _typicalImageAspectRatio;
     if (typicalRatio != null && typicalRatio > 0) {
-      return viewportHeight / typicalRatio;
+      return renderedHeight / typicalRatio;
     }
     // 兜底：典型竖图宽高比约 1.35
-    return viewportHeight / 1.35;
+    return renderedHeight / 1.35;
   }
 
   void _scheduleImageRetry(int retryKey) {
@@ -434,7 +438,7 @@ extension _ReaderImagePipeline on _ReaderPageState {
           color: ReaderChrome.surface,
           child: const Center(child: ExpressiveLoadingIndicator()),
         ),
-        errorWidget: (_, _, _) {
+        errorWidget: (_, _, error) {
           final attempts = _imageRetryCounts[key] ?? 0;
           final retryLimit = _user.imageRetryCount;
           final canAutoRetry = attempts < retryLimit;
@@ -443,7 +447,8 @@ extension _ReaderImagePipeline on _ReaderPageState {
           }
           final pageLabel = '${chapter.name} · ${localIndex + 1}';
           final failedLabel =
-              '${AppLocalizations.of(context)!.loadingFailed}\n$pageLabel';
+              '${AppLocalizations.of(context)!.loadingFailed}：'
+              '${NetworkError.message(error)}\n$pageLabel';
 
           return Container(
             width: estimatedPlaceholderW,

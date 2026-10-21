@@ -16,6 +16,9 @@ on:
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag_name }}
+  # lock 里的 hosted url 来自开发机的镜像,CI 必须用同一来源否则 enforce 失败
+  PUB_HOSTED_URL: https://pub.flutter-io.cn
+  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
 
 jobs:
   build-android:
@@ -55,15 +58,31 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.44.0"
+          # 与本文件其余 job 及开发机保持同一版本
+          flutter-version: "3.44.2"
           channel: "stable"
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
+
+      - name: Assert lockfile untouched
+        run: git diff --exit-code -- pubspec.lock
 
       - name: Build APK (arm64-v8a)
-        run: flutter build apk --release --target-platform android-arm64
+        shell: bash
+        run: |
+          set -eo pipefail
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }} 2>&1 | tee /tmp/flutter_build.log
+
+          # 重复类 = 插件 Dart/native 版本不一致,这种包装机即白屏
+          if grep -E "is defined multiple times|Duplicate class" /tmp/flutter_build.log; then
+            echo "::error::构建日志出现重复类,APK 自洽性检查失败"
+            exit 1
+          fi
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
       - name: Rename APK
         shell: bash
@@ -93,7 +112,7 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Setup Inno Setup
         shell: pwsh
@@ -139,10 +158,10 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Build macOS
-        run: flutter build macos --release
+        run: flutter build macos --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package macOS ZIP
         shell: bash
@@ -182,10 +201,10 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Build Linux
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package Linux tar.gz
         shell: bash

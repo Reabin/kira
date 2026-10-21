@@ -39,7 +39,6 @@ import '../pages/recommend_page.dart';
 import '../pages/search_page.dart';
 import '../pages/stats_page.dart';
 import '../pages/webview_login_page.dart';
-import '../utils/ios_reader_volume.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/novel_hero_tags.dart';
@@ -190,7 +189,7 @@ class RankingExtra {
 GoRouter createAppRouter() {
   return GoRouter(
     initialLocation: '/',
-    observers: [DismissKeyboardObserver(), readerVolumeRouteObserver],
+    observers: [DismissKeyboardObserver()],
     routes: [
       StatefulShellRoute(
         navigatorContainerBuilder: buildMainShellNavigatorContainer,
@@ -455,9 +454,7 @@ GoRouter createAppRouter() {
         path: '/login/webview',
         name: AppRoutes.webviewLogin,
         builder: (_, state) => WebViewLoginPage(
-          autoFill: state.extra is ({String username, String password})
-              ? state.extra as ({String username, String password})
-              : null,
+          autoFill: state.extra as ({String username, String password}),
         ),
       ),
       GoRoute(

@@ -29,6 +29,49 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
+  /// 添加自定义镜像源。地址先规范化（去空白 + 补尾斜杠），与内置项或已有
+  /// 自定义项重复时返回 false 且不改动任何状态。
+  Future<bool> addCustomUpdateMirrorPrefix(String value) async {
+    final prefix = UserManager.normalizeUpdateMirrorPrefix(value);
+    if (UserManager.updateMirrorPrefixOptions.contains(prefix) ||
+        _customUpdateMirrorPrefixes.contains(prefix)) {
+      return false;
+    }
+
+    _customUpdateMirrorPrefixes = [..._customUpdateMirrorPrefixes, prefix];
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      UserManager._keyUpdateMirrorCustomPrefixes,
+      _customUpdateMirrorPrefixes,
+    );
+    _notifyListeners();
+    return true;
+  }
+
+  /// 删除自定义镜像源。若删的是当前启用项，回落到内置默认。
+  /// 已启用的自定义项因此不会被删除后又复活。
+  Future<void> removeCustomUpdateMirrorPrefix(String prefix) async {
+    final normalized = UserManager.normalizeUpdateMirrorPrefix(prefix);
+    if (!_customUpdateMirrorPrefixes.contains(normalized)) return;
+
+    _customUpdateMirrorPrefixes = _customUpdateMirrorPrefixes
+        .where((e) => e != normalized)
+        .toList(growable: true);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      UserManager._keyUpdateMirrorCustomPrefixes,
+      _customUpdateMirrorPrefixes,
+    );
+    if (_updateMirrorPrefix == normalized) {
+      _updateMirrorPrefix = UserManager.defaultUpdateMirrorPrefix;
+      await prefs.setString(
+        UserManager._keyUpdateMirrorPrefix,
+        _updateMirrorPrefix,
+      );
+    }
+    _notifyListeners();
+  }
+
   Future<void> setUpdateChannel(String value) async {
     final next = value == 'beta' ? 'beta' : 'stable';
     if (_updateChannel == next) return;
@@ -43,13 +86,6 @@ extension UserManagerAppSettingsPart on UserManager {
     _useUpdateMirror = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(UserManager._keyUseUpdateMirror, value);
-    _notifyListeners();
-  }
-
-  Future<void> setAutoLogin(bool enabled) async {
-    _autoLogin = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyAutoLogin, enabled);
     _notifyListeners();
   }
 
@@ -240,6 +276,16 @@ extension UserManagerAppSettingsPart on UserManager {
     _copyAppVersion = normalized;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(UserManager._keyCopyAppVersion, normalized);
+    _notifyListeners();
+  }
+
+  Future<void> setCopyVersionCode(String value) async {
+    final normalized = UserManager.normalizeCopyVersionCode(value);
+    if (_copyVersionCode == normalized) return;
+
+    _copyVersionCode = normalized;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(UserManager._keyCopyVersionCode, normalized);
     _notifyListeners();
   }
 

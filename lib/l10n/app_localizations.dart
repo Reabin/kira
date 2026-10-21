@@ -289,6 +289,24 @@ abstract class AppLocalizations {
   /// **'重试'**
   String get retryButton;
 
+  /// No description provided for @startupFailedTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'启动失败'**
+  String get startupFailedTitle;
+
+  /// No description provided for @startupFailedBody.
+  ///
+  /// In zh, this message translates to:
+  /// **'应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。'**
+  String get startupFailedBody;
+
+  /// No description provided for @startupFailedDetails.
+  ///
+  /// In zh, this message translates to:
+  /// **'错误信息'**
+  String get startupFailedDetails;
+
   /// No description provided for @noContent.
   ///
   /// In zh, this message translates to:
@@ -691,6 +709,12 @@ abstract class AppLocalizations {
   /// **'刷新失败'**
   String get refreshFailed;
 
+  /// No description provided for @refreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败：{detail}'**
+  String refreshFailedDetail(String detail);
+
   /// No description provided for @loginExpiredTitle.
   ///
   /// In zh, this message translates to:
@@ -720,12 +744,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'去登录'**
   String get goLoginButton;
-
-  /// No description provided for @autoLoginFailed.
-  ///
-  /// In zh, this message translates to:
-  /// **'自动登录失败，请手动重新登录'**
-  String get autoLoginFailed;
 
   /// No description provided for @loginToViewBookshelf.
   ///
@@ -841,24 +859,6 @@ abstract class AppLocalizations {
   /// **'通用'**
   String get generalTitle;
 
-  /// No description provided for @autoLoginTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'自动登录'**
-  String get autoLoginTitle;
-
-  /// No description provided for @autoLoginEnabledDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'登录过期时自动重新登录'**
-  String get autoLoginEnabledDesc;
-
-  /// No description provided for @autoLoginUnavailableDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'登录并保存账号密码后可用'**
-  String get autoLoginUnavailableDesc;
-
   /// No description provided for @remoteNoticeTitle.
   ///
   /// In zh, this message translates to:
@@ -886,7 +886,7 @@ abstract class AppLocalizations {
   /// No description provided for @bannerVisibleDesc.
   ///
   /// In zh, this message translates to:
-  /// **'关闭后漫画和动漫主页顶部Banner不显示'**
+  /// **'关闭后漫画主页顶部Banner不显示'**
   String get bannerVisibleDesc;
 
   /// No description provided for @backExitConfirmTitle.
@@ -1201,6 +1201,12 @@ abstract class AppLocalizations {
   /// **'热辣漫画'**
   String get profileHotCredentialLabel;
 
+  /// No description provided for @accountAddedToast.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号已添加'**
+  String get accountAddedToast;
+
   /// No description provided for @accountSwitchedToast.
   ///
   /// In zh, this message translates to:
@@ -1248,6 +1254,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'刷新失败，请重试'**
   String get userInfoRefreshFailedToast;
+
+  /// No description provided for @userInfoRefreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新失败：{detail}'**
+  String userInfoRefreshFailedDetail(String detail);
 
   /// No description provided for @copyProfileRefreshUnavailable.
   ///
@@ -1339,6 +1351,12 @@ abstract class AppLocalizations {
   /// **'经典导航，文字显示在图标下方'**
   String get appearanceBottomNavLabelModeAlwaysDesc;
 
+  /// No description provided for @appearanceFloatingNavLabelModeHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'悬浮底栏不支持始终显示文字，已改为选中时显示'**
+  String get appearanceFloatingNavLabelModeHint;
+
   /// No description provided for @appearanceNavOrder.
   ///
   /// In zh, this message translates to:
@@ -1362,6 +1380,18 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'关闭后只能点击底部导航按钮切换页面'**
   String get appearanceNavSwipeDesc;
+
+  /// No description provided for @appearanceFloatingNavTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'悬浮底部导航栏'**
+  String get appearanceFloatingNavTitle;
+
+  /// No description provided for @appearanceFloatingNavDesc.
+  ///
+  /// In zh, this message translates to:
+  /// **'关闭后导航栏固定在页面底部'**
+  String get appearanceFloatingNavDesc;
 
   /// No description provided for @appearanceAppIcon.
   ///
@@ -1783,6 +1813,12 @@ abstract class AppLocalizations {
   /// **'正在检测各节点...'**
   String get networkTestingNodes;
 
+  /// No description provided for @networkSpeedTestFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'测速失败：{detail}'**
+  String networkSpeedTestFailedDetail(String detail);
+
   /// No description provided for @networkHighLatencyProxySuggestion.
   ///
   /// In zh, this message translates to:
@@ -1938,6 +1974,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'COPY 请求版本号'**
   String get networkCopyAppVersion;
+
+  /// No description provided for @networkCopyVersionCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'COPY versionCode'**
+  String get networkCopyVersionCode;
 
   /// No description provided for @networkCopyAutoUpdate.
   ///
@@ -2479,6 +2521,18 @@ abstract class AppLocalizations {
   /// **'书签保存失败，请重试'**
   String get bookmarksUpdateFailed;
 
+  /// No description provided for @bookmarksSearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索书名或章节'**
+  String get bookmarksSearchHint;
+
+  /// No description provided for @bookmarksSearchEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有找到相关书签，试试其他关键词'**
+  String get bookmarksSearchEmpty;
+
   /// No description provided for @statsTitle.
   ///
   /// In zh, this message translates to:
@@ -2791,6 +2845,12 @@ abstract class AppLocalizations {
   /// **'已取消书签'**
   String get bookmarkRemoved;
 
+  /// No description provided for @bookmarkRemoveGroupContent.
+  ///
+  /// In zh, this message translates to:
+  /// **'该作品有 {count} 条书签，取消书签会一并删除。'**
+  String bookmarkRemoveGroupContent(int count);
+
   /// No description provided for @bookmarkPage.
   ///
   /// In zh, this message translates to:
@@ -2953,10 +3013,16 @@ abstract class AppLocalizations {
   /// **'登录失败，建议开启代理后重试'**
   String get profileLoginFailedProxyHint;
 
+  /// No description provided for @profileLoginFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败：{detail}'**
+  String profileLoginFailedDetail(String detail);
+
   /// No description provided for @profileLoginIpBlockedHint.
   ///
   /// In zh, this message translates to:
-  /// **'当前 IP 被封禁，请更换网络环境或开启代理后重试'**
+  /// **'当前 IP 被封禁，请更换网络环境或代理节点后重试'**
   String get profileLoginIpBlockedHint;
 
   /// No description provided for @profileTokenRequired.
@@ -2995,17 +3061,29 @@ abstract class AppLocalizations {
   /// **'令牌登录'**
   String get profileTokenLoginEntry;
 
-  /// No description provided for @profileWebLoginButton.
+  /// No description provided for @copyAccountChannelWebApi.
   ///
   /// In zh, this message translates to:
-  /// **'官网登录'**
-  String get profileWebLoginButton;
+  /// **'网页接口'**
+  String get copyAccountChannelWebApi;
 
-  /// No description provided for @profileWebLoginRecommendedTag.
+  /// No description provided for @copyAccountChannelWeb.
   ///
   /// In zh, this message translates to:
-  /// **'推荐'**
-  String get profileWebLoginRecommendedTag;
+  /// **'网页'**
+  String get copyAccountChannelWeb;
+
+  /// No description provided for @copyAccountChannelApp.
+  ///
+  /// In zh, this message translates to:
+  /// **'App接口'**
+  String get copyAccountChannelApp;
+
+  /// No description provided for @copyAccountInterfaceLoginFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败：{detail}'**
+  String copyAccountInterfaceLoginFailed(String detail);
 
   /// No description provided for @profileWebLoginPageTitle.
   ///
@@ -3016,7 +3094,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileWebLoginHint.
   ///
   /// In zh, this message translates to:
-  /// **'在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态'**
+  /// **'在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。'**
   String get profileWebLoginHint;
 
   /// No description provided for @profileWebLoginCompleting.
@@ -3024,66 +3102,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'已获取登录信息，正在验证…'**
   String get profileWebLoginCompleting;
-
-  /// No description provided for @profileWebLoginManualButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'我已完成登录'**
-  String get profileWebLoginManualButton;
-
-  /// No description provided for @profileWebLoginNotDetected.
-  ///
-  /// In zh, this message translates to:
-  /// **'未检测到登录信息，请先在官网中完成登录'**
-  String get profileWebLoginNotDetected;
-
-  /// No description provided for @profileWebLoginResetTooltip.
-  ///
-  /// In zh, this message translates to:
-  /// **'清除官网登录状态'**
-  String get profileWebLoginResetTooltip;
-
-  /// No description provided for @profileWebLoginResetDone.
-  ///
-  /// In zh, this message translates to:
-  /// **'已清除官网登录状态，请登录其他账号'**
-  String get profileWebLoginResetDone;
-
-  /// No description provided for @profileWebLoginKnownAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'检测到本机已保存的账号「{name}」，尚未自动登录'**
-  String profileWebLoginKnownAccount(String name);
-
-  /// No description provided for @profileWebLoginKnownAccountFallback.
-  ///
-  /// In zh, this message translates to:
-  /// **'已保存的账号'**
-  String get profileWebLoginKnownAccountFallback;
-
-  /// No description provided for @profileWebLoginUseAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'使用该账号'**
-  String get profileWebLoginUseAccount;
-
-  /// No description provided for @profileWebLoginSwitchAccount.
-  ///
-  /// In zh, this message translates to:
-  /// **'切换其他账号'**
-  String get profileWebLoginSwitchAccount;
-
-  /// No description provided for @profileWebLoginRetryButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'重新检测登录'**
-  String get profileWebLoginRetryButton;
-
-  /// No description provided for @profileWebLoginResetFailed.
-  ///
-  /// In zh, this message translates to:
-  /// **'清除官网登录状态失败，请重试'**
-  String get profileWebLoginResetFailed;
 
   /// No description provided for @profileWebLoginFailed.
   ///
@@ -3217,53 +3235,29 @@ abstract class AppLocalizations {
   /// **'稳定版'**
   String get aboutStableChannelShort;
 
-  /// No description provided for @aboutUpdateChannelTitle.
+  /// No description provided for @aboutBetaChannelConfirmTitle.
   ///
   /// In zh, this message translates to:
-  /// **'更新渠道'**
-  String get aboutUpdateChannelTitle;
+  /// **'是否切换?'**
+  String get aboutBetaChannelConfirmTitle;
 
-  /// No description provided for @aboutStableChannelTitle.
+  /// No description provided for @aboutBetaChannelNote.
   ///
   /// In zh, this message translates to:
-  /// **'稳定版 (Stable)'**
-  String get aboutStableChannelTitle;
+  /// **'预览版更新更快,问题也可能更多'**
+  String get aboutBetaChannelNote;
 
-  /// No description provided for @aboutStableChannelDesc.
+  /// No description provided for @aboutBetaChannelArm64Only.
   ///
   /// In zh, this message translates to:
-  /// **'仅检查正式发布版本'**
-  String get aboutStableChannelDesc;
+  /// **'仅限 Android arm64 设备。'**
+  String get aboutBetaChannelArm64Only;
 
-  /// No description provided for @aboutBetaChannelTitle.
+  /// No description provided for @aboutBetaChannelDevice.
   ///
   /// In zh, this message translates to:
-  /// **'预览版（Beta）'**
-  String get aboutBetaChannelTitle;
-
-  /// No description provided for @aboutBetaChannelDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'从最新提交构建的版本，可能不稳定'**
-  String get aboutBetaChannelDesc;
-
-  /// No description provided for @aboutBetaChannelSwitchedTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'已切换到预览版'**
-  String get aboutBetaChannelSwitchedTitle;
-
-  /// No description provided for @aboutBetaChannelSwitchedContent.
-  ///
-  /// In zh, this message translates to:
-  /// **'预览版一般用于测试新功能或修复问题，可能存在更多问题。'**
-  String get aboutBetaChannelSwitchedContent;
-
-  /// No description provided for @aboutGotItButton.
-  ///
-  /// In zh, this message translates to:
-  /// **'知道了'**
-  String get aboutGotItButton;
+  /// **'当前设备:{os} {arch}。'**
+  String aboutBetaChannelDevice(String os, String arch);
 
   /// No description provided for @aboutRepositoryLabel.
   ///
@@ -3737,12 +3731,6 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'章节评论'**
   String get chapterCommentsTitle;
-
-  /// No description provided for @chapterCommentsLoadAllTooltip.
-  ///
-  /// In zh, this message translates to:
-  /// **'加载全部评论'**
-  String get chapterCommentsLoadAllTooltip;
 
   /// No description provided for @chapterCommentsAiSummaryTooltip.
   ///
@@ -4434,6 +4422,12 @@ abstract class AppLocalizations {
   /// **'数据缓存'**
   String get cacheDataCacheSection;
 
+  /// No description provided for @cacheDataCacheWarning.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。'**
+  String get cacheDataCacheWarning;
+
   /// No description provided for @cacheNoLocalKeyValueData.
   ///
   /// In zh, this message translates to:
@@ -4704,6 +4698,12 @@ abstract class AppLocalizations {
   /// **'暂无错误日志'**
   String get appLogEmpty;
 
+  /// No description provided for @appLogDisabledTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志记录已关闭'**
+  String get appLogDisabledTitle;
+
   /// No description provided for @appLogCopied.
   ///
   /// In zh, this message translates to:
@@ -4793,6 +4793,24 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'搜索日志（消息、来源、堆栈、上下文）'**
   String get appLogSearchHint;
+
+  /// No description provided for @appLogExportTooltip.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出日志文件'**
+  String get appLogExportTooltip;
+
+  /// No description provided for @appLogExported.
+  ///
+  /// In zh, this message translates to:
+  /// **'日志已导出'**
+  String get appLogExported;
+
+  /// No description provided for @appLogExportFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'导出失败：{error}'**
+  String appLogExportFailed(String error);
 
   /// No description provided for @appLogClearLogsTooltip.
   ///
@@ -5495,6 +5513,12 @@ abstract class AppLocalizations {
   /// **'后台自动总结失败：{error}'**
   String readerAutoSummaryFailed(String error);
 
+  /// No description provided for @readerChainChapterFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'加载相邻章节失败：{detail}'**
+  String readerChainChapterFailedDetail(String detail);
+
   /// No description provided for @readerNoPreviousChapter.
   ///
   /// In zh, this message translates to:
@@ -5552,7 +5576,7 @@ abstract class AppLocalizations {
   /// No description provided for @readerAlreadyFirstChapter.
   ///
   /// In zh, this message translates to:
-  /// **'已经是第一章'**
+  /// **'梦开始的地方'**
   String get readerAlreadyFirstChapter;
 
   /// No description provided for @readerContinuePageNextChapter.
@@ -5564,7 +5588,7 @@ abstract class AppLocalizations {
   /// No description provided for @readerAlreadyLastChapter.
   ///
   /// In zh, this message translates to:
-  /// **'已经是最后一话'**
+  /// **'当前已无下一话'**
   String get readerAlreadyLastChapter;
 
   /// No description provided for @readerContinueScrollOrTapNextChapter.
@@ -5717,11 +5741,29 @@ abstract class AppLocalizations {
   /// **'下载失败，请稍后重试'**
   String get updateDownloadFailed;
 
+  /// No description provided for @updateDownloadFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载失败：{detail}'**
+  String updateDownloadFailedDetail(String detail);
+
+  /// No description provided for @updateDownloadFallback.
+  ///
+  /// In zh, this message translates to:
+  /// **'下载源切换中（第 {count} 个备用源）'**
+  String updateDownloadFallback(int count);
+
   /// No description provided for @updateInstallFailed.
   ///
   /// In zh, this message translates to:
   /// **'无法启动安装，请改用浏览器下载'**
   String get updateInstallFailed;
+
+  /// No description provided for @updateInstallFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法启动安装：{detail}'**
+  String updateInstallFailedDetail(String detail);
 
   /// No description provided for @updateInstallPermissionNeeded.
   ///
@@ -5801,11 +5843,23 @@ abstract class AppLocalizations {
   /// **'刷新通知失败，请稍后重试'**
   String get noticeRefreshFailed;
 
+  /// No description provided for @noticeRefreshFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'刷新通知失败：{detail}'**
+  String noticeRefreshFailedDetail(String detail);
+
   /// No description provided for @noticeReadFailed.
   ///
   /// In zh, this message translates to:
   /// **'读取通知失败'**
   String get noticeReadFailed;
+
+  /// No description provided for @noticeReadFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'读取通知失败：{detail}'**
+  String noticeReadFailedDetail(String detail);
 
   /// No description provided for @noticeAllMarkedRead.
   ///
@@ -6575,6 +6629,12 @@ abstract class AppLocalizations {
   /// **'操作失败，请检查文件权限和可用空间后重试。'**
   String get backupOperationFailed;
 
+  /// No description provided for @backupOperationFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'操作失败：{detail}'**
+  String backupOperationFailedDetail(String detail);
+
   /// No description provided for @backupWebDavInvalidConfig.
   ///
   /// In zh, this message translates to:
@@ -6911,6 +6971,18 @@ abstract class AppLocalizations {
   /// **'收藏操作失败，请重试'**
   String get novelCollectFailed;
 
+  /// No description provided for @novelCollectFailedDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'收藏操作失败：{detail}'**
+  String novelCollectFailedDetail(String detail);
+
+  /// No description provided for @novelDownloadEnqueueFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'加入下载失败：{detail}'**
+  String novelDownloadEnqueueFailed(String detail);
+
   /// No description provided for @novelQueryFailed.
   ///
   /// In zh, this message translates to:
@@ -7169,16 +7241,22 @@ abstract class AppLocalizations {
   /// **'卷册加载失败，重试'**
   String get novelReaderVolumesRetry;
 
+  /// No description provided for @novelReaderVolumesRetryDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'卷册加载失败：{detail}（点击重试）'**
+  String novelReaderVolumesRetryDetail(String detail);
+
   /// No description provided for @novelReaderPrevious.
   ///
   /// In zh, this message translates to:
-  /// **'上一章节'**
+  /// **'上一卷'**
   String get novelReaderPrevious;
 
   /// No description provided for @novelReaderNext.
   ///
   /// In zh, this message translates to:
-  /// **'下一章节'**
+  /// **'下一卷'**
   String get novelReaderNext;
 
   /// No description provided for @novelReaderSettings.
@@ -7186,6 +7264,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'阅读设置'**
   String get novelReaderSettings;
+
+  /// No description provided for @novelReaderRealisticPageTurn.
+  ///
+  /// In zh, this message translates to:
+  /// **'仿真翻页'**
+  String get novelReaderRealisticPageTurn;
 
   /// No description provided for @novelReaderFontSize.
   ///

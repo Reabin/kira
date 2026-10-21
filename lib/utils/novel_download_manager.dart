@@ -42,6 +42,7 @@ class NovelDownloadManager extends ChangeNotifier {
     NovelSnapshotLoader? snapshotLoader,
     NovelImageLoader? imageLoader,
     NovelDownloadIdentity Function()? identityProvider,
+    String? Function(String?)? accountIdResolver,
     Object Function()? identityEpochProvider,
     Listenable? identityChanges,
     Future<SharedPreferences> Function()? preferences,
@@ -53,6 +54,9 @@ class NovelDownloadManager extends ChangeNotifier {
        _snapshotLoader = snapshotLoader,
        _imageLoader = imageLoader,
        _identityProvider = identityProvider ?? _currentIdentity,
+       _accountIdResolver =
+           accountIdResolver ??
+           ((id) => UserManager().copyAccount.resolveAccountId(id)),
        _identityEpochProvider = identityEpochProvider,
        _identityChanges = identityChanges,
        _preferences = preferences ?? SharedPreferences.getInstance,
@@ -65,6 +69,7 @@ class NovelDownloadManager extends ChangeNotifier {
     required NovelSnapshotLoader snapshotLoader,
     required NovelImageLoader imageLoader,
     required NovelDownloadIdentity Function() identityProvider,
+    String? Function(String?)? accountIdResolver,
     Object Function()? identityEpochProvider,
     Listenable? identityChanges,
     Future<SharedPreferences> Function()? preferences,
@@ -77,6 +82,8 @@ class NovelDownloadManager extends ChangeNotifier {
          snapshotLoader: snapshotLoader,
          imageLoader: imageLoader,
          identityProvider: identityProvider,
+         // Fake identities must never consult the real account store.
+         accountIdResolver: accountIdResolver ?? ((id) => id),
          identityEpochProvider: identityEpochProvider,
          identityChanges: identityChanges,
          preferences: preferences,
@@ -93,6 +100,7 @@ class NovelDownloadManager extends ChangeNotifier {
   final NovelSnapshotLoader? _snapshotLoader;
   final NovelImageLoader? _imageLoader;
   final NovelDownloadIdentity Function() _identityProvider;
+  final String? Function(String?) _accountIdResolver;
   final Object Function()? _identityEpochProvider;
   final Listenable? _identityChanges;
   final Future<SharedPreferences> Function() _preferences;
@@ -177,6 +185,19 @@ class NovelDownloadManager extends ChangeNotifier {
       host: user.copyApiHost,
       accountId: user.copyAccount.session?.id ?? 'guest',
     );
+  }
+
+  /// Resolve only stable task ownership, never the identity/epoch of a live run.
+  /// Keep the original source so deleting an alias also revokes queued work.
+  bool _matchesSource(NovelDownloadIdentity source) {
+    final current = _identityProvider();
+    if (source.host != current.host) return false;
+    if (source.accountId == 'guest' || current.accountId == 'guest') {
+      return source.accountId == current.accountId;
+    }
+    final accountId = _accountIdResolver(source.accountId);
+    return accountId != null &&
+        accountId == _accountIdResolver(current.accountId);
   }
 
   Object _readEpoch() =>
@@ -270,7 +291,7 @@ class NovelDownloadManager extends ChangeNotifier {
             } else if (task.status == NovelDownloadStatus.completed) {
               task.status = NovelDownloadStatus.needsRepair;
               queueReconciled = true;
-            } else if (task.source != _identity) {
+            } else if (!_matchesSource(task.source)) {
               task.status = NovelDownloadStatus.paused;
             } else if (task.status == NovelDownloadStatus.downloading ||
                 task.status == NovelDownloadStatus.queued) {
@@ -456,7 +477,7 @@ class NovelDownloadManager extends ChangeNotifier {
     refreshIdentity();
     final task = taskFor(pathWord, volumeId);
     if (task == null || task.isComplete || task.isActive) return;
-    if (task.source != _identityProvider()) {
+    if (!_matchesSource(task.source)) {
       task.status = NovelDownloadStatus.paused;
       task.error = '请切回此任务的拷贝账号及线路';
     } else {
@@ -502,7 +523,7 @@ class NovelDownloadManager extends ChangeNotifier {
     _paused = false;
     for (final task in _tasks.values) {
       if (task.status == NovelDownloadStatus.paused &&
-          task.source == _identityProvider()) {
+          _matchesSource(task.source)) {
         task.status = NovelDownloadStatus.queued;
         task.attempts = 0;
         task.error = null;
@@ -607,7 +628,7 @@ class NovelDownloadManager extends ChangeNotifier {
           _deletingBooks.contains(task.pathWord)) {
         continue;
       }
-      if (task.source != _identityProvider()) {
+      if (!_matchesSource(task.source)) {
         task.status = NovelDownloadStatus.paused;
         continue;
       }
@@ -631,7 +652,7 @@ class NovelDownloadManager extends ChangeNotifier {
       identical(_runs[task.id], run) &&
       !run.cancelToken.isCancelled &&
       run.epoch == (_epochs[task.id] ?? 0) &&
-      task.source == _identityProvider() &&
+      _matchesSource(task.source) &&
       run.identityEpoch == _readEpoch();
   void _assertCurrent(NovelDownloadTask task, _NovelRun run) {
     if (!_isCurrent(task, run)) throw const NovelDownloadWriteCancelled();

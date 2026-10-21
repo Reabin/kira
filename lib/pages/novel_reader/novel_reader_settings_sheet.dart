@@ -1,4 +1,5 @@
 import 'package:flex_color_picker/flex_color_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../api/hitokoto_api.dart';
@@ -173,6 +174,64 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             style: tt.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: AppSpacing.xl),
+          // 阅读模式：连续滚动 / 整页翻页（翻页固定左到右）。
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<NovelReaderMode>(
+              key: const ValueKey('novel-reader-mode'),
+              segments: [
+                ButtonSegment(
+                  value: NovelReaderMode.scroll,
+                  icon: const Icon(Icons.view_day),
+                  label: Text(l10n.readerScrollMode),
+                ),
+                ButtonSegment(
+                  value: NovelReaderMode.paged,
+                  icon: const Icon(Icons.auto_stories),
+                  label: Text(l10n.readerPageMode),
+                ),
+              ],
+              selected: {_settings.mode},
+              onSelectionChanged: (selection) =>
+                  _change(_settings.copyWith(mode: selection.first)),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xl),
+          // 翻页设置：仅在整页翻页模式下可用。紧跟模式切换、排在字号之前，
+          // 让用户一眼看到与滚动模式的差别。
+          if (_settings.mode == NovelReaderMode.paged) ...[
+            SectionHeader(
+              title: l10n.readerPageSection,
+              icon: Icons.auto_stories_outlined,
+            ),
+            if (defaultTargetPlatform == TargetPlatform.android)
+              SwitchListTile.adaptive(
+                key: const ValueKey('novel-volume-key'),
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.readerVolumeKeyPageTurn),
+                subtitle: Text(l10n.readerVolumeKeyPageTurnDesc),
+                value: _settings.volumeKey,
+                onChanged: (value) =>
+                    _change(_settings.copyWith(volumeKey: value)),
+              ),
+            SwitchListTile.adaptive(
+              key: const ValueKey('novel-realistic-page-turn'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.novelReaderRealisticPageTurn),
+              value: _settings.realisticPageTurn,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(realisticPageTurn: value)),
+            ),
+            SwitchListTile.adaptive(
+              key: const ValueKey('novel-instant-page-turn'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.readerInstantPageTurn),
+              value: _settings.instantPageTurn,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(instantPageTurn: value)),
+            ),
+            const Divider(height: AppSpacing.xxl),
+          ],
           _slider(
             key: const ValueKey('novel-font-size'),
             label: l10n.novelReaderFontSize,

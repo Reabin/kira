@@ -43,6 +43,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
   bool _tagsFailed = false;
   bool _copyFiltersFailed = false;
   bool _listFailed = false;
+  Object? _listError;
   bool _loadMoreFailed = false;
   bool _hasMore = false;
   int _offset = 0;
@@ -384,7 +385,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           source: 'discover_tab.load_comics',
         ),
       );
-      setState(() => _listFailed = true);
+      setState(() {
+        _listFailed = true;
+        _listError = e;
+      });
     } finally {
       if (_isCurrentList(epoch, source)) {
         setState(() => _searching = false);
@@ -641,7 +645,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
                   ),
                 if (!_searching && _listFailed && !_hasResults)
                   SliverErrorRetryView(
-                    message: l10n.discoverRequestFailed,
+                    message: _listError == null
+                        ? l10n.discoverRequestFailed
+                        : NetworkError.message(_listError!),
                     onRetry: () => unawaited(_loadComics()),
                   ),
                 if (!_searching && !_listFailed && !_hasResults)
@@ -690,7 +696,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
                       child: InlineRetryNotice(
-                        message: l10n.discoverRequestFailed,
+                        message: _listError == null
+                            ? l10n.discoverRequestFailed
+                            : NetworkError.message(_listError!),
                         onRetry: () =>
                             unawaited(_loadComics(keepResults: true)),
                       ),
@@ -715,7 +723,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                       horizontalPadding: hp,
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                const SliverToBoxAdapter(child: BranchBottomSlack(extra: 72)),
               ],
             ),
           ),
@@ -723,11 +731,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.md + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

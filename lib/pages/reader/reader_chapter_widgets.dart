@@ -354,7 +354,9 @@ class _NextChapterTail extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final content = Padding(
-      padding: const EdgeInsets.fromLTRB(32, 72, 32, 32),
+      // 竖向滚动末尾卡是紧接在末图下方的"页脚"，上边距取 32 与左右一致，
+      // 文字紧贴黑底顶部；横向滚动末尾卡是整屏高的"末页"，保留 72 的上边距。
+      padding: EdgeInsets.fromLTRB(32, isHorizontalScroll ? 72 : 32, 32, 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

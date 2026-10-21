@@ -29,7 +29,13 @@ void main() {
     // /api/v3/h5/filter/comic/tags 的 results 形状
     final restored = CopyFilterOptions.fromJson({
       'theme': [
-        {'initials': 0, 'name': '愛情', 'logo': null, 'path_word': 'aiqing', 'count': 11376},
+        {
+          'initials': 0,
+          'name': '愛情',
+          'logo': null,
+          'path_word': 'aiqing',
+          'count': 11376,
+        },
       ],
       'ordering': [
         {'name': '更新時間', 'path_word': 'datetime_updated'},
