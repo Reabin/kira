@@ -5,96 +5,40 @@ extension UserManagerReaderPart on UserManager {
   /// _onSubStoreChanged 转发到本 facade 的监听者。
   Future<void> setReaderMode(int mode) => reader.setMode(mode);
 
-  Future<void> setReaderScrollDirection(int direction) async {
-    _readerScrollDirection = direction;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyReaderScrollDirection, direction);
-    _notifyListeners();
-  }
+  Future<void> setReaderScrollDirection(int direction) =>
+      reader.setScrollDirection(direction);
 
-  Future<void> setReaderImageGap(double gap) async {
-    _readerImageGap = gap;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(UserManager._keyReaderImageGap, gap);
-    _notifyListeners();
-  }
+  Future<void> setReaderImageGap(double gap) => reader.setImageGap(gap);
 
-  Future<void> setReaderVolumeKey(bool enabled) async {
-    _readerVolumeKey = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderVolumeKey, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderVolumeKey(bool enabled) => reader.setVolumeKey(enabled);
 
-  Future<void> setReaderInstantPageTurn(bool enabled) async {
-    _readerInstantPageTurn = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderInstantPageTurn, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderInstantPageTurn(bool enabled) =>
+      reader.setInstantPageTurn(enabled);
 
-  Future<void> setReaderPageRTL(bool rtl) async {
-    _readerPageRTL = rtl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderPageRTL, rtl);
-    _notifyListeners();
-  }
+  Future<void> setReaderPageRTL(bool rtl) => reader.setPageRTL(rtl);
 
-  Future<void> setReaderPageVertical(bool vertical) async {
-    _readerPageVertical = vertical;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderPageVertical, vertical);
-    _notifyListeners();
-  }
+  Future<void> setReaderPageVertical(bool vertical) =>
+      reader.setPageVertical(vertical);
 
-  Future<void> setReaderDimming(double value) async {
-    _readerDimming = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(UserManager._keyReaderDimming, value);
-    _notifyListeners();
-  }
+  Future<void> setReaderDimming(double value) => reader.setDimming(value);
 
-  Future<void> setReaderAutoScrollEnabled(bool enabled) async {
-    _readerAutoScrollEnabled = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderAutoScrollEnabled, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderAutoScrollEnabled(bool enabled) =>
+      reader.setAutoScrollEnabled(enabled);
 
-  Future<void> setReaderAutoScrollPause(double seconds) async {
-    _readerAutoScrollPause = seconds;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(UserManager._keyReaderAutoScrollPause, seconds);
-    _notifyListeners();
-  }
+  Future<void> setReaderAutoScrollPause(double seconds) =>
+      reader.setAutoScrollPause(seconds);
 
-  Future<void> setReaderAutoScrollResume(bool enabled) async {
-    _readerAutoScrollResume = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderAutoScrollResume, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderAutoScrollResume(bool enabled) =>
+      reader.setAutoScrollResume(enabled);
 
-  Future<void> setReaderAutoScrollResumeDelay(double seconds) async {
-    _readerAutoScrollResumeDelay = seconds;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(UserManager._keyReaderAutoScrollResumeDelay, seconds);
-    _notifyListeners();
-  }
+  Future<void> setReaderAutoScrollResumeDelay(double seconds) =>
+      reader.setAutoScrollResumeDelay(seconds);
 
-  Future<void> setReaderAutoScrollDistance(double factor) async {
-    _readerAutoScrollDistance = factor;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(UserManager._keyReaderAutoScrollDistance, factor);
-    _notifyListeners();
-  }
+  Future<void> setReaderAutoScrollDistance(double factor) =>
+      reader.setAutoScrollDistance(factor);
 
-  Future<void> setReaderContinuousReading(bool enabled) async {
-    _readerContinuousReading = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyReaderContinuousReading, enabled);
-    _notifyListeners();
-  }
+  Future<void> setReaderContinuousReading(bool enabled) =>
+      reader.setContinuousReading(enabled);
 
   Future<void> setReaderHorizontalImageScale(double scale) async {
     _readerHorizontalImageScale = scale.clamp(0.7, 1.0);
@@ -106,42 +50,17 @@ extension UserManagerReaderPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setImageViewerAutoRotateLandscape(bool enabled) async {
-    if (_imageViewerAutoRotateLandscape == enabled) return;
-    _imageViewerAutoRotateLandscape = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(
-      UserManager._keyImageViewerAutoRotateLandscape,
-      enabled,
-    );
-    _notifyListeners();
-  }
+  Future<void> setImageViewerAutoRotateLandscape(bool enabled) =>
+      reader.setViewerAutoRotateLandscape(enabled);
 
-  Future<void> setImageViewerLandscapeRotation(int rotation) async {
-    final nextRotation = rotation < 0 ? -1 : 1;
-    if (_imageViewerLandscapeRotation == nextRotation) return;
-    _imageViewerLandscapeRotation = nextRotation;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(
-      UserManager._keyImageViewerLandscapeRotation,
-      nextRotation,
-    );
-    _notifyListeners();
-  }
+  Future<void> setImageViewerLandscapeRotation(int rotation) =>
+      reader.setViewerLandscapeRotation(rotation);
 
-  Future<void> setImageLoadTimeout(int seconds) async {
-    _imageLoadTimeout = seconds;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyImageLoadTimeout, seconds);
-    _notifyListeners();
-  }
+  Future<void> setImageLoadTimeout(int seconds) =>
+      reader.setImageLoadTimeout(seconds);
 
-  Future<void> setImageRetryCount(int count) async {
-    _imageRetryCount = count;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyImageRetryCount, count);
-    _notifyListeners();
-  }
+  Future<void> setImageRetryCount(int count) =>
+      reader.setImageRetryCount(count);
 
   Future<void> setCommentCompactLayout(bool compact) =>
       comment.setCompactLayout(compact);

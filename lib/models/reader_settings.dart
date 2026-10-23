@@ -166,6 +166,7 @@ class ReaderSettings extends PrefsStore {
   // ── Init (called from UserManager.init) ────────────────────────────
 
   Future<void> initFromPrefs(SharedPreferences prefs) async {
+    syncPrefs(prefs);
     _mode = prefs.getInt(_keyMode) ?? 0;
     _scrollDirection = prefs.getInt(_keyScrollDirection) ?? 2;
     _imageGap = prefs.getDouble(_keyImageGap) ?? 0.0;

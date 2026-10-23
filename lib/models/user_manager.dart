@@ -112,27 +112,7 @@ class UserManager extends ChangeNotifier {
   static const _keyDesktopFontFamily = 'desktop_font_family';
   static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
   static const _keyBookshelfOrdering = 'bookshelf_ordering';
-  static const _keyReaderScrollDirection = 'reader_scroll_direction';
-  static const _keyReaderImageGap = 'reader_image_gap';
-  static const _keyReaderVolumeKey = 'reader_volume_key';
-  static const _keyReaderInstantPageTurn = 'reader_instant_page_turn';
-  static const _keyReaderPageRTL = 'reader_page_rtl';
-  static const _keyReaderPageVertical = 'reader_page_vertical';
-  static const _keyReaderDimming = 'reader_dimming';
-  static const _keyReaderAutoScrollEnabled = 'reader_auto_scroll_enabled';
-  static const _keyReaderAutoScrollPause = 'reader_auto_scroll_pause';
-  static const _keyReaderAutoScrollResume = 'reader_auto_scroll_resume';
-  static const _keyReaderAutoScrollResumeDelay =
-      'reader_auto_scroll_resume_delay';
-  static const _keyReaderAutoScrollDistance = 'reader_auto_scroll_distance';
-  static const _keyReaderContinuousReading = 'reader_continuous_reading';
   static const _keyReaderHorizontalImageScale = 'reader_horizontal_image_scale';
-  static const _keyImageViewerAutoRotateLandscape =
-      'image_viewer_auto_rotate_landscape';
-  static const _keyImageViewerLandscapeRotation =
-      'image_viewer_landscape_rotation';
-  static const _keyImageLoadTimeout = 'image_load_timeout';
-  static const _keyImageRetryCount = 'image_retry_count';
   static const _keyAutoCheckUpdate = 'auto_check_update';
   static const _keySkippedUpdateVersion = 'skipped_update_version';
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
@@ -182,25 +162,8 @@ class UserManager extends ChangeNotifier {
   String _desktopFontFamily = '';
   int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
   String _bookshelfOrdering = ApiOrdering.datetimeUpdated;
-  int _readerScrollDirection = 2;
-  double _readerImageGap = 0.0;
-  bool _readerVolumeKey = true;
-  bool _readerInstantPageTurn = false;
-  bool _readerPageRTL = false;
-  bool _readerPageVertical = false;
-  double _readerDimming = 0.3;
-  bool _readerAutoScrollEnabled = false;
-  double _readerAutoScrollPause = 3.0;
-  bool _readerAutoScrollResume = false;
-  double _readerAutoScrollResumeDelay = 2.0;
-  double _readerAutoScrollDistance = 0.8;
-  bool _readerContinuousReading = true;
   // 横向滚动模式下图片相对视口高度的缩放档位，1.0 = 填满高度。
   double _readerHorizontalImageScale = 1.0;
-  bool _imageViewerAutoRotateLandscape = false;
-  int _imageViewerLandscapeRotation = 1;
-  int _imageLoadTimeout = 15; // 秒
-  int _imageRetryCount = 1;
   bool _autoCheckUpdate = true;
   String? _skippedUpdateVersion;
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
@@ -288,27 +251,26 @@ class UserManager extends ChangeNotifier {
 
   String get bookshelfOrdering => _bookshelfOrdering;
 
-  /// 委托给 [reader]：两边曾各自缓存 'reader_mode'，
-  /// 经此处修改不会同步到子 store，反之亦然。
+  /// 共有的阅读器设置由 [reader] 保存，横向图片缩放仍由 facade 独占。
   int get readerMode => reader.mode;
-  int get readerScrollDirection => _readerScrollDirection;
-  double get readerImageGap => _readerImageGap;
-  bool get readerVolumeKey => _readerVolumeKey;
-  bool get readerInstantPageTurn => _readerInstantPageTurn;
-  bool get readerPageRTL => _readerPageRTL;
-  bool get readerPageVertical => _readerPageVertical;
-  double get readerDimming => _readerDimming;
-  bool get readerAutoScrollEnabled => _readerAutoScrollEnabled;
-  double get readerAutoScrollPause => _readerAutoScrollPause;
-  bool get readerAutoScrollResume => _readerAutoScrollResume;
-  double get readerAutoScrollResumeDelay => _readerAutoScrollResumeDelay;
-  double get readerAutoScrollDistance => _readerAutoScrollDistance;
-  bool get readerContinuousReading => _readerContinuousReading;
+  int get readerScrollDirection => reader.scrollDirection;
+  double get readerImageGap => reader.imageGap;
+  bool get readerVolumeKey => reader.volumeKey;
+  bool get readerInstantPageTurn => reader.instantPageTurn;
+  bool get readerPageRTL => reader.pageRTL;
+  bool get readerPageVertical => reader.pageVertical;
+  double get readerDimming => reader.dimming;
+  bool get readerAutoScrollEnabled => reader.autoScrollEnabled;
+  double get readerAutoScrollPause => reader.autoScrollPause;
+  bool get readerAutoScrollResume => reader.autoScrollResume;
+  double get readerAutoScrollResumeDelay => reader.autoScrollResumeDelay;
+  double get readerAutoScrollDistance => reader.autoScrollDistance;
+  bool get readerContinuousReading => reader.continuousReading;
   double get readerHorizontalImageScale => _readerHorizontalImageScale;
-  bool get imageViewerAutoRotateLandscape => _imageViewerAutoRotateLandscape;
-  int get imageViewerLandscapeRotation => _imageViewerLandscapeRotation;
-  int get imageLoadTimeout => _imageLoadTimeout;
-  int get imageRetryCount => _imageRetryCount;
+  bool get imageViewerAutoRotateLandscape => reader.viewerAutoRotateLandscape;
+  int get imageViewerLandscapeRotation => reader.viewerLandscapeRotation;
+  int get imageLoadTimeout => reader.imageLoadTimeout;
+  int get imageRetryCount => reader.imageRetryCount;
   bool get commentCompactLayout => comment.compactLayout;
   bool get commentShowAvatar => comment.showAvatar;
   bool get commentShowUserName => comment.showUserName;

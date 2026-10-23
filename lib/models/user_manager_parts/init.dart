@@ -51,45 +51,9 @@ extension UserManagerInitPart on UserManager {
     _bookshelfOrdering =
         prefs.getString(UserManager._keyBookshelfOrdering) ??
         ApiOrdering.datetimeUpdated;
-    _readerScrollDirection =
-        prefs.getInt(UserManager._keyReaderScrollDirection) ?? 2;
-    _readerImageGap = prefs.getDouble(UserManager._keyReaderImageGap) ?? 0.0;
-    _readerVolumeKey = prefs.getBool(UserManager._keyReaderVolumeKey) ?? true;
-    _readerInstantPageTurn =
-        prefs.getBool(UserManager._keyReaderInstantPageTurn) ?? false;
-    _readerPageRTL = prefs.getBool(UserManager._keyReaderPageRTL) ?? false;
-    _readerPageVertical =
-        prefs.getBool(UserManager._keyReaderPageVertical) ?? false;
-    _readerDimming = prefs.getDouble(UserManager._keyReaderDimming) ?? 0.3;
-    _readerAutoScrollEnabled =
-        prefs.getBool(UserManager._keyReaderAutoScrollEnabled) ?? false;
-    _readerAutoScrollPause =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollPause) ?? 3.0).clamp(
-          0.5,
-          8.0,
-        );
-    _readerAutoScrollResume =
-        prefs.getBool(UserManager._keyReaderAutoScrollResume) ?? false;
-    _readerAutoScrollResumeDelay =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollResumeDelay) ?? 2.0)
-            .clamp(1.0, 5.0);
-    _readerAutoScrollDistance =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollDistance) ?? 0.8)
-            .clamp(0.2, 1.0);
-    _readerContinuousReading =
-        prefs.getBool(UserManager._keyReaderContinuousReading) ?? true;
     _readerHorizontalImageScale =
         (prefs.getDouble(UserManager._keyReaderHorizontalImageScale) ?? 1.0)
             .clamp(0.7, 1.0);
-    _imageViewerAutoRotateLandscape =
-        prefs.getBool(UserManager._keyImageViewerAutoRotateLandscape) ?? false;
-    final savedImageViewerLandscapeRotation =
-        prefs.getInt(UserManager._keyImageViewerLandscapeRotation) ?? 1;
-    _imageViewerLandscapeRotation = savedImageViewerLandscapeRotation < 0
-        ? -1
-        : 1;
-    _imageLoadTimeout = prefs.getInt(UserManager._keyImageLoadTimeout) ?? 15;
-    _imageRetryCount = prefs.getInt(UserManager._keyImageRetryCount) ?? 1;
     _autoCheckUpdate = prefs.getBool(UserManager._keyAutoCheckUpdate) ?? true;
     _skippedUpdateVersion = prefs.getString(
       UserManager._keySkippedUpdateVersion,
