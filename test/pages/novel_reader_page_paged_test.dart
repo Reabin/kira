@@ -224,6 +224,17 @@ NovelReaderPageViewState _pager(WidgetTester tester) =>
 NovelReaderLocation _pagedLocation(WidgetTester tester) =>
     _pager(tester).currentLocation!;
 
+/// 工具栏收起时只是滑出屏幕（保留在树里做过渡），所以按位移判断显隐。
+bool _toolbarHidden(WidgetTester tester) {
+  final slide = tester.widget<AnimatedSlide>(
+    find.ancestor(
+      of: find.byKey(const ValueKey('novel-reader-back')),
+      matching: find.byType(AnimatedSlide),
+    ),
+  );
+  return slide.offset.dy != 0;
+}
+
 /// 模拟原生侧的音量键回调。
 Future<void> _pressVolume(WidgetTester tester, String method) async {
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
@@ -341,15 +352,14 @@ void main() {
           );
           expect(find.byType(NovelReaderPageView), findsOneWidget);
           expect(find.byType(NovelReaderViewport), findsNothing);
-          final toolbar = find.byKey(const ValueKey('novel-reader-back'));
           final start = _pagedLocation(tester).progress;
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isFalse);
 
           // 工具栏显示时点右侧只收起；再次点击才翻到下一页。
           await tester.tapAt(const Offset(700, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           await tester.tapAt(const Offset(700, 300));
           await _settle(tester);
           final next = _pagedLocation(tester).progress;
@@ -358,12 +368,12 @@ void main() {
           // 在可回翻的页面唤出工具栏，点左侧同样先收起、不翻页。
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isFalse);
           expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
           await tester.tapAt(const Offset(100, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           await tester.tapAt(const Offset(100, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
@@ -371,10 +381,10 @@ void main() {
           // 中间区域只切换工具栏，不改变位置。
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isFalse);
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
           expect(tester.takeException(), isNull);
           await _remove(tester);
@@ -483,7 +493,7 @@ void main() {
       repository.calls.any((call) => call.startsWith('book/v2/')),
       isFalse,
     );
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     expect(
@@ -565,7 +575,7 @@ void main() {
       repository.calls.any((call) => call.startsWith('book/v1/')),
       isFalse,
     );
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
     expect(

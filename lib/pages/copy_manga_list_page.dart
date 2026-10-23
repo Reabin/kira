@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -11,11 +10,12 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
-import '../widgets/cover_placeholder.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 
@@ -417,22 +417,17 @@ class _CopyListComicCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Hero(
+            child: AppHero(
               tag: ComicHeroTags.cover(heroTagBase),
               createRectTween: ComicHeroTags.createRectTween,
               placeholderBuilder: (_, heroSize, _) =>
                   SizedBox(width: heroSize.width, height: heroSize.height),
               child: ComicCardSurface(
                 child: CoverBrightnessFilter(
-                  child: CachedNetworkImage(
-                    imageUrl: comic.cover,
-                    fit: BoxFit.cover,
+                  child: CoverImage(
+                    url: comic.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    fadeInDuration: Duration.zero,
-                    fadeOutDuration: Duration.zero,
-                    placeholder: (_, _) => const CoverPlaceholder(),
-                    errorWidget: (_, _, _) => const CoverPlaceholder.error(),
                   ),
                 ),
               ),

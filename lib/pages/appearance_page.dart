@@ -193,16 +193,6 @@ class _AppearancePageState extends State<AppearancePage>
     BottomNavLabelMode.always => l10n.appearanceBottomNavLabelModeAlways,
   };
 
-  String _bottomNavLabelModeDesc(
-    BottomNavLabelMode mode,
-    AppLocalizations l10n,
-  ) => switch (mode) {
-    BottomNavLabelMode.selectedOnly =>
-      l10n.appearanceBottomNavLabelModeSelectedOnlyDesc,
-    BottomNavLabelMode.hidden => l10n.appearanceBottomNavLabelModeHiddenDesc,
-    BottomNavLabelMode.always => l10n.appearanceBottomNavLabelModeAlwaysDesc,
-  };
-
   Future<void> _selectBottomNavLabelMode(BottomNavLabelMode mode) async {
     await _user.setBottomNavLabelMode(mode);
     if (!mounted ||
@@ -317,12 +307,6 @@ class _AppearancePageState extends State<AppearancePage>
         ListTile(
           leading: Icon(Icons.text_fields_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceBottomNavLabelMode),
-          // 与主题模式一致用下拉列表；选中项说明保留在副标题里，
-          // 免得「胶囊导航 / 经典导航」的差异只藏在弹层里。
-          subtitle: Text(
-            _bottomNavLabelModeDesc(_user.bottomNavLabelMode, l10n),
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           trailing: SelectTile<BottomNavLabelMode>(
             value: _user.bottomNavLabelMode,
             items: [
@@ -346,10 +330,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.layers_outlined, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceFloatingNavTitle),
-          subtitle: Text(
-            l10n.appearanceFloatingNavDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.floatingNavEnabled,
           onChanged: (value) =>
               unawaited(_user.theme.setFloatingNavEnabled(value)),
@@ -451,15 +431,13 @@ class _AppearancePageState extends State<AppearancePage>
 
     final appFontCard = _AppFontCard(user: _user);
 
+    // 阴影卡片不再要标题：滑块自己写着「统一阴影大小」。
     final shadowSection = SettingsSection(
-      icon: Icons.layers_outlined,
-      title: l10n.appearanceShadowTitle,
       child: Column(
         children: [
           _AppearanceSliderControl(
             icon: Icons.view_agenda_outlined,
             title: l10n.appearanceCardShadowSize,
-            description: l10n.appearanceCardShadowSizeDesc,
             valueText: cardShadowElevation.toStringAsFixed(1),
             value: cardShadowElevation,
             min: ThemeSettings.minCardShadowElevation,
@@ -480,7 +458,6 @@ class _AppearancePageState extends State<AppearancePage>
     final iconSection = SettingsSection(
       icon: Icons.switch_account_outlined,
       title: l10n.appearanceAppIcon,
-      description: l10n.appearanceAppIconRestartHint,
       child: Wrap(
         spacing: 16,
         runSpacing: 12,
@@ -656,10 +633,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.colorize_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceDynamicColor),
-          subtitle: Text(
-            l10n.appearanceDynamicColorDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.useDynamicColor,
           onChanged: (value) =>
               unawaited(_user.theme.setUseDynamicColor(value)),
@@ -667,12 +640,23 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.contrast_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceAmoledDark),
-          subtitle: Text(
-            l10n.appearanceAmoledDarkDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.amoledDark,
           onChanged: (value) => unawaited(_user.theme.setAmoledDark(value)),
+        ),
+      ],
+    );
+
+    // 动效开关：与系统无障碍设置取并集，影响页面切换、封面交叉淡化与骨架。
+    final motionSection = SettingTileGroup(
+      children: [
+        SwitchListTile(
+          secondary: Icon(
+            Icons.motion_photos_off_outlined,
+            color: cs.onSurfaceVariant,
+          ),
+          title: Text(l10n.appearanceReduceMotionTitle),
+          value: _user.theme.reduceMotion,
+          onChanged: (value) => unawaited(_user.theme.setReduceMotion(value)),
         ),
       ],
     );
@@ -715,6 +699,7 @@ class _AppearancePageState extends State<AppearancePage>
                     themeModeSection,
                     themeStyleSection,
                     colorOptionsSection,
+                    motionSection,
                   ]),
                 ),
               ),
@@ -735,6 +720,7 @@ class _AppearancePageState extends State<AppearancePage>
           themeModeSection,
           themeStyleSection,
           colorOptionsSection,
+          motionSection,
         ]),
       );
     }

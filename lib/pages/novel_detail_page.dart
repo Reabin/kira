@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,8 +23,10 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/comic_info_chips.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/cover_placeholder.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
@@ -738,22 +739,13 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         child: CoverBrightnessFilter(
           child: book.cover.isEmpty
               ? const CoverPlaceholder()
-              : CachedNetworkImage(
-                  imageUrl: book.cover,
-                  width: 120,
-                  height: 160,
-                  fit: BoxFit.cover,
-                  fadeInDuration: Duration.zero,
-                  fadeOutDuration: Duration.zero,
-                  placeholder: (_, _) => const CoverPlaceholder(),
-                  errorWidget: (_, _, _) => const CoverPlaceholder.error(),
-                ),
+              : CoverImage(url: book.cover, width: 120, height: 160),
         ),
       ),
     );
     final base = widget.heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: NovelHeroTags.cover(base),
       createRectTween: NovelHeroTags.createRectTween,
       placeholderBuilder: (_, heroSize, _) =>

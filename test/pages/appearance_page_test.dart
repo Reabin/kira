@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/l10n/app_localizations.dart';
+import 'package:kira/models/theme_settings.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/appearance_page.dart';
 import 'package:kira/utils/font_manager.dart';
@@ -126,6 +127,9 @@ void main() {
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
+    // 换过 mock 存储后必须丢掉旧的 SharedPreferences 实例，
+    // 否则子 store 的写入会落进上一个用例的内存表。
+    ThemeSettings().resetPrefsCache();
     await UserManager().init();
     directory = await Directory.systemTemp.createTemp(
       'kira_refresh_rate_test_',
@@ -524,7 +528,31 @@ void main() {
       find.descendant(of: tile, matching: find.text('不显示文字')),
       findsOneWidget,
     );
-    expect(find.text('胶囊导航，只显示图标'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('减少动画开关落盘并即时更新页面', (tester) async {
+    await _showPage(tester);
+    final tile = find.widgetWithText(SwitchListTile, '减少动画');
+    await tester.scrollUntilVisible(
+      tile,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(UserManager().theme.reduceMotion, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    // 重新载入仍是开启状态，说明写进了同一份偏好。
+    final prefs = await SharedPreferences.getInstance();
+    await UserManager().theme.initFromPrefs(prefs);
+    expect(UserManager().theme.reduceMotion, isTrue);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

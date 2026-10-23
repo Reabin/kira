@@ -178,6 +178,21 @@ void main() {
     expect(settings.cardShadowElevation, ThemeSettings.minCardShadowElevation);
   });
 
+  test('reduce motion defaults off and persists when toggled', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await settings.initFromPrefs(prefs);
+
+    expect(settings.reduceMotion, isFalse);
+
+    await settings.setReduceMotion(true);
+    expect(settings.reduceMotion, isTrue);
+    expect(prefs.getBool('reduce_motion'), isTrue);
+
+    await settings.initFromPrefs(prefs);
+    expect(settings.reduceMotion, isTrue);
+  });
+
   test(
     'loads a clamped card shadow elevation and notifies on change',
     () async {

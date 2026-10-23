@@ -3,7 +3,6 @@ part of '../appearance_page.dart';
 class _AppearanceSliderControl extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String description;
   final String valueText;
   final double value;
   final double min;
@@ -15,7 +14,6 @@ class _AppearanceSliderControl extends StatelessWidget {
   const _AppearanceSliderControl({
     required this.icon,
     required this.title,
-    required this.description,
     required this.valueText,
     required this.value,
     required this.min,
@@ -43,16 +41,7 @@ class _AppearanceSliderControl extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: textTheme.titleSmall),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                  children: [Text(title, style: textTheme.titleSmall)],
                 ),
               ),
               const SizedBox(width: AppSpacing.md),

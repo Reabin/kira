@@ -1327,35 +1327,17 @@ abstract class AppLocalizations {
   /// **'选中时显示'**
   String get appearanceBottomNavLabelModeSelectedOnly;
 
-  /// No description provided for @appearanceBottomNavLabelModeSelectedOnlyDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'胶囊导航，仅选中项显示文字'**
-  String get appearanceBottomNavLabelModeSelectedOnlyDesc;
-
   /// No description provided for @appearanceBottomNavLabelModeHidden.
   ///
   /// In zh, this message translates to:
   /// **'不显示文字'**
   String get appearanceBottomNavLabelModeHidden;
 
-  /// No description provided for @appearanceBottomNavLabelModeHiddenDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'胶囊导航，只显示图标'**
-  String get appearanceBottomNavLabelModeHiddenDesc;
-
   /// No description provided for @appearanceBottomNavLabelModeAlways.
   ///
   /// In zh, this message translates to:
   /// **'始终显示文字'**
   String get appearanceBottomNavLabelModeAlways;
-
-  /// No description provided for @appearanceBottomNavLabelModeAlwaysDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'经典导航，文字显示在图标下方'**
-  String get appearanceBottomNavLabelModeAlwaysDesc;
 
   /// No description provided for @appearanceFloatingNavLabelModeHint.
   ///
@@ -1390,26 +1372,14 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceFloatingNavTitle.
   ///
   /// In zh, this message translates to:
-  /// **'悬浮底部导航栏'**
+  /// **'悬浮导航栏'**
   String get appearanceFloatingNavTitle;
-
-  /// No description provided for @appearanceFloatingNavDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'关闭后导航栏固定在页面底部'**
-  String get appearanceFloatingNavDesc;
 
   /// No description provided for @appearanceAppIcon.
   ///
   /// In zh, this message translates to:
   /// **'应用图标'**
   String get appearanceAppIcon;
-
-  /// No description provided for @appearanceAppIconRestartHint.
-  ///
-  /// In zh, this message translates to:
-  /// **'更换后重启应用生效'**
-  String get appearanceAppIconRestartHint;
 
   /// No description provided for @appearanceRefreshRateTitle.
   ///
@@ -1453,35 +1423,17 @@ abstract class AppLocalizations {
   /// **'暗色模式下降低各个界面的卡片封面亮度'**
   String get appearanceDarkCoverBrightnessDesc;
 
-  /// No description provided for @appearanceShadowTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'阴影'**
-  String get appearanceShadowTitle;
-
   /// No description provided for @appearanceCardShadowSize.
   ///
   /// In zh, this message translates to:
   /// **'统一阴影大小'**
   String get appearanceCardShadowSize;
 
-  /// No description provided for @appearanceCardShadowSizeDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'统一调整应用内普通卡片的阴影大小'**
-  String get appearanceCardShadowSizeDesc;
-
   /// No description provided for @appearanceDefaultFontSize.
   ///
   /// In zh, this message translates to:
-  /// **'默认字体大小'**
+  /// **'应用字体大小'**
   String get appearanceDefaultFontSize;
-
-  /// No description provided for @appearanceDefaultFontSizeDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'当前默认正文为 14；标题与辅助文字会按比例调整'**
-  String get appearanceDefaultFontSizeDesc;
 
   /// No description provided for @appearanceThemeStyle.
   ///
@@ -1513,23 +1465,17 @@ abstract class AppLocalizations {
   /// **'动态颜色'**
   String get appearanceDynamicColor;
 
-  /// No description provided for @appearanceDynamicColorDesc.
-  ///
-  /// In zh, this message translates to:
-  /// **'基于壁纸动态生成主题配色（Android 12+，开启后忽略上方主题配色）'**
-  String get appearanceDynamicColorDesc;
-
   /// No description provided for @appearanceAmoledDark.
   ///
   /// In zh, this message translates to:
   /// **'AMOLED 纯黑模式'**
   String get appearanceAmoledDark;
 
-  /// No description provided for @appearanceAmoledDarkDesc.
+  /// No description provided for @appearanceReduceMotionTitle.
   ///
   /// In zh, this message translates to:
-  /// **'在暗色主题中使用纯黑背景'**
-  String get appearanceAmoledDarkDesc;
+  /// **'减少动画'**
+  String get appearanceReduceMotionTitle;
 
   /// No description provided for @appearanceRefreshRateRequested.
   ///
@@ -1614,6 +1560,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'应用字体'**
   String get appearanceAppFont;
+
+  /// No description provided for @appearanceDesktopFont.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统字体'**
+  String get appearanceDesktopFont;
 
   /// No description provided for @appearanceSystemDefault.
   ///

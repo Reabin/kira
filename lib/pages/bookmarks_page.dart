@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +15,7 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
+import '../widgets/cover_image.dart';
 import 'novel_bookmarks_page.dart';
 
 /// 本地书签按漫画/轻小说分开管理，清空只影响当前类型。
@@ -844,13 +844,10 @@ class _BookmarkCover extends StatelessWidget {
       borderRadius: AppRadius.smR,
       child: CoverBrightnessFilter(
         child: coverUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: coverUrl,
-                fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (_, _) => _placeholder(cs),
-                errorWidget: (_, _, _) => _placeholder(cs, error: true),
+            ? CoverImage(
+                url: coverUrl,
+                placeholder: _placeholder(cs),
+                errorWidget: _placeholder(cs, error: true),
               )
             : _placeholder(cs),
       ),

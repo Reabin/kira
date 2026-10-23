@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
@@ -12,7 +11,9 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/time_format.dart';
+import 'app_hero.dart';
 import 'comic_card_surface.dart';
+import 'cover_image.dart';
 import 'cover_placeholder.dart';
 import 'novel_hero_tags.dart';
 
@@ -48,15 +49,10 @@ class NovelCover extends StatelessWidget {
     } else {
       image = url.isEmpty
           ? const CoverPlaceholder()
-          : CachedNetworkImage(
-              imageUrl: url,
+          : CoverImage(
+              url: url,
               width: double.infinity,
               height: double.infinity,
-              fit: BoxFit.cover,
-              fadeInDuration: Duration.zero,
-              fadeOutDuration: Duration.zero,
-              placeholder: (_, _) => const CoverPlaceholder(),
-              errorWidget: (_, _, _) => const CoverPlaceholder.error(),
             );
     }
     final cover = CoverBrightnessFilter(child: image);
@@ -87,7 +83,7 @@ class NovelBookCard extends StatelessWidget {
   Widget _buildHero(Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: NovelHeroTags.cover(base),
       createRectTween: NovelHeroTags.createRectTween,
       placeholderBuilder: (_, heroSize, _) =>

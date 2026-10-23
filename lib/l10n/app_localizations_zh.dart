@@ -683,19 +683,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceBottomNavLabelModeSelectedOnly => '选中时显示';
 
   @override
-  String get appearanceBottomNavLabelModeSelectedOnlyDesc => '胶囊导航，仅选中项显示文字';
-
-  @override
   String get appearanceBottomNavLabelModeHidden => '不显示文字';
 
   @override
-  String get appearanceBottomNavLabelModeHiddenDesc => '胶囊导航，只显示图标';
-
-  @override
   String get appearanceBottomNavLabelModeAlways => '始终显示文字';
-
-  @override
-  String get appearanceBottomNavLabelModeAlwaysDesc => '经典导航，文字显示在图标下方';
 
   @override
   String get appearanceFloatingNavLabelModeHint => '悬浮底栏不支持始终显示文字，已改为选中时显示';
@@ -713,16 +704,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceNavSwipeDesc => '关闭后只能点击底部导航按钮切换页面';
 
   @override
-  String get appearanceFloatingNavTitle => '悬浮底部导航栏';
-
-  @override
-  String get appearanceFloatingNavDesc => '关闭后导航栏固定在页面底部';
+  String get appearanceFloatingNavTitle => '悬浮导航栏';
 
   @override
   String get appearanceAppIcon => '应用图标';
-
-  @override
-  String get appearanceAppIconRestartHint => '更换后重启应用生效';
 
   @override
   String get appearanceRefreshRateTitle => '屏幕刷新率';
@@ -746,19 +731,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceDarkCoverBrightnessDesc => '暗色模式下降低各个界面的卡片封面亮度';
 
   @override
-  String get appearanceShadowTitle => '阴影';
-
-  @override
   String get appearanceCardShadowSize => '统一阴影大小';
 
   @override
-  String get appearanceCardShadowSizeDesc => '统一调整应用内普通卡片的阴影大小';
-
-  @override
-  String get appearanceDefaultFontSize => '默认字体大小';
-
-  @override
-  String get appearanceDefaultFontSizeDesc => '当前默认正文为 14；标题与辅助文字会按比例调整';
+  String get appearanceDefaultFontSize => '应用字体大小';
 
   @override
   String get appearanceThemeStyle => '主题风格';
@@ -778,14 +754,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceDynamicColor => '动态颜色';
 
   @override
-  String get appearanceDynamicColorDesc =>
-      '基于壁纸动态生成主题配色（Android 12+，开启后忽略上方主题配色）';
-
-  @override
   String get appearanceAmoledDark => 'AMOLED 纯黑模式';
 
   @override
-  String get appearanceAmoledDarkDesc => '在暗色主题中使用纯黑背景';
+  String get appearanceReduceMotionTitle => '减少动画';
 
   @override
   String appearanceRefreshRateRequested(String rate) {
@@ -842,6 +814,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceAppFont => '应用字体';
+
+  @override
+  String get appearanceDesktopFont => '系统字体';
 
   @override
   String get appearanceSystemDefault => '系统默认';
@@ -4890,19 +4865,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceBottomNavLabelModeSelectedOnly => '選中時顯示';
 
   @override
-  String get appearanceBottomNavLabelModeSelectedOnlyDesc => '膠囊導覽，僅選中項顯示文字';
-
-  @override
   String get appearanceBottomNavLabelModeHidden => '不顯示文字';
 
   @override
-  String get appearanceBottomNavLabelModeHiddenDesc => '膠囊導覽，只顯示圖示';
-
-  @override
   String get appearanceBottomNavLabelModeAlways => '始終顯示文字';
-
-  @override
-  String get appearanceBottomNavLabelModeAlwaysDesc => '經典導覽，文字顯示在圖示下方';
 
   @override
   String get appearanceFloatingNavLabelModeHint => '懸浮底欄不支援始終顯示文字，已改為選中時顯示';
@@ -4920,16 +4886,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceNavSwipeDesc => '關閉後只能點擊底部導覽按鈕切換頁面';
 
   @override
-  String get appearanceFloatingNavTitle => '懸浮底部導覽列';
-
-  @override
-  String get appearanceFloatingNavDesc => '關閉後導覽列固定在頁面底部';
+  String get appearanceFloatingNavTitle => '懸浮導覽列';
 
   @override
   String get appearanceAppIcon => '應用圖示';
-
-  @override
-  String get appearanceAppIconRestartHint => '更換後重啟應用生效';
 
   @override
   String get appearanceRefreshRateTitle => '螢幕重新整理率';
@@ -4953,19 +4913,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceDarkCoverBrightnessDesc => '暗色模式下降低各個介面的卡片封面亮度';
 
   @override
-  String get appearanceShadowTitle => '陰影';
-
-  @override
   String get appearanceCardShadowSize => '統一陰影大小';
 
   @override
-  String get appearanceCardShadowSizeDesc => '統一調整應用內一般卡片的陰影大小';
-
-  @override
-  String get appearanceDefaultFontSize => '預設字型大小';
-
-  @override
-  String get appearanceDefaultFontSizeDesc => '目前預設正文為 14；標題與輔助文字會按比例調整';
+  String get appearanceDefaultFontSize => '應用字型大小';
 
   @override
   String get appearanceThemeStyle => '主題風格';
@@ -4985,14 +4936,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceDynamicColor => '動態顏色';
 
   @override
-  String get appearanceDynamicColorDesc =>
-      '基於桌布動態生成主題配色（Android 12+，開啟後忽略上方主題配色）';
-
-  @override
   String get appearanceAmoledDark => 'AMOLED 純黑模式';
 
   @override
-  String get appearanceAmoledDarkDesc => '在暗色主題中使用純黑背景';
+  String get appearanceReduceMotionTitle => '減少動畫';
 
   @override
   String appearanceRefreshRateRequested(String rate) {
@@ -5049,6 +4996,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceAppFont => '應用字型';
+
+  @override
+  String get appearanceDesktopFont => '系統字型';
 
   @override
   String get appearanceSystemDefault => '系統預設';

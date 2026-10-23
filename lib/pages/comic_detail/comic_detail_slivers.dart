@@ -18,21 +18,14 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                 ClipRRect(
                   borderRadius: AppRadius.mdR,
                   child: CoverBrightnessFilter(
-                    child: CachedNetworkImage(
-                      imageUrl: comic.cover,
+                    child: CoverImage(
+                      url: comic.cover,
                       width: 120,
                       height: 160,
-                      fit: BoxFit.cover,
-                      fadeInDuration: Duration.zero,
-                      fadeOutDuration: Duration.zero,
-                      placeholder: (_, _) => Container(
-                        width: 120,
-                        height: 160,
+                      placeholder: ColoredBox(
                         color: cs.surfaceContainerHighest,
                       ),
-                      errorWidget: (_, _, _) => Container(
-                        width: 120,
-                        height: 160,
+                      errorWidget: Container(
                         color: cs.surfaceContainerHighest,
                         child: Icon(
                           Icons.broken_image,

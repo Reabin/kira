@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
@@ -26,8 +25,10 @@ import '../utils/novel_download_manager.dart';
 import '../utils/reading_history.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/comic_info_chips.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import 'comic_comments_sheet.dart';
@@ -107,6 +108,13 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   bool _briefExpanded = false;
   bool _reversed = false;
   bool _isCollected = false;
+
+  /// 服务端收藏态是否仍在加载。与轻小说详情一致：未确认前按钮禁用，
+  /// 不能拿缓存里的旧值直接就当权威状态去翻转。
+  bool _collectStateLoading = true;
+
+  /// 收藏请求是否在飞：防止连点发出多个切换请求。
+  bool _collecting = false;
   bool _selectionMode = false;
   Chapter? _nextBrowseChapter;
   int? _nextBrowseChapterListPage;
@@ -364,6 +372,8 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         setState(() {
           _loadingComic = false;
           _refreshingComic = false;
+          // 加载中途失败时 _loadCollectState 可能压根没跑到，别把按钮锁死。
+          _collectStateLoading = false;
           _comicError = NetworkError.message(e);
         });
       }
@@ -371,6 +381,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   }
 
   Future<void> _loadCollectState() async {
+    if (mounted) setState(() => _collectStateLoading = true);
     try {
       final query = await _api.manga.getComicQuery(widget.pathWord);
       if (!mounted) return;
@@ -384,6 +395,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           source: 'comic_detail.load_collect_state',
         ),
       );
+    } finally {
+      // 失败也要放开：按钮不能被永久禁用。
+      if (mounted) setState(() => _collectStateLoading = false);
     }
   }
 

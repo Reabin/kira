@@ -57,13 +57,13 @@ class ThemeSettings extends PrefsStore {
   static const _keyBackExitConfirm = 'back_exit_confirm';
   static const _keyShowNovel = 'nav_show_novel';
   static const _keyLastNavKey = 'last_nav_key';
-  static const _keyDesktopFontFamily = 'desktop_font_family';
   static const _keyAppFontFamily = 'app_font_family';
   static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
   static const _keyLogoIndex = 'logo_index';
   static const _keyBannerVisible = 'banner_visible';
   static const _keyUseDynamicColor = 'use_dynamic_color';
   static const _keyAmoledDark = 'amoled_dark';
+  static const _keyReduceMotion = 'reduce_motion';
 
   // ── Fields ─────────────────────────────────────────────────────────
 
@@ -81,13 +81,13 @@ class ThemeSettings extends PrefsStore {
   bool _backExitConfirm = true;
   bool _showNovel = true;
   String _lastNavKey = defaultNavKey;
-  String _desktopFontFamily = '';
   String _appFontFamily = '';
   int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
   int _logoIndex = 1;
   bool _bannerVisible = true;
   bool _useDynamicColor = false;
   bool _amoledDark = false;
+  bool _reduceMotion = false;
 
   // ── Getters ────────────────────────────────────────────────────────
 
@@ -122,7 +122,6 @@ class ThemeSettings extends PrefsStore {
   /// 是否展示轻小说入口（底部导航、书架等 tab 与各处入口）。
   bool get showNovel => _showNovel;
   String get lastNavKey => _lastNavKey;
-  String get desktopFontFamily => _desktopFontFamily;
   String get appFontFamily => _appFontFamily;
   int get displayModeRefreshRate => _displayModeRefreshRate;
   int get logoIndex => _logoIndex;
@@ -133,6 +132,10 @@ class ThemeSettings extends PrefsStore {
 
   /// Pure-black background in dark mode for OLED screens.
   bool get amoledDark => _amoledDark;
+
+  /// App-level "reduce motion" switch. It is OR-ed with the system setting so
+  /// turning it on skips transitions even when the OS preference is off.
+  bool get reduceMotion => _reduceMotion;
 
   AppThemeOption get themeOption {
     if (_themeColor == customThemeOptionId) {
@@ -202,7 +205,6 @@ class ThemeSettings extends PrefsStore {
         savedLastNavKey != _lastNavKey) {
       await prefs.setString(_keyLastNavKey, _lastNavKey);
     }
-    _desktopFontFamily = prefs.getString(_keyDesktopFontFamily) ?? '';
     _appFontFamily = prefs.getString(_keyAppFontFamily) ?? '';
     _displayModeRefreshRate = _normalizeDisplayModeRefreshRate(
       prefs.getInt(_keyDisplayModeRefreshRate),
@@ -214,6 +216,7 @@ class ThemeSettings extends PrefsStore {
     _bannerVisible = prefs.getBool(_keyBannerVisible) ?? true;
     _useDynamicColor = prefs.getBool(_keyUseDynamicColor) ?? false;
     _amoledDark = prefs.getBool(_keyAmoledDark) ?? false;
+    _reduceMotion = prefs.getBool(_keyReduceMotion) ?? false;
   }
 
   // ── Setters ────────────────────────────────────────────────────────
@@ -350,16 +353,6 @@ class ThemeSettings extends PrefsStore {
     await setString(_keyLastNavKey, nextKey, notify: false);
   }
 
-  Future<void> setDesktopFontFamily(String fontFamily) async {
-    if (_desktopFontFamily == fontFamily) return;
-    _desktopFontFamily = fontFamily;
-    if (fontFamily.isEmpty) {
-      await remove(_keyDesktopFontFamily);
-    } else {
-      await setString(_keyDesktopFontFamily, fontFamily);
-    }
-  }
-
   Future<void> setAppFontFamily(String fontFamily) async {
     final next = fontFamily == FontManager.defaultFontId ? '' : fontFamily;
     if (_appFontFamily == next) return;
@@ -394,6 +387,12 @@ class ThemeSettings extends PrefsStore {
     if (_amoledDark == enabled) return;
     _amoledDark = enabled;
     await setBool(_keyAmoledDark, enabled);
+  }
+
+  Future<void> setReduceMotion(bool enabled) async {
+    if (_reduceMotion == enabled) return;
+    _reduceMotion = enabled;
+    await setBool(_keyReduceMotion, enabled);
   }
 
   // ── Normalizers ────────────────────────────────────────────────────

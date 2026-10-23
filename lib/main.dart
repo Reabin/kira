@@ -570,6 +570,9 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
           mediaQuery.textScaler,
           fontSizeFactor,
         ),
+        // 应用内开关与系统「减少动画」取并集：任一侧开启都跳过动效。
+        disableAnimations:
+            mediaQuery.disableAnimations || _user.theme.reduceMotion,
       ),
       child: child ?? const SizedBox.shrink(),
     );

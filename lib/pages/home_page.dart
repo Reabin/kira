@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,10 +21,11 @@ import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/time_format.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/branch_bottom_slack.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
-import '../widgets/cover_placeholder.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/section_header.dart';
 

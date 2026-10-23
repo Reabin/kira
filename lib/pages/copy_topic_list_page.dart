@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,7 +14,7 @@ import '../utils/app_logger.dart';
 import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../widgets/back_to_top_button.dart';
-import '../widgets/cover_placeholder.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 
@@ -253,17 +252,7 @@ class _CopyTopicCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 3.72,
-              child: CachedNetworkImage(
-                imageUrl: topic.cover,
-                fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (_, _) => const CoverPlaceholder(),
-                errorWidget: (_, _, _) => const CoverPlaceholder.error(),
-              ),
-            ),
+            AspectRatio(aspectRatio: 3.72, child: CoverImage(url: topic.cover)),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Row(

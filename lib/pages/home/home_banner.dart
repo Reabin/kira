@@ -203,15 +203,10 @@ class _MangaBannerCard extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             CoverBrightnessFilter(
-              child: CachedNetworkImage(
-                imageUrl: item.cover,
-                fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (_, _) =>
-                    const _ImagePlaceholder(icon: Icons.book),
-                errorWidget: (_, _, _) =>
-                    const _ImagePlaceholder(icon: Icons.broken_image),
+              child: CoverImage(
+                url: item.cover,
+                placeholder: const _ImagePlaceholder(icon: Icons.book),
+                errorWidget: const _ImagePlaceholder(icon: Icons.broken_image),
               ),
             ),
             DecoratedBox(

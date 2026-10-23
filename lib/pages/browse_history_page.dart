@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,8 +22,10 @@ import '../utils/novel_reading_store.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
@@ -584,7 +585,7 @@ class _ComicBrowseHistoryCard extends StatelessWidget {
     String Function(String base) tagOf,
     Widget child,
   ) {
-    return Hero(
+    return AppHero(
       tag: tagOf(heroTagBase),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,
@@ -730,18 +731,15 @@ class _HistoryCover extends StatelessWidget {
     return ClipRRect(
       borderRadius: AppRadius.mdR,
       child: CoverBrightnessFilter(
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          fadeInDuration: Duration.zero,
-          fadeOutDuration: Duration.zero,
-          placeholder: (_, _) => Container(
+        child: CoverImage(
+          url: imageUrl,
+          placeholder: Container(
             color: cs.surfaceContainerHighest,
             child: Center(
               child: Icon(icon, color: cs.onSurfaceVariant, size: 28),
             ),
           ),
-          errorWidget: (_, _, _) => Container(
+          errorWidget: Container(
             color: cs.surfaceContainerHighest,
             child: Center(
               child: Icon(
@@ -1016,9 +1014,7 @@ class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
       if (mounted) {
         showToast(
           context,
-          l10n.novelHistoryDeleteFailedDetail(
-            NetworkError.message(e),
-          ),
+          l10n.novelHistoryDeleteFailedDetail(NetworkError.message(e)),
           isError: true,
         );
       }

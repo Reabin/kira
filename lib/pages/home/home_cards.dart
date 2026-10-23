@@ -78,15 +78,10 @@ class _MangaCard extends StatelessWidget {
                 ComicHeroTags.cover,
                 ComicCardSurface(
                   child: CoverBrightnessFilter(
-                    child: CachedNetworkImage(
-                      imageUrl: comic.cover,
-                      fit: BoxFit.cover,
+                    child: CoverImage(
+                      url: comic.cover,
                       width: width,
                       height: double.infinity,
-                      fadeInDuration: Duration.zero,
-                      fadeOutDuration: Duration.zero,
-                      placeholder: (_, _) => const CoverPlaceholder(),
-                      errorWidget: (_, _, _) => const CoverPlaceholder.error(),
                     ),
                   ),
                 ),
@@ -136,7 +131,7 @@ class _MangaCard extends StatelessWidget {
   Widget _hero(String Function(String base) tagOf, Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,
@@ -227,15 +222,10 @@ class ComicCard extends StatelessWidget {
               ComicHeroTags.cover,
               ComicCardSurface(
                 child: CoverBrightnessFilter(
-                  child: CachedNetworkImage(
-                    imageUrl: comic.cover,
-                    fit: BoxFit.cover,
+                  child: CoverImage(
+                    url: comic.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    fadeInDuration: Duration.zero,
-                    fadeOutDuration: Duration.zero,
-                    placeholder: (_, _) => const CoverPlaceholder(),
-                    errorWidget: (_, _, _) => const CoverPlaceholder.error(),
                   ),
                 ),
               ),
@@ -278,7 +268,7 @@ class ComicCard extends StatelessWidget {
   Widget _hero(String Function(String base) tagOf, Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,

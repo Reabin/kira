@@ -62,6 +62,7 @@ class _ReaderBottomBar extends StatelessWidget {
             context,
             const Duration(milliseconds: 200),
           ),
+          curve: adaptiveCurve(context, Curves.easeOutCubic),
           offset: Offset(0, showToolbar ? 0 : slideOffset),
           child: Container(
             color: ReaderChrome.surface,

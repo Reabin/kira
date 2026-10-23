@@ -270,7 +270,6 @@ class _AppFontCardState extends State<_AppFontCard> {
             child: _AppearanceSliderControl(
               icon: Icons.format_size_rounded,
               title: l10n.appearanceDefaultFontSize,
-              description: l10n.appearanceDefaultFontSizeDesc,
               valueText: defaultFontSize.toStringAsFixed(0),
               value: defaultFontSize,
               min: ThemeSettings.minDefaultFontSize,

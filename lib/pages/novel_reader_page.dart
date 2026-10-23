@@ -20,6 +20,7 @@ import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
 import '../theme/novel_reader_theme.dart';
 import '../theme/reader_chrome.dart';
+import '../utils/adaptive_motion.dart';
 import '../utils/app_logger.dart';
 import '../utils/novel_bookmark_store.dart';
 import '../utils/novel_reading_store.dart';
@@ -120,6 +121,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   bool _volumeChannelAvailable = true;
   bool _loading = true;
   bool _toolbarVisible = true;
+
+  /// 工具栏滑出屏幕的位移倍数（留一点余量，避免边缘露出）。
+  static const _hiddenToolbarSlideOffset = 1.05;
 
   /// 短暂高亮的书签段落；定时自动清除，滚动或跳转提前清除。
   static const _highlightDuration = Duration(milliseconds: 2500);
@@ -256,6 +260,21 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } else {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
+  }
+
+  /// 工具栏显隐过渡：隐藏时滑出屏幕，并交回点击（隐藏态不拦正文手势）。
+  /// 时长走 [adaptiveDuration]，开启「减少动画」时直接切换。
+  Widget _slideOnToolbar(Widget child, {required bool fromTop}) {
+    final hiddenOffset = _hiddenToolbarSlideOffset * (fromTop ? -1 : 1);
+    return IgnorePointer(
+      ignoring: !_toolbarVisible,
+      child: AnimatedSlide(
+        duration: adaptiveDuration(context, const Duration(milliseconds: 200)),
+        curve: adaptiveCurve(context, Curves.easeOutCubic),
+        offset: Offset(0, _toolbarVisible ? 0 : hiddenOffset),
+        child: child,
+      ),
+    );
   }
 
   /// 工具栏书签按钮的参照段落：视口垂直中点覆盖的段落（阅读习惯以
@@ -1093,15 +1112,19 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       // 层，viewport 尺寸恒定，不会触发 anchor restoration。
                       body,
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
-                      if (_toolbarVisible) ...[
-                        Positioned(top: 0, left: 0, right: 0, child: header),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: toolbar,
-                        ),
-                      ],
+                      // 显隐都留在树里做滑动过渡（与漫画阅读器同一套规则）。
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _slideOnToolbar(header, fromTop: true),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: _slideOnToolbar(toolbar, fromTop: false),
+                      ),
                     ],
                   )
                 // Loading / retry actions remain outside the chrome so they
