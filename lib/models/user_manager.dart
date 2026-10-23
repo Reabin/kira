@@ -109,8 +109,6 @@ class UserManager extends ChangeNotifier {
   static const _keyThemeVariant = 'theme_variant';
   static const _keyCustomThemeColor = 'custom_theme_color';
   static const _keyDarkModeCoverBrightness = 'dark_mode_cover_brightness';
-  static const _keyBottomNavShowLabels = 'bottom_nav_show_labels';
-  static const _keyBottomNavLabelMode = 'bottom_nav_label_mode';
   static const _keyDesktopFontFamily = 'desktop_font_family';
   static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
   static const _keyBookshelfOrdering = 'bookshelf_ordering';
@@ -135,9 +133,6 @@ class UserManager extends ChangeNotifier {
       'image_viewer_landscape_rotation';
   static const _keyImageLoadTimeout = 'image_load_timeout';
   static const _keyImageRetryCount = 'image_retry_count';
-  static const _keyCommentCompactLayout = 'comment_compact_layout';
-  static const _keyCommentPreload = 'comment_preload';
-  static const _keyCommentAutoLoadAll = 'comment_auto_load_all';
   static const _keyAutoCheckUpdate = 'auto_check_update';
   static const _keySkippedUpdateVersion = 'skipped_update_version';
   static const _keyUpdateMirrorPrefix = 'update_mirror_prefix';
@@ -149,7 +144,6 @@ class UserManager extends ChangeNotifier {
   static const _keyApiRoute = 'api_route';
   static const _keyRemoteNoticeEnabled = 'remote_notice_enabled';
   static const _keyLocale = 'locale';
-  static const _keyBannerVisible = 'banner_visible';
   static const _keyMangaHomeSource = 'manga_home_source';
   static const _keyDiscoverSource = 'discover_source';
   static const _keySearchTabIndex = 'search_tab_index';
@@ -185,7 +179,6 @@ class UserManager extends ChangeNotifier {
   DynamicSchemeVariant _themeVariant = appThemeVariantOptions.first.variant;
   int _customThemeColorValue = defaultCustomThemeColor.toARGB32();
   double _darkModeCoverBrightness = defaultDarkModeCoverBrightness;
-  BottomNavLabelMode _bottomNavLabelMode = BottomNavLabelMode.selectedOnly;
   String _desktopFontFamily = '';
   int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
   String _bookshelfOrdering = ApiOrdering.datetimeUpdated;
@@ -208,9 +201,6 @@ class UserManager extends ChangeNotifier {
   int _imageViewerLandscapeRotation = 1;
   int _imageLoadTimeout = 15; // 秒
   int _imageRetryCount = 1;
-  bool _commentCompactLayout = true;
-  bool _commentPreload = true;
-  bool _commentAutoLoadAll = false;
   bool _autoCheckUpdate = true;
   String? _skippedUpdateVersion;
   String _updateMirrorPrefix = defaultUpdateMirrorPrefix;
@@ -226,7 +216,6 @@ class UserManager extends ChangeNotifier {
 
   /// '' = follow system, 'zh' = Simplified, 'zh-Hant' = Traditional.
   String _locale = '';
-  bool _bannerVisible = true;
   String _mangaHomeSource = 'hot';
 
   /// 「发现」页自己的数据源，与首页互不影响。
@@ -274,11 +263,10 @@ class UserManager extends ChangeNotifier {
   DynamicSchemeVariant get themeVariant => _themeVariant;
   Color get customThemeColor => Color(_customThemeColorValue);
   double get darkModeCoverBrightness => _darkModeCoverBrightness;
-  BottomNavLabelMode get bottomNavLabelMode => _bottomNavLabelMode;
+  BottomNavLabelMode get bottomNavLabelMode => theme.bottomNavLabelMode;
 
   /// Compatibility: true when labels are not fully hidden.
-  bool get bottomNavShowLabels =>
-      _bottomNavLabelMode != BottomNavLabelMode.hidden;
+  bool get bottomNavShowLabels => theme.bottomNavShowLabels;
   List<String> get navOrder => theme.navOrder;
   bool get showNovel => theme.showNovel;
   String get lastNavKey => theme.lastNavKey;
@@ -321,7 +309,7 @@ class UserManager extends ChangeNotifier {
   int get imageViewerLandscapeRotation => _imageViewerLandscapeRotation;
   int get imageLoadTimeout => _imageLoadTimeout;
   int get imageRetryCount => _imageRetryCount;
-  bool get commentCompactLayout => _commentCompactLayout;
+  bool get commentCompactLayout => comment.compactLayout;
   bool get commentShowAvatar => comment.showAvatar;
   bool get commentShowUserName => comment.showUserName;
   bool get commentShowTime => comment.showTime;
@@ -329,8 +317,8 @@ class UserManager extends ChangeNotifier {
   /// 委托给 [comment]。子 store 的 notifyListeners 会经
   /// _onSubStoreChanged 转发到本 facade 的监听者。
   double get commentFontScale => comment.fontScale;
-  bool get commentPreload => _commentPreload;
-  bool get commentAutoLoadAll => _commentAutoLoadAll;
+  bool get commentPreload => comment.preload;
+  bool get commentAutoLoadAll => comment.autoLoadAll;
   bool get autoCheckUpdate => _autoCheckUpdate;
   String? get skippedUpdateVersion => _skippedUpdateVersion;
   String get updateMirrorPrefix => _updateMirrorPrefix;
@@ -355,7 +343,7 @@ class UserManager extends ChangeNotifier {
 
   /// '' = follow system, 'zh' = 简体中文, 'zh-Hant' = 繁體中文
   String get locale => _locale;
-  bool get bannerVisible => _bannerVisible;
+  bool get bannerVisible => theme.bannerVisible;
   String get mangaHomeSource => _mangaHomeSource;
 
   /// 「发现」页当前数据源，独立于 [mangaHomeSource]。
@@ -666,34 +654,6 @@ class UserManager extends ChangeNotifier {
     return value
         .clamp(minDarkModeCoverBrightness, maxDarkModeCoverBrightness)
         .toDouble();
-  }
-
-  /// Prefer the new string key; fall back to the legacy bool for upgrades.
-  static BottomNavLabelMode _loadBottomNavLabelMode(SharedPreferences prefs) {
-    final saved = prefs.getString(_keyBottomNavLabelMode);
-    var mode = BottomNavLabelMode.selectedOnly;
-    if (saved != null) {
-      for (final candidate in BottomNavLabelMode.values) {
-        if (candidate.name == saved) {
-          mode = candidate;
-          break;
-        }
-      }
-    } else {
-      // Upgrades: old "show labels" becomes the new capsule selected-only
-      // mode so users pick up the new bar without staying on classic always.
-      final legacy = prefs.getBool(_keyBottomNavShowLabels);
-      mode = legacy == false
-          ? BottomNavLabelMode.hidden
-          : BottomNavLabelMode.selectedOnly;
-    }
-    // 悬浮底栏是浮在内容上的胶囊，与「始终显示文字」的满宽不透明条互斥；
-    // 旧数据可能两者同时开着，这里按 setter 的规则降到选中项显示。
-    if (mode == BottomNavLabelMode.always &&
-        (prefs.getBool('nav_floating_enabled') ?? true)) {
-      return BottomNavLabelMode.selectedOnly;
-    }
-    return mode;
   }
 
   static int _normalizeDisplayModeRefreshRate(int? refreshRate) {

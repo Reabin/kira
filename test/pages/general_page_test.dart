@@ -12,12 +12,42 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({
       'user_token': 'token',
       'saved_username': 'alice',
       'saved_password': 'secret',
       'auto_login': true,
     });
+  });
+
+  tearDown(teardownSecureCredentialStoreForTest);
+
+  testWidgets('Banner 开关与子 store 双向同步并即时刷新', (tester) async {
+    final user = UserManager();
+    await user.init();
+    await tester.pumpWidget(
+      wrapWithApp(const GeneralPage(), wrapInScaffold: false),
+    );
+    await tester.pumpAndSettle();
+    final tile = find.widgetWithText(SwitchListTile, '显示Banner');
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(user.bannerVisible, isFalse);
+    expect(user.theme.bannerVisible, isFalse);
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('banner_visible'), isFalse);
+
+    await user.theme.setBannerVisible(true);
+    await tester.pumpAndSettle();
+    expect(user.bannerVisible, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(prefs.getBool('banner_visible'), isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('reset app requires exact confirmation text', (tester) async {

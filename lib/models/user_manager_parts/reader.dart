@@ -143,12 +143,8 @@ extension UserManagerReaderPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setCommentCompactLayout(bool compact) async {
-    _commentCompactLayout = compact;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentCompactLayout, compact);
-    _notifyListeners();
-  }
+  Future<void> setCommentCompactLayout(bool compact) =>
+      comment.setCompactLayout(compact);
 
   Future<void> setCommentShowAvatar(bool enabled) =>
       comment.setShowAvatar(enabled);
@@ -162,17 +158,8 @@ extension UserManagerReaderPart on UserManager {
   /// _onSubStoreChanged 转发到本 facade 的监听者。
   Future<void> setCommentFontScale(double scale) => comment.setFontScale(scale);
 
-  Future<void> setCommentPreload(bool enabled) async {
-    _commentPreload = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentPreload, enabled);
-    _notifyListeners();
-  }
+  Future<void> setCommentPreload(bool enabled) => comment.setPreload(enabled);
 
-  Future<void> setCommentAutoLoadAll(bool enabled) async {
-    _commentAutoLoadAll = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyCommentAutoLoadAll, enabled);
-    _notifyListeners();
-  }
+  Future<void> setCommentAutoLoadAll(bool enabled) =>
+      comment.setAutoLoadAll(enabled);
 }

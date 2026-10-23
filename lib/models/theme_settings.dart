@@ -157,6 +157,7 @@ class ThemeSettings extends PrefsStore {
     SharedPreferences prefs, {
     bool persistMigrations = true,
   }) async {
+    syncPrefs(prefs);
     _themeMode = ThemeMode.values[prefs.getInt(_keyThemeMode) ?? 0];
     final savedThemeColor = prefs.getString(_keyThemeColor);
     _themeColor = savedThemeColor == customThemeOptionId

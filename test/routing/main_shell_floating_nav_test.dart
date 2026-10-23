@@ -126,6 +126,22 @@ void main() {
     expect(fab.overlaps(bar), isFalse);
   });
 
+  testWidgets('非悬浮经典底栏开启悬浮后即时切回胶囊', (tester) async {
+    await _pumpShell(tester, floating: false);
+    final user = UserManager();
+    await user.setBottomNavLabelMode(BottomNavLabelMode.always);
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(GNav), findsNothing);
+
+    await user.theme.setFloatingNavEnabled(true);
+    await tester.pumpAndSettle();
+    expect(user.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(GNav), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('悬浮底栏始终可见：滚动不改变 FAB 位置', (tester) async {
     await _pumpShell(tester, floating: true);
     final screenHeight = tester.view.physicalSize.height;

@@ -60,21 +60,11 @@ extension UserManagerThemeNavPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setBottomNavShowLabels(bool enabled) async {
-    await setBottomNavLabelMode(
-      enabled ? BottomNavLabelMode.selectedOnly : BottomNavLabelMode.hidden,
-    );
-  }
+  Future<void> setBottomNavShowLabels(bool enabled) =>
+      theme.setBottomNavShowLabels(enabled);
 
-  Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) async {
-    // ThemeSettings 持有同一份偏好，且负责与悬浮的互斥降级；以它的结果为准。
-    await theme.setBottomNavLabelMode(mode);
-    final next = theme.bottomNavLabelMode;
-    if (_bottomNavLabelMode == next) return;
-
-    _bottomNavLabelMode = next;
-    _notifyListeners();
-  }
+  Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) =>
+      theme.setBottomNavLabelMode(mode);
 
   Future<void> setNavOrder(List<String> order) => theme.setNavOrder(order);
 

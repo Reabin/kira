@@ -496,6 +496,45 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('非悬浮始终显示文字后开启悬浮，下拉即时降为选中时显示', (tester) async {
+    final user = UserManager();
+    await user.theme.setFloatingNavEnabled(false);
+    await user.setBottomNavLabelMode(BottomNavLabelMode.always);
+    await _showPage(tester);
+    final floatingTile = find.widgetWithText(SwitchListTile, '悬浮导航栏');
+    await tester.scrollUntilVisible(
+      floatingTile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(floatingTile).value, isFalse);
+
+    await tester.tap(floatingTile);
+    await tester.pumpAndSettle();
+
+    expect(user.theme.floatingNavEnabled, isTrue);
+    expect(user.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+    final labelTile = find.widgetWithText(ListTile, '底部导航栏文字');
+    expect(
+      find.descendant(of: labelTile, matching: find.text('选中时显示')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<SelectTile<BottomNavLabelMode>>(
+            find.descendant(
+              of: labelTile,
+              matching: find.byType(SelectTile<BottomNavLabelMode>),
+            ),
+          )
+          .value,
+      BottomNavLabelMode.selectedOnly,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('底部导航栏文字改为下拉列表，选中即生效且不再弹底部选择层', (tester) async {
     await _showPage(tester);
     final tile = find.widgetWithText(ListTile, '底部导航栏文字');

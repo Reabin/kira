@@ -43,7 +43,6 @@ extension UserManagerInitPart on UserManager {
       prefs.getDouble(UserManager._keyDarkModeCoverBrightness) ??
           UserManager.defaultDarkModeCoverBrightness,
     );
-    _bottomNavLabelMode = UserManager._loadBottomNavLabelMode(prefs);
     _desktopFontFamily =
         prefs.getString(UserManager._keyDesktopFontFamily) ?? '';
     _displayModeRefreshRate = UserManager._normalizeDisplayModeRefreshRate(
@@ -91,11 +90,6 @@ extension UserManagerInitPart on UserManager {
         : 1;
     _imageLoadTimeout = prefs.getInt(UserManager._keyImageLoadTimeout) ?? 15;
     _imageRetryCount = prefs.getInt(UserManager._keyImageRetryCount) ?? 1;
-    _commentCompactLayout =
-        prefs.getBool(UserManager._keyCommentCompactLayout) ?? true;
-    _commentPreload = prefs.getBool(UserManager._keyCommentPreload) ?? true;
-    _commentAutoLoadAll =
-        prefs.getBool(UserManager._keyCommentAutoLoadAll) ?? false;
     _autoCheckUpdate = prefs.getBool(UserManager._keyAutoCheckUpdate) ?? true;
     _skippedUpdateVersion = prefs.getString(
       UserManager._keySkippedUpdateVersion,
@@ -173,7 +167,6 @@ extension UserManagerInitPart on UserManager {
     _remoteNoticeEnabled =
         prefs.getBool(UserManager._keyRemoteNoticeEnabled) ?? true;
     _locale = prefs.getString(UserManager._keyLocale) ?? '';
-    _bannerVisible = prefs.getBool(UserManager._keyBannerVisible) ?? true;
     _mangaHomeSource =
         prefs.getString(UserManager._keyMangaHomeSource) ?? 'hot';
     _discoverSource = prefs.getString(UserManager._keyDiscoverSource) ?? 'hot';
