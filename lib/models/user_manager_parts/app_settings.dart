@@ -96,12 +96,7 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setApiRoute(int route) async {
-    _apiRoute = route;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyApiRoute, route);
-    _notifyListeners();
-  }
+  Future<void> setApiRoute(int route) => network.setApiRoute(route);
 
   Future<void> setNetworkSelectionMode(NetworkSelectionMode mode) async {
     await network.setSelectionMode(mode);

@@ -61,7 +61,7 @@ Anime was removed outright (`569f482`), not merely frozen — treat it as absent
 
 ### UserManager: Facade + Sub-stores
 - `UserManager` 是 facade，内部委托给同为单例的子 store（`ReaderSettings`、`CommentSettings`、`ThemeSettings`、`NetworkSettings`、`CopyAccountStore`，`Services.reader` == `UserManager().reader`）；子 store 变更经 facade 单次 `notifyListeners()` 转发 —— 只关心单一域就监听子 store 本身。
-- **改动双写 key（`UserManager` 与子 store 各存一份的偏好，如 `api_route`、`reader_mode`、`theme_mode`、`logo_index`，全量清单见 `docs/architecture.md`）时，走子 store 并删掉 `UserManager` 侧副本** —— `readerMode` 是完工范式；`ThemeSettings.setBannerVisible` 与 `CommentSettings.setPreload` / `setCompactLayout` 是尚无人调用的子 store setter，把 UI 指过去并删副本。
+- **共有偏好已统一由子 store 保存，`UserManager` 保留纯委托接口** —— 新增/改动偏好时只在所属子 store 定义字段、默认值和持久化；facade 不再缓存第二份状态或额外通知。平台图标与兼容逻辑的边界见 `docs/architecture.md`。
 
 ## Build, Test, and Development Commands
 
@@ -79,7 +79,7 @@ Run these from the repository root:
 
 ### Other Entry Points
 - `scripts/`: PowerShell helpers — `run.ps1 <win|mumu|emu>` (device boot + `KIRA_DEVICE`), `build_apk.ps1`, `build_windows.ps1`, `release.ps1` (invokes the CHANGELOG generator), `count_lib_dart_lines.ps1`.
-- `docs/`: `persistence-and-cache.md`（动存储前必读）、`novel.md`（轻小说设计）、`architecture.md`（API 分层 / 缓存仓库解剖 / 序列化清单 / UserManager 双写现状）、`platform-build.md`（Windows / Android 构建排查）、`widgets.md`（复用组件模式）、`TODO.md`、`CHANGELOG.md`.
+- `docs/`: `persistence-and-cache.md`（动存储前必读）、`novel.md`（轻小说设计）、`architecture.md`（API 分层 / 缓存仓库解剖 / 序列化清单 / UserManager 偏好归属与通知）、`platform-build.md`（Windows / Android 构建排查）、`widgets.md`（复用组件模式）、`TODO.md`、`CHANGELOG.md`.
 - `.github/workflows/`: `build-ci.yml` (manual Android APK), `release.yml` (`v*` tag → full release), `release-all.yaml` / `release-all-beta.yml` (manual, all platforms).
 
 ### Platform Build Notes (on-demand)

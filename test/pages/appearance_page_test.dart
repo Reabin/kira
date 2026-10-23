@@ -571,6 +571,37 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets('子 store 修改主题模式和变体会即时更新外观页', (tester) async {
+    await _showPage(tester);
+    final user = UserManager();
+    await user.theme.setThemeMode(ThemeMode.dark);
+    await user.theme.setThemeVariant(DynamicSchemeVariant.vibrant);
+    await tester.pumpAndSettle();
+
+    expect(user.themeMode, ThemeMode.dark);
+    expect(user.themeVariant, DynamicSchemeVariant.vibrant);
+    expect(
+      tester
+          .widget<SelectTile<ThemeMode>>(find.byType(SelectTile<ThemeMode>))
+          .value,
+      ThemeMode.dark,
+    );
+    final selected = tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .where((chip) => chip.selected);
+    expect(selected, hasLength(1));
+    final label = selected.single.label;
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(AppearancePage)),
+    )!;
+    expect(
+      label,
+      isA<Text>().having((text) => text.data, 'text', l10n.themeVariantVibrant),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('减少动画开关落盘并即时更新页面', (tester) async {
     await _showPage(tester);
     final tile = find.widgetWithText(SwitchListTile, '减少动画');

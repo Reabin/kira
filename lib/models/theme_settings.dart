@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_icon_switcher.dart';
+import '../utils/app_logger.dart';
 import '../utils/font_manager.dart';
 import 'app_theme_option.dart';
 import 'prefs_store.dart';
@@ -214,6 +218,23 @@ class ThemeSettings extends PrefsStore {
       0,
       appLogoPaths.length - 1,
     );
+    // The launcher is authoritative on mobile; do not rewrite the saved value.
+    if (AppIconSwitcher.isSupportedPlatform) {
+      try {
+        _logoIndex = (await AppIconSwitcher.getAppIconIndex()).clamp(
+          0,
+          appLogoPaths.length - 1,
+        );
+      } catch (e, stack) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            e,
+            stackTrace: stack,
+            source: 'user_manager.get_app_icon',
+          ),
+        );
+      }
+    }
     _bannerVisible = prefs.getBool(_keyBannerVisible) ?? true;
     _useDynamicColor = prefs.getBool(_keyUseDynamicColor) ?? false;
     _amoledDark = prefs.getBool(_keyAmoledDark) ?? false;
@@ -370,6 +391,26 @@ class ThemeSettings extends PrefsStore {
     if (_displayModeRefreshRate == nextRate) return;
     _displayModeRefreshRate = nextRate;
     await setInt(_keyDisplayModeRefreshRate, nextRate);
+  }
+
+  Future<void> setLogoIndex(int index) async {
+    final next = index.clamp(0, appLogoPaths.length - 1);
+    if (_logoIndex == next) return;
+    _logoIndex = next;
+    await setInt(_keyLogoIndex, next);
+    if (AppIconSwitcher.isSupportedPlatform) {
+      try {
+        await AppIconSwitcher.setAppIcon(next);
+      } catch (e, stack) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            e,
+            stackTrace: stack,
+            source: 'user_manager.set_app_icon',
+          ),
+        );
+      }
+    }
   }
 
   Future<void> setBannerVisible(bool visible) async {

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_transport.dart';
 import '../api/user/user_api.dart';
-import '../utils/app_icon_switcher.dart';
 import '../utils/app_logger.dart';
 import '../utils/copy_web_login.dart' show CopyWebLoginForm, canApplyLoginForm;
 import 'account_identity.dart';
@@ -104,13 +102,7 @@ class UserManager extends ChangeNotifier {
   static const _keySavedUsername = 'saved_username';
   static const _keySavedPassword = 'saved_password';
   static const _keySavedCredentials = 'saved_credentials';
-  static const _keyThemeMode = 'theme_mode';
-  static const _keyThemeColor = 'theme_color';
-  static const _keyThemeVariant = 'theme_variant';
-  static const _keyCustomThemeColor = 'custom_theme_color';
-  static const _keyDarkModeCoverBrightness = 'dark_mode_cover_brightness';
   static const _keyDesktopFontFamily = 'desktop_font_family';
-  static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
   static const _keyBookshelfOrdering = 'bookshelf_ordering';
   static const _keyReaderHorizontalImageScale = 'reader_horizontal_image_scale';
   static const _keyAutoCheckUpdate = 'auto_check_update';
@@ -121,7 +113,6 @@ class UserManager extends ChangeNotifier {
   static const _keyUseUpdateMirror = 'use_update_mirror';
   static const _keyDisclaimerAccepted = 'disclaimer_accepted';
   static const _keyLoginSource = 'login_source';
-  static const _keyApiRoute = 'api_route';
   static const _keyRemoteNoticeEnabled = 'remote_notice_enabled';
   static const _keyLocale = 'locale';
   static const _keyMangaHomeSource = 'manga_home_source';
@@ -139,7 +130,6 @@ class UserManager extends ChangeNotifier {
   static const _keyCommentBlockNoRemind = 'comment_block_no_remind';
   static const _keyCommentBlockwords = 'comment_blockwords';
   static const _keyCommentBlockGroupSpam = 'comment_block_group_spam';
-  static const _keyLogoIndex = 'logo_index';
 
   String? _token;
   String? _username;
@@ -154,13 +144,7 @@ class UserManager extends ChangeNotifier {
   /// Free-form note attached to the COPY account the next login creates
   /// (「这是谁的账号」). Not a credential: safe to persist in the record.
   String _copyAccountLabel = '';
-  ThemeMode _themeMode = ThemeMode.system;
-  String _themeColor = appThemeOptions.first.id;
-  DynamicSchemeVariant _themeVariant = appThemeVariantOptions.first.variant;
-  int _customThemeColorValue = defaultCustomThemeColor.toARGB32();
-  double _darkModeCoverBrightness = defaultDarkModeCoverBrightness;
   String _desktopFontFamily = '';
-  int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
   String _bookshelfOrdering = ApiOrdering.datetimeUpdated;
   // 横向滚动模式下图片相对视口高度的缩放档位，1.0 = 填满高度。
   double _readerHorizontalImageScale = 1.0;
@@ -174,7 +158,6 @@ class UserManager extends ChangeNotifier {
   bool _useUpdateMirror = true;
   bool _disclaimerAccepted = false;
   String _loginSource = 'hotmanga';
-  int _apiRoute = 0; // 0=线路1(默认), 1=线路2
   bool _remoteNoticeEnabled = true;
 
   /// '' = follow system, 'zh' = Simplified, 'zh-Hant' = Traditional.
@@ -206,7 +189,6 @@ class UserManager extends ChangeNotifier {
 
   /// 群广告屏蔽预设：同时包含「群」与 8~12 位数字的评论将被过滤。默认关闭。
   bool _commentBlockGroupSpam = false;
-  int _logoIndex = 1;
 
   /// extension part 文件里的成员不是 UserManager 自身的成员，不能直接调用受
   /// 保护的 [notifyListeners]，统一经由这个转发方法。
@@ -221,11 +203,11 @@ class UserManager extends ChangeNotifier {
   String? get savedPassword => _savedPassword;
   List<SavedCredential> get savedCredentials =>
       List.unmodifiable(_savedCredentials);
-  ThemeMode get themeMode => _themeMode;
-  String get themeColor => _themeColor;
-  DynamicSchemeVariant get themeVariant => _themeVariant;
-  Color get customThemeColor => Color(_customThemeColorValue);
-  double get darkModeCoverBrightness => _darkModeCoverBrightness;
+  ThemeMode get themeMode => theme.themeMode;
+  String get themeColor => theme.themeColor;
+  DynamicSchemeVariant get themeVariant => theme.themeVariant;
+  Color get customThemeColor => theme.customThemeColor;
+  double get darkModeCoverBrightness => theme.darkModeCoverBrightness;
   BottomNavLabelMode get bottomNavLabelMode => theme.bottomNavLabelMode;
 
   /// Compatibility: true when labels are not fully hidden.
@@ -234,20 +216,9 @@ class UserManager extends ChangeNotifier {
   bool get showNovel => theme.showNovel;
   String get lastNavKey => theme.lastNavKey;
   String get desktopFontFamily => _desktopFontFamily;
-  int get displayModeRefreshRate => _displayModeRefreshRate;
-  AppThemeOption get themeOption {
-    if (_themeColor == customThemeOptionId) {
-      return AppThemeOption(
-        id: customThemeOptionId,
-        label: '自定',
-        seedColor: customThemeColor,
-      );
-    }
-    return resolveAppThemeOption(_themeColor);
-  }
-
-  AppThemeVariantOption get themeVariantOption =>
-      resolveAppThemeVariantOption(_themeVariant.name);
+  int get displayModeRefreshRate => theme.displayModeRefreshRate;
+  AppThemeOption get themeOption => theme.themeOption;
+  AppThemeVariantOption get themeVariantOption => theme.themeVariantOption;
 
   String get bookshelfOrdering => _bookshelfOrdering;
 
@@ -293,7 +264,7 @@ class UserManager extends ChangeNotifier {
   bool get useUpdateMirror => _useUpdateMirror;
   bool get disclaimerAccepted => _disclaimerAccepted;
   String get loginSource => _loginSource;
-  int get apiRoute => _apiRoute;
+  int get apiRoute => network.apiRoute;
   NetworkSelectionMode get networkSelectionMode => network.selectionMode;
   String? get fixedNodeHost => network.fixedNodeHost;
   NetworkProxyMode get networkProxyMode => network.proxyMode;
@@ -397,9 +368,8 @@ class UserManager extends ChangeNotifier {
     _notifyListeners();
   }
 
-  int get logoIndex => _logoIndex;
-  String get appLogoPath =>
-      appLogoPaths[_logoIndex.clamp(0, appLogoPaths.length - 1)];
+  int get logoIndex => theme.logoIndex;
+  String get appLogoPath => appLogoPaths[theme.logoIndex];
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
 
   static String normalizeUpdateMirrorPrefix(String? value) {
@@ -610,18 +580,5 @@ class UserManager extends ChangeNotifier {
     }.entries) {
       await _requireAccountWrite(prefs.setString(entry.key, entry.value));
     }
-  }
-
-  static double _normalizeDarkModeCoverBrightness(double value) {
-    return value
-        .clamp(minDarkModeCoverBrightness, maxDarkModeCoverBrightness)
-        .toDouble();
-  }
-
-  static int _normalizeDisplayModeRefreshRate(int? refreshRate) {
-    if (refreshRate == null || refreshRate < 0) {
-      return defaultDisplayModeRefreshRate;
-    }
-    return refreshRate;
   }
 }

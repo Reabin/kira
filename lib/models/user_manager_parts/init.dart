@@ -28,26 +28,8 @@ extension UserManagerInitPart on UserManager {
       );
     }
     if (revision != _accountRevision) return;
-    _themeMode = ThemeMode.values[prefs.getInt(UserManager._keyThemeMode) ?? 0];
-    final savedThemeColor = prefs.getString(UserManager._keyThemeColor);
-    _themeColor = savedThemeColor == customThemeOptionId
-        ? customThemeOptionId
-        : resolveAppThemeOption(savedThemeColor).id;
-    _themeVariant = resolveAppThemeVariantOption(
-      prefs.getString(UserManager._keyThemeVariant),
-    ).variant;
-    _customThemeColorValue =
-        prefs.getInt(UserManager._keyCustomThemeColor) ??
-        defaultCustomThemeColor.toARGB32();
-    _darkModeCoverBrightness = UserManager._normalizeDarkModeCoverBrightness(
-      prefs.getDouble(UserManager._keyDarkModeCoverBrightness) ??
-          UserManager.defaultDarkModeCoverBrightness,
-    );
     _desktopFontFamily =
         prefs.getString(UserManager._keyDesktopFontFamily) ?? '';
-    _displayModeRefreshRate = UserManager._normalizeDisplayModeRefreshRate(
-      prefs.getInt(UserManager._keyDisplayModeRefreshRate),
-    );
     _bookshelfOrdering =
         prefs.getString(UserManager._keyBookshelfOrdering) ??
         ApiOrdering.datetimeUpdated;
@@ -127,7 +109,6 @@ extension UserManagerInitPart on UserManager {
             username: _username ?? '',
           );
     }
-    _apiRoute = prefs.getInt(UserManager._keyApiRoute) ?? 0;
     _remoteNoticeEnabled =
         prefs.getBool(UserManager._keyRemoteNoticeEnabled) ?? true;
     _locale = prefs.getString(UserManager._keyLocale) ?? '';
@@ -188,27 +169,6 @@ extension UserManagerInitPart on UserManager {
         prefs.getStringList(UserManager._keyCommentBlockwords) ?? [];
     _commentBlockGroupSpam =
         prefs.getBool(UserManager._keyCommentBlockGroupSpam) ?? false;
-    _logoIndex = (prefs.getInt(UserManager._keyLogoIndex) ?? 1).clamp(
-      0,
-      UserManager.appLogoPaths.length - 1,
-    );
-    if (Platform.isAndroid || Platform.isIOS) {
-      try {
-        final platformIndex = await AppIconSwitcher.getAppIconIndex();
-        _logoIndex = platformIndex.clamp(
-          0,
-          UserManager.appLogoPaths.length - 1,
-        );
-      } catch (e, stack) {
-        unawaited(
-          AppLogger.instance.recordWarning(
-            e,
-            stackTrace: stack,
-            source: 'user_manager.get_app_icon',
-          ),
-        );
-      }
-    }
     // Initialize domain-specific sub-stores with the same prefs instance.
     await reader.initFromPrefs(prefs);
     await comment.initFromPrefs(prefs);
