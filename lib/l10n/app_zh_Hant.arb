@@ -1034,8 +1034,17 @@
   "aboutCheckUpdateTitle": "檢查更新",
   "aboutAutoCheckUpdateTitle": "啟動時檢查更新",
   "aboutLogTitle": "日誌",
-  "aboutLicenseTitle": "授權條款",
+  "aboutLicenseTitle": "開源授權",
   "licenseMitSummary": "本專案採用 MIT 開源授權條款",
+  "licenseThirdPartyTitle": "第三方依賴",
+  "licenseFontsTitle": "字型",
+  "licenseThirdPartyEmpty": "未收集到第三方授權",
+  "licenseCount": "{count} 份授權",
+  "@licenseCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "cacheDeleteEntryTitle": "刪除快取項",
   "cacheDeleteEntryContent": "確定要刪除 {key} 嗎？此操作無法復原。",
   "@cacheDeleteEntryContent": {

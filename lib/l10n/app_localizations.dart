@@ -3250,7 +3250,7 @@ abstract class AppLocalizations {
   /// No description provided for @aboutLicenseTitle.
   ///
   /// In zh, this message translates to:
-  /// **'许可证'**
+  /// **'开源许可'**
   String get aboutLicenseTitle;
 
   /// No description provided for @licenseMitSummary.
@@ -3258,6 +3258,30 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'本项目采用 MIT 开源许可证'**
   String get licenseMitSummary;
+
+  /// No description provided for @licenseThirdPartyTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'第三方依赖'**
+  String get licenseThirdPartyTitle;
+
+  /// No description provided for @licenseFontsTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'字体'**
+  String get licenseFontsTitle;
+
+  /// No description provided for @licenseThirdPartyEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'未收集到第三方许可'**
+  String get licenseThirdPartyEmpty;
+
+  /// No description provided for @licenseCount.
+  ///
+  /// In zh, this message translates to:
+  /// **'{count} 份许可'**
+  String licenseCount(int count);
 
   /// No description provided for @cacheDeleteEntryTitle.
   ///

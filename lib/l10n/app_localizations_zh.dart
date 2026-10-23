@@ -1742,10 +1742,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutLogTitle => '日志';
 
   @override
-  String get aboutLicenseTitle => '许可证';
+  String get aboutLicenseTitle => '开源许可';
 
   @override
   String get licenseMitSummary => '本项目采用 MIT 开源许可证';
+
+  @override
+  String get licenseThirdPartyTitle => '第三方依赖';
+
+  @override
+  String get licenseFontsTitle => '字体';
+
+  @override
+  String get licenseThirdPartyEmpty => '未收集到第三方许可';
+
+  @override
+  String licenseCount(int count) {
+    return '$count 份许可';
+  }
 
   @override
   String get cacheDeleteEntryTitle => '删除缓存项';
@@ -5924,10 +5938,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutLogTitle => '日誌';
 
   @override
-  String get aboutLicenseTitle => '授權條款';
+  String get aboutLicenseTitle => '開源授權';
 
   @override
   String get licenseMitSummary => '本專案採用 MIT 開源授權條款';
+
+  @override
+  String get licenseThirdPartyTitle => '第三方依賴';
+
+  @override
+  String get licenseFontsTitle => '字型';
+
+  @override
+  String get licenseThirdPartyEmpty => '未收集到第三方授權';
+
+  @override
+  String licenseCount(int count) {
+    return '$count 份授權';
+  }
 
   @override
   String get cacheDeleteEntryTitle => '刪除快取項';

@@ -89,6 +89,8 @@ final class AppRoutes {
   static const disclaimer = 'disclaimer';
   static const appLog = 'app_log';
   static const license = 'license';
+  static const packageLicense = 'package_license';
+  static const fontLicense = 'font_license';
   static const cacheManagement = 'cache_management';
   static const stats = 'stats';
 }
@@ -539,6 +541,21 @@ GoRouter createAppRouter() {
         path: '/license',
         name: AppRoutes.license,
         builder: (_, _) => const ProjectLicensePage(),
+        routes: [
+          GoRoute(
+            path: ':packageName',
+            name: AppRoutes.packageLicense,
+            builder: (_, state) => PackageLicensePage(
+              packageName: state.pathParameters['packageName']!,
+            ),
+          ),
+          GoRoute(
+            path: 'font/:fontId',
+            name: AppRoutes.fontLicense,
+            builder: (_, state) =>
+                FontLicensePage(fontId: state.pathParameters['fontId']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/cache-management',

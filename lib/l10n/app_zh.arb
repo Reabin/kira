@@ -1063,8 +1063,17 @@
   "aboutCheckUpdateTitle": "检查更新",
   "aboutAutoCheckUpdateTitle": "启动时检查更新",
   "aboutLogTitle": "日志",
-  "aboutLicenseTitle": "许可证",
+  "aboutLicenseTitle": "开源许可",
   "licenseMitSummary": "本项目采用 MIT 开源许可证",
+  "licenseThirdPartyTitle": "第三方依赖",
+  "licenseFontsTitle": "字体",
+  "licenseThirdPartyEmpty": "未收集到第三方许可",
+  "licenseCount": "{count} 份许可",
+  "@licenseCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "cacheDeleteEntryTitle": "删除缓存项",
   "cacheDeleteEntryContent": "确定要删除 {key} 吗？此操作不可恢复。",
   "@cacheDeleteEntryContent": {
