@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../utils/adaptive_motion.dart';
 import 'cover_placeholder.dart';
 
-/// 统一的网络封面：占位图与真实图交叉淡化。
+/// 统一的网络封面：固定底色，真实图单向淡入。
 ///
 /// 只在这里定义过渡，所有封面共用，避免各页面各写一套 fade 参数。
 /// 内存缓存命中时 OctoImage 直接返回图片、不播动画，不会闪一下占位图。
@@ -28,15 +28,19 @@ class CoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CachedNetworkImage(
-      imageUrl: url,
-      width: width,
-      height: height,
-      fit: fit,
-      fadeInDuration: adaptiveDuration(context, coverFadeDuration),
-      fadeOutDuration: adaptiveDuration(context, coverFadeOutDuration),
-      placeholder: (_, _) => placeholder,
-      errorWidget: (_, _, _) => errorWidget,
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: CachedNetworkImage(
+        imageUrl: url,
+        width: width,
+        height: height,
+        fit: fit,
+        fadeInDuration: adaptiveDuration(context, coverFadeDuration),
+        fadeInCurve: Curves.easeOut,
+        fadeOutDuration: Duration.zero,
+        placeholder: (_, _) => placeholder,
+        errorWidget: (_, _, _) => errorWidget,
+      ),
     );
   }
 }

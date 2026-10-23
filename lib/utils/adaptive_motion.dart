@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Fade durations when a real cover takes over from its placeholder.
-/// The placeholder fades out over the same window, giving a crossfade instead
-/// of an abrupt swap.
-const coverFadeDuration = Duration(milliseconds: 180);
-const coverFadeOutDuration = Duration(milliseconds: 180);
+/// Fade duration when a real cover takes over from its placeholder.
+const coverFadeDuration = Duration(milliseconds: 200);
 
 /// Whether the user (or platform) requested reduced motion.
 bool prefersReducedMotion(BuildContext context) {

@@ -5,6 +5,7 @@ import 'package:kira/models/comic.dart' hide Theme;
 import 'package:kira/utils/adaptive_motion.dart';
 import 'package:kira/widgets/comic_cover_card.dart';
 import 'package:kira/widgets/cover_image.dart';
+import 'package:kira/widgets/cover_placeholder.dart';
 import 'package:kira/widgets/novel_widgets.dart';
 
 import '../test_helpers.dart';
@@ -37,22 +38,18 @@ void main() {
   CachedNetworkImage imageOf(WidgetTester tester) =>
       tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage));
 
-  void expectCrossfade(
-    WidgetTester tester, {
-    required Duration fadeIn,
-    required Duration fadeOut,
-  }) {
+  void expectFadeIn(WidgetTester tester, {required Duration duration}) {
     final image = imageOf(tester);
-    expect(image.fadeInDuration, fadeIn);
-    expect(image.fadeOutDuration, fadeOut);
+    expect(image.fadeInDuration, duration);
+    expect(image.fadeInCurve, Curves.easeOut);
+    expect(image.fadeOutDuration, Duration.zero);
   }
 
-  test('crossfade keeps placeholder and image in sync', () {
-    expect(coverFadeDuration, const Duration(milliseconds: 180));
-    expect(coverFadeOutDuration, coverFadeDuration);
+  test('cover fade-in lasts 200ms', () {
+    expect(coverFadeDuration, const Duration(milliseconds: 200));
   });
 
-  testWidgets('CoverImage crossfades placeholder out as the image fades in', (
+  testWidgets('CoverImage fades in without fading the placeholder out', (
     tester,
   ) async {
     await pumpCover(
@@ -60,14 +57,30 @@ void main() {
       const CoverImage(url: imageUrl),
       disableAnimations: false,
     );
-    expectCrossfade(
-      tester,
-      fadeIn: const Duration(milliseconds: 180),
-      fadeOut: const Duration(milliseconds: 180),
-    );
+    expectFadeIn(tester, duration: const Duration(milliseconds: 200));
   });
 
-  testWidgets('CoverImage skips the crossfade when animations are disabled', (
+  testWidgets('CoverImage keeps a fixed background outside the fading image', (
+    tester,
+  ) async {
+    await pumpCover(
+      tester,
+      const CoverImage(url: imageUrl),
+      disableAnimations: false,
+    );
+    final cover = find.byType(CoverImage);
+    final background = tester.widget<ColoredBox>(
+      find.descendant(of: cover, matching: find.byType(ColoredBox)).first,
+    );
+    expect(background.child, same(imageOf(tester)));
+    expect(
+      background.color,
+      Theme.of(tester.element(cover)).colorScheme.surfaceContainerHighest,
+    );
+    expect(tester.getSize(cover), const Size(120, 220));
+  });
+
+  testWidgets('CoverImage skips the fade-in when animations are disabled', (
     tester,
   ) async {
     await pumpCover(
@@ -75,23 +88,43 @@ void main() {
       const CoverImage(url: imageUrl),
       disableAnimations: true,
     );
-    expectCrossfade(tester, fadeIn: Duration.zero, fadeOut: Duration.zero);
+    expectFadeIn(tester, duration: Duration.zero);
   });
 
-  testWidgets('NovelCover inherits the shared crossfade', (tester) async {
+  testWidgets('CoverImage preserves custom placeholders and errors', (
+    tester,
+  ) async {
+    const placeholder = SizedBox(key: ValueKey('custom-placeholder'));
+    const error = SizedBox(key: ValueKey('custom-error'));
+    await pumpCover(
+      tester,
+      const CoverImage(
+        url: imageUrl,
+        placeholder: placeholder,
+        errorWidget: error,
+      ),
+      disableAnimations: false,
+    );
+    final image = imageOf(tester);
+    final context = tester.element(find.byType(CoverImage));
+    expect(image.placeholder!(context, imageUrl), same(placeholder));
+    expect(
+      image.errorWidget!(context, imageUrl, Exception('failed')),
+      same(error),
+    );
+    expectFadeIn(tester, duration: const Duration(milliseconds: 200));
+  });
+
+  testWidgets('NovelCover inherits the shared fade-in', (tester) async {
     await pumpCover(
       tester,
       const NovelCover(url: imageUrl),
       disableAnimations: false,
     );
-    expectCrossfade(
-      tester,
-      fadeIn: const Duration(milliseconds: 180),
-      fadeOut: const Duration(milliseconds: 180),
-    );
+    expectFadeIn(tester, duration: const Duration(milliseconds: 200));
   });
 
-  testWidgets('ComicCoverCard inherits the shared crossfade', (tester) async {
+  testWidgets('ComicCoverCard inherits the shared fade-in', (tester) async {
     await pumpCover(
       tester,
       ComicCoverCard(
@@ -100,10 +133,19 @@ void main() {
       ),
       disableAnimations: false,
     );
-    expectCrossfade(
-      tester,
-      fadeIn: const Duration(milliseconds: 180),
-      fadeOut: const Duration(milliseconds: 180),
+    expectFadeIn(tester, duration: const Duration(milliseconds: 200));
+  });
+
+  testWidgets('CoverPlaceholder remains static', (tester) async {
+    await pumpCover(tester, const CoverPlaceholder(), disableAnimations: false);
+    expect(find.byIcon(Icons.image_outlined), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(CoverPlaceholder),
+        matching: find.byType(FadeTransition),
+      ),
+      findsNothing,
     );
+    expect(tester.hasRunningAnimations, isFalse);
   });
 }
