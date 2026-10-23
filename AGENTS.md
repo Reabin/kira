@@ -12,7 +12,7 @@ Platform folders (`android/`, `ios/`, `linux/`, `macos/`, `web/`, `windows/`) ho
 | `models/` | 数据模型 `fromJson`/`toJson`（基类 `cached_repository.dart` 与 `secure_credential_store.dart` 也在此） |
 | `repositories/` | 各领域 `CachedRepository` 子类（manga home + copy home、comic detail、bookshelf、search init、小说正文缓存）与小说数据源 `novel_reader_source.dart` —— 实现 `models/cached_repository.dart` 基类 |
 | `providers/` | Riverpod providers：`app_providers`（单例）、`settings_providers`（子 store）、`repository_providers`（数据仓库）、`novel_providers`（小说）、`backup_providers`（备份） |
-| `pages/` | 页面与路由目标（最大目录：41 个顶层文件 + 15 个子目录，共 126 文件） |
+| `pages/` | 页面与路由目标（最大目录：43 个顶层文件 + 15 个子目录，共 131 文件） |
 | `routing/` | `app_router.dart`（GoRouter 声明 + `AppRoutes` + `*Extra` 传参类）、`MainShell`（底部导航）、`dismiss_keyboard_observer.dart` |
 | `theme/` | 设计令牌：spacing/radius/shadows/typography/icon-size/status-colors + `player_chrome`/`reader_chrome`/`novel_reader_theme` |
 | `widgets/` | 复用组件（骨架、错误态、登录过期、列表页等）—— 模式见 `docs/widgets.md` |
@@ -37,7 +37,7 @@ Anime was removed outright (`569f482`), not merely frozen — treat it as absent
 - All routes defined declaratively in `lib/routing/app_router.dart` with `AppRoutes` name constants.
 - Use `context.pushNamed(AppRoutes.xxx)` instead of `Navigator.push(MaterialPageRoute(...))`.
 - For routes that need extra data, use `extra` parameter with typed classes (`ComicDetailExtra`, `ReaderExtra`, `NovelReaderExtra`, `RankingExtra`).
-- Bottom-nav shell uses `ShellRoute` via `MainShell`. The horizontal swipe between branches and the GNav capsule bar are product features — do not remove them in a refactor.
+- Bottom-nav shell uses `StatefulShellRoute` via `MainShell`. The horizontal swipe between branches and the GNav capsule bar are product features — do not remove them in a refactor.
 - `dismiss_keyboard_observer.dart` suppresses the keyboard reappearing when returning to the home/search branch; `test/routing/main_shell_focus_test.dart` locks that behaviour down.
 
 ### API Layer: Transport + Domain Classes
@@ -70,7 +70,7 @@ Run these from the repository root:
 - `flutter pub get` — install dependencies
 - `flutter run` — launch on current device/emulator
 - `flutter analyze` — run lint rules from `analysis_options.yaml` (64 strict rules on top of `flutter_lints`); currently clean
-- `flutter test` — run automated tests under `test/` (1172 cases, ~80 s; `--reporter compact` keeps the output manageable)
+- `flutter test` — run automated tests under `test/` (152 files / ~1500 cases; `--reporter compact` keeps the output manageable)
 - `flutter build apk --release --target-platform android-arm64` — Android release artifact
 - `dart format lib test` — format source files before review (not enforced repo-wide, see Testing)
 - `dart run build_runner build` — regenerate `.g.dart` files after model changes
@@ -113,12 +113,12 @@ Android is the only **released** target (`build_apk.ps1` + `.github/workflows/re
 
 ## Testing Guidelines
 
-- Use `flutter_test` for unit and widget coverage. Files: `*_test.dart`. Mirroring source paths is the rule for `lib/pages/**` (which has subdirectories); everything else (novel, copy-account, backup) sits flat at `test/` root. 119 files, ~1170 cases, full run ≈ 80 s.
+- Use `flutter_test` for unit and widget coverage. Files: `*_test.dart`. Mirroring source paths is the rule for `lib/pages/**` (which has subdirectories); everything else (novel, copy-account, backup) sits flat at `test/` root. 152 files, ~1500 cases.
 - `test/test_helpers.dart` is mandatory for widget tests: `wrapWithApp(child)` injects the `AppLocalizations` delegate — a bare `MaterialApp` makes `AppLocalizations.of(context)!` throw. Call `setupSecureCredentialStoreForTest()` in `setUp` and `teardownSecureCredentialStoreForTest()` in `tearDown` to isolate account state. Persistence regressions must additionally exercise the default prefs-backed store across recreated instances.
 - For `CachedRepository` subclasses: override `loadFromCache`/`saveToCache` with in-memory maps to avoid SharedPreferences in tests.
 - New features and bug fixes should include tests when the behavior can be exercised outside platform-only code.
 - **不要擅自跑全量测试**：默认只跑与改动相关的测试文件（`flutter test test/xxx_test.dart …`）；全量 `flutter test` 耗时且输出量大，仅在用户明确要求时执行。
-- Baseline commands: `flutter analyze` (clean) and `flutter test` both pass on `main`; `dart format lib test` is not enforced repo-wide, so unrelated files may already differ — format the files you touched only.
+- Baseline: `flutter analyze` 无 error/warning（仅 1 条既有 info：`test/pages/novel_reader_paginator_test.dart:64`）；全量 `flutter test` 仍有个别既有失败（如 `test/novel_repository_test.dart` 的 TTL 持久化用例，失败集合会随提交漂移），判回归前先在干净工作区复跑。`dart format lib test` is not enforced repo-wide, so unrelated files may already differ — format the files you touched only.
 
 ## Commit & Pull Request Guidelines
 
