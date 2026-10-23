@@ -3,17 +3,17 @@
 
 #include <windows.h>
 
+#include <string>
+
 namespace window_state {
 
-// Loads the window bounds persisted by the previous session into |out_rect|
-// (physical pixels, screen coordinates). Returns false when no usable state
-// exists, in which case the caller should fall back to its own defaults.
-bool Load(RECT& out_rect);
+// Loads normal bounds in physical screen coordinates. An explicit path lets
+// native tests avoid the user's state file; an empty path uses AppData.
+bool Load(RECT& out_rect, const std::wstring& path = L"");
 
-// Persists the bounds of |hwnd| for the next session. No-op when the window
-// is minimized or maximized, so those sessions keep the last normal-state
-// bounds instead of persisting workspace-coordinate placement data.
-void Save(HWND hwnd);
+// Saves visible normal bounds. Minimization/maximization retain the previous
+// normal state, and interrupted writes leave the previous file intact.
+bool Save(HWND hwnd, const std::wstring& path = L"");
 
 }  // namespace window_state
 
