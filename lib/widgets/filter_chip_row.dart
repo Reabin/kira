@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
@@ -44,8 +46,17 @@ class FilterChipRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
+    final labelPainter = TextPainter(
+      text: TextSpan(text: '字', style: tt.labelLarge),
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    final rowHeight = math.max(48.0, labelPainter.height + AppSpacing.xxl);
+    labelPainter.dispose();
+
     final chips = SizedBox(
-      height: 34,
+      height: rowHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.zero,
@@ -65,8 +76,8 @@ class FilterChipRow extends StatelessWidget {
             showCheckmark: false,
             labelStyle: tt.labelLarge?.copyWith(color: fg),
             onSelected: (_) => onTap(option),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.padded,
+            visualDensity: VisualDensity.standard,
           );
         },
       ),
@@ -84,13 +95,7 @@ class FilterChipRow extends StatelessWidget {
   }
 }
 
-/// 筛选行行尾的紧凑文字按钮（展开全部 / 收起 / 重置）。
-///
-/// 必须显式压掉平台默认的触控尺寸：Android 默认
-/// `MaterialTapTargetSize.padded` + `VisualDensity.standard`，按钮最小高 48，
-/// 比 34pt 的 chip 高 14pt；同级 Row 取两者最大高度，chip 垂直居中后上下各
-/// 多出 7pt 空白，多层筛选的间隔因此比 Windows 大。
-/// 桌面默认本就是 compact + shrinkWrap，所以这里只影响移动端。
+/// 筛选行行尾的文字按钮，与标签共用完整的触摸尺寸。
 TextButton filterRowButton({
   required VoidCallback onPressed,
   required IconData icon,
@@ -100,8 +105,8 @@ TextButton filterRowButton({
   icon: Icon(icon, size: AppIconSize.lg),
   label: Text(label),
   style: TextButton.styleFrom(
-    visualDensity: VisualDensity.compact,
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    visualDensity: VisualDensity.standard,
+    tapTargetSize: MaterialTapTargetSize.padded,
   ),
 );
 
@@ -123,7 +128,7 @@ class FilterRowResetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    // 与 FilterChipRow 行内 chips 相同的尺寸压制，保证与同行 chip 等高。
+    // 与同行标签共用 48dp 的最小触摸区域。
     return FilterChip(
       avatar: Icon(icon, size: AppIconSize.sm, color: cs.onSurfaceVariant),
       label: Text(
@@ -132,8 +137,8 @@ class FilterRowResetButton extends StatelessWidget {
       ),
       showCheckmark: false,
       onSelected: (_) => onPressed(),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.standard,
     );
   }
 }
@@ -177,9 +182,8 @@ class AllTagsGrid extends StatelessWidget {
     return n.toString();
   }
 
-  /// 与筛选行 chip 同样的尺寸压制，否则 Android 上这里的 chip 会比
-  /// 上面那行高 4pt，展开前后的标签看起来是两种规格。
-  static const _chipDensity = VisualDensity.compact;
+  /// 展开前后使用相同的触摸尺寸。
+  static const _chipDensity = VisualDensity.standard;
 
   @override
   Widget build(BuildContext context) {
@@ -187,8 +191,7 @@ class AllTagsGrid extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    // 显式压掉平台默认尺寸：Android 的 padded + standard 会把 chip 撑到 38，
-    // 桌面本就是 compact，只会让两端一致。
+    // 标签保持紧凑外观，外层由系统组件扩展点击范围。
     FilterChip chip({
       required Widget label,
       required bool selected,
@@ -198,7 +201,7 @@ class AllTagsGrid extends StatelessWidget {
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onSelected(),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: _chipDensity,
     );
 
@@ -326,8 +329,8 @@ class FilterRowAction extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         minimumSize: const Size(0, 34),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smR),
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        visualDensity: VisualDensity.standard,
+        tapTargetSize: MaterialTapTargetSize.padded,
       ),
     );
     return tooltip == null ? button : Tooltip(message: tooltip!, child: button);

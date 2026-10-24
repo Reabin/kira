@@ -14,7 +14,6 @@ import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/bookmark_store.dart';
 import '../utils/cover_brightness_filter.dart';
@@ -32,11 +31,13 @@ import '../widgets/cover_image.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import 'comic_comments_sheet.dart';
+import 'comic_detail/reading_actions.dart';
 
 part 'comic_detail/comic_detail_actions.dart';
 part 'comic_detail/comic_detail_build.dart';
 part 'comic_detail/comic_detail_chapter_card.dart';
 part 'comic_detail/comic_detail_last_browse.dart';
+part 'comic_detail/comic_detail_reading_actions.dart';
 part 'comic_detail/comic_detail_slivers.dart';
 
 class ComicDetailPage extends StatefulWidget {
@@ -134,6 +135,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   /// extension part 文件里的成员不是 State 子类成员，不能直接调用受保护的
   /// [setState]，统一经由这个转发方法。
   void _setState(VoidCallback fn) => setState(fn);
+
+  final _readingActionsKey = GlobalKey();
+  double _readingActionsHeight = 0;
 
   final _bookmarkStore = BookmarkStore();
 
@@ -534,6 +538,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    _measureReadingActions();
 
     return Scaffold(
       appBar: AppBar(
@@ -571,104 +576,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
                 _buildBody(cs, tt),
                 if (_canShowLastBrowseAction ||
                     _downloads.downloadedChapterIds(widget.pathWord).isNotEmpty)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_downloads
-                            .downloadedChapterIds(widget.pathWord)
-                            .isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: FloatingActionButton(
-                              heroTag: 'comic_download_center',
-                              tooltip: AppLocalizations.of(
-                                context,
-                              )!.downloadCenterTitle,
-                              onPressed: () => context
-                                  .pushNamed(AppRoutes.downloadCenter)
-                                  .then((_) => _handleDownloadChanged()),
-                              child: const Icon(
-                                Icons.download_for_offline,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        if (_nextBrowseChapter != null ||
-                            _canShowLastBrowseAction)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_nextBrowseChapter != null)
-                                FloatingActionButton.extended(
-                                  heroTag: 'next_chapter',
-                                  onPressed: () => context
-                                      .pushNamed(
-                                        AppRoutes.reader,
-                                        pathParameters: {
-                                          'pathWord': widget.pathWord,
-                                          'chapterUuid':
-                                              _nextBrowseChapter!.uuid,
-                                        },
-                                        extra: ReaderExtra(
-                                          comicName: _comic?.name,
-                                          group: _selectedGroup,
-                                          chapterName: _nextBrowseChapter!.name,
-                                          chapterListPage:
-                                              _nextBrowseChapterListPage ??
-                                              _chapterPage,
-                                        ),
-                                      )
-                                      .then((_) => _loadLocalHistory()),
-                                  icon: const Icon(Icons.skip_next, size: 20),
-                                  label: Text(
-                                    _truncateNextChapterName(
-                                      _nextBrowseChapter!.name,
-                                    ),
-                                    style: AppTypography.fabLabel(
-                                      Theme.of(context).textTheme,
-                                    ),
-                                  ),
-                                ),
-                              if (_nextBrowseChapter != null &&
-                                  _canShowLastBrowseAction)
-                                const SizedBox(width: 12),
-                              if (_canShowLastBrowseAction)
-                                FloatingActionButton.extended(
-                                  heroTag: 'continue_reading',
-                                  onPressed: () => context
-                                      .pushNamed(
-                                        AppRoutes.reader,
-                                        pathParameters: {
-                                          'pathWord': widget.pathWord,
-                                          'chapterUuid': _lastBrowseId!,
-                                        },
-                                        extra: ReaderExtra(
-                                          comicName: _comic?.name,
-                                          group: _selectedGroup,
-                                          chapterName: _lastBrowseName ?? '',
-                                          chapterListPage:
-                                              _lastBrowseReaderChapterListPage,
-                                          initialPage: _lastBrowsePage,
-                                        ),
-                                      )
-                                      .then((_) => _loadLocalHistory()),
-                                  icon: const Icon(Icons.play_arrow, size: 20),
-                                  label: Text(
-                                    _continueReadingLabel(),
-                                    style: AppTypography.fabLabel(
-                                      Theme.of(context).textTheme,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
+                  _buildReadingActions(),
               ],
             ),
     );

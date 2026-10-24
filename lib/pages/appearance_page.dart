@@ -299,9 +299,9 @@ class _AppearancePageState extends State<AppearancePage>
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
     final isWide =
-        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint &&
+        MediaQuery.textScalerOf(context).scale(14) <= 21;
 
-    // 第一块卡片：底部导航标签模式 / 滑动切换 / 导航排序预览。
     final navCard = SettingTileGroup(
       children: [
         ListTile(
@@ -319,10 +319,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.swipe_outlined, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceNavSwipeTitle),
-          subtitle: Text(
-            l10n.appearanceNavSwipeDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.navSwipeEnabled,
           onChanged: (value) =>
               unawaited(_user.theme.setNavSwipeEnabled(value)),
@@ -530,15 +526,10 @@ class _AppearancePageState extends State<AppearancePage>
                     color: cs.onSurfaceVariant,
                   ),
                   const SizedBox(width: AppSpacing.lg),
-                  Text(l10n.appearanceDarkCoverBrightness),
+                  Expanded(child: Text(l10n.appearanceDarkCoverBrightness)),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                l10n.appearanceDarkCoverBrightnessDesc,
-                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
                   Expanded(
@@ -670,10 +661,9 @@ class _AppearancePageState extends State<AppearancePage>
 
     final Widget body;
     if (isWide) {
-      // 宽屏双列：左列导航与字体卡片，右列阴影/图标/刷新率/主题卡片，
-      // 两列顶部对齐、各自纵向堆叠。
+      // 常用外观在左、导航和设备选项在右；大字号回到单列。
       body = ListView(
-        padding: EdgeInsets.fromLTRB(hp, 8, hp, 8),
+        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.sm),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,24 +672,24 @@ class _AppearancePageState extends State<AppearancePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: spaced([
-                    navCard,
-                    ?desktopFontCard,
+                    themeModeSection,
+                    colorOptionsSection,
+                    if (!_user.theme.useDynamicColor) themeStyleSection,
                     appFontCard,
-                    shadowSection,
+                    ?desktopFontCard,
+                    motionSection,
                   ]),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: spaced([
+                    navCard,
+                    shadowSection,
                     iconSection,
                     ?refreshRateCard,
-                    themeModeSection,
-                    themeStyleSection,
-                    colorOptionsSection,
-                    motionSection,
                   ]),
                 ),
               ),
@@ -709,18 +699,18 @@ class _AppearancePageState extends State<AppearancePage>
       );
     } else {
       body = ListView(
-        padding: EdgeInsets.fromLTRB(hp, 8, hp, 8),
+        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.sm),
         children: spaced([
-          navCard,
-          ?desktopFontCard,
+          themeModeSection,
+          colorOptionsSection,
+          if (!_user.theme.useDynamicColor) themeStyleSection,
           appFontCard,
+          ?desktopFontCard,
+          motionSection,
+          navCard,
           shadowSection,
           iconSection,
           ?refreshRateCard,
-          themeModeSection,
-          themeStyleSection,
-          colorOptionsSection,
-          motionSection,
         ]),
       );
     }

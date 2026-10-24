@@ -45,89 +45,75 @@ class _CopyCollapsibleSectionState extends State<_CopyCollapsibleSection> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
+    final reducedMotion = prefersReducedMotion(context);
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(widget.hp, widget.topPadding, widget.hp, 12),
-      child: Material(
-        color: cs.surfaceBright,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.smR,
-          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.72)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkWell(
-              onTap: _toggleExpanded,
+      padding: EdgeInsets.fromLTRB(
+        widget.hp,
+        widget.topPadding,
+        widget.hp,
+        AppSpacing.lg,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Material(
+            color: _expanded ? Colors.transparent : cs.surfaceBright,
+            borderRadius: AppRadius.mdR,
+            clipBehavior: Clip.antiAlias,
+            child: Semantics(
+              expanded: _expanded,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-                child: Row(
-                  children: [
-                    Icon(widget.icon, size: 20, color: cs.primary),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tt.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                child: SectionHeader(
+                  title: widget.title,
+                  icon: widget.icon,
+                  onTap: _toggleExpanded,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.onMore != null)
+                        TextButton(
+                          onPressed: widget.onMore,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(l10n.moreButton),
+                              const Icon(
+                                Icons.chevron_right,
+                                size: AppIconSize.md,
+                              ),
+                            ],
+                          ),
+                        ),
+                      AnimatedRotation(
+                        key: ValueKey(reducedMotion),
+                        turns: _expanded ? 0.5 : 0,
+                        duration: adaptiveDuration(
+                          context,
+                          const Duration(milliseconds: 180),
+                        ),
+                        curve: Curves.easeOut,
+                        child: Icon(
+                          Icons.expand_more,
+                          size: AppIconSize.xl,
+                          color: cs.onSurfaceVariant,
                         ),
                       ),
-                    ),
-                    if (widget.onMore != null)
-                      TextButton(
-                        onPressed: widget.onMore,
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              l10n.moreButton,
-                              style: TextStyle(color: cs.primary),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              size: 18,
-                              color: cs.primary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    AnimatedRotation(
-                      turns: _expanded ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOut,
-                      child: Icon(
-                        Icons.expand_more,
-                        size: 22,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-            ClipRect(
-              child: AnimatedAlign(
-                alignment: Alignment.topCenter,
-                heightFactor: _expanded ? 1 : 0,
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: widget.child,
-                ),
-              ),
+          ),
+          CollapsibleContent(
+            expanded: _expanded,
+            child: Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.sm),
+              child: widget.child,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -154,10 +140,7 @@ class _CopyTopicEntry extends StatelessWidget {
       child: Material(
         color: cs.surfaceBright,
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadius.smR,
-          side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.72)),
-        ),
+        borderRadius: AppRadius.mdR,
         child: InkWell(
           onTap: onTap,
           child: Padding(

@@ -47,7 +47,8 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
         backgroundColor: cs.surfaceContainerHigh,
         foregroundColor: cs.onSurfaceVariant,
         shape: RoundedRectangleBorder(borderRadius: AppRadius.mdR),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        tapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
       ),
       child: Tooltip(
         message: _reversed

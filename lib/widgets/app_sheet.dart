@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
+import '../utils/adaptive_motion.dart';
 
 /// Unified bottom-sheet chrome: shape, background color and drag handle in
 /// one place.
@@ -131,6 +132,9 @@ Future<T?> showAppSheet<T>(
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
+    sheetAnimationStyle: prefersReducedMotion(context)
+        ? AnimationStyle.noAnimation
+        : null,
     constraints: BoxConstraints(
       maxWidth: size.width,
       maxHeight: maxHeightFactor == null

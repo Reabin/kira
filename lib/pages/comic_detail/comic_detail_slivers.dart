@@ -239,8 +239,8 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                                     disabledBackgroundColor: cs.primary,
                                     disabledForegroundColor: cs.onPrimary,
                                     shape: pageButtonShape,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize: MaterialTapTargetSize.padded,
+                                    visualDensity: VisualDensity.standard,
                                   ),
                                   child: Text('${i + 1}'),
                                 )
@@ -254,8 +254,8 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                                     backgroundColor: cs.surfaceContainerHigh,
                                     foregroundColor: cs.onSurfaceVariant,
                                     shape: pageButtonShape,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize: MaterialTapTargetSize.padded,
+                                    visualDensity: VisualDensity.standard,
                                   ),
                                   child: Text('${i + 1}'),
                                 ),
@@ -320,7 +320,9 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
             ),
           ),
         ),
-      const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+      SliverPadding(
+        padding: EdgeInsets.only(bottom: _readingActionsBottomPadding),
+      ),
     ];
   }
 }

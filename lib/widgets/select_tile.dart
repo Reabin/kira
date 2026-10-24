@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../utils/adaptive_motion.dart';
 
 /// 「最多显示 N 个字符」对应的宽度上限。
 ///
@@ -390,12 +391,14 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                 ),
                 const SizedBox(width: 6),
                 AnimatedRotation(
+                  key: ValueKey(prefersReducedMotion(context)),
                   turns: _expanded ? 0.5 : 0,
-                  duration: const Duration(milliseconds: 150),
+                  duration: adaptiveDuration(
+                    context,
+                    const Duration(milliseconds: 150),
+                  ),
                   child: Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
+                    Icons.keyboard_arrow_down,
                     size: 18,
                     // 未传 foregroundColor 时保持改造前的 onSurfaceVariant,只
                     // 有显式覆盖(如渠道 Beta 徽标)才换成前景色。

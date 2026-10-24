@@ -14,15 +14,18 @@ import '../providers/repository_providers.dart';
 import '../repositories/manga_home_repository.dart';
 import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import '../utils/adaptive_motion.dart';
 import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/time_format.dart';
 import '../widgets/app_hero.dart';
 import '../widgets/branch_bottom_slack.dart';
+import '../widgets/collapsible_content.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/cover_image.dart';
@@ -82,7 +85,7 @@ double _copySectionContentWidth(
 class _HomePageState extends ConsumerState<HomePage>
     with SettingsRebuildGuard<HomePage>, BranchDeferredInit {
   MangaHomeRepository get _repo => ref.read(mangaHomeRepositoryProvider);
-  UserManager get _user => ref.read(userManagerProvider);
+  late final UserManager _user = ref.read(userManagerProvider);
   MangaHome? _home;
   CopyMangaHome? _copyHome;
   String? _activeSource; // 当前已加载的数据源

@@ -571,6 +571,42 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  testWidgets(
+    'phone puts theme, font and motion before navigation without extra copy',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        wrapWithApp(const AppearancePage(), wrapInScaffold: false),
+      );
+      await tester.pumpAndSettle();
+      final theme = find.widgetWithText(ListTile, '主题模式');
+      final font = find.text('应用字体大小');
+      final motion = find.widgetWithText(SwitchListTile, '减少动画');
+      final nav = find.widgetWithText(ListTile, '底部导航栏文字');
+      final scrollable = find.byType(Scrollable).first;
+      double? previousOffset;
+      for (final target in [theme, font, motion, nav]) {
+        await tester.scrollUntilVisible(target, 250, scrollable: scrollable);
+        await tester.pumpAndSettle();
+        final offset = tester
+            .state<ScrollableState>(scrollable)
+            .position
+            .pixels;
+        if (previousOffset != null) {
+          expect(offset, greaterThanOrEqualTo(previousOffset));
+        }
+        previousOffset = offset;
+      }
+      final l10n = AppLocalizations.of(tester.element(nav))!;
+      expect(find.text(l10n.appearanceNavSwipeDesc), findsNothing);
+      expect(find.text(l10n.appearanceDarkCoverBrightnessDesc), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('子 store 修改主题模式和变体会即时更新外观页', (tester) async {
     await _showPage(tester);
     final user = UserManager();
@@ -605,11 +641,7 @@ void main() {
   testWidgets('减少动画开关落盘并即时更新页面', (tester) async {
     await _showPage(tester);
     final tile = find.widgetWithText(SwitchListTile, '减少动画');
-    await tester.scrollUntilVisible(
-      tile,
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.ensureVisible(tile);
     await tester.pumpAndSettle();
 
     expect(tester.widget<SwitchListTile>(tile).value, isFalse);

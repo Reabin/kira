@@ -6,6 +6,7 @@ import 'package:kira/models/novel_reader_settings.dart';
 import 'package:kira/models/reader_settings.dart';
 import 'package:kira/pages/novel_reader/novel_reader_settings_sheet.dart';
 import 'package:kira/widgets/app_sheet.dart';
+import 'package:kira/widgets/reader_settings_fold.dart';
 import 'package:kira/widgets/reader_status_settings.dart';
 import 'package:kira/widgets/select_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -20,6 +21,7 @@ Future<void> _mount(
   double textScale = 1,
   Locale locale = const Locale('zh'),
   Brightness systemBrightness = Brightness.light,
+  bool reduceMotion = false,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -33,6 +35,7 @@ Future<void> _mount(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(textScale),
           platformBrightness: systemBrightness,
+          disableAnimations: reduceMotion,
         ),
         child: child!,
       ),
@@ -59,10 +62,30 @@ Future<void> _mount(
 }
 
 Future<void> _tapVisible(WidgetTester tester, String key) async {
+  if (key == 'novel-theme-add' || key.startsWith('novel-custom-theme-')) {
+    final fold = find.byKey(const ValueKey('novel-custom-theme-settings'));
+    if (find
+        .descendant(of: fold, matching: find.byIcon(Icons.expand_more))
+        .evaluate()
+        .isNotEmpty) {
+      await _toggleFold(tester, 'novel-custom-theme-settings');
+    }
+  }
   final finder = find.byKey(ValueKey(key));
   await tester.ensureVisible(finder);
   await tester.pumpAndSettle();
   await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _toggleFold(WidgetTester tester, String key) async {
+  final fold = find.byKey(ValueKey(key));
+  final header = find
+      .descendant(of: fold, matching: find.byType(InkWell))
+      .first;
+  await tester.ensureVisible(header);
+  await tester.pumpAndSettle();
+  await tester.tap(header);
   await tester.pumpAndSettle();
 }
 
@@ -327,9 +350,14 @@ void main() {
     await tester.tap(find.text('翻页'));
     await tester.pumpAndSettle();
     expect(latest.mode, NovelReaderMode.paged);
-    // 翻页设置紧跟模式切换、排在字号之前，方便用户对比两种模式的差别。
-    final modeBottom = tester
-        .getBottomLeft(find.byKey(const ValueKey('novel-reader-mode')))
+    expect(
+      find.byKey(const ValueKey('novel-volume-key')).hitTestable(),
+      findsNothing,
+    );
+    await _toggleFold(tester, 'novel-page-turn-settings');
+    // 排版和配色在前，翻页细调展开后不改变参数与原有回调。
+    final fontTop = tester
+        .getTopLeft(find.byKey(const ValueKey('novel-font-size')))
         .dy;
     final volumeTop = tester
         .getTopLeft(find.byKey(const ValueKey('novel-volume-key')))
@@ -340,13 +368,9 @@ void main() {
     final instantTop = tester
         .getTopLeft(find.byKey(const ValueKey('novel-instant-page-turn')))
         .dy;
-    final fontTop = tester
-        .getTopLeft(find.byKey(const ValueKey('novel-font-size')))
-        .dy;
-    expect(volumeTop, greaterThan(modeBottom));
+    expect(volumeTop, greaterThan(fontTop));
     expect(realisticTop, greaterThan(volumeTop));
     expect(instantTop, greaterThan(realisticTop));
-    expect(fontTop, greaterThan(instantTop));
     // 翻页设置默认值：音量键与仿真翻页开启、无动画关闭。
     expect(
       tester
@@ -396,6 +420,7 @@ void main() {
     // 切回翻页后仍保持关闭，可重新开启；不改动无动画偏好。
     await tester.tap(find.text('翻页'));
     await tester.pumpAndSettle();
+    await _toggleFold(tester, 'novel-page-turn-settings');
     expect(
       tester
           .widget<SwitchListTile>(
@@ -418,6 +443,7 @@ void main() {
       expect(find.byType(ReaderStatusSettingsSection), findsOneWidget);
       await _tapVisible(tester, 'reader-status-overlay-switch');
       expect(ReaderSettings().statusOverlay, isTrue);
+      await _tapVisible(tester, 'reader-status-details-toggle');
       await tester.ensureVisible(find.byType(ReorderableListView));
       await tester.pumpAndSettle();
       final handles = find.byType(ReorderableDragStartListener);
@@ -443,6 +469,45 @@ void main() {
     },
   );
 
+  testWidgets('folded page-turn settings preserve edits and persist them', (
+    tester,
+  ) async {
+    var latest = const NovelReaderSettings(mode: NovelReaderMode.paged);
+    await _mount(
+      tester,
+      settings: latest,
+      onChanged: (value) => latest = value,
+      reduceMotion: true,
+    );
+    expect(find.byType(ReaderSettingsFold), findsNWidgets(2));
+    expect(
+      find.byKey(const ValueKey('novel-volume-key')).hitTestable(),
+      findsNothing,
+    );
+    await _toggleFold(tester, 'novel-page-turn-settings');
+    await _tapVisible(tester, 'novel-volume-key');
+    expect(latest.volumeKey, isFalse);
+    await _toggleFold(tester, 'novel-page-turn-settings');
+    expect(
+      find.byKey(const ValueKey('novel-volume-key')).hitTestable(),
+      findsNothing,
+    );
+    await _toggleFold(tester, 'novel-page-turn-settings');
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-volume-key')),
+          )
+          .value,
+      isFalse,
+    );
+    await tester.runAsync(() async {
+      await latest.save();
+      expect((await NovelReaderSettings.load()).volumeKey, isFalse);
+    });
+    expect(tester.takeException(), isNull);
+  });
+
   for (final locale in [
     const Locale('zh'),
     const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
@@ -464,6 +529,8 @@ void main() {
           textScale: 2,
           locale: locale,
         );
+        await _toggleFold(tester, 'novel-page-turn-settings');
+        await _toggleFold(tester, 'novel-custom-theme-settings');
         final realisticTile = find.byKey(
           const ValueKey('novel-realistic-page-turn'),
         );
