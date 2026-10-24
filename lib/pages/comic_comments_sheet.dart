@@ -106,6 +106,7 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
     final tt = Theme.of(context).textTheme;
     final width = MediaQuery.sizeOf(context).width;
     final height = MediaQuery.sizeOf(context).height * 0.85;
+    final countLabel = _buildCountLabel(l10n);
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -126,20 +127,32 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                     const AppSheetHandle(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
                                   l10n.comicCommentTitle,
                                   style: tt.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
+                              ),
+                              IconButton(
+                                onPressed: _showCommentSettings,
+                                tooltip: l10n.comicCommentSettingsTooltip,
+                                icon: const Icon(Icons.tune),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            key: const ValueKey('comic-comments-subtitle'),
+                            children: [
+                              Expanded(
+                                child: Text(
                                   widget.comicName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -147,19 +160,19 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                                     color: cs.onSurfaceVariant,
                                   ),
                                 ),
+                              ),
+                              if (countLabel.isNotEmpty) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  countLabel,
+                                  key: const ValueKey('comic-comments-count'),
+                                  maxLines: 1,
+                                  style: tt.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
                               ],
-                            ),
-                          ),
-                          Text(
-                            _buildCountLabel(l10n),
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: _showCommentSettings,
-                            tooltip: l10n.comicCommentSettingsTooltip,
-                            icon: const Icon(Icons.tune),
+                            ],
                           ),
                         ],
                       ),
@@ -182,8 +195,8 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                 valueListenable: showFloatingButtons,
                 builder: (context, showFloatingButtons, child) {
                   final buttonStyle = FilledButton.styleFrom(
-                    backgroundColor: cs.primaryContainer,
-                    foregroundColor: cs.onPrimaryContainer,
+                    backgroundColor: cs.secondaryContainer,
+                    foregroundColor: cs.onSecondaryContainer,
                     elevation: 6,
                     shadowColor: AppShadows.floatingTint(0.22),
                     minimumSize: const Size(0, 52),
@@ -211,7 +224,14 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             FilledButton.icon(
-                              style: buttonStyle,
+                              style: buttonStyle.copyWith(
+                                backgroundColor: WidgetStatePropertyAll(
+                                  cs.primary,
+                                ),
+                                foregroundColor: WidgetStatePropertyAll(
+                                  cs.onPrimary,
+                                ),
+                              ),
                               onPressed: _showPostCommentDialog,
                               icon: const Icon(Icons.comment_outlined),
                               label: Text(l10n.chapterCommentsComment),

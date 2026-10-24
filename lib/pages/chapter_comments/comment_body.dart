@@ -41,12 +41,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
     final l10n = AppLocalizations.of(context)!;
     if (_loading && _comments.isEmpty) {
       return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          _ChapterCommentsSheetState._commentListBottomPadding,
-        ),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 8,
         separatorBuilder: (context, index) => const SizedBox(height: 10),
@@ -119,12 +114,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
         child: ListView.separated(
           controller: scrollController,
           physics: CommentScrollBehavior.alwaysDraggablePhysics,
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            12,
-            16,
-            _ChapterCommentsSheetState._commentListBottomPadding,
-          ),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
           itemCount: summaryOffset + entries.length + (footer != null ? 1 : 0),
           separatorBuilder: (_, index) => const SizedBox(height: 10),
           itemBuilder: (_, index) {
@@ -169,12 +159,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
           child: ListView.separated(
             controller: scrollController,
             physics: CommentScrollBehavior.alwaysDraggablePhysics,
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              _ChapterCommentsSheetState._commentListBottomPadding,
-            ),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
             itemCount: summaryOffset + rows.length + (footer != null ? 1 : 0),
             separatorBuilder: (_, index) =>
                 const SizedBox(height: AppSpacing.sm),

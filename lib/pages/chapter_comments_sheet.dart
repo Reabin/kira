@@ -14,10 +14,10 @@ import '../l10n/app_localizations.dart';
 import '../models/chapter_comment.dart';
 import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
-import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
 import '../theme/app_typography.dart';
+import '../utils/adaptive_motion.dart';
 import '../utils/app_logger.dart';
 import '../utils/chapter_comment_paging.dart';
 import '../utils/chapter_summary_cache.dart';
@@ -33,6 +33,7 @@ import '../widgets/text_controller_scope.dart';
 import 'chapter_comment_display.dart';
 import 'chapter_comments/comment_paging.dart';
 import 'chapter_comments/comment_scroll_behavior.dart';
+import 'chapter_comments/comment_toolbar.dart';
 
 part 'chapter_comments/ai_summary.dart';
 part 'chapter_comments/comment_actions.dart';
@@ -81,7 +82,8 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
   static const _pageSize = chapterCommentPageSize;
   bool _confettiShown = false;
   static const _commentRowSpacing = 8.0;
-  static const _commentListBottomPadding = 124.0;
+  final _commentToolbarKey = GlobalKey();
+  double _commentToolbarHeight = 0;
   static const _sheetMaxHeightFactor = 0.85;
   static const _mergedCommentSheetMaxHeightFactor = 0.5;
 
@@ -301,13 +303,28 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
   void loadMoreComments() => _loadComments(loadMore: true);
 
   void _scrollToTop() {
-    if (scrollController.hasClients) {
+    if (!scrollController.hasClients) return;
+    if (prefersReducedMotion(context)) {
+      scrollController.jumpTo(0);
+    } else {
       scrollController.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  double get _commentListBottomPadding =>
+      _commentToolbarHeight + AppSpacing.lg * 2;
+
+  void _measureCommentToolbar() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final height = _commentToolbarKey.currentContext?.size?.height;
+      if (height == null || height == _commentToolbarHeight) return;
+      setState(() => _commentToolbarHeight = height);
+    });
   }
 
   static final _codeBlockRegex = RegExp(
@@ -328,6 +345,8 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final sheetWidth = MediaQuery.of(context).size.width;
+    final countLabel = _buildCountLabel(l10n);
+    _measureCommentToolbar();
 
     return GestureDetector(
       onTap: () => Navigator.of(context).pop(),
@@ -352,20 +371,50 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
                         const AppSheetHandle(),
                         Padding(
                           padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
                                       l10n.chapterCommentsTitle,
                                       style: tt.titleMedium?.copyWith(
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                    const SizedBox(height: AppSpacing.xs),
-                                    Text(
+                                  ),
+                                  if (_aiSettings.hasApiKey &&
+                                      _aiSettings.summaryEnabled)
+                                    IconButton(
+                                      tooltip: _aiSummary.isEmpty
+                                          ? l10n.chapterCommentsAiSummaryTooltip
+                                          : l10n.chapterCommentsRegenerateAiSummaryTooltip,
+                                      onPressed: _summarizing
+                                          ? null
+                                          : _summarizeComments,
+                                      icon: Icon(
+                                        Icons.smart_toy_outlined,
+                                        color: _summarizing
+                                            ? cs.onSurfaceVariant
+                                            : cs.primary,
+                                      ),
+                                    ),
+                                  IconButton(
+                                    tooltip: l10n.commentSettingsTitle,
+                                    onPressed: _showCommentSettings,
+                                    icon: const Icon(Icons.tune),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Row(
+                                key: const ValueKey(
+                                  'chapter-comments-subtitle',
+                                ),
+                                children: [
+                                  Expanded(
+                                    child: Text(
                                       widget.chapterName,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -373,55 +422,21 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
                                         color: cs.onSurfaceVariant,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                              if (_aiSettings.hasApiKey &&
-                                  _aiSettings.summaryEnabled) ...[
-                                IconButton(
-                                  tooltip: _aiSummary.isEmpty
-                                      ? l10n.chapterCommentsAiSummaryTooltip
-                                      : l10n.chapterCommentsRegenerateAiSummaryTooltip,
-                                  onPressed: _summarizing
-                                      ? null
-                                      : _summarizeComments,
-                                  icon: Icon(
-                                    Icons.smart_toy_outlined,
-                                    color: _summarizing
-                                        ? cs.onSurfaceVariant
-                                        : cs.primary,
                                   ),
-                                ),
-                              ],
-                              IconButton(
-                                tooltip: _useCompactLayout
-                                    ? l10n.chapterCommentsSwitchToListLayout
-                                    : l10n.chapterCommentsSwitchToCompactLayout,
-                                onPressed: () {
-                                  setState(
-                                    () =>
-                                        _useCompactLayout = !_useCompactLayout,
-                                  );
-                                  _user.setCommentCompactLayout(
-                                    _useCompactLayout,
-                                  );
-                                },
-                                icon: Icon(
-                                  _useCompactLayout
-                                      ? Icons.view_agenda_outlined
-                                      : Icons.dashboard_outlined,
-                                ),
-                              ),
-                              IconButton(
-                                tooltip: l10n.commentSettingsTitle,
-                                onPressed: _showCommentSettings,
-                                icon: const Icon(Icons.tune),
-                              ),
-                              Text(
-                                _buildCountLabel(l10n),
-                                style: tt.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
+                                  if (countLabel.isNotEmpty) ...[
+                                    const SizedBox(width: AppSpacing.sm),
+                                    Text(
+                                      countLabel,
+                                      key: const ValueKey(
+                                        'chapter-comments-count',
+                                      ),
+                                      maxLines: 1,
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -440,148 +455,54 @@ class _ChapterCommentsSheetState extends State<ChapterCommentsSheet>
                   ),
                 ),
                 Positioned(
-                  right: 16,
-                  bottom: 16,
+                  right: AppSpacing.lg,
+                  bottom: AppSpacing.lg,
                   child: ValueListenableBuilder<bool>(
                     valueListenable: showFloatingButtons,
-                    builder: (context, showFloatingButtons, child) {
-                      return AnimatedSlide(
-                        offset: showFloatingButtons
-                            ? Offset.zero
-                            : const Offset(0, 1.2),
-                        curve: Curves.easeInOutCubic,
-                        duration: const Duration(milliseconds: 260),
-                        child: AnimatedOpacity(
-                          opacity: showFloatingButtons ? 1.0 : 0.0,
-                          curve: Curves.easeInOutCubic,
-                          duration: const Duration(milliseconds: 260),
-                          child: SafeArea(
-                            top: false,
-                            child: Builder(
-                              builder: (context) {
-                                final buttonBackgroundColor =
-                                    cs.primaryContainer;
-                                final buttonForegroundColor =
-                                    cs.onPrimaryContainer;
-                                final buttonStyle = FilledButton.styleFrom(
-                                  backgroundColor: buttonBackgroundColor,
-                                  foregroundColor: buttonForegroundColor,
-                                  elevation: 6,
-                                  shadowColor: AppShadows.floatingTint(0.22),
-                                  minimumSize: const Size(0, 52),
-                                  maximumSize: const Size.fromHeight(52),
-                                  fixedSize: const Size.fromHeight(52),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: AppRadius.smR,
-                                  ),
-                                  tapTargetSize:
-                                      MaterialTapTargetSize.shrinkWrap,
-                                );
-
-                                return Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    FilledButton.icon(
-                                      style: buttonStyle,
-                                      onPressed: _showPostCommentDialog,
-                                      icon: const Icon(Icons.comment_outlined),
-                                      label: Text(l10n.chapterCommentsComment),
-                                    ),
-                                    const SizedBox(width: AppSpacing.sm),
-                                    FilledButton.icon(
-                                      style: buttonStyle,
-                                      onPressed: () {
-                                        widget.onBackToCatalog?.call();
-                                        Navigator.of(
-                                          context,
-                                        ).pop('back_to_catalog');
-                                      },
-                                      icon: const Icon(Icons.list_rounded),
-                                      label: Text(l10n.chapterCommentsCatalog),
-                                    ),
-                                    if (widget.hasNextChapter) ...[
-                                      const SizedBox(width: AppSpacing.sm),
-                                      FilledButton.icon(
-                                        style: buttonStyle,
-                                        onPressed: widget.onNextChapter,
-                                        icon: const Icon(
-                                          Icons.skip_next_rounded,
-                                        ),
-                                        label: Text(l10n.chapterCommentsNext),
-                                      ),
-                                    ],
-                                    const SizedBox(width: AppSpacing.sm),
-                                    Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        SizedBox.square(
-                                          dimension: 52,
-                                          child: FilledButton(
-                                            style: buttonStyle.copyWith(
-                                              padding:
-                                                  const WidgetStatePropertyAll(
-                                                    EdgeInsets.zero,
-                                                  ),
-                                              minimumSize:
-                                                  const WidgetStatePropertyAll(
-                                                    Size.square(52),
-                                                  ),
-                                              maximumSize:
-                                                  const WidgetStatePropertyAll(
-                                                    Size.square(52),
-                                                  ),
-                                            ),
-                                            onPressed: _scrollToTop,
-                                            child: const Center(
-                                              child: Icon(
-                                                Icons.arrow_upward_rounded,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: AppSpacing.sm),
-                                        SizedBox.square(
-                                          dimension: 52,
-                                          child: FilledButton(
-                                            style: buttonStyle.copyWith(
-                                              padding:
-                                                  const WidgetStatePropertyAll(
-                                                    EdgeInsets.zero,
-                                                  ),
-                                              minimumSize:
-                                                  const WidgetStatePropertyAll(
-                                                    Size.square(52),
-                                                  ),
-                                              maximumSize:
-                                                  const WidgetStatePropertyAll(
-                                                    Size.square(52),
-                                                  ),
-                                            ),
-                                            onPressed: () => Navigator.of(
-                                              context,
-                                            ).maybePop(),
-                                            child: const Center(
-                                              child: Icon(
-                                                Icons
-                                                    .keyboard_arrow_down_rounded,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                );
-                              },
+                    builder: (context, visible, child) {
+                      final duration = adaptiveDuration(
+                        context,
+                        const Duration(milliseconds: 220),
+                      );
+                      return ExcludeFocus(
+                        excluding: !visible,
+                        child: IgnorePointer(
+                          ignoring: !visible,
+                          child: ExcludeSemantics(
+                            excluding: !visible,
+                            child: AnimatedSlide(
+                              offset: visible
+                                  ? Offset.zero
+                                  : const Offset(0, 1.2),
+                              curve: Curves.easeInOutCubic,
+                              duration: duration,
+                              child: AnimatedOpacity(
+                                opacity: visible ? 1 : 0,
+                                duration: duration,
+                                child: SafeArea(top: false, child: child!),
+                              ),
                             ),
                           ),
                         ),
                       );
                     },
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: sheetWidth - AppSpacing.lg * 2,
+                      ),
+                      child: ChapterCommentToolbar(
+                        key: _commentToolbarKey,
+                        onComment: _showPostCommentDialog,
+                        onCatalog: () {
+                          widget.onBackToCatalog?.call();
+                          Navigator.of(context).pop('back_to_catalog');
+                        },
+                        hasNextChapter: widget.hasNextChapter,
+                        onNextChapter: widget.onNextChapter,
+                        onScrollToTop: _scrollToTop,
+                        onClose: () => Navigator.of(context).maybePop(),
+                      ),
+                    ),
                   ),
                 ),
               ],

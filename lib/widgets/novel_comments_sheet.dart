@@ -16,9 +16,11 @@ import '../providers/app_providers.dart';
 import '../providers/novel_providers.dart';
 import '../providers/settings_providers.dart';
 import '../routing/app_router.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_shadows.dart';
 import '../theme/app_spacing.dart';
+import '../utils/adaptive_motion.dart';
 import '../utils/app_logger.dart';
 import '../utils/comment_text.dart';
 import '../utils/time_format.dart';
@@ -98,7 +100,8 @@ class NovelCommentsSheet extends ConsumerStatefulWidget {
 
 class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
   static const _replyPageSize = 3;
-  static const _listBottomPadding = 80.0;
+  final _floatingButtonsKey = GlobalKey();
+  double _floatingButtonsHeight = 0;
 
   late final UserManager _user = ref.read(userManagerProvider);
   late final _settings = ref.read(commentSettingsProvider);
@@ -213,13 +216,27 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
   }
 
   void _scrollToTop() {
-    if (_scroll.hasClients) {
+    if (!_scroll.hasClients) return;
+    if (prefersReducedMotion(context)) {
+      _scroll.jumpTo(0);
+    } else {
       _scroll.animateTo(
         0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
       );
     }
+  }
+
+  double get _listBottomPadding => _floatingButtonsHeight + AppSpacing.lg * 2;
+
+  void _measureFloatingButtons() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final height = _floatingButtonsKey.currentContext?.size?.height;
+      if (height == null || height == _floatingButtonsHeight) return;
+      setState(() => _floatingButtonsHeight = height);
+    });
   }
 
   // ── Posting ────────────────────────────────────────────────────────────
@@ -603,6 +620,8 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final countLabel = _buildCountLabel(l10n);
+    _measureFloatingButtons();
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Stack(
@@ -611,13 +630,13 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
                             widget.replyId == null
                                 ? l10n.chapterCommentsComment
                                 : l10n.novelReplyTitle,
@@ -625,31 +644,48 @@ class _NovelCommentsSheetState extends ConsumerState<NovelCommentsSheet> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (widget.bookName.isNotEmpty) ...[
-                            const SizedBox(height: AppSpacing.xs),
+                        ),
+                        IconButton(
+                          tooltip: l10n.comicCommentSettingsTooltip,
+                          onPressed: _showSettings,
+                          icon: const Icon(Icons.tune),
+                        ),
+                      ],
+                    ),
+                    if (widget.bookName.isNotEmpty ||
+                        countLabel.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Row(
+                        key: const ValueKey('novel-comments-subtitle'),
+                        children: [
+                          if (widget.bookName.isNotEmpty)
+                            Expanded(
+                              child: Text(
+                                widget.bookName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                          if (widget.bookName.isNotEmpty &&
+                              countLabel.isNotEmpty)
+                            const SizedBox(width: AppSpacing.sm),
+                          if (countLabel.isNotEmpty)
                             Text(
-                              widget.bookName,
+                              countLabel,
+                              key: const ValueKey('novel-comments-count'),
                               maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: cs.onSurfaceVariant,
                               ),
                             ),
-                          ],
                         ],
                       ),
-                    ),
-                    Text(
-                      _buildCountLabel(l10n),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: l10n.comicCommentSettingsTooltip,
-                      onPressed: _showSettings,
-                      icon: const Icon(Icons.tune),
-                    ),
+                    ],
                   ],
                 ),
               ),

@@ -17,7 +17,7 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
                   AppSpacing.lg,
                   AppSpacing.md,
                   AppSpacing.lg,
-                  _NovelCommentsSheetState._listBottomPadding,
+                  AppSpacing.md,
                 ),
                 sliver: SliverList.separated(
                   itemCount: 6,
@@ -47,7 +47,7 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
                   AppSpacing.lg,
                   AppSpacing.md,
                   AppSpacing.lg,
-                  _NovelCommentsSheetState._listBottomPadding,
+                  AppSpacing.md,
                 ),
                 sliver: Builder(
                   builder: (context) {
@@ -78,20 +78,20 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
                       )
                     : const SizedBox(height: 32),
               ),
+            SliverToBoxAdapter(child: SizedBox(height: _listBottomPadding)),
           ],
         ),
       ),
     );
   }
 
-  /// 右下角悬浮按钮组，与漫画评论区一致：评论、回到顶部、关闭。
   /// 向下滚动隐藏，向上滚动或抵达底部时恢复。
   Widget _buildFloatingButtons(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final squareStyle = FilledButton.styleFrom(
-      backgroundColor: cs.primaryContainer,
-      foregroundColor: cs.onPrimaryContainer,
+      backgroundColor: cs.secondaryContainer,
+      foregroundColor: cs.onSecondaryContainer,
       elevation: 6,
       shadowColor: AppShadows.floatingTint(0.22),
       minimumSize: const Size.square(52),
@@ -102,30 +102,50 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
     return Positioned(
-      right: 16,
-      bottom: 16,
+      right: AppSpacing.lg,
+      bottom: AppSpacing.lg,
       child: ValueListenableBuilder<bool>(
         valueListenable: _showFloatingButtons,
-        builder: (context, visible, child) => AnimatedSlide(
-          offset: visible ? Offset.zero : const Offset(0, 1.2),
-          curve: Curves.easeInOutCubic,
-          duration: const Duration(milliseconds: 260),
-          child: AnimatedOpacity(
-            key: const ValueKey('novel-comment-floating-buttons-opacity'),
-            opacity: visible ? 1.0 : 0.0,
-            curve: Curves.easeInOutCubic,
-            duration: const Duration(milliseconds: 260),
-            child: child!,
-          ),
-        ),
+        builder: (context, visible, child) {
+          final duration = adaptiveDuration(
+            context,
+            const Duration(milliseconds: 220),
+          );
+          return ExcludeFocus(
+            excluding: !visible,
+            child: IgnorePointer(
+              ignoring: !visible,
+              child: ExcludeSemantics(
+                excluding: !visible,
+                child: AnimatedSlide(
+                  offset: visible ? Offset.zero : const Offset(0, 1.2),
+                  curve: Curves.easeInOutCubic,
+                  duration: duration,
+                  child: AnimatedOpacity(
+                    key: const ValueKey(
+                      'novel-comment-floating-buttons-opacity',
+                    ),
+                    opacity: visible ? 1 : 0,
+                    duration: duration,
+                    child: child!,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
         child: SafeArea(
           top: false,
           child: Row(
+            key: _floatingButtonsKey,
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               FilledButton.icon(
+                key: const ValueKey('novel-comment-post-action'),
                 style: squareStyle.copyWith(
+                  backgroundColor: WidgetStatePropertyAll(cs.primary),
+                  foregroundColor: WidgetStatePropertyAll(cs.onPrimary),
                   fixedSize: const WidgetStatePropertyAll(Size.fromHeight(52)),
                   minimumSize: const WidgetStatePropertyAll(Size(0, 52)),
                   maximumSize: const WidgetStatePropertyAll(
@@ -138,7 +158,7 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
                 onPressed: _posting || !widget.allowPosting
                     ? null
                     : () => _showPostDialog(),
-                icon: const Icon(Icons.comment_outlined),
+                icon: const Icon(Icons.comment_outlined, size: AppIconSize.lg),
                 label: Text(l10n.chapterCommentsComment),
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -147,19 +167,27 @@ extension _NovelCommentsViewPart on _NovelCommentsSheetState {
                 children: [
                   SizedBox.square(
                     dimension: 52,
-                    child: FilledButton(
-                      style: squareStyle,
-                      onPressed: _scrollToTop,
-                      child: const Icon(Icons.arrow_upward_rounded),
+                    child: Tooltip(
+                      message: l10n.backToTop,
+                      child: FilledButton(
+                        key: const ValueKey('novel-comment-scroll-top-action'),
+                        style: squareStyle,
+                        onPressed: _scrollToTop,
+                        child: const Icon(Icons.arrow_upward_rounded),
+                      ),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   SizedBox.square(
                     dimension: 52,
-                    child: FilledButton(
-                      style: squareStyle,
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      child: const Icon(Icons.keyboard_arrow_down_rounded),
+                    child: Tooltip(
+                      message: l10n.closeButton,
+                      child: FilledButton(
+                        key: const ValueKey('novel-comment-close-action'),
+                        style: squareStyle,
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        child: const Icon(Icons.keyboard_arrow_down_rounded),
+                      ),
                     ),
                   ),
                 ],
