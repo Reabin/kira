@@ -650,6 +650,8 @@ void main() {
       final before = viewport.currentLocation!.anchor;
       expect(before.paragraphIndex, 40);
 
+      await tester.tapAt(tester.getCenter(find.byType(NovelReaderViewport)));
+      await _settle(tester);
       await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
       await _settle(tester);
       await _changeVolume(tester, 'v2');

@@ -122,7 +122,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   int _bookmarkRevision = 0;
   bool _volumeChannelAvailable = true;
   bool _loading = true;
-  bool _toolbarVisible = true;
+  bool _toolbarVisible = false;
 
   /// 工具栏滑出屏幕的位移倍数（留一点余量，避免边缘露出）。
   static const _hiddenToolbarSlideOffset = 1.05;
@@ -193,7 +193,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _systemPadding ??= MediaQuery.paddingOf(context);
+    if (_systemPadding == null) {
+      _systemPadding = MediaQuery.paddingOf(context);
+      // 先保存常规系统栏 inset，再同步首次进入的沉浸模式。
+      _syncSystemUi();
+    }
   }
 
   Future<void> _loadBookmarks() async {
@@ -262,7 +266,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   void _setToolbarVisible(bool visible) {
     if (_toolbarVisible == visible) return;
     setState(() => _toolbarVisible = visible);
-    if (visible) {
+    _syncSystemUi();
+  }
+
+  void _syncSystemUi() {
+    if (_toolbarVisible) {
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,
@@ -508,6 +516,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             _loading = false;
             _error = const NovelDownloadUnavailableException();
           });
+          _setToolbarVisible(true);
           return;
         }
       }
@@ -560,6 +569,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     bool lastEntry = false,
   }) async {
     unawaited(_flush());
+    // 异常/空卷页为返回而展开的工具栏，重试时重新收起；正常换卷不重置。
+    if (!_loading &&
+        (_error != null || _document == null || _document!.itemCount == 0)) {
+      _setToolbarVisible(false);
+    }
     final session = _session;
     final request = ++_request;
     final path = _pathWord;
@@ -644,6 +658,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } finally {
       if (_active(session) && request == _request) {
         setState(() => _loading = false);
+        if (_error != null || _document == null || _document!.itemCount == 0) {
+          _setToolbarVisible(true);
+        }
       }
     }
   }

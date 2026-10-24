@@ -18,7 +18,6 @@ import 'package:kira/pages/novel_reader/novel_reader_contents_sheet.dart';
 import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
 import 'package:kira/pages/novel_reader_page.dart';
-import 'package:kira/theme/novel_reader_theme.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/theme/app_icon_sizes.dart';
@@ -347,7 +346,23 @@ Future<void> _longPress(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _showToolbar(WidgetTester tester) async {
+  final back = find.byKey(const ValueKey('novel-reader-back')).hitTestable();
+  if (back.evaluate().isNotEmpty) return;
+  await tester.tapAt(
+    tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center,
+  );
+  await _settle(tester);
+  expect(back, findsOneWidget);
+}
+
+Future<void> _tapToolbar(WidgetTester tester, String key) async {
+  await _showToolbar(tester);
+  await tester.tap(find.byKey(ValueKey(key)));
+}
+
 Future<void> _slideTo(WidgetTester tester, double item) async {
+  await _showToolbar(tester);
   final slider = tester.widget<Slider>(
     find.byKey(const ValueKey('novel-reader-progress')),
   );
@@ -525,14 +540,8 @@ void main() {
       1,
     );
     // 章首前的空行锚点退回该章最后一个可见段。
-    expect(
-      document.itemFor(const NovelReaderAnchor(entryIndex: 0)),
-      0,
-    );
-    expect(
-      document.itemFor(const NovelReaderAnchor(entryIndex: 2)),
-      3,
-    );
+    expect(document.itemFor(const NovelReaderAnchor(entryIndex: 0)), 0);
+    expect(document.itemFor(const NovelReaderAnchor(entryIndex: 2)), 3);
     // 关闭过滤时行为与旧版本完全一致。
     final legacy = NovelReaderDocument(source);
     expect(legacy.itemCount, 8);
@@ -545,6 +554,14 @@ void main() {
       await tester.runAsync(() => store.saveProgress(_progress()));
       store.writes.clear();
       await _mount(tester, repository, store, resume: true);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       final position = _location(tester).anchor;
       expect(position.entryIndex, 1);
       expect(position.paragraphIndex, 40);
@@ -594,6 +611,163 @@ void main() {
     },
   );
 
+  testWidgets(
+    'entry hides both toolbars before loading and restores system bars on exit',
+    (tester) async {
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          calls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final pending = Completer<NovelVolumeContent>();
+      repository.pending['v1'] = pending;
+      await _mount(tester, repository, store, settle: false);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        calls
+            .where(
+              (call) => call.method == 'SystemChrome.setEnabledSystemUIMode',
+            )
+            .map((call) => call.arguments),
+        contains('SystemUiMode.immersiveSticky'),
+      );
+      pending.complete(_volume());
+      await _settle(tester);
+      expect(find.byType(NovelReaderViewport), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      await _showToolbar(tester);
+      expect(
+        calls
+            .lastWhere(
+              (call) =>
+                  call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+            )
+            .arguments,
+        ['SystemUiOverlay.top', 'SystemUiOverlay.bottom'],
+      );
+      await tester.tapAt(
+        tester.getRect(find.byType(NovelReaderViewport)).center,
+      );
+      await _settle(tester);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      await _remove(tester);
+      expect(
+        calls
+            .lastWhere(
+              (call) =>
+                  call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+            )
+            .arguments,
+        ['SystemUiOverlay.top', 'SystemUiOverlay.bottom'],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed loading shows a return action and retry hides toolbars again',
+    (tester) async {
+      repository.errors['v1'] = const NovelApiException('network unavailable');
+      await _mount(tester, repository, store);
+      expect(find.textContaining('network unavailable'), findsOneWidget);
+      final back = find
+          .byKey(const ValueKey('novel-reader-back'))
+          .hitTestable();
+      final settings = find
+          .byKey(const ValueKey('novel-reader-settings'))
+          .hitTestable();
+      expect(back.hitTestable(), findsOneWidget);
+      expect(settings, findsOneWidget);
+      final pending = Completer<NovelVolumeContent>();
+      repository.pending['v1'] = pending;
+      repository.errors.clear();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ErrorRetryView),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
+      expect(back, findsNothing);
+      expect(settings, findsNothing);
+      pending.complete(_volume());
+      await _settle(tester);
+      expect(find.byType(NovelReaderViewport), findsOneWidget);
+      expect(back, findsNothing);
+      expect(settings, findsNothing);
+      await _showToolbar(tester);
+      await _remove(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final visible in [false, true]) {
+    testWidgets(
+      'returning from the background preserves toolbar visibility: $visible',
+      (tester) async {
+        await _mount(tester, repository, store);
+        if (visible) await _showToolbar(tester);
+        final back = find
+            .byKey(const ValueKey('novel-reader-back'))
+            .hitTestable();
+        expect(back, visible ? findsOneWidget : findsNothing);
+        final before = _location(tester).anchor;
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        await tester.pump();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await _settle(tester);
+        expect(back, visible ? findsOneWidget : findsNothing);
+        expect(_location(tester).anchor.paragraphIndex, before.paragraphIndex);
+        expect(
+          _location(tester).anchor.alignment,
+          closeTo(before.alignment, 1e-6),
+        );
+        await _remove(tester);
+      },
+    );
+  }
+
   testWidgets('volume loading uses the shared patterned indicator', (
     tester,
   ) async {
@@ -633,6 +807,14 @@ void main() {
   ) async {
     await _seed(tester, store, _progress());
     await _mount(tester, repository, store, initialEntry: 2);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(_location(tester).anchor.entryIndex, 2);
     expect(_location(tester).anchor.paragraphIndex, 0);
     await _remove(tester);
@@ -749,6 +931,7 @@ void main() {
       'v2': _volume(id: 'v2', previous: 'v1'),
     });
     await _mount(tester, repository, store, initialEntry: 1);
+    await _showToolbar(tester);
     expect(
       tester
           .widget<IconButton>(
@@ -803,6 +986,7 @@ void main() {
     pending.complete(_volume());
     await _settle(tester);
     await _flush(tester);
+    await _showToolbar(tester);
     expect(find.text('another title'), findsOneWidget);
     expect(store.writes.last.pathWord, 'another');
     expect(store.writes.last.volumeId, 'v2');
@@ -958,6 +1142,7 @@ void main() {
         store.writes.clear();
         // 按钮书签以视口中点段落为参照，而不是顶部首段。
         final location = _centerLocation(tester);
+        await _showToolbar(tester);
         final button = find.byKey(const ValueKey('novel-reader-bookmark'));
         expect(Theme.of(tester.element(button)).brightness, brightness);
         final chrome = tester.widget<ColoredBox>(
@@ -1154,7 +1339,7 @@ void main() {
         'v1': _volume(blanks: {for (var i = 3; i <= 40; i++) i}),
       });
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _tapToolbar(tester, 'novel-reader-bookmark');
       await _settle(tester);
       final bookmark = _bookmarks.bookmarks.single;
       expect(bookmark.entryIndex, 0);
@@ -1213,7 +1398,7 @@ void main() {
       );
       final foreground = paragraphForeground(tester, marked);
       final topBefore = tester.getTopLeft(marked).dy;
-      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _tapToolbar(tester, 'novel-reader-bookmark');
       await _settle(tester);
       expect(_bookmarks.bookmarks.single.paragraphIndex, center.paragraphIndex);
       expect(
@@ -1240,6 +1425,14 @@ void main() {
         initialParagraph: 25,
         initialAlignment: -0.03,
         highlightOnEntry: true,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
       );
       final paragraph = paragraphText('v1 entry 1 paragraph 25');
       expect(
@@ -1282,7 +1475,7 @@ void main() {
         padding: padding,
         textScale: textScale,
       );
-      await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+      await _tapToolbar(tester, 'novel-reader-settings');
       await _settle(tester);
 
       final sheet = find.byType(AppSheet);
@@ -1310,7 +1503,7 @@ void main() {
   ) async {
     await _seed(tester, store, _progress(alignment: -0.03));
     await _mount(tester, repository, store, resume: true);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+    await _tapToolbar(tester, 'novel-reader-settings');
     await _settle(tester);
     expect(find.byType(AppSheet), findsOneWidget);
     for (final (key, value) in [
@@ -1378,7 +1571,10 @@ void main() {
       await _settle(tester);
       await _flush(tester);
       // 用户滚动会自动隐藏工具栏；本用例专注几何稳定，先点回工具栏。
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       // 点在页边空白（非段落文字），只切工具栏，不会弹段落菜单。
       await tester.tapAt(
         Offset(
@@ -1423,7 +1619,7 @@ void main() {
         await _settle(tester);
         expectStablePosition();
         expect(
-          find.byKey(const ValueKey('novel-reader-settings')),
+          find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
           toggle.isEven ? findsNothing : findsOneWidget,
         );
       }
@@ -1447,6 +1643,7 @@ void main() {
   ) async {
     await _seed(tester, store, _progress());
     await _mount(tester, repository, store, resume: true);
+    await _showToolbar(tester);
     await tester.binding.setSurfaceSize(const Size(420, 820));
     await _settle(tester);
     expect(_location(tester).anchor.paragraphIndex, 40);
@@ -1463,7 +1660,10 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(_location(tester).anchor.paragraphIndex, 40);
     await tester.binding.setSurfaceSize(const Size(820, 420));
     await _settle(tester);
@@ -1482,7 +1682,10 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(_location(tester).anchor.paragraphIndex, 40);
     expect(tester.takeException(), isNull);
     await _remove(tester);
@@ -1493,7 +1696,7 @@ void main() {
     'reader theme and screen preference are local and plugin failure is safe',
     (tester) async {
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+      await _tapToolbar(tester, 'novel-reader-settings');
       await _settle(tester);
       // 浅色模式下拉选择「纸张」。
       final lightTile = find.byKey(const ValueKey('novel-light-theme'));
@@ -1532,13 +1735,15 @@ void main() {
     tester,
   ) async {
     repository.content['v2'] = _volume(id: 'v2');
+    await _mount(tester, repository, store);
+    await _showToolbar(tester);
     store.pendingRead = Completer<NovelReadingProgress?>();
     await _mount(tester, repository, store, resume: true, settle: false);
     for (var frame = 0; frame < 8; frame++) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump(const Duration(milliseconds: 20));
     }
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await tester.pump(const Duration(milliseconds: 350));
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -1549,7 +1754,7 @@ void main() {
     expect(_location(tester).anchor.entryIndex, 2);
     store.pendingRead!.complete(_progress());
     await _settle(tester);
-    expect(repository.calls, ['book/v2/false']);
+    expect(repository.calls, ['book/v1/false', 'book/v2/false']);
     expect(_location(tester).anchor.entryIndex, 2);
     await _flush(tester);
     expect(store.writes.last.volumeId, 'v2');
@@ -1563,7 +1768,7 @@ void main() {
     await _mount(tester, repository, store);
     expect(repository.volumeCalls, ['book']);
     for (var open = 0; open < 2; open++) {
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       await _settle(tester);
       expect(
         find.descendant(
@@ -1592,7 +1797,7 @@ void main() {
       final pending = Completer<List<NovelVolume>>();
       repository.volumesPending = pending;
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       expect(repository.volumeCalls, ['book']);
@@ -1609,6 +1814,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository, store);
+    await _showToolbar(tester);
     final sliderFinder = find.byKey(const ValueKey('novel-reader-progress'));
     final sliderTheme = tester
         .widget<SliderTheme>(
@@ -1645,7 +1851,9 @@ void main() {
       tester
           .widget<Icon>(
             find.descendant(
-              of: find.byKey(const ValueKey('novel-reader-settings')),
+              of: find
+                  .byKey(const ValueKey('novel-reader-settings'))
+                  .hitTestable(),
               matching: find.byType(Icon),
             ),
           )
@@ -1663,7 +1871,7 @@ void main() {
   ) async {
     repository.content['v2'] = _volume(id: 'v2');
     await _mount(tester, repository, store);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await _settle(tester);
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -1685,8 +1893,29 @@ void main() {
     await _mount(tester, repository, store, resume: true);
     expect(find.byType(ErrorRetryView), findsOneWidget);
     expect(find.text('本卷暂无可阅读的正文'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsOneWidget,
+    );
     await _flush(tester);
     expect(store.writes, isEmpty);
+    repository.content['v1'] = _volume();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ErrorRetryView),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await _settle(tester);
+    expect(find.byType(NovelReaderViewport), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await _remove(tester);
   });
 
@@ -1701,6 +1930,14 @@ void main() {
     tester.widget<ErrorRetryView>(find.byType(ErrorRetryView)).onRetry();
     await _settle(tester);
     expect(find.byType(NovelReaderViewport), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(repository.calls.last, 'book/v1/true');
     await _remove(tester);
   });
@@ -1716,6 +1953,14 @@ void main() {
       await _settle(tester);
       expect(repository.calls, ['book/v1/false', 'cache/book/v1']);
       expect(_location(tester).anchor.paragraphIndex, 40);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       await _remove(tester);
     },
   );
@@ -1742,6 +1987,7 @@ void main() {
     expect(find.byKey(const ValueKey('novel-image-1')), findsNothing);
     expect(_location(tester).anchor.entryIndex, 0);
     expect(_location(tester).anchor.paragraphIndex, 2);
+    await _showToolbar(tester);
     expect(
       tester
           .widget<IconButton>(find.byKey(const ValueKey('novel-reader-next')))
@@ -1784,7 +2030,7 @@ void main() {
     );
     await _settle(tester);
     await _slideTo(tester, 188);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-back')));
+    await _tapToolbar(tester, 'novel-reader-back');
     await _settle(tester);
     await returned;
     expect((await _read(tester, store, 'book'))!.paragraphIndex, 88);
@@ -1814,14 +2060,16 @@ void main() {
     'stale response from another volume of the same book is ignored',
     (tester) async {
       final stale = Completer<NovelVolumeContent>();
-      repository.pending['v1'] = stale;
       repository.content['v2'] = _volume(id: 'v2');
-      await _mount(tester, repository, store, settle: false);
+      await _mount(tester, repository, store);
+      await _showToolbar(tester);
+      repository.pending['v1'] = stale;
+      await _mount(tester, repository, store, resume: true, settle: false);
       for (var i = 0; i < 5; i++) {
         await tester.runAsync(() => Future<void>.delayed(Duration.zero));
         await tester.pump(const Duration(milliseconds: 20));
       }
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       // The underlying loading spinner is intentional while the sheet is open.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -1849,7 +2097,7 @@ void main() {
     final stale = Completer<NovelVolumeDetail>();
     repository.detailPending['v2'] = stale;
     await _mount(tester, repository, store);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await _settle(tester);
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -2095,18 +2343,35 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository, store);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
+    await _showToolbar(tester);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     await tester.drag(
       find.byKey(const ValueKey('novel-reader-surface')),
       const Offset(0, -200),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await tester.tap(find.byKey(const ValueKey('novel-reader-surface')));
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await _remove(tester);
   });
@@ -2127,7 +2392,10 @@ void main() {
       // 带速度的甩动模拟惯性滚动：松手后仍有 ballistic 更新流。
       await tester.fling(surface, const Offset(0, -600), 1000);
       await tester.pump();
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       // 惯性尚未结束时，用户点状态组件展开工具栏；状态组件位于正文
       // 之上，点击不会让 Scrollable hold/结束惯性，更新流继续到来。
       await tester.pump(const Duration(milliseconds: 60));
@@ -2136,14 +2404,25 @@ void main() {
         warnIfMissed: false,
       );
       await tester.pump();
+      // 过渡刚开始时按钮尚未滑入屏幕，检查显隐目标而不是点击命中。
       expect(
-        find.byKey(const ValueKey('novel-reader-settings')),
-        findsOneWidget,
+        tester
+            .widget<AnimatedSlide>(
+              find.ancestor(
+                of: find.byKey(const ValueKey('novel-reader-settings')),
+                matching: find.byType(AnimatedSlide),
+              ),
+            )
+            .offset,
+        Offset.zero,
       );
       // 后续惯性 ScrollUpdate 到来时再次隐藏。
       await tester.pump(const Duration(milliseconds: 100));
       await _settle(tester);
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
       await _remove(tester);
       await tester.runAsync(() async {
@@ -2157,7 +2436,10 @@ void main() {
     await _slideTo(tester, 150);
     await _settle(tester);
     // 程序化锚点恢复（滑杆跳转）不是用户滚动会话，工具栏保持可见。
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await _remove(tester);
   });

@@ -20,6 +20,8 @@ import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/novel_page_curl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 /// 翻页模式集成测试：点击分区、模式切换的位置交接、音量键拦截、
 /// 卷末自动跳卷与进度落盘。
 const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
@@ -251,20 +253,45 @@ Future<void> _dismissSheet(WidgetTester tester) async {
   await _settle(tester);
 }
 
+Future<void> _showToolbar(WidgetTester tester) async {
+  if (!_toolbarHidden(tester)) return;
+  final surface = find.byType(NovelReaderPageView).evaluate().isNotEmpty
+      ? find.byType(NovelReaderPageView)
+      : find.byType(NovelReaderViewport);
+  await tester.tapAt(tester.getCenter(surface));
+  await _settle(tester);
+  expect(_toolbarHidden(tester), isFalse);
+}
+
 Future<void> _openSettings(WidgetTester tester) async {
+  await _showToolbar(tester);
   await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
   await _settle(tester);
 }
 
 Future<void> _tapSheetSwitch(WidgetTester tester, String key) async {
-  final finder = find.byKey(ValueKey(key));
+  final expand = find.descendant(
+    of: find.byKey(const ValueKey('novel-page-turn-settings')),
+    matching: find.byIcon(Icons.expand_more),
+  );
+  if (expand.evaluate().isNotEmpty) {
+    await tester.ensureVisible(expand);
+    await _settle(tester);
+    await tester.tap(expand);
+    await _settle(tester);
+  }
+  final finder = find.descendant(
+    of: find.byKey(ValueKey(key)),
+    matching: find.byType(Switch),
+  );
   await tester.ensureVisible(finder);
-  await tester.pumpAndSettle();
+  await _settle(tester);
   await tester.tap(finder);
   await _settle(tester);
 }
 
 Future<void> _slideTo(WidgetTester tester, double item) async {
+  await _showToolbar(tester);
   final slider = tester.widget<Slider>(
     find.byKey(const ValueKey('novel-reader-progress')),
   );
@@ -279,6 +306,7 @@ void main() {
   late _Repository repository;
 
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     store = _Store(await SharedPreferences.getInstance());
     _bookmarks = NovelBookmarkStore.forTesting(
@@ -286,6 +314,8 @@ void main() {
     );
     repository = _Repository({'v1': _volume()});
   });
+
+  tearDown(teardownSecureCredentialStoreForTest);
 
   testWidgets('dragging the sheet curls it and settles on release', (
     tester,
@@ -353,6 +383,9 @@ void main() {
           expect(find.byType(NovelReaderPageView), findsOneWidget);
           expect(find.byType(NovelReaderViewport), findsNothing);
           final start = _pagedLocation(tester).progress;
+          expect(_toolbarHidden(tester), isTrue);
+          await _showToolbar(tester);
+          expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
           expect(_toolbarHidden(tester), isFalse);
 
           // 工具栏显示时点右侧只收起；再次点击才翻到下一页。
@@ -514,8 +547,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository: repository, store: store);
-    await tester.tapAt(const Offset(400, 300));
-    await _settle(tester);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     await tester.pump(const Duration(milliseconds: 400));
@@ -567,6 +599,7 @@ void main() {
       'v2': _volume(id: 'v2', entryTexts: _texts('v2', [6]), previous: 'v1'),
     });
     await _mount(tester, repository: repository, store: store, volume: 'v2');
+    await _showToolbar(tester);
     final start = _pagedLocation(tester).progress;
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
@@ -626,8 +659,7 @@ void main() {
         paragraphSpacing: 32,
       ),
     );
-    await tester.tapAt(const Offset(400, 300));
-    await _settle(tester);
+    expect(_toolbarHidden(tester), isTrue);
     for (var turn = 1; turn <= 6; turn++) {
       await tester.tapAt(const Offset(700, 300));
       await _settle(tester);
