@@ -93,6 +93,10 @@ class NovelReaderSettings {
     this.instantPageTurn = false,
     this.volumeKey = true,
     this.ignoreBlankParagraphs = defaultIgnoreBlankParagraphs,
+    this.focusModeEnabled = defaultFocusModeEnabled,
+    double focusTopRatio = defaultFocusTopRatio,
+    double focusBottomRatio = defaultFocusBottomRatio,
+    double focusOpacity = defaultFocusOpacity,
   }) : _customThemes = const [],
        fontSize = fontSize != fontSize
            ? defaultFontSize
@@ -114,7 +118,28 @@ class NovelReaderSettings {
            ? minParagraphSpacing
            : paragraphSpacing > maxParagraphSpacing
            ? maxParagraphSpacing
-           : paragraphSpacing;
+           : paragraphSpacing,
+       focusTopRatio = focusTopRatio != focusTopRatio
+           ? defaultFocusTopRatio
+           : focusTopRatio < minFocusTopRatio
+           ? minFocusTopRatio
+           : focusTopRatio > maxFocusTopRatio
+           ? maxFocusTopRatio
+           : focusTopRatio,
+       focusBottomRatio = focusBottomRatio != focusBottomRatio
+           ? defaultFocusBottomRatio
+           : focusBottomRatio < minFocusBottomRatio
+           ? minFocusBottomRatio
+           : focusBottomRatio > maxFocusBottomRatio
+           ? maxFocusBottomRatio
+           : focusBottomRatio,
+       focusOpacity = focusOpacity != focusOpacity
+           ? defaultFocusOpacity
+           : focusOpacity < minFocusOpacity
+           ? minFocusOpacity
+           : focusOpacity > maxFocusOpacity
+           ? maxFocusOpacity
+           : focusOpacity;
 
   NovelReaderSettings._withThemes(
     NovelReaderSettings base,
@@ -130,6 +155,10 @@ class NovelReaderSettings {
       instantPageTurn = base.instantPageTurn,
       volumeKey = base.volumeKey,
       ignoreBlankParagraphs = base.ignoreBlankParagraphs,
+      focusModeEnabled = base.focusModeEnabled,
+      focusTopRatio = base.focusTopRatio,
+      focusBottomRatio = base.focusBottomRatio,
+      focusOpacity = base.focusOpacity,
       _customThemes = List.unmodifiable(themes);
 
   static const storageKey = 'reader_novel_settings_v1';
@@ -155,6 +184,19 @@ class NovelReaderSettings {
   /// 源数据与段落下标不变。
   static const defaultIgnoreBlankParagraphs = false;
 
+  /// 专注模式：上下黑遮罩夹出中间可见区。上边界 ≤45% < 55% ≤ 下边界，
+  /// 由滑块范围本身保证可见区恒 ≥10%，模型不做跨字段约束。
+  static const defaultFocusModeEnabled = false;
+  static const minFocusTopRatio = 0.0;
+  static const maxFocusTopRatio = 0.45;
+  static const defaultFocusTopRatio = 0.25;
+  static const minFocusBottomRatio = 0.55;
+  static const maxFocusBottomRatio = 1.0;
+  static const defaultFocusBottomRatio = 0.75;
+  static const minFocusOpacity = 0.1;
+  static const maxFocusOpacity = 0.9;
+  static const defaultFocusOpacity = 0.5;
+
   final double fontSize;
   final double lineHeight;
   final double paragraphSpacing;
@@ -174,6 +216,16 @@ class NovelReaderSettings {
 
   /// 隐藏正文里的空白段落（仅影响显示，不改变段落下标与锚点身份）。
   final bool ignoreBlankParagraphs;
+
+  /// 专注模式开关：开启后上下各加一条半透明黑遮罩。
+  final bool focusModeEnabled;
+
+  /// 可见区上/下边界，占屏幕高度比例；遮罩触摸穿透，不挡翻页与点按。
+  final double focusTopRatio;
+  final double focusBottomRatio;
+
+  /// 遮罩不透明度。
+  final double focusOpacity;
   final List<NovelReaderCustomTheme> _customThemes;
   List<NovelReaderCustomTheme> get customThemes => _customThemes;
 
@@ -266,6 +318,23 @@ class NovelReaderSettings {
       volumeKey: jsonBool(json, 'volumeKey', fallback: true),
       // 旧记录没有该键时保持默认（保留空行）。
       ignoreBlankParagraphs: jsonBool(json, 'ignoreBlankParagraphs'),
+      // 旧记录没有专注模式各键时：默认关闭、默认区域与浓度。
+      focusModeEnabled: jsonBool(json, 'focusModeEnabled'),
+      focusTopRatio: jsonDouble(
+        json,
+        'focusTopRatio',
+        fallback: defaultFocusTopRatio,
+      ),
+      focusBottomRatio: jsonDouble(
+        json,
+        'focusBottomRatio',
+        fallback: defaultFocusBottomRatio,
+      ),
+      focusOpacity: jsonDouble(
+        json,
+        'focusOpacity',
+        fallback: defaultFocusOpacity,
+      ),
     ).copyWith(customThemes: themes);
   }
 
@@ -282,6 +351,10 @@ class NovelReaderSettings {
     'instantPageTurn': instantPageTurn,
     'volumeKey': volumeKey,
     'ignoreBlankParagraphs': ignoreBlankParagraphs,
+    'focusModeEnabled': focusModeEnabled,
+    'focusTopRatio': focusTopRatio,
+    'focusBottomRatio': focusBottomRatio,
+    'focusOpacity': focusOpacity,
   };
 
   NovelReaderSettings copyWith({
@@ -297,6 +370,10 @@ class NovelReaderSettings {
     bool? instantPageTurn,
     bool? volumeKey,
     bool? ignoreBlankParagraphs,
+    bool? focusModeEnabled,
+    double? focusTopRatio,
+    double? focusBottomRatio,
+    double? focusOpacity,
   }) {
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -311,6 +388,10 @@ class NovelReaderSettings {
       volumeKey: volumeKey ?? this.volumeKey,
       ignoreBlankParagraphs:
           ignoreBlankParagraphs ?? this.ignoreBlankParagraphs,
+      focusModeEnabled: focusModeEnabled ?? this.focusModeEnabled,
+      focusTopRatio: focusTopRatio ?? this.focusTopRatio,
+      focusBottomRatio: focusBottomRatio ?? this.focusBottomRatio,
+      focusOpacity: focusOpacity ?? this.focusOpacity,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();
     final themes = (customThemes ?? _customThemes)
@@ -413,7 +494,11 @@ class NovelReaderSettings {
       realisticPageTurn == other.realisticPageTurn &&
       instantPageTurn == other.instantPageTurn &&
       volumeKey == other.volumeKey &&
-      ignoreBlankParagraphs == other.ignoreBlankParagraphs;
+      ignoreBlankParagraphs == other.ignoreBlankParagraphs &&
+      focusModeEnabled == other.focusModeEnabled &&
+      focusTopRatio == other.focusTopRatio &&
+      focusBottomRatio == other.focusBottomRatio &&
+      focusOpacity == other.focusOpacity;
 
   @override
   int get hashCode => Object.hash(
@@ -429,6 +514,10 @@ class NovelReaderSettings {
     instantPageTurn,
     volumeKey,
     ignoreBlankParagraphs,
+    focusModeEnabled,
+    focusTopRatio,
+    focusBottomRatio,
+    focusOpacity,
   );
 }
 

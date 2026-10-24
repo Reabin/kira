@@ -4124,6 +4124,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderIgnoreBlankParagraphsDenseHint => '可以适当增大段距以免文字过于密集';
 
   @override
+  String get novelReaderFocusMode => '专注模式';
+
+  @override
+  String get novelReaderFocusTopBound => '上边界';
+
+  @override
+  String get novelReaderFocusBottomBound => '下边界';
+
+  @override
+  String get novelReaderFocusOpacity => '遮罩浓度';
+
+  @override
   String get novelReaderIllustration => '插图';
 
   @override
@@ -8397,6 +8409,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderIgnoreBlankParagraphsDenseHint => '可以適當增大段距以免文字過於密集';
+
+  @override
+  String get novelReaderFocusMode => '專注模式';
+
+  @override
+  String get novelReaderFocusTopBound => '上邊界';
+
+  @override
+  String get novelReaderFocusBottomBound => '下邊界';
+
+  @override
+  String get novelReaderFocusOpacity => '遮罩濃度';
 
   @override
   String get novelReaderIllustration => '插圖';

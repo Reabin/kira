@@ -1283,6 +1283,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       // 一致）：安全区 inset 经 contentPadding 交给列表内容
                       // 层，viewport 尺寸恒定，不会触发 anchor restoration。
                       body,
+                      // 专注遮罩盖正文、居状态浮层与工具栏之下。
+                      if (_settings.focusModeEnabled) _buildFocusMask(),
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
                       // 显隐都留在树里做滑动过渡（与漫画阅读器同一套规则）。
                       Positioned(

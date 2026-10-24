@@ -64,6 +64,10 @@ void main() {
       expect(defaults.volumeKey, isTrue);
       expect(defaults.ignoreBlankParagraphs, isFalse);
       expect(defaults.toJson()['ignoreBlankParagraphs'], isFalse);
+      expect(defaults.focusModeEnabled, isFalse);
+      expect(defaults.focusTopRatio, 0.25);
+      expect(defaults.focusBottomRatio, 0.75);
+      expect(defaults.focusOpacity, 0.5);
       expect(
         await NovelReaderSettings.load(prefs: Future.value(prefs)),
         defaults,
@@ -552,6 +556,76 @@ void main() {
       expect(settings.paragraphSpacing, inInclusiveRange(0, 64));
       expect(() => jsonEncode(settings.toJson()), returnsNormally);
     }
+  });
+
+  test('focus mode fields round-trip, clamp, and fall back for old data', () {
+    const custom = NovelReaderSettings(
+      focusModeEnabled: true,
+      focusTopRatio: 0.1,
+      focusBottomRatio: 0.9,
+      focusOpacity: 0.8,
+    );
+    expect(custom.toJson()['focusModeEnabled'], isTrue);
+    expect(custom.toJson()['focusTopRatio'], 0.1);
+    expect(custom.toJson()['focusBottomRatio'], 0.9);
+    expect(custom.toJson()['focusOpacity'], 0.8);
+    expect(NovelReaderSettings.fromJson(custom.toJson()), custom);
+    // 越界与非法：构造函数逐字段 clamp。
+    const over = NovelReaderSettings(
+      focusTopRatio: 0.8,
+      focusBottomRatio: 0.3,
+      focusOpacity: 2,
+    );
+    expect(over.focusTopRatio, 0.45);
+    expect(over.focusBottomRatio, 0.55);
+    expect(over.focusOpacity, 0.9);
+    const under = NovelReaderSettings(
+      focusTopRatio: -1,
+      focusBottomRatio: 0.1,
+      focusOpacity: -3,
+    );
+    expect(under.focusTopRatio, 0);
+    expect(under.focusBottomRatio, 0.55);
+    expect(under.focusOpacity, 0.1);
+    const nan = NovelReaderSettings(
+      focusTopRatio: double.nan,
+      focusBottomRatio: double.nan,
+      focusOpacity: double.nan,
+    );
+    expect(nan.focusTopRatio, 0.25);
+    expect(nan.focusBottomRatio, 0.75);
+    expect(nan.focusOpacity, 0.5);
+    // 旧记录无键：默认关闭 + 默认区域。
+    final legacy = NovelReaderSettings.fromJson(const {});
+    expect(legacy.focusModeEnabled, isFalse);
+    expect(legacy.focusTopRatio, 0.25);
+    expect(legacy.focusBottomRatio, 0.75);
+    expect(legacy.focusOpacity, 0.5);
+    // copyWith 保留原值、定向改写。
+    expect(custom.copyWith().focusTopRatio, 0.1);
+    expect(custom.copyWith(focusOpacity: 0.3).focusOpacity, 0.3);
+    expect(custom.copyWith(focusOpacity: 0.3).focusTopRatio, 0.1);
+    expect(custom.copyWith(focusModeEnabled: false).focusModeEnabled, isFalse);
+    // 参与相等与 hashCode：仅一个字段不同即不相等。
+    const base = NovelReaderSettings();
+    for (final changed in [
+      const NovelReaderSettings(focusModeEnabled: true),
+      const NovelReaderSettings(focusTopRatio: 0.3),
+      const NovelReaderSettings(focusBottomRatio: 0.8),
+      const NovelReaderSettings(focusOpacity: 0.6),
+    ]) {
+      expect(base == changed, isFalse, reason: '$changed');
+      expect(base.hashCode == changed.hashCode, isFalse);
+    }
+    // 主题 copyWith 路径（_withThemes 转发）不丢专注字段。
+    final themed = custom.upsertCustomTheme(
+      const NovelReaderCustomTheme(id: 'f1', name: '灰蓝'),
+    );
+    expect(themed.focusModeEnabled, isTrue);
+    expect(themed.focusTopRatio, 0.1);
+    expect(themed.focusBottomRatio, 0.9);
+    expect(themed.focusOpacity, 0.8);
+    expect(themed.removeCustomTheme('f1'), custom);
   });
 
   test(

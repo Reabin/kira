@@ -241,6 +241,50 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             onChanged: (value) =>
                 _change(_settings.copyWith(ignoreBlankParagraphs: value)),
           ),
+          SwitchListTile.adaptive(
+            key: const ValueKey('novel-focus-mode'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.novelReaderFocusMode),
+            value: _settings.focusModeEnabled,
+            onChanged: (value) =>
+                _change(_settings.copyWith(focusModeEnabled: value)),
+          ),
+          // 开启后才构建滑块：遮罩区域与浓度只在专注模式下有意义。
+          if (_settings.focusModeEnabled) ...[
+            _slider(
+              key: const ValueKey('novel-focus-top'),
+              label: l10n.novelReaderFocusTopBound,
+              value: _settings.focusTopRatio,
+              min: NovelReaderSettings.minFocusTopRatio,
+              max: NovelReaderSettings.maxFocusTopRatio,
+              divisions: 45,
+              format: _focusPercent,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(focusTopRatio: value)),
+            ),
+            _slider(
+              key: const ValueKey('novel-focus-bottom'),
+              label: l10n.novelReaderFocusBottomBound,
+              value: _settings.focusBottomRatio,
+              min: NovelReaderSettings.minFocusBottomRatio,
+              max: NovelReaderSettings.maxFocusBottomRatio,
+              divisions: 45,
+              format: _focusPercent,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(focusBottomRatio: value)),
+            ),
+            _slider(
+              key: const ValueKey('novel-focus-opacity'),
+              label: l10n.novelReaderFocusOpacity,
+              value: _settings.focusOpacity,
+              min: NovelReaderSettings.minFocusOpacity,
+              max: NovelReaderSettings.maxFocusOpacity,
+              divisions: 80,
+              format: _focusPercent,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(focusOpacity: value)),
+            ),
+          ],
           const Divider(height: AppSpacing.xxl),
           SectionHeader(
             title: l10n.novelReaderTheme,
@@ -464,6 +508,9 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
     );
   }
 
+  /// 专注模式比例按百分比展示（0.25 → 25%）。
+  static String _focusPercent(double value) => '${(value * 100).round()}%';
+
   Widget _slider({
     required Key key,
     required String label,
@@ -472,8 +519,11 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
     required double max,
     required int divisions,
     required ValueChanged<double> onChanged,
+    String Function(double value)? format,
   }) {
-    final display = value == value.roundToDouble()
+    final display = format != null
+        ? format(value)
+        : value == value.roundToDouble()
         ? value.toStringAsFixed(0)
         : value.toStringAsFixed(1);
     return Column(

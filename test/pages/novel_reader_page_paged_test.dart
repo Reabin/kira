@@ -689,6 +689,72 @@ void main() {
     },
   );
 
+  testWidgets('focus mode masks top and bottom bands without blocking taps', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      settings: const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        focusModeEnabled: true,
+      ),
+    );
+    final height =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final top = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-top')),
+    );
+    final bottom = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-bottom')),
+    );
+    expect(top.top, closeTo(0, 1));
+    expect(top.height, closeTo(height * 0.25, 1));
+    expect(bottom.bottom, closeTo(height, 1));
+    expect(bottom.height, closeTo(height * (1 - 0.75), 1));
+    // 遮罩触摸穿透：被遮区域点按仍能呼出工具栏。
+    expect(_toolbarHidden(tester), isTrue);
+    await tester.tapAt(const Offset(400, 60));
+    await _settle(tester);
+    expect(_toolbarHidden(tester), isFalse, reason: '遮罩不应吞掉点按');
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('focus mode is off by default and hides the mask', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    await _remove(tester);
+  });
+
+  testWidgets('toolbar button toggles the focus mask and persists it', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    await _showToolbar(tester);
+    await tester.tap(find.byKey(const ValueKey('novel-reader-focus-mode')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsOneWidget);
+    await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = NovelReaderSettings.fromJson(
+        jsonDecode(prefs.getString(NovelReaderSettings.storageKey)!)
+            as Map<String, dynamic>,
+      );
+      expect(saved.focusModeEnabled, isTrue);
+    });
+    // 再点一次关闭，遮罩消失。
+    await tester.tap(find.byKey(const ValueKey('novel-reader-focus-mode')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
   testWidgets('long-press opens the paragraph menu without turning the page', (
     tester,
   ) async {

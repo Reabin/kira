@@ -7529,6 +7529,30 @@ abstract class AppLocalizations {
   /// **'可以适当增大段距以免文字过于密集'**
   String get novelReaderIgnoreBlankParagraphsDenseHint;
 
+  /// No description provided for @novelReaderFocusMode.
+  ///
+  /// In zh, this message translates to:
+  /// **'专注模式'**
+  String get novelReaderFocusMode;
+
+  /// No description provided for @novelReaderFocusTopBound.
+  ///
+  /// In zh, this message translates to:
+  /// **'上边界'**
+  String get novelReaderFocusTopBound;
+
+  /// No description provided for @novelReaderFocusBottomBound.
+  ///
+  /// In zh, this message translates to:
+  /// **'下边界'**
+  String get novelReaderFocusBottomBound;
+
+  /// No description provided for @novelReaderFocusOpacity.
+  ///
+  /// In zh, this message translates to:
+  /// **'遮罩浓度'**
+  String get novelReaderFocusOpacity;
+
   /// No description provided for @novelReaderIllustration.
   ///
   /// In zh, this message translates to:

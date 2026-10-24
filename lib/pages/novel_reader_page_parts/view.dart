@@ -1,6 +1,46 @@
 part of '../novel_reader_page.dart';
 
 extension _NovelReaderViewPart on _NovelReaderPageState {
+  /// 专注模式：上下两条半透明黑遮罩夹出中间可见区（硬边界）。
+  /// IgnorePointer 保证翻页/点按唤栏穿透；工具栏画在其上层不受影响。
+  Widget _buildFocusMask() {
+    final color = ReaderChrome.dimOverlay(_settings.focusOpacity);
+    return Positioned.fill(
+      key: const ValueKey('novel-focus-mask'),
+      child: IgnorePointer(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final height = constraints.maxHeight;
+            return Stack(
+              children: [
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: height * _settings.focusTopRatio,
+                  child: ColoredBox(
+                    key: const ValueKey('novel-focus-mask-top'),
+                    color: color,
+                  ),
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: height * (1 - _settings.focusBottomRatio),
+                  child: ColoredBox(
+                    key: const ValueKey('novel-focus-mask-bottom'),
+                    color: color,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   /// 状态组件：与漫画阅读器同一套摆放规则（六位 + 中间对齐），
   /// 工具栏隐藏时显示；点按唤出工具栏。
   Widget _buildStatusOverlay() {
@@ -371,6 +411,22 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
                       tooltip: l10n.novelReaderContents,
                       onPressed: _showContents,
                       icon: const Icon(Icons.format_list_bulleted),
+                    ),
+                    IconButton(
+                      key: const ValueKey('novel-reader-focus-mode'),
+                      tooltip: l10n.novelReaderFocusMode,
+                      // 激活高亮与书签按钮同一先例：不随正文配色改变。
+                      color: _settings.focusModeEnabled
+                          ? Colors.amberAccent
+                          : ReaderChrome.onSurface,
+                      onPressed: _loading
+                          ? null
+                          : () => _changeSettings(
+                              _settings.copyWith(
+                                focusModeEnabled: !_settings.focusModeEnabled,
+                              ),
+                            ),
+                      icon: const Icon(Icons.center_focus_strong),
                     ),
                     IconButton(
                       key: const ValueKey('novel-reader-settings'),
