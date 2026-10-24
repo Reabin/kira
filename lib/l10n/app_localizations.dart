@@ -4242,11 +4242,23 @@ abstract class AppLocalizations {
   /// **'电量'**
   String get readerStatusBattery;
 
+  /// No description provided for @readerStatusChapter.
+  ///
+  /// In zh, this message translates to:
+  /// **'章节名'**
+  String get readerStatusChapter;
+
   /// No description provided for @readerStatusPage.
   ///
   /// In zh, this message translates to:
   /// **'页码'**
   String get readerStatusPage;
+
+  /// No description provided for @readerStatusProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'进度'**
+  String get readerStatusProgress;
 
   /// No description provided for @readerStatusFps.
   ///
@@ -4301,6 +4313,36 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'背景不透明度'**
   String get readerStatusOverlayOpacity;
+
+  /// No description provided for @readerStatusOverlayForeground.
+  ///
+  /// In zh, this message translates to:
+  /// **'前景色'**
+  String get readerStatusOverlayForeground;
+
+  /// No description provided for @readerStatusOverlayBackground.
+  ///
+  /// In zh, this message translates to:
+  /// **'背景色'**
+  String get readerStatusOverlayBackground;
+
+  /// No description provided for @readerStatusOverlayFollowTheme.
+  ///
+  /// In zh, this message translates to:
+  /// **'跟随阅读主题'**
+  String get readerStatusOverlayFollowTheme;
+
+  /// No description provided for @readerStatusOverlayDefaultColor.
+  ///
+  /// In zh, this message translates to:
+  /// **'默认'**
+  String get readerStatusOverlayDefaultColor;
+
+  /// No description provided for @readerStatusOverlayColorPicker.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择颜色'**
+  String get readerStatusOverlayColorPicker;
 
   /// No description provided for @readerDimming.
   ///
@@ -7390,6 +7432,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'护眼绿'**
   String get novelReaderThemeGreen;
+
+  /// No description provided for @novelReaderThemeGray.
+  ///
+  /// In zh, this message translates to:
+  /// **'灰'**
+  String get novelReaderThemeGray;
 
   /// No description provided for @novelReaderThemeCustom.
   ///

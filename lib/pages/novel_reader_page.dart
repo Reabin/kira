@@ -11,8 +11,8 @@ import '../api/novel/novel_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/novel_reader_settings.dart';
+import '../models/novel_reader_status_settings.dart';
 import '../models/novel_reading_progress.dart';
-import '../models/reader_settings.dart';
 import '../providers/novel_providers.dart';
 import '../repositories/novel_reader_source.dart';
 import '../repositories/novel_repository.dart';
@@ -87,9 +87,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   late final NovelApi _api;
   late final NovelReadingStore _store;
   late final NovelBookmarkStore _bookmarks;
-  // 状态组件直接共享漫画阅读器的全局配置（开关/位置/段位/不透明度）。
-  late final ReaderSettings _statusSettings = ReaderSettings()
-    ..addListener(_onStatusSettingsChanged);
+  // 状态组件配置与漫画阅读器相互独立（开关/位置/段位/颜色）。
+  late final NovelReaderStatusSettings _statusSettings =
+      NovelReaderStatusSettings()..addListener(_onStatusSettingsChanged);
   bool _bookmarksLoaded = false;
   bool _bookmarking = false;
   GlobalKey<NovelReaderViewportState> _viewportKey = GlobalKey();

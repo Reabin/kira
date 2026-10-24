@@ -2313,7 +2313,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerStatusBattery => '电量';
 
   @override
+  String get readerStatusChapter => '章节名';
+
+  @override
   String get readerStatusPage => '页码';
+
+  @override
+  String get readerStatusProgress => '进度';
 
   @override
   String get readerStatusFps => '帧率';
@@ -2341,6 +2347,21 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get readerStatusOverlayOpacity => '背景不透明度';
+
+  @override
+  String get readerStatusOverlayForeground => '前景色';
+
+  @override
+  String get readerStatusOverlayBackground => '背景色';
+
+  @override
+  String get readerStatusOverlayFollowTheme => '跟随阅读主题';
+
+  @override
+  String get readerStatusOverlayDefaultColor => '默认';
+
+  @override
+  String get readerStatusOverlayColorPicker => '选择颜色';
 
   @override
   String get readerDimming => '降低亮度';
@@ -4049,6 +4070,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelReaderThemeGreen => '护眼绿';
+
+  @override
+  String get novelReaderThemeGray => '灰';
 
   @override
   String get novelReaderThemeCustom => '自定义';
@@ -6564,7 +6588,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerStatusBattery => '電量';
 
   @override
+  String get readerStatusChapter => '章節名';
+
+  @override
   String get readerStatusPage => '頁碼';
+
+  @override
+  String get readerStatusProgress => '進度';
 
   @override
   String get readerStatusFps => '幀率';
@@ -6592,6 +6622,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get readerStatusOverlayOpacity => '背景不透明度';
+
+  @override
+  String get readerStatusOverlayForeground => '前景色';
+
+  @override
+  String get readerStatusOverlayBackground => '背景色';
+
+  @override
+  String get readerStatusOverlayFollowTheme => '跟隨閱讀主題';
+
+  @override
+  String get readerStatusOverlayDefaultColor => '預設';
+
+  @override
+  String get readerStatusOverlayColorPicker => '選擇顏色';
 
   @override
   String get readerDimming => '降低亮度';
@@ -8300,6 +8345,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderThemeGreen => '護眼綠';
+
+  @override
+  String get novelReaderThemeGray => '灰';
 
   @override
   String get novelReaderThemeCustom => '自訂';

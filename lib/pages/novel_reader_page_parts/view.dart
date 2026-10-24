@@ -40,9 +40,36 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
     );
   }
 
-  Widget _statusOverlayChild() => ReaderStatusOverlay(
-    progressLabel: _progressLabel(_location?.progress ?? 0),
-  );
+  Widget _statusOverlayChild() {
+    final palette = NovelReaderPalette.resolve(
+      _settings,
+      MediaQuery.platformBrightnessOf(context),
+    );
+    return ReaderStatusOverlay(
+      // 浮层进度降为一位小数（紧凑、与电量数字区分）；工具栏滑杆
+      // 标签仍用两位小数的 _progressLabel。
+      progressLabel: _overlayProgressLabel(_location?.progress ?? 0),
+      chapterLabel: _chapterName(AppLocalizations.of(context)!),
+      prefs: _statusSettings,
+      // 未手动指定颜色时，状态组件底色/字色跟随当前阅读主题。
+      defaultForeground: palette.foreground,
+      defaultBackground: palette.background,
+      // 角落位 Positioned 只锚一侧、约束无界：传屏幕宽让章节名的
+      // Flexible 有界，超长才会截断。
+      maxWidth: MediaQuery.sizeOf(context).width,
+    );
+  }
+
+  String _overlayProgressLabel(double progress) {
+    final percent = progress * 100;
+    // 未到结尾不得显示成 100%；一位小数。
+    final capped = progress >= 1
+        ? 100.0
+        : percent > 99.9
+        ? 99.9
+        : percent;
+    return '${capped.toStringAsFixed(1)}%';
+  }
 
   Widget _buildHeader() {
     final l10n = AppLocalizations.of(context)!;

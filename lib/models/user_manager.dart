@@ -16,6 +16,7 @@ import 'comment_settings.dart';
 import 'copy_account_store.dart';
 import 'network_proxy_types.dart';
 import 'network_settings.dart';
+import 'novel_reader_status_settings.dart';
 import 'reader_settings.dart';
 import 'secure_credential_store.dart';
 import 'theme_settings.dart';
@@ -43,6 +44,7 @@ class UserManager extends ChangeNotifier {
   // import the specific store directly and skip the facade entirely.
 
   final reader = ReaderSettings();
+  final novelStatus = NovelReaderStatusSettings();
   final comment = CommentSettings();
   final theme = ThemeSettings();
   final network = NetworkSettings();

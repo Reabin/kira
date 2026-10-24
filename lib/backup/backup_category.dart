@@ -78,6 +78,15 @@ abstract final class BackupSchema {
     'reader_status_overlay_page',
     'reader_status_overlay_time',
     'reader_volume_key',
+    'novel_status_overlay',
+    'novel_status_overlay_battery',
+    'novel_status_overlay_chapter',
+    'novel_status_overlay_fps',
+    'novel_status_overlay_network',
+    'novel_status_overlay_page',
+    'novel_status_overlay_seeded',
+    'novel_status_overlay_follow_theme',
+    'novel_status_overlay_time',
     'remote_notice_enabled',
     'use_dynamic_color',
     'use_update_mirror',
@@ -105,6 +114,7 @@ abstract final class BackupSchema {
     'reader_reading_stats_chart_style',
     'reader_scroll_direction',
     'reader_status_overlay_position',
+    'novel_status_overlay_position',
     'theme_mode',
     'zhipu_auto_summary_min',
   };
@@ -122,6 +132,7 @@ abstract final class BackupSchema {
     'reader_image_gap',
     'reader_long_press_zoom_pan_sensitivity',
     'reader_status_overlay_opacity',
+    'novel_status_overlay_opacity',
   };
 
   static const _stringKeys = {
@@ -145,6 +156,10 @@ abstract final class BackupSchema {
     'saved_credentials',
     'saved_password',
     'saved_username',
+    'reader_status_overlay_foreground',
+    'reader_status_overlay_background',
+    'novel_status_overlay_foreground',
+    'novel_status_overlay_background',
     'theme_color',
     'theme_variant',
     'update_channel',
@@ -173,6 +188,7 @@ abstract final class BackupSchema {
     'nav_order',
     'reader_reading_stats_section_order',
     'reader_status_overlay_order',
+    'novel_status_overlay_order',
     'update_mirror_custom_prefixes',
     'zhipu_custom_models',
   };

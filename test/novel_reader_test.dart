@@ -11,6 +11,7 @@ import 'package:kira/api/novel/novel_api.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/novel_reading_progress.dart';
 import 'package:kira/models/reader_settings.dart';
 import 'package:kira/pages/novel_reader/novel_chapter_slider_track_shape.dart';
@@ -1067,7 +1068,7 @@ void main() {
 
   for (final showStatus in [true, false]) {
     testWidgets(
-      'shared status setting and percentage stay stable: $showStatus',
+      'novel status setting and percentage stay stable: $showStatus',
       (tester) async {
         final statusSettings = ReaderSettings();
         await tester.runAsync(() async {
@@ -1078,6 +1079,10 @@ void main() {
             await SharedPreferences.getInstance(),
           );
           await const NovelReaderSettings().save();
+          // 小说页状态组件配置独立：初始化小说侧 store（首启继承漫画值）。
+          await NovelReaderStatusSettings().initFromPrefs(
+            await SharedPreferences.getInstance(),
+          );
         });
         await _mount(tester, repository, store);
         await _slideTo(tester, 150);
@@ -1113,7 +1118,8 @@ void main() {
           final status = tester.widget<ReaderStatusOverlay>(
             find.byType(ReaderStatusOverlay, skipOffstage: false),
           );
-          expect(status.progressLabel, '50.00%');
+          // 浮层进度是一位小数（与工具栏滑杆标签的两位小数不同）。
+          expect(status.progressLabel, '50.0%');
         }
         expect(tester.takeException(), isNull);
         await _remove(tester);
@@ -2386,6 +2392,10 @@ void main() {
           await SharedPreferences.getInstance(),
         );
         await const NovelReaderSettings().save();
+        // 小说页状态组件配置独立：直接初始化小说侧 store（含首启继承）。
+        await NovelReaderStatusSettings().initFromPrefs(
+          await SharedPreferences.getInstance(),
+        );
       });
       await _mount(tester, repository, store);
       final surface = find.byKey(const ValueKey('novel-reader-surface'));

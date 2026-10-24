@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../api/hitokoto_api.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/novel_reader_settings.dart';
+import '../../models/novel_reader_status_settings.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
@@ -15,7 +16,7 @@ import '../../widgets/select_tile.dart';
 
 /// 小说阅读设置：排版、命名配色方案（内置 + 多个自定义）与常亮。
 /// 阅读背景固定跟随系统亮暗，浅色/深色分别绑定方案；
-/// 状态组件设置共享漫画阅读器的全局配置。
+/// 状态组件配置独立于漫画阅读器（键前缀 `novel_status_overlay*`）。
 class NovelReaderSettingsSheet extends StatefulWidget {
   const NovelReaderSettingsSheet({
     super.key,
@@ -59,12 +60,13 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
       'dark' => l10n.novelReaderThemeDark,
       'white' => l10n.novelReaderThemeWhite,
       'green' => l10n.novelReaderThemeGreen,
+      'gray' => l10n.novelReaderThemeGray,
       _ => l10n.novelReaderThemeWhite,
     };
   }
 
   List<(String, NovelReaderPalette)> get _allThemes => [
-    for (final name in ['paper', 'dark', 'white', 'green'])
+    for (final name in ['paper', 'dark', 'white', 'green', 'gray'])
       (name, NovelReaderPalette.forThemeId(_settings, name)),
     for (final theme in _settings.customThemes)
       (
@@ -249,12 +251,14 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             key: const ValueKey('novel-light-theme'),
             label: l10n.novelReaderThemeLightMode,
             value: _settings.lightThemeId,
+            dark: false,
             onChanged: (id) => _selectTheme(false, id),
           ),
           _modeTile(
             key: const ValueKey('novel-dark-theme'),
             label: l10n.novelReaderThemeDarkMode,
             value: _settings.darkThemeId,
+            dark: true,
             onChanged: (id) => _selectTheme(true, id),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -355,6 +359,7 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
                 _change(_settings.copyWith(keepScreenOn: value)),
           ),
           ReaderStatusSettingsSection(
+            prefs: NovelReaderStatusSettings(),
             onChanged: () => widget.onChanged(_settings),
           ),
         ],
@@ -366,6 +371,7 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
     required Key key,
     required String label,
     required String value,
+    required bool dark,
     required ValueChanged<String> onChanged,
   }) => Builder(
     builder: (context) {
@@ -379,7 +385,14 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             const SizedBox(width: AppSpacing.sm),
             Flexible(
               child: SelectTile<String>(
-                value: _settings.hasTheme(value) ? value : 'white',
+                // 绑定被删的自定义主题时回退到该模式的默认内置主题，
+                // 与渲染层 themeIdFor 的兜底一致，避免「显示白底、
+                // 实际夜间」的错位。
+                value: _settings.hasTheme(value)
+                    ? value
+                    : (dark
+                          ? NovelReaderSettings.defaultDarkThemeId
+                          : NovelReaderSettings.defaultLightThemeId),
                 items: [
                   for (final (id, _) in _allThemes)
                     SelectItem(id, _themeName(id)),

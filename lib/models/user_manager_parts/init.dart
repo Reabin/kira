@@ -171,6 +171,8 @@ extension UserManagerInitPart on UserManager {
         prefs.getBool(UserManager._keyCommentBlockGroupSpam) ?? false;
     // Initialize domain-specific sub-stores with the same prefs instance.
     await reader.initFromPrefs(prefs);
+    // 小说状态组件 store 依赖漫画侧已就绪（首启继承其现值）。
+    await novelStatus.initFromPrefs(prefs);
     await comment.initFromPrefs(prefs);
     await theme.initFromPrefs(prefs, persistMigrations: persistMigrations);
     await network.initFromPrefs(prefs, persistMigrations: persistMigrations);
@@ -201,11 +203,13 @@ extension UserManagerInitPart on UserManager {
     // (导入备份 / 清除数据后重载),而 ChangeNotifier.addListener 会重复登记
     // 同一闭包,故先移除再添加,避免通知被放大。
     reader.removeListener(_onSubStoreChanged);
+    novelStatus.removeListener(_onSubStoreChanged);
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
     copyAccount.removeListener(_onCopyAccountChanged);
     reader.addListener(_onSubStoreChanged);
+    novelStatus.addListener(_onSubStoreChanged);
     comment.addListener(_onSubStoreChanged);
     theme.addListener(_onSubStoreChanged);
     network.addListener(_onSubStoreChanged);

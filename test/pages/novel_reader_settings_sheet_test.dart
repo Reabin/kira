@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/reader_settings.dart';
 import 'package:kira/pages/novel_reader/novel_reader_settings_sheet.dart';
 import 'package:kira/widgets/app_sheet.dart';
@@ -165,7 +166,7 @@ void main() {
     await tester.tap(find.text('纸张').last);
     await tester.pumpAndSettle();
     expect(latest.lightThemeId, 'paper');
-    expect(latest.darkThemeId, 'dark');
+    expect(latest.darkThemeId, 'gray');
     final darkTile = find.byKey(const ValueKey('novel-dark-theme'));
     await tester.ensureVisible(darkTile);
     await tester.pumpAndSettle();
@@ -315,8 +316,8 @@ void main() {
     await tester.tap(find.byType(FilledButton).last);
     await tester.pumpAndSettle();
     expect(latest.customThemes, isEmpty);
-    // 绑定保留原 ID，展示时由 themeIdFor 兜底回退到深色默认。
-    expect(latest.themeIdFor(dark: true), 'dark');
+    // 绑定保留原 ID，展示时由 themeIdFor 兜底回退到深色默认（灰）。
+    expect(latest.themeIdFor(dark: true), 'gray');
     expect(tester.takeException(), isNull);
   });
 
@@ -490,13 +491,16 @@ void main() {
   });
 
   testWidgets(
-    'novel settings embed global status settings and support first-to-last drag',
+    'novel settings use their own status settings and support first-to-last drag',
     (tester) async {
       var latest = const NovelReaderSettings();
       await _mount(tester, onChanged: (value) => latest = value);
       expect(find.byType(ReaderStatusSettingsSection), findsOneWidget);
       await _tapVisible(tester, 'reader-status-overlay-switch');
-      expect(ReaderSettings().statusOverlay, isTrue);
+      final novelStatus = NovelReaderStatusSettings();
+      expect(novelStatus.statusOverlay, isTrue);
+      // 独立配置：漫画侧不被联动改动。
+      expect(ReaderSettings().statusOverlay, isFalse);
       await _tapVisible(tester, 'reader-status-details-toggle');
       await tester.ensureVisible(find.byType(ReorderableListView));
       await tester.pumpAndSettle();
@@ -514,10 +518,14 @@ void main() {
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
-      const expected = ['network', 'battery', 'page', 'fps', 'time'];
-      expect(ReaderSettings().statusOverlayOrder, expected);
+      const expected = ['time', 'network', 'battery', 'page', 'fps', 'chapter'];
+      expect(novelStatus.statusOverlayOrder, expected);
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getStringList('reader_status_overlay_order'), expected);
+      expect(prefs.getStringList('novel_status_overlay_order'), expected);
+      expect(
+        prefs.getStringList('reader_status_overlay_order'),
+        isNot(expected),
+      );
       expect(latest.fontSize, const NovelReaderSettings().fontSize);
       expect(tester.takeException(), isNull);
     },
