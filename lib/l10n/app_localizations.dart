@@ -1675,6 +1675,24 @@ abstract class AppLocalizations {
   /// **'自定义'**
   String get appearanceCustomFontBadge;
 
+  /// No description provided for @appearanceImportLocalFont.
+  ///
+  /// In zh, this message translates to:
+  /// **'从本地导入字体'**
+  String get appearanceImportLocalFont;
+
+  /// No description provided for @appearanceImportFontInvalid.
+  ///
+  /// In zh, this message translates to:
+  /// **'无法读取该字体文件，请选择有效的 .ttf / .otf 字体'**
+  String get appearanceImportFontInvalid;
+
+  /// No description provided for @appearanceImportFontFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入字体失败：{error}'**
+  String appearanceImportFontFailed(String error);
+
   /// No description provided for @appearanceCustomFontRemoveTitle.
   ///
   /// In zh, this message translates to:
@@ -1684,7 +1702,7 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceCustomFontRemoveContent.
   ///
   /// In zh, this message translates to:
-  /// **'确定要移除自定义字体 {fontName} 吗？本地文件也会被删除。'**
+  /// **'确定要移除自定义字体 {fontName} 吗？'**
   String appearanceCustomFontRemoveContent(String fontName);
 
   /// No description provided for @cacheFontSection.

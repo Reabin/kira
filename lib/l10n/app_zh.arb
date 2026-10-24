@@ -557,8 +557,18 @@
     }
   },
   "appearanceCustomFontBadge": "自定义",
+  "appearanceImportLocalFont": "从本地导入字体",
+  "appearanceImportFontInvalid": "无法读取该字体文件，请选择有效的 .ttf / .otf 字体",
+  "appearanceImportFontFailed": "导入字体失败：{error}",
+  "@appearanceImportFontFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceCustomFontRemoveTitle": "移除自定义字体",
-  "appearanceCustomFontRemoveContent": "确定要移除自定义字体 {fontName} 吗？本地文件也会被删除。",
+  "appearanceCustomFontRemoveContent": "确定要移除自定义字体 {fontName} 吗？",
   "@appearanceCustomFontRemoveContent": {
     "placeholders": {
       "fontName": {

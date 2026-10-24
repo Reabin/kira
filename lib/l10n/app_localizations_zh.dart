@@ -879,11 +879,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceCustomFontBadge => '自定义';
 
   @override
+  String get appearanceImportLocalFont => '从本地导入字体';
+
+  @override
+  String get appearanceImportFontInvalid => '无法读取该字体文件，请选择有效的 .ttf / .otf 字体';
+
+  @override
+  String appearanceImportFontFailed(String error) {
+    return '导入字体失败：$error';
+  }
+
+  @override
   String get appearanceCustomFontRemoveTitle => '移除自定义字体';
 
   @override
   String appearanceCustomFontRemoveContent(String fontName) {
-    return '确定要移除自定义字体 $fontName 吗？本地文件也会被删除。';
+    return '确定要移除自定义字体 $fontName 吗？';
   }
 
   @override
@@ -5075,11 +5086,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceCustomFontBadge => '自訂';
 
   @override
+  String get appearanceImportLocalFont => '從本機匯入字型';
+
+  @override
+  String get appearanceImportFontInvalid => '無法讀取該字型檔案，請選擇有效的 .ttf / .otf 字型';
+
+  @override
+  String appearanceImportFontFailed(String error) {
+    return '匯入字型失敗：$error';
+  }
+
+  @override
   String get appearanceCustomFontRemoveTitle => '移除自訂字型';
 
   @override
   String appearanceCustomFontRemoveContent(String fontName) {
-    return '確定要移除自訂字型 $fontName 嗎？本機檔案也會一併刪除。';
+    return '確定要移除自訂字型 $fontName 嗎？';
   }
 
   @override

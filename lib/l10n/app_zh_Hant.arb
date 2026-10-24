@@ -557,8 +557,18 @@
     }
   },
   "appearanceCustomFontBadge": "自訂",
+  "appearanceImportLocalFont": "從本機匯入字型",
+  "appearanceImportFontInvalid": "無法讀取該字型檔案，請選擇有效的 .ttf / .otf 字型",
+  "appearanceImportFontFailed": "匯入字型失敗：{error}",
+  "@appearanceImportFontFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceCustomFontRemoveTitle": "移除自訂字型",
-  "appearanceCustomFontRemoveContent": "確定要移除自訂字型 {fontName} 嗎？本機檔案也會一併刪除。",
+  "appearanceCustomFontRemoveContent": "確定要移除自訂字型 {fontName} 嗎？",
   "@appearanceCustomFontRemoveContent": {
     "placeholders": {
       "fontName": {
