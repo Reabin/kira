@@ -145,6 +145,7 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
         onBookmarkMarkerTap: (paragraph) =>
             unawaited(_removeParagraphBookmark(paragraph)),
         highlight: _highlight,
+        highlightOpacity: _highlightFade,
         onPageTurned: () {
           _clearHighlight();
           _setToolbarVisible(false);
@@ -162,6 +163,7 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
       target: _target,
       jumpRevision: _jumpRevision,
       highlight: _highlight,
+      highlightOpacity: _highlightFade,
       onPosition: onPosition,
       onTap: () => _setToolbarVisible(!_toolbarVisible),
       onParagraphLongPress: (paragraph, position) =>

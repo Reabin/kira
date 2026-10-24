@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/novel_reader_settings.dart';
 import '../../theme/app_icon_sizes.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../widgets/novel_page_curl.dart';
@@ -36,6 +35,7 @@ class NovelReaderPageView extends StatefulWidget {
     this.isBookmarkedParagraph,
     this.onBookmarkMarkerTap,
     this.highlight,
+    this.highlightOpacity,
     this.onPageTurned,
     this.onBoundary,
   });
@@ -72,6 +72,9 @@ class NovelReaderPageView extends StatefulWidget {
 
   /// 短暂高亮的书签段落。
   final NovelReaderAnchor? highlight;
+
+  /// 高亮的淡入淡出动画：画笔挂它逐帧重绘，高亮不触发整树 rebuild。
+  final Animation<double>? highlightOpacity;
 
   /// 用户翻页（非程序化）：隐藏工具栏、清除高亮。
   final VoidCallback? onPageTurned;
@@ -743,7 +746,8 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
         marked: marked,
         markerSpacing: AppSpacing.sm,
         markerSize: AppIconSize.md,
-        markerColor: foreground,
+        // 标记常驻正文，用降透明度的正文色弱化存在感。
+        markerColor: foreground.withValues(alpha: 0.45),
         markerChild: marked
             ? GestureDetector(
                 key: ValueKey(
@@ -774,10 +778,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
           widget.highlight!.entryIndex == entry.entryIndex &&
           widget.highlight!.paragraphIndex == paragraph.paragraphIndex;
       if (highlighted) {
-        body = DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: foreground, width: 2),
-            borderRadius: AppRadius.smR,
+        body = CustomPaint(
+          painter: NovelHighlightPainter(
+            color: widget.palette.foreground,
+            fontSize: widget.settings.fontSize,
+            opacity: widget.highlightOpacity,
           ),
           child: body,
         );

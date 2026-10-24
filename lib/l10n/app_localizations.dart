@@ -7301,12 +7301,6 @@ abstract class AppLocalizations {
   /// **'书签'**
   String get novelReaderBookmark;
 
-  /// No description provided for @novelReaderCopiedToast.
-  ///
-  /// In zh, this message translates to:
-  /// **'段落已复制到剪贴板'**
-  String get novelReaderCopiedToast;
-
   /// No description provided for @novelReaderVolumesRetry.
   ///
   /// In zh, this message translates to:

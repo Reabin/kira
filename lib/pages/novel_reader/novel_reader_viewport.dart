@@ -8,7 +8,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/novel_reader_settings.dart';
 import '../../theme/app_icon_sizes.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../utils/app_logger.dart';
@@ -31,6 +30,7 @@ class NovelReaderViewport extends StatefulWidget {
     this.isBookmarkedParagraph,
     this.onBookmarkMarkerTap,
     this.highlight,
+    this.highlightOpacity,
     this.onScroll,
     this.contentPadding = EdgeInsets.zero,
   });
@@ -57,6 +57,9 @@ class NovelReaderViewport extends StatefulWidget {
   /// 短暂高亮的书签段落（书签指向处进入/打书签成功时闪光提示）。
   /// 由阅读页持有定时清除，viewport 只按参数渲染，不改变布局。
   final NovelReaderAnchor? highlight;
+
+  /// 高亮的淡入淡出动画：画笔挂它逐帧重绘，高亮不触发整树 rebuild。
+  final Animation<double>? highlightOpacity;
 
   final VoidCallback? onScroll;
 
@@ -444,10 +447,11 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
                     onTap: () => widget.onBookmarkMarkerTap?.call(paragraph),
                     child: Padding(
                       padding: const EdgeInsets.only(left: AppSpacing.sm),
+                      // 标记常驻正文，用降透明度的正文色弱化存在感。
                       child: Icon(
                         Icons.bookmark,
                         size: AppIconSize.md,
-                        color: widget.palette.foreground,
+                        color: widget.palette.foreground.withValues(alpha: 0.45),
                       ),
                     ),
                   ),
@@ -457,14 +461,16 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
             style: style,
           )
         : Text(bodyText, style: style);
-    // 边框式高亮：描边用正文同色，画在文本块外圈，不遮盖文字；
-    // DecoratedBox 不参与布局，高亮出现/消失时正文一个像素都不动，
-    // 锚点与进度不受闪光影响。
+    // 高亮样式由演示切换器实时决定；DecoratedBox 不参与布局，高亮
+    // 出现/消失时正文一个像素都不动，锚点与进度不受闪光影响。
+    // 高亮卡片画在段落矩形之外的留白里（不参与布局），出现/消失正文
+    // 零位移；透明度由页面持有的动画驱动，逐帧重绘不重建子树。
     if (highlighted) {
-      body = DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: widget.palette.foreground, width: 2),
-          borderRadius: AppRadius.smR,
+      body = CustomPaint(
+        painter: NovelHighlightPainter(
+          color: widget.palette.foreground,
+          fontSize: widget.settings.fontSize,
+          opacity: widget.highlightOpacity,
         ),
         child: body,
       );

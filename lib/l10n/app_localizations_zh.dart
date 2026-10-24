@@ -4004,9 +4004,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderBookmark => '书签';
 
   @override
-  String get novelReaderCopiedToast => '段落已复制到剪贴板';
-
-  @override
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
 
   @override
@@ -8250,9 +8247,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderBookmark => '書籤';
-
-  @override
-  String get novelReaderCopiedToast => '段落已複製到剪貼簿';
 
   @override
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';

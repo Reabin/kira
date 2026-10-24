@@ -2568,7 +2568,6 @@
   "novelReaderCatalog": "總目錄",
   "novelReaderVolume": "卷冊",
   "novelReaderBookmark": "書籤",
-  "novelReaderCopiedToast": "段落已複製到剪貼簿",
   "novelReaderVolumesRetry": "卷冊載入失敗，重試",
   "novelReaderVolumesRetryDetail": "卷冊載入失敗：{detail}（點擊重試）",
   "@novelReaderVolumesRetryDetail": {

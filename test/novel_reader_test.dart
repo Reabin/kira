@@ -18,6 +18,7 @@ import 'package:kira/pages/novel_reader/novel_reader_contents_sheet.dart';
 import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
 import 'package:kira/pages/novel_reader_page.dart';
+import 'package:kira/theme/novel_reader_theme.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/theme/app_icon_sizes.dart';
@@ -312,16 +313,13 @@ NovelReaderLocation _location(WidgetTester tester) => tester
     .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
     .currentLocation!;
 
-/// 段落闪光高亮的正文色描边（DecoratedBox，无布局影响）。
-/// 不传颜色时匹配任意描边高亮。
+/// 段落闪光高亮（浅底卡片画笔，画在段落矩形之外的留白里）。
+/// 不传颜色时匹配任意高亮画笔。
 Finder highlightBand([Color? color]) => find.byWidgetPredicate((widget) {
-  if (widget is! DecoratedBox) return false;
-  final decoration = widget.decoration;
-  if (decoration is! BoxDecoration || decoration.border is! Border) {
-    return false;
-  }
-  final top = (decoration.border as Border).top.color;
-  return color == null || top == color;
+  if (widget is! CustomPaint) return false;
+  final painter = widget.painter;
+  if (painter is! NovelHighlightPainter) return false;
+  return color == null || painter.color == color;
 });
 
 /// 段落正文的颜色（= 高亮描边用色）。
@@ -1004,7 +1002,7 @@ void main() {
     await tester.tap(find.text('复制'));
     await _settle(tester);
     expect(clipboard, 'v1 entry 0 paragraph 0');
-    expect(find.text('段落已复制到剪贴板'), findsOneWidget);
+    expect(find.text('已复制'), findsOneWidget);
     // 复制不产生书签，也不闪光高亮。
     expect(_bookmarks.bookmarks, isEmpty);
     expect(highlightBand(), findsNothing);
@@ -1073,13 +1071,13 @@ void main() {
         find.byKey(const ValueKey('novel-paragraph-marker-0-1')),
         findsNothing,
       );
-      // 标记用正文同色、正常尺寸。
+      // 标记为正文色降透明度（弱化存在感）、正常尺寸。
       final icon = tester.widget<Icon>(
         find.descendant(of: marker, matching: find.byType(Icon)),
       );
       final paragraph = paragraphText('v1 entry 0 paragraph 0');
       expect(icon.size, AppIconSize.md);
-      expect(icon.color, paragraphForeground(tester, paragraph));
+      expect(icon.color, paragraphForeground(tester, paragraph)?.withValues(alpha: 0.45));
       await tester.tap(marker);
       await _settle(tester);
       expect(_bookmarks.bookmarks, isEmpty);

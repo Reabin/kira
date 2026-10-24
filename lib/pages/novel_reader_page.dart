@@ -78,7 +78,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
 }
 
 class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   /// 与漫画阅读器共用同一个音量键通道；同一时刻只有一个阅读页在前台，
   /// 各自在 init/dispose 与设置变化时同步 enable/disable，避免双重拦截。
   static const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
@@ -131,6 +131,14 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   static const _highlightDuration = Duration(milliseconds: 2500);
   NovelReaderAnchor? _highlight;
   Timer? _highlightTimer;
+
+  /// 高亮卡片的淡入淡出：出现 180ms、消失 400ms；「减少动画」时直接
+  /// 跳到目标值。画笔挂在该动画上逐帧重绘，高亮不触发整树 rebuild。
+  AnimationController? _highlightFade;
+
+  /// 高亮代数：新一次高亮会使上一次未完成的淡出作废，防止迟到的
+  /// whenComplete 把新高亮一并清掉。
+  int _highlightGen = 0;
 
   /// 从书签进入时待生效的高亮锚点：等卷内容加载、锚点解析后再应用，
   /// 避免高亮显示在错误位置（如 resume 改变了落点时丢弃）。
@@ -301,15 +309,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     if (location == null || _content == null || _document == null) return;
     final progress = _progressAt(location, DateTime.now());
     final session = _session;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _bookmarking = true);
     try {
       final added = await _bookmarks.toggle(progress: progress);
       if (!mounted || !_active(session)) return;
       setState(() => _bookmarksLoaded = true);
-      showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
-      // 打书签的当下就闪光高亮目标段落，让「高亮 = 书签指向的段落」
-      // 的语义在按钮入口同样可见；取消书签时同步撤掉正在显示的高亮。
+      // 添加/取消书签都不弹提示：添加有段落闪光确认，取消时书签
+      // 标记消失本身已可见。
       if (added) {
         _showHighlight(location.anchor);
       } else if (_isSameAnchor(_highlight, location.anchor)) {
@@ -320,7 +326,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (mounted && _active(session)) {
         showToast(
           context,
-          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -329,19 +337,65 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     }
   }
 
-  /// 闪光高亮一个段落（书签指向处）：定时自动清除，滚动/跳转提前清除。
+  /// 闪光高亮一个段落（书签指向处）：淡入后保持，到期/滚动/跳转淡出。
   void _showHighlight(NovelReaderAnchor anchor) {
     _highlightTimer?.cancel();
     setState(() => _highlight = anchor);
-    _highlightTimer = Timer(_highlightDuration, () {
-      if (mounted && !_disposed) setState(() => _highlight = null);
-    });
+    _startHighlightFade();
+  }
+
+  /// 长按菜单打开期间的段落选中态：同高亮卡片样式，但不自动过期，
+  /// 随菜单关闭淡出。传 null 清除。
+  void _selectParagraph(NovelReaderAnchor? anchor) {
+    _highlightTimer?.cancel();
+    if (anchor == null) {
+      _clearHighlight();
+      return;
+    }
+    setState(() => _highlight = anchor);
+    _startHighlightFade(expire: false);
+  }
+
+  /// 启动一次高亮生命周期：淡入 → 保持 [_highlightDuration]。
+  /// [expire] 为 false 时不安排自动清除（长按选中态由调用方控制）。
+  void _startHighlightFade({bool expire = true}) {
+    ++_highlightGen;
+    final fade =
+        _highlightFade ??
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 180),
+          reverseDuration: const Duration(milliseconds: 400),
+        );
+    if (prefersReducedMotion(context)) {
+      fade.stop();
+      fade.value = 1;
+    } else {
+      fade.forward(from: 0);
+    }
+    if (expire) {
+      _highlightTimer = Timer(_highlightDuration, _clearHighlight);
+    }
   }
 
   void _clearHighlight() {
     _highlightTimer?.cancel();
     if (_highlight == null) return;
-    setState(() => _highlight = null);
+    final fade = _highlightFade;
+    final gen = ++_highlightGen;
+    if (fade == null || prefersReducedMotion(context)) {
+      fade?.stop();
+      fade?.value = 0;
+      setState(() => _highlight = null);
+      return;
+    }
+    fade.reverse().whenCompleteOrCancel(() {
+      // 淡出期间又打了新书签：旧淡出作废，新高亮不受影响。
+      if (gen != _highlightGen) return;
+      if (mounted && !_disposed && _highlight != null) {
+        setState(() => _highlight = null);
+      }
+    });
   }
 
   /// 高亮锚点与某段落是否同一位置。
@@ -566,10 +620,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             document.itemFor(pending),
             alignment: 0.5,
           );
-          _highlightTimer?.cancel();
+          // 这里已处于 setState 内，直接改字段即可；动画启动交给
+          // 帧回调，避免在同一次 build 里触发 vsync 断言。
           _highlight = pending;
-          _highlightTimer = Timer(_highlightDuration, () {
-            if (mounted && !_disposed) setState(() => _highlight = null);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_disposed && _highlight == pending) {
+              _startHighlightFade();
+            }
           });
         }
       });
@@ -840,6 +897,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()!
             as RenderBox;
+    // 菜单打开期间给目标段落挂选中态（同书签高亮卡片，但由菜单生命
+    // 周期控制）：长按到「操作哪个段落」一目了然。
+    _selectParagraph(anchor);
     final action = await showMenu<_ParagraphAction>(
       context: context,
       position: RelativeRect.fromRect(
@@ -848,14 +908,16 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ),
       items: _paragraphMenuItems(paragraph, bookmarked),
     );
-    if (!_active(session) || request != _request || action == null) return;
+    final stillHere = _active(session) && request == _request;
+    if (stillHere) _selectParagraph(null);
+    if (!stillHere || action == null) return;
     switch (action) {
       case _ParagraphAction.copy:
         await Clipboard.setData(ClipboardData(text: paragraph.text));
         if (mounted && _active(session)) {
           showToast(
             context,
-            AppLocalizations.of(context)!.novelReaderCopiedToast,
+            AppLocalizations.of(context)!.chapterCommentsCopied,
           );
         }
       case _ParagraphAction.toggleBookmark:
@@ -931,19 +993,19 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         .firstOrNull;
     if (bookmark == null) return;
     final session = _session;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _bookmarking = true);
     try {
       await _bookmarks.remove(bookmark.id);
       if (!mounted || !_active(session)) return;
-      showToast(context, l10n.bookmarkRemoved);
       if (_isSameAnchor(_highlight, anchor)) _clearHighlight();
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.remove');
       if (mounted && _active(session)) {
         showToast(
           context,
-          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -967,7 +1029,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       progress: (item / document.itemCount).clamp(0, 1),
     );
     final session = _session;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _bookmarking = true);
     try {
       final added = await _bookmarks.toggle(
@@ -975,7 +1036,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       );
       if (!mounted || !_active(session)) return;
       setState(() => _bookmarksLoaded = true);
-      showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
       if (added) {
         _showHighlight(anchor);
       } else if (_isSameAnchor(_highlight, anchor)) {
@@ -986,7 +1046,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       if (mounted && _active(session)) {
         showToast(
           context,
-          l10n.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -1064,6 +1126,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ++_request;
     _saveTimer?.cancel();
     _highlightTimer?.cancel();
+    _highlightFade?.dispose();
     _bookmarks.removeListener(_onBookmarksChanged);
     _statusSettings.removeListener(_onStatusSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
