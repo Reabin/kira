@@ -228,10 +228,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   /// 对齐漫画详情页：先读持久化缓存秒显界面，再后台拉新覆盖。
   /// 详情接口有 6h TTL 门控，卷目录每次都发；拉新期间显示刷新指示。
+  /// 本地阅读进度是 SharedPreferences 即时可读的，不等网络接口：
+  /// 与缓存/接口并行加载，本地有记录时继续阅读按钮立刻出现。
   Future<void> _initializePage() async {
+    unawaited(_loadProgress());
     await _loadFromCache();
     await _loadQuery();
-    await _loadProgress();
     unawaited(_loadDetail());
     unawaited(_loadVolumes());
   }
