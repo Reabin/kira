@@ -9,6 +9,49 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get historyModeOnline => '在线';
+
+  @override
+  String get historyModeLocal => '本地';
+
+  @override
+  String get localReadingHistoryTitle => '本地阅读记录';
+
+  @override
+  String get localHistorySearchHint => '搜索作品名';
+
+  @override
+  String get localHistorySearchEmpty => '没有匹配的作品';
+
+  @override
+  String localHistoryTotal(int count) {
+    return '共 $count 条阅读记录';
+  }
+
+  @override
+  String localHistoryPageProgress(int page, int total) {
+    return '第 $page / $total 页';
+  }
+
+  @override
+  String localHistoryRemoveConfirm(String name) {
+    return '确定移除《$name》的本机阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。';
+  }
+
+  @override
+  String localHistoryClearConfirm(String type) {
+    return '确定清空本机所有$type阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。';
+  }
+
+  @override
+  String get browseHistorySeenLabel => '看到';
+
+  @override
+  String browseHistoryUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
   String get comicTabLabel => '漫画';
 
   @override
@@ -2388,13 +2431,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String browseHistoryLatestChapter(String chapter) {
-    return '最新 $chapter';
-  }
+  String get browseHistoryLatestLabel => '最新';
 
   @override
   String browseHistoryLastSeen(String name) {
-    return '上次看到 $name';
+    return '看到 $name';
   }
 
   @override
@@ -4214,6 +4255,49 @@ class AppLocalizationsZh extends AppLocalizations {
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get historyModeOnline => '線上';
+
+  @override
+  String get historyModeLocal => '本機';
+
+  @override
+  String get localReadingHistoryTitle => '本機閱讀記錄';
+
+  @override
+  String get localHistorySearchHint => '搜尋作品名';
+
+  @override
+  String get localHistorySearchEmpty => '沒有符合的作品';
+
+  @override
+  String localHistoryTotal(int count) {
+    return '共 $count 條閱讀記錄';
+  }
+
+  @override
+  String localHistoryPageProgress(int page, int total) {
+    return '第 $page / $total 頁';
+  }
+
+  @override
+  String localHistoryRemoveConfirm(String name) {
+    return '確定移除《$name》的本機閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。';
+  }
+
+  @override
+  String localHistoryClearConfirm(String type) {
+    return '確定清空本機所有$type閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。';
+  }
+
+  @override
+  String get browseHistorySeenLabel => '看到';
+
+  @override
+  String browseHistoryUpdatedAt(String time) {
+    return '更新於 $time';
+  }
 
   @override
   String get comicTabLabel => '漫畫';
@@ -6595,13 +6679,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String browseHistoryLatestChapter(String chapter) {
-    return '最新 $chapter';
-  }
+  String get browseHistoryLatestLabel => '最新';
 
   @override
   String browseHistoryLastSeen(String name) {
-    return '上次看到 $name';
+    return '看到 $name';
   }
 
   @override

@@ -1,5 +1,21 @@
 {
   "@@locale": "zh",
+  "historyModeOnline": "在线",
+  "historyModeLocal": "本地",
+  "localReadingHistoryTitle": "本地阅读记录",
+  "localHistorySearchHint": "搜索作品名",
+  "localHistorySearchEmpty": "没有匹配的作品",
+  "localHistoryTotal": "共 {count} 条阅读记录",
+  "@localHistoryTotal": {"placeholders": {"count": {"type": "int"}}},
+  "localHistoryPageProgress": "第 {page} / {total} 页",
+  "@localHistoryPageProgress": {"placeholders": {"page": {"type": "int"}, "total": {"type": "int"}}},
+  "localHistoryRemoveConfirm": "确定移除《{name}》的本机阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。",
+  "@localHistoryRemoveConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "localHistoryClearConfirm": "确定清空本机所有{type}阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。",
+  "@localHistoryClearConfirm": {"placeholders": {"type": {"type": "String"}}},
+  "browseHistorySeenLabel": "看到",
+  "browseHistoryUpdatedAt": "更新于 {time}",
+  "@browseHistoryUpdatedAt": {"placeholders": {"time": {"type": "String"}}},
   "comicTabLabel": "漫画",
   "novelTitle": "轻小说",
   "novelDownloadUnavailable": "该卷未下载或本地文件已损坏，请前往下载中心重新下载。",
@@ -1582,15 +1598,8 @@
       }
     }
   },
-  "browseHistoryLatestChapter": "最新 {chapter}",
-  "@browseHistoryLatestChapter": {
-    "placeholders": {
-      "chapter": {
-        "type": "String"
-      }
-    }
-  },
-  "browseHistoryLastSeen": "上次看到 {name}",
+  "browseHistoryLatestLabel": "最新",
+  "browseHistoryLastSeen": "看到 {name}",
   "@browseHistoryLastSeen": {
     "placeholders": {
       "name": {

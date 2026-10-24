@@ -23,6 +23,26 @@ void main() {
     store = NovelReadingStore(prefs: Future.value(prefs));
   });
 
+  test(
+    'unlimited reads include all records beyond the recent-page limit',
+    () async {
+      for (var index = 0; index < 35; index++) {
+        await store.saveProgress(
+          _progress().copyWith(
+            pathWord: 'novel-$index',
+            updatedAt: DateTime.utc(2026, 10).add(Duration(minutes: index)),
+          ),
+        );
+      }
+      expect(await store.readRecent(), hasLength(30));
+      final all = await store.readRecent(limit: null);
+      expect(all, hasLength(35));
+      expect(all.first.pathWord, 'novel-34');
+      expect(all.last.pathWord, 'novel-0');
+      expect(await store.readRecent(limit: 0), isEmpty);
+    },
+  );
+
   test('idle queue does not retain a completed FakeAsync zone', () {
     for (var index = 0; index < 3; index++) {
       fakeAsync((async) {

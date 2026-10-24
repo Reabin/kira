@@ -35,23 +35,23 @@ class _ComicBrowseHistoryCard extends StatelessWidget {
       title: comic.name,
       subtitle: authors.isEmpty ? null : authors.join(' / '),
       lastBrowseName: item.lastBrowseName,
-      latestText:
+      latestName:
           comic.lastChapterName == null || comic.lastChapterName!.isEmpty
           ? null
-          : AppLocalizations.of(
-              context,
-            )!.browseHistoryLatestChapter(comic.lastChapterName!),
-      chips: [
-        _HistoryMetaChip(
+          : comic.lastChapterName,
+      metadata: [
+        _HistoryMetaItem(
           icon: Icons.local_fire_department,
           label: _BrowseHistoryPageState.formatPopular(context, comic.popular),
         ),
         if (comic.datetimeUpdated != null)
-          _HistoryMetaChip(
+          _HistoryMetaItem(
             icon: Icons.schedule,
-            label: TimeFormat.relativeOf(
-              comic.datetimeUpdated!,
-              AppLocalizations.of(context)!,
+            label: AppLocalizations.of(context)!.browseHistoryUpdatedAt(
+              TimeFormat.relativeOf(
+                comic.datetimeUpdated!,
+                AppLocalizations.of(context)!,
+              ),
             ),
           ),
       ],
@@ -86,9 +86,8 @@ class _HistoryCardShell extends StatelessWidget {
   final String title;
   final String? subtitle;
   final String? lastBrowseName;
-  final String? latestText;
-  final List<Widget> chips;
-  final Widget? trailing;
+  final String? latestName;
+  final List<Widget> metadata;
 
   /// 宽屏流式布局：文本列用宽松约束，卡片宽度随文本内容收缩，
   /// 由外层 Wrap 决定一行排几张；窄屏保持 Expanded 铺满。
@@ -100,9 +99,8 @@ class _HistoryCardShell extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.lastBrowseName,
-    this.latestText,
-    required this.chips,
-    this.trailing,
+    this.latestName,
+    required this.metadata,
     this.hugText = false,
   });
 
@@ -117,7 +115,7 @@ class _HistoryCardShell extends StatelessWidget {
       children: [
         Text(
           title,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
@@ -131,37 +129,54 @@ class _HistoryCardShell extends StatelessWidget {
           ),
         ],
         if ((lastBrowseName != null && lastBrowseName!.isNotEmpty) ||
-            (latestText != null && latestText!.isNotEmpty)) ...[
+            (latestName != null && latestName!.isNotEmpty)) ...[
           const SizedBox(height: 10),
-          // 「上次看到」与「最新一话」分两行显示，字号都用 bodySmall，
-          // 各自单行截断省略。
+          // 「看到」「最新」都用小字作标记，章节名保持同字号，最新章节另起一行。
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (lastBrowseName != null && lastBrowseName!.isNotEmpty)
-                Text(
-                  l10n.browseHistoryLastSeen(lastBrowseName!),
-                  maxLines: 1,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${l10n.browseHistorySeenLabel} ',
+                        style: AppTypography.meta(
+                          tt,
+                        )?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      TextSpan(text: lastBrowseName!, style: tt.bodyMedium),
+                    ],
+                  ),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: tt.bodySmall,
                 ),
               if (lastBrowseName != null &&
                   lastBrowseName!.isNotEmpty &&
-                  latestText != null &&
-                  latestText!.isNotEmpty)
+                  latestName != null &&
+                  latestName!.isNotEmpty)
                 const SizedBox(height: 4),
-              if (latestText != null && latestText!.isNotEmpty)
-                Text(
-                  latestText!,
+              if (latestName != null && latestName!.isNotEmpty)
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${l10n.browseHistoryLatestLabel} ',
+                        style: AppTypography.meta(
+                          tt,
+                        )?.copyWith(color: cs.onSurfaceVariant),
+                      ),
+                      TextSpan(text: latestName!, style: tt.bodyMedium),
+                    ],
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
             ],
           ),
         ],
         const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: chips),
+        Wrap(spacing: 8, runSpacing: 8, children: metadata),
       ],
     );
 
@@ -187,7 +202,7 @@ class _HistoryCardShell extends StatelessWidget {
                   ? Flexible(child: textColumn)
                   : Expanded(child: textColumn),
               const SizedBox(width: AppSpacing.sm),
-              trailing ?? Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
             ],
           ),
         ),
@@ -233,33 +248,30 @@ class _HistoryCover extends StatelessWidget {
   }
 }
 
-class _HistoryMetaChip extends StatelessWidget {
+class _HistoryMetaItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _HistoryMetaChip({required this.icon, required this.label});
+  const _HistoryMetaItem({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: AppRadius.fullR,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: cs.primary),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: AppIconSize.sm, color: cs.onSurfaceVariant),
+        const SizedBox(width: AppSpacing.xs),
+        Flexible(
+          child: Text(
             label,
-            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.meta(tt)?.copyWith(color: cs.onSurfaceVariant),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

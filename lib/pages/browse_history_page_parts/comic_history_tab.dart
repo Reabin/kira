@@ -13,6 +13,7 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
     with AutomaticKeepAliveClientMixin {
   final _api = ApiClient();
   final _user = UserManager();
+  late (String?, String) _identity = (_user.token, _user.loginSource);
 
   List<BrowseHistoryItem> _comicItems = [];
   bool _loading = true;
@@ -53,6 +54,9 @@ class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
 
   void _onUserChanged() {
     if (!mounted) return;
+    final identity = (_user.token, _user.loginSource);
+    if (identity == _identity) return;
+    _identity = identity;
     if (_user.isLoggedIn) {
       _load(silent: true, force: true);
     } else {

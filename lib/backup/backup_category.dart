@@ -57,6 +57,7 @@ abstract final class BackupSchema {
     'copy_auto_update',
     'download_chapter_comments',
     'image_viewer_auto_rotate_landscape',
+    'nav_browse_history_local',
     'nav_floating_enabled',
     'nav_swipe_enabled',
     'reader_auto_scroll_enabled',

@@ -1,5 +1,21 @@
 {
   "@@locale": "zh_Hant",
+  "historyModeOnline": "線上",
+  "historyModeLocal": "本機",
+  "localReadingHistoryTitle": "本機閱讀記錄",
+  "localHistorySearchHint": "搜尋作品名",
+  "localHistorySearchEmpty": "沒有符合的作品",
+  "localHistoryTotal": "共 {count} 條閱讀記錄",
+  "@localHistoryTotal": {"placeholders": {"count": {"type": "int"}}},
+  "localHistoryPageProgress": "第 {page} / {total} 頁",
+  "@localHistoryPageProgress": {"placeholders": {"page": {"type": "int"}, "total": {"type": "int"}}},
+  "localHistoryRemoveConfirm": "確定移除《{name}》的本機閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。",
+  "@localHistoryRemoveConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "localHistoryClearConfirm": "確定清空本機所有{type}閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。",
+  "@localHistoryClearConfirm": {"placeholders": {"type": {"type": "String"}}},
+  "browseHistorySeenLabel": "看到",
+  "browseHistoryUpdatedAt": "更新於 {time}",
+  "@browseHistoryUpdatedAt": {"placeholders": {"time": {"type": "String"}}},
   "comicTabLabel": "漫畫",
   "novelTitle": "輕小說",
   "novelDownloadUnavailable": "該卷未下載或本機檔案已損壞，請前往下載中心重新下載。",
@@ -1553,15 +1569,8 @@
       }
     }
   },
-  "browseHistoryLatestChapter": "最新 {chapter}",
-  "@browseHistoryLatestChapter": {
-    "placeholders": {
-      "chapter": {
-        "type": "String"
-      }
-    }
-  },
-  "browseHistoryLastSeen": "上次看到 {name}",
+  "browseHistoryLatestLabel": "最新",
+  "browseHistoryLastSeen": "看到 {name}",
   "@browseHistoryLastSeen": {
     "placeholders": {
       "name": {

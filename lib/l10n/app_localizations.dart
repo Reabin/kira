@@ -97,6 +97,72 @@ abstract class AppLocalizations {
     Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
   ];
 
+  /// No description provided for @historyModeOnline.
+  ///
+  /// In zh, this message translates to:
+  /// **'在线'**
+  String get historyModeOnline;
+
+  /// No description provided for @historyModeLocal.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地'**
+  String get historyModeLocal;
+
+  /// No description provided for @localReadingHistoryTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'本地阅读记录'**
+  String get localReadingHistoryTitle;
+
+  /// No description provided for @localHistorySearchHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'搜索作品名'**
+  String get localHistorySearchHint;
+
+  /// No description provided for @localHistorySearchEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'没有匹配的作品'**
+  String get localHistorySearchEmpty;
+
+  /// No description provided for @localHistoryTotal.
+  ///
+  /// In zh, this message translates to:
+  /// **'共 {count} 条阅读记录'**
+  String localHistoryTotal(int count);
+
+  /// No description provided for @localHistoryPageProgress.
+  ///
+  /// In zh, this message translates to:
+  /// **'第 {page} / {total} 页'**
+  String localHistoryPageProgress(int page, int total);
+
+  /// No description provided for @localHistoryRemoveConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定移除《{name}》的本机阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。'**
+  String localHistoryRemoveConfirm(String name);
+
+  /// No description provided for @localHistoryClearConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定清空本机所有{type}阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。'**
+  String localHistoryClearConfirm(String type);
+
+  /// No description provided for @browseHistorySeenLabel.
+  ///
+  /// In zh, this message translates to:
+  /// **'看到'**
+  String get browseHistorySeenLabel;
+
+  /// No description provided for @browseHistoryUpdatedAt.
+  ///
+  /// In zh, this message translates to:
+  /// **'更新于 {time}'**
+  String browseHistoryUpdatedAt(String time);
+
   /// No description provided for @comicTabLabel.
   ///
   /// In zh, this message translates to:
@@ -4368,16 +4434,16 @@ abstract class AppLocalizations {
   /// **'{value}万'**
   String tenThousandUnit(String value);
 
-  /// No description provided for @browseHistoryLatestChapter.
+  /// No description provided for @browseHistoryLatestLabel.
   ///
   /// In zh, this message translates to:
-  /// **'最新 {chapter}'**
-  String browseHistoryLatestChapter(String chapter);
+  /// **'最新'**
+  String get browseHistoryLatestLabel;
 
   /// No description provided for @browseHistoryLastSeen.
   ///
   /// In zh, this message translates to:
-  /// **'上次看到 {name}'**
+  /// **'看到 {name}'**
   String browseHistoryLastSeen(String name);
 
   /// No description provided for @cacheSelectedCards.

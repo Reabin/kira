@@ -473,6 +473,27 @@ class NovelApi {
     );
   });
 
+  /// 在线浏览记录。条目不携带 id/uuid，分页由服务端 total/offset 决定。
+  Future<NovelPage<NovelBrowseEntry>> getBrowseHistory({
+    int limit = 18,
+    int offset = 0,
+  }) => withIdentity(() async {
+    _validatePage(limit, offset);
+    return NovelPage.fromJson(
+      await _get('/api/v3/member/browse/books', {
+        'limit': limit,
+        'offset': offset,
+      }),
+      NovelBrowseEntry.fromJson,
+    );
+  });
+
+  /// 抓包确认 DELETE 无实体参数，清除账号下全部在线浏览记录；
+  /// 成功响应为 `results: null`，因此只校验外层信封。
+  Future<void> clearBrowseHistory() => withIdentity(() async {
+    await _request('/api/v3/member/browse/books', method: 'DELETE');
+  });
+
   Future<void> setCollected({
     required String bookUuid,
     required bool collected,
@@ -548,6 +569,7 @@ class NovelApi {
     String path, {
     Map<String, dynamic>? params,
     Map<String, dynamic>? data,
+    String? method,
     bool browserComment = false,
   }) async {
     final identity = requestIdentity;
@@ -558,7 +580,8 @@ class NovelApi {
         queryParameters: {...?params, 'platform': 3},
         data: data,
         options: Options(
-          method: data == null ? 'GET' : 'POST',
+          // Explicit methods (DELETE) must not be inferred from the body.
+          method: method ?? (data == null ? 'GET' : 'POST'),
           responseType: ResponseType.plain,
           contentType: Headers.formUrlEncodedContentType,
           followRedirects: false,

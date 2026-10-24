@@ -9,7 +9,9 @@ import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/comment_settings.dart';
 import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reading_progress.dart';
+import 'package:kira/models/theme_settings.dart';
 import 'package:kira/models/user_manager.dart';
+import 'package:kira/pages/browse_history_page.dart';
 import 'package:kira/pages/comic_detail_page.dart' show ChapterCard;
 import 'package:kira/pages/novel_bookshelf_page.dart';
 import 'package:kira/pages/novel_detail_page.dart';
@@ -28,6 +30,8 @@ import 'package:kira/widgets/novel_comments_sheet.dart';
 import 'package:kira/widgets/novel_paged_controller.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'test_helpers.dart';
 
 NovelPage<T> _page<T>(List<T> list, {int? total, int offset = 0}) =>
     NovelPage<T>(
@@ -204,8 +208,8 @@ class _Store implements NovelReadingStore {
   List<NovelReadingProgress> items = [];
 
   @override
-  Future<List<NovelReadingProgress>> readRecent({int limit = 30}) async =>
-      items.take(limit).toList();
+  Future<List<NovelReadingProgress>> readRecent({int? limit = 30}) async =>
+      (limit == null ? items : items.take(limit)).toList();
 
   @override
   Future<NovelReadingProgress?> readProgress(String pathWord) async {
@@ -448,6 +452,7 @@ class _Harness {
           novelBookmarkStoreProvider.overrideWithValue(bookmarkStore),
           userManagerProvider.overrideWithValue(user),
           commentSettingsProvider.overrideWithValue(CommentSettings()),
+          themeSettingsProvider.overrideWithValue(ThemeSettings()),
         ],
         child: MaterialApp.router(
           routerConfig: router,
@@ -481,7 +486,15 @@ Future<void> _tapAndSettle(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() async {
+    setupSecureCredentialStoreForTest();
+    SharedPreferences.setMockInitialValues({});
+    await ThemeSettings().initFromPrefs(
+      await SharedPreferences.getInstance(),
+      persistMigrations: false,
+    );
+  });
+  tearDown(teardownSecureCredentialStoreForTest);
 
   testWidgets('首页排序竞态：旧页响应不能覆盖新排序', (tester) async {
     final h = _Harness();
@@ -1216,7 +1229,13 @@ void main() {
   testWidgets('阅读记录直接续读并支持移除，无API调用', (tester) async {
     final h = _Harness();
     h.store.items = [_Progress()];
-    await h.pump(tester, const NovelHistoryPage());
+    await ThemeSettings().setBrowseHistoryLocal(true);
+    await h.pump(
+      tester,
+      BrowseHistoryPage(loginPageBuilder: (_) => const SizedBox()),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('轻小说'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('novel_history_book')));
     await tester.pumpAndSettle();
@@ -1227,6 +1246,13 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('novel_history_actions_book')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('移除阅读记录'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('开始阅读后，进度会保存在这里'), findsOneWidget);
     expect(h.api.bookCalls + h.api.queryCalls + h.api.shelfCalls, 0);
@@ -1686,7 +1712,13 @@ void main() {
   testWidgets('清空记录需确认，取消不改变进度', (tester) async {
     final h = _Harness();
     h.store.items = [_Progress()];
-    await h.pump(tester, const NovelHistoryPage());
+    await ThemeSettings().setBrowseHistoryLocal(true);
+    await h.pump(
+      tester,
+      BrowseHistoryPage(loginPageBuilder: (_) => const SizedBox()),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('轻小说'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('清空阅读记录'));
     await tester.pumpAndSettle();

@@ -60,6 +60,7 @@ class ThemeSettings extends PrefsStore {
   static const _keyFloatingNavEnabled = 'nav_floating_enabled';
   static const _keyBackExitConfirm = 'back_exit_confirm';
   static const _keyShowNovel = 'nav_show_novel';
+  static const _keyBrowseHistoryLocal = 'nav_browse_history_local';
   static const _keyLastNavKey = 'last_nav_key';
   static const _keyAppFontFamily = 'app_font_family';
   static const _keyDisplayModeRefreshRate = 'pref_display_mode_refresh_rate';
@@ -84,6 +85,8 @@ class ThemeSettings extends PrefsStore {
   bool _floatingNavEnabled = true;
   bool _backExitConfirm = true;
   bool _showNovel = true;
+  bool _browseHistoryLocal = false;
+  Future<void>? _browseHistoryModeQueue;
   String _lastNavKey = defaultNavKey;
   String _appFontFamily = '';
   int _displayModeRefreshRate = defaultDisplayModeRefreshRate;
@@ -125,6 +128,9 @@ class ThemeSettings extends PrefsStore {
 
   /// 是否展示轻小说入口（底部导航、书架等 tab 与各处入口）。
   bool get showNovel => _showNovel;
+
+  /// 浏览记录上次显示本机进度，默认显示在线历史。
+  bool get browseHistoryLocal => _browseHistoryLocal;
   String get lastNavKey => _lastNavKey;
   String get appFontFamily => _appFontFamily;
   int get displayModeRefreshRate => _displayModeRefreshRate;
@@ -203,6 +209,7 @@ class ThemeSettings extends PrefsStore {
     }
     _backExitConfirm = prefs.getBool(_keyBackExitConfirm) ?? true;
     _showNovel = prefs.getBool(_keyShowNovel) ?? true;
+    _browseHistoryLocal = prefs.getBool(_keyBrowseHistoryLocal) ?? false;
     final savedLastNavKey = prefs.getString(_keyLastNavKey);
     _lastNavKey = _normalizeNavKey(savedLastNavKey);
     if (persistMigrations &&
@@ -366,6 +373,64 @@ class ThemeSettings extends PrefsStore {
     if (_showNovel == value) return;
     _showNovel = value;
     await setBool(_keyShowNovel, value);
+  }
+
+  Future<void> setBrowseHistoryLocal(bool value) {
+    final operation = (_browseHistoryModeQueue ?? Future<void>.value()).then((
+      _,
+    ) async {
+      if (_browseHistoryLocal == value) return;
+      final p = await prefs;
+      final previous = p.getBool(_keyBrowseHistoryLocal);
+      try {
+        if (!await p.setBool(_keyBrowseHistoryLocal, value)) {
+          throw StateError('Browse history mode persistence failed');
+        }
+      } catch (error, stack) {
+        // SharedPreferences 写失败也可能已修改内存缓存，恢复旧值再重载。
+        try {
+          if (previous == null) {
+            await p.remove(_keyBrowseHistoryLocal);
+          } else {
+            await p.setBool(_keyBrowseHistoryLocal, previous);
+          }
+          await p.reload();
+        } catch (rollbackError, rollbackStack) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              rollbackError,
+              stackTrace: rollbackStack,
+              source: 'theme_settings.browse_history_mode_rollback',
+            ),
+          );
+        }
+        Error.throwWithStackTrace(error, stack);
+      }
+      _browseHistoryLocal = value;
+      notifyListeners();
+    });
+    late final Future<void> tail;
+    void releaseIfIdle() {
+      if (identical(_browseHistoryModeQueue, tail)) {
+        _browseHistoryModeQueue = null;
+      }
+    }
+
+    tail = operation.then<void>(
+      (_) => releaseIfIdle(),
+      onError: (Object error, StackTrace stack) {
+        releaseIfIdle();
+        unawaited(
+          AppLogger.instance.recordWarning(
+            error,
+            stackTrace: stack,
+            source: 'theme_settings.browse_history_mode',
+          ),
+        );
+      },
+    );
+    _browseHistoryModeQueue = tail;
+    return operation;
   }
 
   Future<void> setLastNavKey(String key) async {
