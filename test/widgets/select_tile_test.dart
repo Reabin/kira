@@ -280,6 +280,49 @@ void main() {
     expect(pillWidth, closeTo(cap + 56, 0.5));
     expect(pillWidth, lessThan(224.0));
   });
+  testWidgets('many items cap the menu height to the screen and scroll', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 300);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<int>(
+            value: 0,
+            items: [
+              for (var i = 0; i < 30; i++) SelectItem(i, '选项 $i'),
+            ],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(SelectTile<int>));
+    await tester.pumpAndSettle();
+
+    final menu = tester.getRect(
+      find.ancestor(of: find.text('选项 29'), matching: find.byType(Material)),
+    );
+    // 菜单底部不越过屏幕；顶部贴住触发器。
+    expect(menu.bottom, lessThanOrEqualTo(300));
+    // 内容超出上限时菜单内部可滚动，最后一项滚入视野后可点击。
+    final scrollable = find.descendant(
+      of: find.byType(Material),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('选项 29'),
+      100,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('选项 29').last).bottom, lessThan(300));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('reduced motion settles the arrow and preserves menu selection', (
     tester,
   ) async {

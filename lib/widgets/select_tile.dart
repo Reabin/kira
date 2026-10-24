@@ -219,6 +219,26 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
     return spaceBelow < estimatedMenuHeight && triggerTop > spaceBelow;
   }
 
+  /// 菜单可用高度：触发器到屏幕安全区边缘的空间。
+  ///
+  /// 选项很多（如轻小说的分卷）时菜单不再无限长，超出该高度就在菜单内部
+  /// 滚动；触发器贴边时保底一个选项高度，保证菜单仍然可用。
+  double _menuMaxHeight(bool openUpward) {
+    final box = context.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlayBox == null) return double.infinity;
+    final padding = MediaQuery.of(context).padding;
+    final triggerTop = box.localToGlobal(Offset.zero, ancestor: overlayBox).dy;
+    final available = openUpward
+        ? triggerTop - padding.top - AppSpacing.sm
+        : overlayBox.size.height -
+              (triggerTop + box.size.height) -
+              padding.bottom -
+              AppSpacing.sm;
+    return math.max(available, 48.0);
+  }
+
   void _toggle() {
     if (_expanded) {
       _dismissMenu();
@@ -261,56 +281,64 @@ class _SelectTileState<T> extends State<SelectTile<T>> {
                   borderRadius: BorderRadius.circular(12),
                   clipBehavior: Clip.antiAlias,
                   color: cs.surfaceContainerHigh,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final item in widget.items)
-                        InkWell(
-                          onTap: () {
-                            widget.onChanged(item.value);
-                            _dismissMenu();
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Row(
-                              children: [
-                                if (item.icon != null) ...[
-                                  Icon(
-                                    item.icon,
-                                    size: 18,
-                                    color:
-                                        item.color ??
-                                        (item.value == widget.value
-                                            ? cs.primary
-                                            : cs.onSurfaceVariant),
-                                  ),
-                                  const SizedBox(width: 10),
-                                ],
-                                Expanded(
-                                  child: Text(
-                                    item.label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: tt.bodyMedium?.copyWith(
-                                      color:
-                                          item.color ??
-                                          (item.value == widget.value
-                                              ? cs.primary
-                                              : cs.onSurface),
-                                      fontWeight: item.value == widget.value
-                                          ? FontWeight.w600
-                                          : null,
-                                    ),
-                                  ),
+                  // 选项多时按触发器到屏幕边缘的可用空间封顶，菜单内部滚动。
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: _menuMaxHeight(openUpward),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final item in widget.items)
+                            InkWell(
+                              onTap: () {
+                                widget.onChanged(item.value);
+                                _dismissMenu();
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
                                 ),
-                              ],
+                                child: Row(
+                                  children: [
+                                    if (item.icon != null) ...[
+                                      Icon(
+                                        item.icon,
+                                        size: 18,
+                                        color:
+                                            item.color ??
+                                            (item.value == widget.value
+                                                ? cs.primary
+                                                : cs.onSurfaceVariant),
+                                      ),
+                                      const SizedBox(width: 10),
+                                    ],
+                                    Expanded(
+                                      child: Text(
+                                        item.label,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: tt.bodyMedium?.copyWith(
+                                          color:
+                                              item.color ??
+                                              (item.value == widget.value
+                                                  ? cs.primary
+                                                  : cs.onSurface),
+                                          fontWeight: item.value == widget.value
+                                              ? FontWeight.w600
+                                              : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
