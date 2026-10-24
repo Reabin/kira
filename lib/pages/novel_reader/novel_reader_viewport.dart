@@ -202,7 +202,11 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   @override
   void didUpdateWidget(NovelReaderViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.jumpRevision != widget.jumpRevision) {
+    if (!identical(oldWidget.document, widget.document)) {
+      // 文档重建（空行显隐切换）：列表项数与内容都变了，按目标锚点重新
+      // 挂载定位；不能沿用旧 offset，恢复流程与字体变化同一套。
+      _scheduleRestore(widget.target);
+    } else if (oldWidget.jumpRevision != widget.jumpRevision) {
       _scheduleRestore(widget.target);
     } else if (oldWidget.settings.fontSize != widget.settings.fontSize ||
         oldWidget.settings.lineHeight != widget.settings.lineHeight ||
@@ -451,7 +455,9 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
                       child: Icon(
                         Icons.bookmark,
                         size: AppIconSize.md,
-                        color: widget.palette.foreground.withValues(alpha: 0.45),
+                        color: widget.palette.foreground.withValues(
+                          alpha: 0.45,
+                        ),
                       ),
                     ),
                   ),

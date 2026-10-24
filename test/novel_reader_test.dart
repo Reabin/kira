@@ -484,6 +484,61 @@ void main() {
     );
   });
 
+  test('blank paragraph filtering keeps source indexes and maps anchors', () {
+    const source = [
+      NovelReaderEntry(
+        entryIndex: 0,
+        entry: NovelContentEntry(name: 'a', contentType: 1),
+        paragraphs: ['x', '', '  ', 'y', ''],
+      ),
+      NovelReaderEntry(
+        entryIndex: 1,
+        entry: NovelContentEntry(name: 'blank chapter', contentType: 1),
+        paragraphs: ['', '  '],
+      ),
+      NovelReaderEntry(
+        entryIndex: 2,
+        entry: NovelContentEntry(name: 'b', contentType: 1),
+        paragraphs: ['z'],
+      ),
+    ];
+    final document = NovelReaderDocument(source, ignoreBlankParagraphs: true);
+    // 空行不占槽：a 章 2 段 + 空白章占位 1 + b 章 1 段。
+    expect(document.itemCount, 4);
+    // paragraphAt 返回的仍是源数组下标，锚点身份不变。
+    expect(document.paragraphAt(0).paragraphIndex, 0);
+    expect(document.paragraphAt(1).paragraphIndex, 3);
+    expect(document.paragraphAt(2).paragraphIndex, 0);
+    expect(document.paragraphAt(3).paragraphIndex, 0);
+    expect(document.paragraphAt(3).entry.entryIndex, 2);
+    // 落在空行上的旧锚点向前映射到最近的可见段。
+    expect(
+      document.itemFor(
+        const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 1),
+      ),
+      0,
+    );
+    expect(
+      document.itemFor(
+        const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 4),
+      ),
+      1,
+    );
+    // 章首前的空行锚点退回该章最后一个可见段。
+    expect(
+      document.itemFor(const NovelReaderAnchor(entryIndex: 0)),
+      0,
+    );
+    expect(
+      document.itemFor(const NovelReaderAnchor(entryIndex: 2)),
+      3,
+    );
+    // 关闭过滤时行为与旧版本完全一致。
+    final legacy = NovelReaderDocument(source);
+    expect(legacy.itemCount, 8);
+    expect(legacy.paragraphAt(1).text, '');
+  });
+
   testWidgets(
     'resume restores exact paragraph and negative alignment, not chapter start',
     (tester) async {
@@ -1077,7 +1132,10 @@ void main() {
       );
       final paragraph = paragraphText('v1 entry 0 paragraph 0');
       expect(icon.size, AppIconSize.md);
-      expect(icon.color, paragraphForeground(tester, paragraph)?.withValues(alpha: 0.45));
+      expect(
+        icon.color,
+        paragraphForeground(tester, paragraph)?.withValues(alpha: 0.45),
+      );
       await tester.tap(marker);
       await _settle(tester);
       expect(_bookmarks.bookmarks, isEmpty);
@@ -1091,6 +1149,7 @@ void main() {
     (tester) async {
       // 段落 3..40 为空行：屏幕中点必落在空行区间内，按钮书签应就近
       // 改选有文本的段落（可见项里最近的是段落 2），绝不给空行打书签。
+      // 本用例验证空行可见（关闭隐藏）时的兜底；隐藏空行的行为另有用例。
       repository = _Repository({
         'v1': _volume(blanks: {for (var i = 3; i <= 40; i++) i}),
       });

@@ -2648,6 +2648,8 @@
   "novelReaderTextColor": "文字颜色",
   "novelReaderPreviewText": "选择适合你的阅读配色与字号。",
   "novelReaderKeepScreenOn": "阅读时屏幕常亮",
+  "novelReaderIgnoreBlankParagraphs": "隐藏空白段落",
+  "novelReaderIgnoreBlankParagraphsDenseHint": "可以适当增大段距以免文字过于密集",
   "novelReaderIllustration": "插图",
   "novelReaderImageFailed": "插图加载失败",
   "novelReaderEmptyChapter": "本章节暂无正文",

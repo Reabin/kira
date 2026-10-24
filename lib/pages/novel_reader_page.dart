@@ -593,7 +593,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       }
       if (content.detail.isLocked) throw NovelAccessException(content.detail);
       _volumeDetails[volume] = content.detail;
-      final document = NovelReaderDocument(content.entries);
+      final document = NovelReaderDocument(
+        content.entries,
+        ignoreBlankParagraphs: _settings.ignoreBlankParagraphs,
+      );
       setState(() {
         _content = content;
         _document = document;
@@ -850,9 +853,28 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final anchor = settings.mode != _settings.mode
         ? (_viewerLocation?.anchor ?? _location?.anchor)
         : null;
+    // 空行显隐改变文档形状：以当前位置为落点重建，锚点身份不变。
+    final reflow =
+        settings.ignoreBlankParagraphs != _settings.ignoreBlankParagraphs;
+    final content = _content;
+    final current = _document;
     setState(() {
       _settings = settings;
       if (anchor != null) _target = anchor;
+      if (reflow &&
+          content != null &&
+          current != null &&
+          current.itemCount > 0) {
+        _document = NovelReaderDocument(
+          content.entries,
+          ignoreBlankParagraphs: settings.ignoreBlankParagraphs,
+        );
+        final base = anchor ?? _target;
+        _target = _document!.anchorFor(
+          _document!.itemFor(base),
+          alignment: base.alignment,
+        );
+      }
     });
     _setScreenOn(settings.keepScreenOn);
     _updateVolumeIntercept();

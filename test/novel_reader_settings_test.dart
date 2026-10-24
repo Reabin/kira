@@ -62,6 +62,8 @@ void main() {
       expect(defaults.toJson()['realisticPageTurn'], isTrue);
       expect(defaults.instantPageTurn, isFalse);
       expect(defaults.volumeKey, isTrue);
+      expect(defaults.ignoreBlankParagraphs, isFalse);
+      expect(defaults.toJson()['ignoreBlankParagraphs'], isFalse);
       expect(
         await NovelReaderSettings.load(prefs: Future.value(prefs)),
         defaults,
@@ -92,6 +94,25 @@ void main() {
     expect(settings.mode, NovelReaderMode.paged);
     expect(settings.instantPageTurn, isTrue);
     expect(settings.volumeKey, isFalse);
+  });
+
+  test('ignore blank paragraphs round-trips and falls back for old data', () {
+    for (final value in [true, false]) {
+      final settings = NovelReaderSettings(ignoreBlankParagraphs: value);
+      expect(settings.toJson()['ignoreBlankParagraphs'], value);
+      expect(NovelReaderSettings.fromJson(settings.toJson()), settings);
+      expect(settings.copyWith().ignoreBlankParagraphs, value);
+      expect(
+        settings.copyWith(ignoreBlankParagraphs: !value).ignoreBlankParagraphs,
+        !value,
+      );
+      expect(settings.ignoreBlankParagraphs, value);
+    }
+    // 旧记录没有该键：回退默认（保留空行），而不是擅自隐藏。
+    expect(
+      NovelReaderSettings.fromJson(const {}).ignoreBlankParagraphs,
+      isFalse,
+    );
   });
 
   test('realistic page turn persists and survives unrelated copies', () async {

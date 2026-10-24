@@ -4094,6 +4094,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderKeepScreenOn => '阅读时屏幕常亮';
 
   @override
+  String get novelReaderIgnoreBlankParagraphs => '隐藏空白段落';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphsDenseHint => '可以适当增大段距以免文字过于密集';
+
+  @override
   String get novelReaderIllustration => '插图';
 
   @override
@@ -8337,6 +8343,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderKeepScreenOn => '閱讀時螢幕常亮';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphs => '隱藏空白段落';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphsDenseHint => '可以適當增大段距以免文字過於密集';
 
   @override
   String get novelReaderIllustration => '插圖';

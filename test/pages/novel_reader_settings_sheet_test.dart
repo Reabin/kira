@@ -335,6 +335,60 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('ignore blank paragraphs toggles and persists', (tester) async {
+    var latest = const NovelReaderSettings();
+    await _mount(tester, onChanged: (value) => latest = value);
+    // 默认关闭；开关在排版区（段距滑块之后）。
+    final toggle = find.byKey(const ValueKey('novel-ignore-blank-paragraphs'));
+    expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+    await _tapVisible(tester, 'novel-ignore-blank-paragraphs');
+    expect(latest.ignoreBlankParagraphs, isTrue);
+    await tester.runAsync(() async {
+      await latest.save();
+      final saved = await NovelReaderSettings.load();
+      expect(saved.ignoreBlankParagraphs, isTrue);
+    });
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dense hint appears only when hiding blanks with tight spacing', (
+    tester,
+  ) async {
+    Future<bool> hintVisible() async {
+      final tile = tester.widget<SwitchListTile>(
+        find.byKey(const ValueKey('novel-ignore-blank-paragraphs')),
+      );
+      return tile.subtitle != null;
+    }
+
+    // 关闭隐藏：无论段距多小都不提醒。
+    await _mount(
+      tester,
+      settings: const NovelReaderSettings(paragraphSpacing: 4),
+      onChanged: (_) {},
+    );
+    expect(await hintVisible(), isFalse);
+    await _tapVisible(tester, 'novel-ignore-blank-paragraphs');
+    // 开启隐藏且段距 < 20：出现提醒。
+    expect(await hintVisible(), isTrue);
+    expect(find.text('可以适当增大段距以免文字过于密集'), findsOneWidget);
+    // 段距调到 20：提醒消失。
+    final slider = find.byKey(const ValueKey('novel-paragraph-spacing'));
+    await tester.ensureVisible(slider);
+    await tester.pumpAndSettle();
+    await tester.drag(slider, const Offset(200, 0));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SwitchListTile>(
+            find.byKey(const ValueKey('novel-ignore-blank-paragraphs')),
+          )
+          .subtitle,
+      isNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('reading mode switch reveals and edits page-turn settings', (
     tester,
   ) async {

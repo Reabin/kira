@@ -2617,6 +2617,8 @@
   "novelReaderTextColor": "文字顏色",
   "novelReaderPreviewText": "選擇適合你的閱讀配色與字級。",
   "novelReaderKeepScreenOn": "閱讀時螢幕常亮",
+  "novelReaderIgnoreBlankParagraphs": "隱藏空白段落",
+  "novelReaderIgnoreBlankParagraphsDenseHint": "可以適當增大段距以免文字過於密集",
   "novelReaderIllustration": "插圖",
   "novelReaderImageFailed": "插圖載入失敗",
   "novelReaderEmptyChapter": "本章節暫無正文",

@@ -7469,6 +7469,18 @@ abstract class AppLocalizations {
   /// **'阅读时屏幕常亮'**
   String get novelReaderKeepScreenOn;
 
+  /// No description provided for @novelReaderIgnoreBlankParagraphs.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐藏空白段落'**
+  String get novelReaderIgnoreBlankParagraphs;
+
+  /// No description provided for @novelReaderIgnoreBlankParagraphsDenseHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'可以适当增大段距以免文字过于密集'**
+  String get novelReaderIgnoreBlankParagraphsDenseHint;
+
   /// No description provided for @novelReaderIllustration.
   ///
   /// In zh, this message translates to:

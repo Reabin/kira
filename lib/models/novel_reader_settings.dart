@@ -92,6 +92,7 @@ class NovelReaderSettings {
     this.realisticPageTurn = true,
     this.instantPageTurn = false,
     this.volumeKey = true,
+    this.ignoreBlankParagraphs = defaultIgnoreBlankParagraphs,
   }) : _customThemes = const [],
        fontSize = fontSize != fontSize
            ? defaultFontSize
@@ -128,6 +129,7 @@ class NovelReaderSettings {
       realisticPageTurn = base.realisticPageTurn,
       instantPageTurn = base.instantPageTurn,
       volumeKey = base.volumeKey,
+      ignoreBlankParagraphs = base.ignoreBlankParagraphs,
       _customThemes = List.unmodifiable(themes);
 
   static const storageKey = 'reader_novel_settings_v1';
@@ -147,6 +149,10 @@ class NovelReaderSettings {
   static const defaultCustomBackgroundColor = 0xFFF3EEDC;
   static const defaultCustomTextColor = 0xFF38352D;
 
+  /// 网译源 txt 常以空行分隔段落；默认保留空行，开启后仅隐藏显示，
+  /// 源数据与段落下标不变。
+  static const defaultIgnoreBlankParagraphs = false;
+
   final double fontSize;
   final double lineHeight;
   final double paragraphSpacing;
@@ -163,6 +169,9 @@ class NovelReaderSettings {
 
   /// 翻页模式下允许音量键翻页（音量+上一页、音量-下一页）。
   final bool volumeKey;
+
+  /// 隐藏正文里的空白段落（仅影响显示，不改变段落下标与锚点身份）。
+  final bool ignoreBlankParagraphs;
   final List<NovelReaderCustomTheme> _customThemes;
   List<NovelReaderCustomTheme> get customThemes => _customThemes;
 
@@ -253,6 +262,8 @@ class NovelReaderSettings {
       realisticPageTurn: jsonBool(json, 'realisticPageTurn', fallback: true),
       instantPageTurn: jsonBool(json, 'instantPageTurn'),
       volumeKey: jsonBool(json, 'volumeKey', fallback: true),
+      // 旧记录没有该键时保持默认（保留空行）。
+      ignoreBlankParagraphs: jsonBool(json, 'ignoreBlankParagraphs'),
     ).copyWith(customThemes: themes);
   }
 
@@ -268,6 +279,7 @@ class NovelReaderSettings {
     'realisticPageTurn': realisticPageTurn,
     'instantPageTurn': instantPageTurn,
     'volumeKey': volumeKey,
+    'ignoreBlankParagraphs': ignoreBlankParagraphs,
   };
 
   NovelReaderSettings copyWith({
@@ -282,6 +294,7 @@ class NovelReaderSettings {
     bool? realisticPageTurn,
     bool? instantPageTurn,
     bool? volumeKey,
+    bool? ignoreBlankParagraphs,
   }) {
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -294,6 +307,8 @@ class NovelReaderSettings {
       realisticPageTurn: realisticPageTurn ?? this.realisticPageTurn,
       instantPageTurn: instantPageTurn ?? this.instantPageTurn,
       volumeKey: volumeKey ?? this.volumeKey,
+      ignoreBlankParagraphs:
+          ignoreBlankParagraphs ?? this.ignoreBlankParagraphs,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();
     final themes = (customThemes ?? _customThemes)
@@ -395,7 +410,8 @@ class NovelReaderSettings {
       mode == other.mode &&
       realisticPageTurn == other.realisticPageTurn &&
       instantPageTurn == other.instantPageTurn &&
-      volumeKey == other.volumeKey;
+      volumeKey == other.volumeKey &&
+      ignoreBlankParagraphs == other.ignoreBlankParagraphs;
 
   @override
   int get hashCode => Object.hash(
@@ -410,6 +426,7 @@ class NovelReaderSettings {
     realisticPageTurn,
     instantPageTurn,
     volumeKey,
+    ignoreBlankParagraphs,
   );
 }
 

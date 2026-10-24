@@ -226,6 +226,19 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             onChanged: (value) =>
                 _change(_settings.copyWith(paragraphSpacing: value)),
           ),
+          SwitchListTile.adaptive(
+            key: const ValueKey('novel-ignore-blank-paragraphs'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.novelReaderIgnoreBlankParagraphs),
+            subtitle:
+                _settings.ignoreBlankParagraphs &&
+                    _settings.paragraphSpacing < 20
+                ? Text(l10n.novelReaderIgnoreBlankParagraphsDenseHint)
+                : null,
+            value: _settings.ignoreBlankParagraphs,
+            onChanged: (value) =>
+                _change(_settings.copyWith(ignoreBlankParagraphs: value)),
+          ),
           const Divider(height: AppSpacing.xxl),
           SectionHeader(
             title: l10n.novelReaderTheme,
