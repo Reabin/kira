@@ -174,7 +174,7 @@ class NovelReaderPaginator {
     _resetPages();
   }
 
-  final NovelReaderDocument document;
+  final NovelTextDocument document;
   final NovelPaginationSpec spec;
 
   /// 已构建的页（`pages.last` 是正在填充的当前页）。

@@ -40,7 +40,7 @@ class NovelReaderPageView extends StatefulWidget {
     this.onBoundary,
   });
 
-  final NovelReaderDocument document;
+  final NovelTextDocument document;
   final NovelReaderSettings settings;
   final NovelReaderPalette palette;
 
@@ -776,7 +776,9 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
           slice.startLine == 0 &&
           widget.highlight != null &&
           widget.highlight!.entryIndex == entry.entryIndex &&
-          widget.highlight!.paragraphIndex == paragraph.paragraphIndex;
+          widget.highlight!.paragraphIndex == paragraph.paragraphIndex &&
+          (widget.highlight!.volumeId.isEmpty ||
+              widget.highlight!.volumeId == paragraph.volumeId);
       if (highlighted) {
         body = CustomPaint(
           painter: NovelHighlightPainter(

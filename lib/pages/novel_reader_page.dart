@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ import '../repositories/novel_reader_source.dart';
 import '../repositories/novel_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
 import '../theme/novel_reader_theme.dart';
 import '../theme/reader_chrome.dart';
 import '../utils/adaptive_motion.dart';
@@ -35,6 +37,7 @@ import 'novel_reader/novel_reader_page_view.dart';
 import 'novel_reader/novel_reader_settings_sheet.dart';
 import 'novel_reader/novel_reader_viewport.dart';
 
+part 'novel_reader_page_parts/continuous.dart';
 part 'novel_reader_page_parts/view.dart';
 
 class NovelReaderPage extends ConsumerStatefulWidget {
@@ -97,7 +100,18 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   NovelReaderSettings _settings = const NovelReaderSettings();
   NovelVolumeContent? _content;
   NovelVolumeDetail? _accessDetail;
-  NovelReaderDocument? _document;
+  NovelTextDocument? _document;
+
+  // ── 滚动模式连续阅读（卷末继续下滑进入下一卷）──
+  /// 卷栈：当前卷 + 已追加的下一卷（最多两卷）。手动跳卷/换卷时重置。
+  final _stackVolumes = <NovelReaderVolumeDocument>[];
+  final _stackContents = <String, NovelVolumeContent>{};
+  final _stackLoads = <String, Future<NovelVolumeContent>>{};
+  NovelReaderStack? _stack;
+  int _contentRevision = 0;
+  bool _appending = false;
+  Object? _seamError;
+  bool _seamUnavailable = false;
   NovelReaderLocation? _location;
   NovelReaderAnchor _target = const NovelReaderAnchor(entryIndex: 0);
   NovelReadingProgress? _pendingProgress;
@@ -300,12 +314,28 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   NovelReaderAnchor? get _bookmarkAnchor =>
       _viewerCenter?.anchor ?? _location?.anchor;
 
+  /// 当前正在读的卷。连续阅读跨过接缝后正文属于下一卷，工具栏、
+  /// 书签、目录与上/下一卷都要跟着它走。锚点自带卷 id 时直接采信，
+  /// 避免回收旧卷后 item 下标短暂错位。
+  String get _currentVolumeId {
+    final located = (_viewerLocation ?? _location)?.anchor.volumeId ?? '';
+    if (located.isNotEmpty) return located;
+    final document = _document;
+    if (document == null || document.itemCount == 0) return _volumeId;
+    final item = (_location?.itemIndex ?? document.itemFor(_target)).clamp(
+      0,
+      document.itemCount - 1,
+    );
+    final volumeId = document.volumeIdForItem(item);
+    return volumeId.isEmpty ? _volumeId : volumeId;
+  }
+
   bool get _isBookmarked {
     final anchor = _bookmarkAnchor;
     return anchor != null &&
         _bookmarks.isBookmarked(
           pathWord: _pathWord,
-          volumeId: _volumeId,
+          volumeId: anchor.volumeId.isEmpty ? _volumeId : anchor.volumeId,
           entryIndex: anchor.entryIndex,
           paragraphIndex: anchor.paragraphIndex,
         );
@@ -406,11 +436,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     });
   }
 
-  /// 高亮锚点与某段落是否同一位置。
+  /// 高亮锚点与某段落是否同一位置（连续阅读下卷 id 也参与判定）。
   bool _isSameAnchor(NovelReaderAnchor? a, NovelReaderAnchor b) =>
       a != null &&
       a.entryIndex == b.entryIndex &&
-      a.paragraphIndex == b.paragraphIndex;
+      a.paragraphIndex == b.paragraphIndex &&
+      (a.volumeId.isEmpty || b.volumeId.isEmpty || a.volumeId == b.volumeId);
 
   void _beginSession() {
     final session = ++_session;
@@ -592,6 +623,15 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       _pageViewKey = GlobalKey();
       _highlightTimer?.cancel();
       _highlight = null;
+      // 手动换卷是跳跃式跳转，不是连续下滑：卷栈重置为单卷。
+      _stackVolumes.clear();
+      _stackContents.clear();
+      _stackLoads.clear();
+      _stack = null;
+      ++_contentRevision;
+      _appending = false;
+      _seamError = null;
+      _seamUnavailable = false;
     });
     try {
       final content = await _source.loadContent(
@@ -607,12 +647,26 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       }
       if (content.detail.isLocked) throw NovelAccessException(content.detail);
       _volumeDetails[volume] = content.detail;
-      final document = NovelReaderDocument(
-        content.entries,
-        ignoreBlankParagraphs: _settings.ignoreBlankParagraphs,
+      // 卷栈以当前卷起步；滚动模式下后续可原位追加下一卷。
+      final stackVolume = NovelReaderVolumeDocument(
+        volumeId: volume,
+        volumeName: content.detail.volume.name,
+        document: NovelReaderDocument(
+          content.entries,
+          ignoreBlankParagraphs: _settings.ignoreBlankParagraphs,
+        ),
       );
+      final stack = NovelReaderStack([stackVolume]);
+      final document = stack;
       setState(() {
         _content = content;
+        _stackVolumes
+          ..clear()
+          ..add(stackVolume);
+        _stackContents
+          ..clear()
+          ..[volume] = content;
+        _stack = stack;
         _document = document;
         _accessDetail = content.detail;
         if (document.itemCount > 0) {
@@ -665,20 +719,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     }
   }
 
+  /// 进度按「当前正在读的卷」记录。连续阅读跨过接缝后，卷元数据跟着
+  /// 段落所属卷走，进度条与恢复定位始终对应同一卷。
   NovelReadingProgress _progressAt(
     NovelReaderLocation location,
     DateTime updatedAt,
   ) {
-    final content = _content!;
-    final book = content.detail.book;
-    final volume = content.detail.volume;
+    final document = _document!;
+    final volumeId = document.volumeIdForItem(location.itemIndex);
+    final content = _stackContents[volumeId] ?? _content!;
+    final detail = content.detail;
+    final book = detail.book;
+    final volume = detail.volume;
     return NovelReadingProgress(
       pathWord: _pathWord,
       name: book.name.isEmpty ? _fallbackName : book.name,
       cover: book.cover.isEmpty ? _fallbackCover : book.cover,
-      volumeId: _volumeId,
+      volumeId: volume.id.isEmpty ? _volumeId : volume.id,
       volumeName: volume.name,
-      chapterName: _document!.paragraphAt(location.itemIndex).entry.name,
+      chapterName: document.paragraphAt(location.itemIndex).entry.name,
       entryIndex: location.anchor.entryIndex,
       paragraphIndex: location.anchor.paragraphIndex,
       paragraphAlignment: location.anchor.alignment,
@@ -698,10 +757,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     if (_disposed || content == null || document == null || _loading) return;
     final previous = _location;
     _location = location;
+    // 连续阅读时 entryIndex 会跨卷重复，卷 id 必须一起比较。
     final changed =
         previous == null ||
         previous.anchor.entryIndex != location.anchor.entryIndex ||
         previous.anchor.paragraphIndex != location.anchor.paragraphIndex ||
+        previous.anchor.volumeId != location.anchor.volumeId ||
         (previous.anchor.alignment - location.anchor.alignment).abs() > 0.0001;
     if (!changed) return;
     final now = DateTime.now();
@@ -772,26 +833,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     });
   }
 
-  String? _adjacentVolume(int direction) {
-    final volume = _content?.detail.volume;
-    final linked = direction < 0 ? volume?.prev : volume?.next;
-    if (linked != null && linked.isNotEmpty && linked != _volumeId) {
-      return linked;
-    }
-    final index = _volumes.indexWhere((volume) => volume.id == _volumeId);
-    final next = index + direction;
-    return index >= 0 && next >= 0 && next < _volumes.length
-        ? _volumes[next].id
-        : null;
-  }
+  String? _adjacentVolume(int direction) =>
+      _adjacentVolumeOf(_currentVolumeId, direction);
 
-  int get _entrySlot =>
-      _document?.entries.indexWhere(
-        (entry) =>
-            entry.entryIndex ==
-            (_location?.anchor.entryIndex ?? _target.entryIndex),
-      ) ??
-      -1;
+  /// 供分片扩展方法更新界面（扩展方法不能直接调用受保护的 setState）。
+  void _refresh(VoidCallback update) {
+    if (mounted && !_disposed) setState(update);
+  }
 
   bool _canStepVolume(int direction) =>
       !_loading && !_disposed && _adjacentVolume(direction) != null;
@@ -805,7 +853,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     unawaited(
       _loadVolume(
         volume,
-        anchor: const NovelReaderAnchor(entryIndex: 0),
+        anchor: NovelReaderAnchor(entryIndex: 0, volumeId: volume),
         lastEntry: direction < 0,
       ),
     );
@@ -813,6 +861,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Future<void> _showContents() async {
     final session = _session;
+    final current = _currentVolumeId;
     final selection = await showAppSheet<Object?>(
       context,
       heightFactor: 0.85,
@@ -820,7 +869,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         repository: _repository,
         source: _source,
         pathWord: _pathWord,
-        volumeId: _volumeId,
+        volumeId: current,
         entryIndex: _location?.anchor.entryIndex ?? _target.entryIndex,
         detail: _accessDetail,
         volumes: _volumesReady ? _volumes : null,
@@ -837,10 +886,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       return;
     }
     if (selection case (final String volume, final int entry)) {
-      if (volume == _volumeId && _document != null) {
-        _jumpTo(NovelReaderAnchor(entryIndex: entry));
+      if (volume == current && _document != null) {
+        _jumpTo(NovelReaderAnchor(entryIndex: entry, volumeId: current));
       } else {
-        await _loadVolume(volume, anchor: NovelReaderAnchor(entryIndex: entry));
+        await _loadVolume(
+          volume,
+          anchor: NovelReaderAnchor(entryIndex: entry, volumeId: volume),
+        );
       }
     }
   }
@@ -871,21 +923,27 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         ? (_viewerLocation?.anchor ?? _location?.anchor)
         : null;
     // 空行显隐改变文档形状：以当前位置为落点重建，锚点身份不变。
+    // 连续阅读的卷栈逐卷重建，已追加的下一卷不会被丢掉。
     final reflow =
         settings.ignoreBlankParagraphs != _settings.ignoreBlankParagraphs;
-    final content = _content;
     final current = _document;
     setState(() {
       _settings = settings;
       if (anchor != null) _target = anchor;
       if (reflow &&
-          content != null &&
+          _stackVolumes.isNotEmpty &&
           current != null &&
           current.itemCount > 0) {
-        _document = NovelReaderDocument(
-          content.entries,
-          ignoreBlankParagraphs: settings.ignoreBlankParagraphs,
-        );
+        for (var index = 0; index < _stackVolumes.length; index++) {
+          _stackVolumes[index] = _stackVolumes[index].rebuilt(
+            ignoreBlankParagraphs: settings.ignoreBlankParagraphs,
+          );
+        }
+        _stack = NovelReaderStack(List.of(_stackVolumes));
+        _document = _stack;
+        ++_contentRevision;
+        // 文档形状变了，必须重新定位（与单纯追加下一卷区分开）。
+        ++_jumpRevision;
         final base = anchor ?? _target;
         _target = _document!.anchorFor(
           _document!.itemFor(base),
@@ -926,10 +984,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final anchor = NovelReaderAnchor(
       entryIndex: paragraph.entry.entryIndex,
       paragraphIndex: paragraph.paragraphIndex,
+      volumeId: paragraph.volumeId,
     );
     final bookmarked = _bookmarks.isBookmarked(
       pathWord: _pathWord,
-      volumeId: _volumeId,
+      volumeId: paragraph.volumeId.isEmpty ? _volumeId : paragraph.volumeId,
       entryIndex: anchor.entryIndex,
       paragraphIndex: anchor.paragraphIndex,
     );
@@ -1009,7 +1068,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       _bookmarksLoaded &&
       _bookmarks.isBookmarked(
         pathWord: _pathWord,
-        volumeId: _volumeId,
+        volumeId: paragraph.volumeId.isEmpty ? _volumeId : paragraph.volumeId,
         entryIndex: paragraph.entry.entryIndex,
         paragraphIndex: paragraph.paragraphIndex,
       );
@@ -1020,12 +1079,16 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final anchor = NovelReaderAnchor(
       entryIndex: paragraph.entry.entryIndex,
       paragraphIndex: paragraph.paragraphIndex,
+      volumeId: paragraph.volumeId,
     );
+    final volumeId = paragraph.volumeId.isEmpty
+        ? _volumeId
+        : paragraph.volumeId;
     final bookmark = _bookmarks.bookmarks
         .where(
           (item) =>
               item.pathWord == _pathWord &&
-              item.volumeId == _volumeId &&
+              item.volumeId == volumeId &&
               item.entryIndex == anchor.entryIndex &&
               item.paragraphIndex == anchor.paragraphIndex,
         )
@@ -1065,7 +1128,8 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final location = NovelReaderLocation(
       anchor: anchor,
       itemIndex: item,
-      progress: (item / document.itemCount).clamp(0, 1),
+      // 段落书签落在段首：进度按该段落在所属卷内的位置计算。
+      progress: document.progressAt(item, 0),
     );
     final session = _session;
     setState(() => _bookmarking = true);

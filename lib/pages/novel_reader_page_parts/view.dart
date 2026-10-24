@@ -189,6 +189,10 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
       palette: palette,
       target: _target,
       jumpRevision: _jumpRevision,
+      contentRevision: _contentRevision,
+      seam: _buildSeam(),
+      onApproachEnd: _prefetchNextVolume,
+      onReachSeam: () => unawaited(_appendNextVolume()),
       highlight: _highlight,
       highlightOpacity: _highlightFade,
       onPosition: onPosition,
@@ -216,24 +220,53 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
     return '${capped.toStringAsFixed(2)}%';
   }
 
+  /// 滑杆落点：滑杆坐标是当前卷内的 item 下标，换算成卷栈里的绝对下标。
+  void _jumpToLocalItem(int local) {
+    final document = _document;
+    if (document == null || document.itemCount == 0) return;
+    final item = (_location?.itemIndex ?? document.itemFor(_target)).clamp(
+      0,
+      document.itemCount - 1,
+    );
+    final absolute = item - document.localItemFor(item) + local;
+    _jumpTo(document.anchorFor(absolute.clamp(0, document.itemCount - 1)));
+  }
+
   String _chapterName(AppLocalizations l10n) {
-    final slot = _entrySlot;
-    final entries = _document?.entries ?? [];
-    if (slot < 0 || slot >= entries.length) {
+    final document = _document;
+    final item = _location?.itemIndex ?? 0;
+    if (document == null || document.itemCount == 0) {
       return _accessDetail?.volume.name ?? l10n.novelReaderTitle;
     }
-    return entries[slot].name.isEmpty
-        ? l10n.novelReaderUnnamedChapter(slot + 1)
-        : entries[slot].name;
+    final entry = document.paragraphAt(item).entry;
+    return entry.name.isEmpty
+        ? l10n.novelReaderUnnamedChapter(document.entrySlotFor(item) + 1)
+        : entry.name;
   }
 
   Widget _buildToolbar() {
     final l10n = AppLocalizations.of(context)!;
     final primary = Theme.of(context).colorScheme.primary;
     final document = _document;
-    final count = document?.itemCount ?? 0;
-    final current =
-        _location?.itemIndex ?? (count > 0 ? document!.itemFor(_target) : 0);
+    final total = document?.itemCount ?? 0;
+    // 进度按当前卷计算：连续阅读跨卷后滑杆与百分比回到新卷的 0..1。
+    final count = document == null
+        ? 0
+        : document.localItemCountFor(
+            (_location?.itemIndex ?? document.itemFor(_target)).clamp(
+              0,
+              math.max(0, total - 1),
+            ),
+          );
+    final current = document == null
+        ? 0
+        : _sliderValue?.round() ??
+              document.localItemFor(
+                (_location?.itemIndex ?? document.itemFor(_target)).clamp(
+                  0,
+                  math.max(0, total - 1),
+                ),
+              );
     final value = _sliderValue ?? current.toDouble();
     final progress = _sliderValue != null
         ? (count > 1 ? value.round() / (count - 1) : 0.0)
@@ -287,7 +320,14 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
                       enabledThumbRadius: 7,
                     ),
                     trackShape: NovelChapterSliderTrackShape(
-                      chapterStarts: document?.chapterStarts ?? const [],
+                      chapterStarts: document == null
+                          ? const []
+                          : document.chapterStartsFor(
+                              (_location?.itemIndex ?? 0).clamp(
+                                0,
+                                math.max(0, total - 1),
+                              ),
+                            ),
                       activeColor: primary,
                       inactiveColor: ReaderChrome.trackInactive,
                     ),
@@ -305,7 +345,7 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
                         ? _onSliderValueChanged
                         : null,
                     onChangeEnd: count > 1 && !_loading
-                        ? (value) => _jumpTo(document!.anchorFor(value.round()))
+                        ? (value) => _jumpToLocalItem(value.round())
                         : null,
                   ),
                 ),
