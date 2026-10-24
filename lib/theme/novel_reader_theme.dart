@@ -54,6 +54,7 @@ class NovelReaderPalette {
         ReaderChrome.surface,
         ReaderChrome.onSurfaceMuted,
       ),
+      'gray' => const NovelReaderPalette(Color(0xFF222222), Color(0xFFC8C8C8)),
       'green' => const NovelReaderPalette(Color(0xFFE0EAD7), Color(0xFF2F3A30)),
       _ => const NovelReaderPalette(Color(0xFFFFFFFF), Color(0xFF212121)),
     };
@@ -96,10 +97,7 @@ class NovelHighlightPainter extends CustomPainter {
       rect,
       Radius.circular(fontSize * 0.44),
     );
-    canvas.drawRRect(
-      rrect,
-      Paint()..color = color.withValues(alpha: 0.12 * t),
-    );
+    canvas.drawRRect(rrect, Paint()..color = color.withValues(alpha: 0.12 * t));
     canvas.drawRRect(
       rrect,
       Paint()
@@ -113,4 +111,3 @@ class NovelHighlightPainter extends CustomPainter {
   bool shouldRepaint(NovelHighlightPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.fontSize != fontSize;
 }
-

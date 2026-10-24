@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_logger.dart';
 import '../utils/json_helpers.dart';
 
-enum NovelReaderTheme { paper, dark, white, green }
+enum NovelReaderTheme { paper, dark, white, green, gray }
 
 /// 阅读模式：连续滚动 / 整页翻页。翻页模式固定左到右横向翻页。
 enum NovelReaderMode { scroll, paged }
@@ -144,7 +144,9 @@ class NovelReaderSettings {
   static const maxParagraphSpacing = 64.0;
   static const defaultParagraphSpacing = 16.0;
   static const defaultLightThemeId = 'white';
-  static const defaultDarkThemeId = 'dark';
+
+  /// 内置「灰」主题（#222222/#C8C8C8）为深色模式默认。
+  static const defaultDarkThemeId = 'gray';
   static const legacyCustomThemeId = 'custom-legacy';
   static const defaultCustomBackgroundColor = 0xFFF3EEDC;
   static const defaultCustomTextColor = 0xFF38352D;

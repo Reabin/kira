@@ -54,7 +54,7 @@ void main() {
       expect(defaults.lineHeight, 1.8);
       expect(defaults.paragraphSpacing, 16);
       expect(defaults.lightThemeId, 'white');
-      expect(defaults.darkThemeId, 'dark');
+      expect(defaults.darkThemeId, 'gray');
       expect(defaults.customThemes, isEmpty);
       expect(defaults.keepScreenOn, isTrue);
       expect(defaults.mode, NovelReaderMode.scroll);
@@ -322,7 +322,7 @@ void main() {
         .upsertCustomTheme(const NovelReaderCustomTheme(id: 'gone', name: '临时'))
         .copyWith(darkThemeId: 'gone')
         .removeCustomTheme('gone');
-    expect(removed.themeIdFor(dark: true), 'dark');
+    expect(removed.themeIdFor(dark: true), 'gray');
   });
 
   test(
@@ -451,7 +451,8 @@ void main() {
       const Color(NovelReaderSettings.defaultCustomBackgroundColor),
     );
     final dark = NovelReaderPalette.resolve(settings, Brightness.dark);
-    expect(dark.background, const Color(0xFF000000));
+    // 深色模式默认绑定为内置「灰」主题（#222222）。
+    expect(dark.background, const Color(0xFF222222));
     // 改浅色绑定为 white：浅色模式即用白底（深色绑定不受影响）。
     final lightWhite = NovelReaderPalette.resolve(
       settings.copyWith(lightThemeId: 'white'),
