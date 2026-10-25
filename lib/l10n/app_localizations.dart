@@ -7397,6 +7397,12 @@ abstract class AppLocalizations {
   /// **'段距'**
   String get novelReaderParagraphSpacing;
 
+  /// No description provided for @novelReaderContentWidth.
+  ///
+  /// In zh, this message translates to:
+  /// **'正文宽度'**
+  String get novelReaderContentWidth;
+
   /// No description provided for @novelReaderTheme.
   ///
   /// In zh, this message translates to:

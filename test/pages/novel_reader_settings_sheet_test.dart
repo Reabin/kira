@@ -156,6 +156,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  for (final mode in NovelReaderMode.values) {
+    testWidgets('content width slider updates settings in ${mode.name} mode', (
+      tester,
+    ) async {
+      var latest = NovelReaderSettings(mode: mode);
+      await _mount(
+        tester,
+        settings: latest,
+        onChanged: (value) => latest = value,
+      );
+      final finder = find.byKey(const ValueKey('novel-content-width'));
+      await tester.ensureVisible(finder);
+      await tester.pumpAndSettle();
+      final slider = tester.widget<Slider>(finder);
+      expect(slider.min, 320);
+      expect(slider.max, 1200);
+      expect(slider.divisions, 22);
+      expect(slider.value, 720);
+      expect(find.text('正文宽度 · 720 dp'), findsOneWidget);
+      for (final width in [320.0, 960.0, 1200.0]) {
+        tester.widget<Slider>(finder).onChanged!(width);
+        await tester.pumpAndSettle();
+        expect(latest.contentWidth, width);
+        expect(latest.mode, mode);
+        expect(tester.widget<Slider>(finder).value, width);
+        expect(find.text('正文宽度 · ${width.round()} dp'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('light and dark mode bindings pick presets independently', (
     tester,
   ) async {

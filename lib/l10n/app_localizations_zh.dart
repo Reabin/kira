@@ -4054,6 +4054,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderParagraphSpacing => '段距';
 
   @override
+  String get novelReaderContentWidth => '正文宽度';
+
+  @override
   String get novelReaderTheme => '阅读主题';
 
   @override
@@ -8339,6 +8342,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderParagraphSpacing => '段距';
+
+  @override
+  String get novelReaderContentWidth => '正文寬度';
 
   @override
   String get novelReaderTheme => '閱讀主題';

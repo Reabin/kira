@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../models/novel_reader_settings.dart';
 import '../../theme/app_spacing.dart';
 import 'novel_reader_document.dart';
 
@@ -598,13 +599,14 @@ const double _epsilon = 0.001;
 /// 触发 RenderFlex 溢出提示，代价是每页少放半像素内容。
 const double _pageHeightSafety = 0.5;
 
-/// 计算正文可用宽度：与滚动模式一致，先扣系统栏 inset，再按 720dp 限宽居中。
+/// 滚动与分页共用的正文宽度：先扣系统栏 inset，再按设定的最大宽度居中。
 ({double width, double horizontalPadding}) novelPageMetricsFor(
   Size size,
-  EdgeInsets contentPadding,
-) {
+  EdgeInsets contentPadding, {
+  double maxContentWidth = NovelReaderSettings.defaultContentWidth,
+}) {
   final contentWidth = math.max(0.0, size.width - contentPadding.horizontal);
-  final side = math.max(AppSpacing.xxl, (contentWidth - 720) / 2);
+  final side = math.max(AppSpacing.xxl, (contentWidth - maxContentWidth) / 2);
   return (
     width: math.max(0.0, contentWidth - side * 2),
     horizontalPadding: side,

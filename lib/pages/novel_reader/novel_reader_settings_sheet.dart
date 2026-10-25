@@ -241,6 +241,17 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             onChanged: (value) =>
                 _change(_settings.copyWith(paragraphSpacing: value)),
           ),
+          _slider(
+            key: const ValueKey('novel-content-width'),
+            label: l10n.novelReaderContentWidth,
+            value: _settings.contentWidth,
+            min: NovelReaderSettings.minContentWidth,
+            max: NovelReaderSettings.maxContentWidth,
+            divisions: 22,
+            format: (value) => '${value.round()} dp',
+            onChanged: (value) =>
+                _change(_settings.copyWith(contentWidth: value)),
+          ),
           SwitchListTile.adaptive(
             key: const ValueKey('novel-ignore-blank-paragraphs'),
             contentPadding: EdgeInsets.zero,

@@ -13,6 +13,7 @@ import '../../theme/novel_reader_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/fling_brake_tap_guard.dart';
 import 'novel_reader_document.dart';
+import 'novel_reader_paginator.dart' show novelPageMetricsFor;
 
 /// Owns layout restoration, so neither initial layout nor a font/viewport change
 /// can emit a spurious paragraph zero to the persistence layer.
@@ -242,7 +243,8 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
     } else if (oldWidget.settings.fontSize != widget.settings.fontSize ||
         oldWidget.settings.lineHeight != widget.settings.lineHeight ||
         oldWidget.settings.paragraphSpacing !=
-            widget.settings.paragraphSpacing) {
+            widget.settings.paragraphSpacing ||
+        oldWidget.settings.contentWidth != widget.settings.contentWidth) {
       _scheduleRestore(
         _restoring ? _desired : _lastLocation?.anchor ?? _desired,
       );
@@ -466,21 +468,17 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
                       ? _desired.alignment.clamp(0.0, 0.99)
                       : 0,
                   addAutomaticKeepAlives: false,
-                  // 横向：安全区 inset 之上再做 720dp 限宽居中；纵向直接
-                  // 用快照 inset（首段避开状态栏、末段避开导航栏）。
+                  // 横向与分页共用限宽；纵向用快照 inset 避开系统栏。
                   padding: () {
-                    final contentWidth = math.max(
-                      0,
-                      size.width - widget.contentPadding.horizontal,
-                    );
-                    final side = math.max(
-                      AppSpacing.xxl,
-                      (contentWidth - 720) / 2,
+                    final metrics = novelPageMetricsFor(
+                      size,
+                      widget.contentPadding,
+                      maxContentWidth: widget.settings.contentWidth,
                     );
                     return EdgeInsets.fromLTRB(
-                      widget.contentPadding.left + side,
+                      widget.contentPadding.left + metrics.horizontalPadding,
                       widget.contentPadding.top,
-                      widget.contentPadding.right + side,
+                      widget.contentPadding.right + metrics.horizontalPadding,
                       widget.contentPadding.bottom,
                     );
                   }(),

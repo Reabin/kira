@@ -53,6 +53,7 @@ void main() {
       expect(defaults.fontSize, 20);
       expect(defaults.lineHeight, 1.8);
       expect(defaults.paragraphSpacing, 16);
+      expect(defaults.contentWidth, 720);
       expect(defaults.lightThemeId, 'white');
       expect(defaults.darkThemeId, 'gray');
       expect(defaults.customThemes, isEmpty);
@@ -75,6 +76,60 @@ void main() {
       expect(prefs.containsKey(NovelReaderSettings.storageKey), isFalse);
     },
   );
+
+  test('content width defaults safely and clamps invalid values', () {
+    expect(NovelReaderSettings.fromJson(const {}).contentWidth, 720);
+    for (final value in [null, 'wide', [], {}]) {
+      expect(
+        NovelReaderSettings.fromJson({'contentWidth': value}).contentWidth,
+        720,
+      );
+    }
+    const defaults = NovelReaderSettings();
+    for (final (value, expected) in [
+      (0.0, 320.0),
+      (320.0, 320.0),
+      (960.0, 960.0),
+      (1200.0, 1200.0),
+      (2000.0, 1200.0),
+      (double.nan, 720.0),
+      (double.negativeInfinity, 320.0),
+      (double.infinity, 1200.0),
+    ]) {
+      final settings = NovelReaderSettings(contentWidth: value);
+      expect(settings.contentWidth, expected);
+      expect(defaults.copyWith(contentWidth: value).contentWidth, expected);
+      expect(NovelReaderSettings.fromJson(settings.toJson()), settings);
+    }
+    expect(defaults.contentWidth, 720);
+    const wide = NovelReaderSettings(contentWidth: 960);
+    expect(wide, isNot(defaults));
+    expect(wide.hashCode, isNot(defaults.hashCode));
+    expect(wide.copyWith(contentWidth: 720), defaults);
+  });
+
+  test('content width survives copies and recreated prefs instances', () async {
+    for (final width in [320.0, 720.0, 960.0, 1200.0]) {
+      final settings = NovelReaderSettings(contentWidth: width)
+          .copyWith(fontSize: 24, mode: NovelReaderMode.paged)
+          .upsertCustomTheme(const NovelReaderCustomTheme(id: 'c1', name: '米黄'))
+          .removeCustomTheme('c1');
+      expect(settings.contentWidth, width);
+      expect(settings.toJson()['contentWidth'], width);
+      await settings.save();
+      SharedPreferences.setMockInitialValues({
+        for (final key in prefs.getKeys())
+          if (prefs.get(key) case final Object value) key: value,
+      });
+      prefs = await SharedPreferences.getInstance();
+      final restored = await NovelReaderSettings.load();
+      expect(restored.contentWidth, width);
+      expect(restored, settings);
+      expect(restored.hashCode, settings.hashCode);
+      expect(prefs.get('reader_mode'), 1);
+      expect(prefs.get('novel_reading_history_book'), 'untouched history');
+    }
+  });
 
   test('page mode, instant turn and volume key round-trip', () {
     const settings = NovelReaderSettings(

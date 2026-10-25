@@ -170,6 +170,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       _restoreTarget(widget.target);
       return;
     }
+    if (oldWidget.settings.contentWidth != widget.settings.contentWidth) {
+      // 同帧重排，避免将旧分页片段先放进变窄后的正文区域而溢出。
+      _restart(_anchorNow());
+      return;
+    }
     if (oldWidget.settings.fontSize != widget.settings.fontSize ||
         oldWidget.settings.lineHeight != widget.settings.lineHeight ||
         oldWidget.settings.paragraphSpacing !=
@@ -335,7 +340,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       );
 
   NovelPaginationSpec _spec(Size size, EdgeInsets contentPadding) {
-    final metrics = novelPageMetricsFor(size, contentPadding);
+    final metrics = novelPageMetricsFor(
+      size,
+      contentPadding,
+      maxContentWidth: widget.settings.contentWidth,
+    );
     return NovelPaginationSpec(
       textStyle: _bodyStyle(context),
       titleStyle: _titleStyle(context),
@@ -696,7 +705,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
   Widget _buildPageSheet(BuildContext context, int index) {
     final size = _size!;
     final padding = widget.contentPadding;
-    final metrics = novelPageMetricsFor(size, padding);
+    final metrics = novelPageMetricsFor(
+      size,
+      padding,
+      maxContentWidth: widget.settings.contentWidth,
+    );
     return ColoredBox(
       color: widget.palette.background,
       child: Padding(

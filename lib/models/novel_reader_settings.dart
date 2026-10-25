@@ -85,6 +85,7 @@ class NovelReaderSettings {
     double fontSize = defaultFontSize,
     double lineHeight = defaultLineHeight,
     double paragraphSpacing = defaultParagraphSpacing,
+    double contentWidth = defaultContentWidth,
     this.lightThemeId = defaultLightThemeId,
     this.darkThemeId = defaultDarkThemeId,
     this.keepScreenOn = true,
@@ -119,6 +120,13 @@ class NovelReaderSettings {
            : paragraphSpacing > maxParagraphSpacing
            ? maxParagraphSpacing
            : paragraphSpacing,
+       contentWidth = contentWidth != contentWidth
+           ? defaultContentWidth
+           : contentWidth < minContentWidth
+           ? minContentWidth
+           : contentWidth > maxContentWidth
+           ? maxContentWidth
+           : contentWidth,
        focusTopRatio = focusTopRatio != focusTopRatio
            ? defaultFocusTopRatio
            : focusTopRatio < minFocusTopRatio
@@ -147,6 +155,7 @@ class NovelReaderSettings {
   ) : fontSize = base.fontSize,
       lineHeight = base.lineHeight,
       paragraphSpacing = base.paragraphSpacing,
+      contentWidth = base.contentWidth,
       lightThemeId = base.lightThemeId,
       darkThemeId = base.darkThemeId,
       keepScreenOn = base.keepScreenOn,
@@ -172,6 +181,9 @@ class NovelReaderSettings {
   static const minParagraphSpacing = 0.0;
   static const maxParagraphSpacing = 64.0;
   static const defaultParagraphSpacing = 16.0;
+  static const minContentWidth = 320.0;
+  static const maxContentWidth = 1200.0;
+  static const defaultContentWidth = 720.0;
   static const defaultLightThemeId = 'white';
 
   /// 内置「灰」主题（#222222/#C8C8C8）为深色模式默认。
@@ -200,6 +212,9 @@ class NovelReaderSettings {
   final double fontSize;
   final double lineHeight;
   final double paragraphSpacing;
+
+  /// 正文最大宽度（逻辑像素）；窄屏仍保留安全区与两侧最小留白。
+  final double contentWidth;
   final String lightThemeId;
   final String darkThemeId;
   final bool keepScreenOn;
@@ -304,6 +319,11 @@ class NovelReaderSettings {
         'paragraphSpacing',
         fallback: defaultParagraphSpacing,
       ),
+      contentWidth: jsonDouble(
+        json,
+        'contentWidth',
+        fallback: defaultContentWidth,
+      ),
       lightThemeId: jsonString(
         json,
         'lightThemeId',
@@ -346,6 +366,7 @@ class NovelReaderSettings {
     'fontSize': fontSize,
     'lineHeight': lineHeight,
     'paragraphSpacing': paragraphSpacing,
+    'contentWidth': contentWidth,
     'lightThemeId': themeIdFor(dark: false),
     'darkThemeId': themeIdFor(dark: true),
     'customThemes': _customThemes.map((theme) => theme.toJson()).toList(),
@@ -365,6 +386,7 @@ class NovelReaderSettings {
     double? fontSize,
     double? lineHeight,
     double? paragraphSpacing,
+    double? contentWidth,
     String? lightThemeId,
     String? darkThemeId,
     List<NovelReaderCustomTheme>? customThemes,
@@ -398,6 +420,7 @@ class NovelReaderSettings {
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
+      contentWidth: contentWidth ?? this.contentWidth,
       lightThemeId: lightThemeId ?? this.lightThemeId,
       darkThemeId: darkThemeId ?? this.darkThemeId,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
@@ -509,6 +532,7 @@ class NovelReaderSettings {
       fontSize == other.fontSize &&
       lineHeight == other.lineHeight &&
       paragraphSpacing == other.paragraphSpacing &&
+      contentWidth == other.contentWidth &&
       themeIdFor(dark: false) == other.themeIdFor(dark: false) &&
       themeIdFor(dark: true) == other.themeIdFor(dark: true) &&
       listEquals(_customThemes, other._customThemes) &&
@@ -528,6 +552,7 @@ class NovelReaderSettings {
     fontSize,
     lineHeight,
     paragraphSpacing,
+    contentWidth,
     themeIdFor(dark: false),
     themeIdFor(dark: true),
     Object.hashAll(_customThemes),

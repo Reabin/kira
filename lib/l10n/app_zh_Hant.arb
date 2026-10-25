@@ -2591,6 +2591,7 @@
   "novelReaderFontSize": "字級",
   "novelReaderLineHeight": "行距",
   "novelReaderParagraphSpacing": "段距",
+  "novelReaderContentWidth": "正文寬度",
   "novelReaderTheme": "閱讀主題",
   "novelReaderThemeSystem": "跟隨系統",
   "novelReaderThemePaper": "紙張",
