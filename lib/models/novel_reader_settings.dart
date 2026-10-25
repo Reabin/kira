@@ -126,7 +126,7 @@ class NovelReaderSettings {
            : focusTopRatio > maxFocusTopRatio
            ? maxFocusTopRatio
            : focusTopRatio,
-       focusBottomRatio = focusBottomRatio != focusBottomRatio
+       _focusBottomRatio = focusBottomRatio != focusBottomRatio
            ? defaultFocusBottomRatio
            : focusBottomRatio < minFocusBottomRatio
            ? minFocusBottomRatio
@@ -157,7 +157,7 @@ class NovelReaderSettings {
       ignoreBlankParagraphs = base.ignoreBlankParagraphs,
       focusModeEnabled = base.focusModeEnabled,
       focusTopRatio = base.focusTopRatio,
-      focusBottomRatio = base.focusBottomRatio,
+      _focusBottomRatio = base.focusBottomRatio,
       focusOpacity = base.focusOpacity,
       _customThemes = List.unmodifiable(themes);
 
@@ -184,15 +184,15 @@ class NovelReaderSettings {
   /// 源数据与段落下标不变。
   static const defaultIgnoreBlankParagraphs = false;
 
-  /// 专注模式：上下黑遮罩夹出中间可见区。上边界 ≤45% < 55% ≤ 下边界，
-  /// 由滑块范围本身保证可见区恒 ≥10%，模型不做跨字段约束。
+  /// 专注模式：上下黑遮罩夹出中间可见区，两边界至少相隔 10% 屏高。
   static const defaultFocusModeEnabled = false;
+  static const minFocusGapRatio = 0.1;
   static const minFocusTopRatio = 0.0;
-  static const maxFocusTopRatio = 0.45;
-  static const defaultFocusTopRatio = 0.25;
-  static const minFocusBottomRatio = 0.55;
+  static const maxFocusTopRatio = 0.9;
+  static const defaultFocusTopRatio = 0.2;
+  static const minFocusBottomRatio = 0.1;
   static const maxFocusBottomRatio = 1.0;
-  static const defaultFocusBottomRatio = 0.75;
+  static const defaultFocusBottomRatio = 0.55;
   static const minFocusOpacity = 0.1;
   static const maxFocusOpacity = 0.9;
   static const defaultFocusOpacity = 0.5;
@@ -222,7 +222,11 @@ class NovelReaderSettings {
 
   /// 可见区上/下边界，占屏幕高度比例；遮罩触摸穿透，不挡翻页与点按。
   final double focusTopRatio;
-  final double focusBottomRatio;
+  final double _focusBottomRatio;
+  double get focusBottomRatio =>
+      _focusBottomRatio < focusTopRatio + minFocusGapRatio
+      ? focusTopRatio + minFocusGapRatio
+      : _focusBottomRatio;
 
   /// 遮罩不透明度。
   final double focusOpacity;
@@ -375,6 +379,21 @@ class NovelReaderSettings {
     double? focusBottomRatio,
     double? focusOpacity,
   }) {
+    final bottom = focusBottomRatio == null
+        ? this.focusBottomRatio
+        : focusBottomRatio.isNaN
+        ? defaultFocusBottomRatio
+        : focusBottomRatio.clamp(minFocusBottomRatio, maxFocusBottomRatio);
+    // 单独下调下边界时联动上边界；上调上边界则由 getter 抬高下边界。
+    final top =
+        focusTopRatio ??
+        (focusBottomRatio != null &&
+                this.focusTopRatio + minFocusGapRatio > bottom
+            ? (bottom - minFocusGapRatio).clamp(
+                minFocusTopRatio,
+                maxFocusTopRatio,
+              )
+            : this.focusTopRatio);
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
@@ -388,9 +407,13 @@ class NovelReaderSettings {
       volumeKey: volumeKey ?? this.volumeKey,
       ignoreBlankParagraphs:
           ignoreBlankParagraphs ?? this.ignoreBlankParagraphs,
-      focusModeEnabled: focusModeEnabled ?? this.focusModeEnabled,
-      focusTopRatio: focusTopRatio ?? this.focusTopRatio,
-      focusBottomRatio: focusBottomRatio ?? this.focusBottomRatio,
+      focusModeEnabled:
+          focusModeEnabled ??
+          (mode == NovelReaderMode.paged && this.mode != NovelReaderMode.paged
+              ? false
+              : this.focusModeEnabled),
+      focusTopRatio: top,
+      focusBottomRatio: bottom,
       focusOpacity: focusOpacity ?? this.focusOpacity,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();

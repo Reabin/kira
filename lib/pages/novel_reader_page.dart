@@ -31,6 +31,7 @@ import '../widgets/app_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/reader_status_overlay.dart';
 import 'novel_reader/novel_chapter_slider_track_shape.dart';
+import 'novel_reader/novel_focus_mask.dart';
 import 'novel_reader/novel_reader_contents_sheet.dart';
 import 'novel_reader/novel_reader_document.dart';
 import 'novel_reader/novel_reader_page_view.dart';
@@ -960,15 +961,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     );
   }
 
-  Future<void> _showSettings() => showAppSheet<void>(
-    context,
-    maxHeightFactor: 0.7,
-    child: NovelReaderSettingsSheet(
-      settings: _settings,
-      systemBrightness: MediaQuery.platformBrightnessOf(context),
-      onChanged: _changeSettings,
-    ),
-  );
+  Future<void> _showSettings() async {
+    final dragPreview = ValueNotifier<bool>(false);
+    try {
+      await showAppSheet<void>(
+        context,
+        maxHeightFactor: 0.7,
+        barrierColor: Colors.transparent,
+        fadeOutWhen: dragPreview,
+        child: NovelReaderSettingsSheet(
+          settings: _settings,
+          systemBrightness: MediaQuery.platformBrightnessOf(context),
+          dragPreview: dragPreview,
+          onChanged: _changeSettings,
+        ),
+      );
+    } finally {
+      dragPreview.dispose();
+    }
+  }
 
   /// 长按段落弹出的轻量上下文菜单：复制、书签。两种阅读模式同一手势
   /// （点按在翻页模式要翻页，双击识别会给单击引入延迟或先翻两页）。
@@ -1283,9 +1294,17 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       // 一致）：安全区 inset 经 contentPadding 交给列表内容
                       // 层，viewport 尺寸恒定，不会触发 anchor restoration。
                       body,
-                      // 专注遮罩盖正文、居状态浮层与工具栏之下。
-                      if (_settings.focusModeEnabled) _buildFocusMask(),
+                      // 状态浮层先画、专注遮罩后画：开启专注模式时顶部
+                      // 状态组件同样被遮罩压暗，不会在暗区里格外显眼。
+                      // 遮罩本身 IgnorePointer，状态组件的点按不受影响。
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
+                      NovelFocusMask(
+                        key: const ValueKey('novel-focus-mask-widget'),
+                        enabled: _settings.focusModeEnabled,
+                        topRatio: _settings.focusTopRatio,
+                        bottomRatio: _settings.focusBottomRatio,
+                        opacity: _settings.focusOpacity,
+                      ),
                       // 显隐都留在树里做滑动过渡（与漫画阅读器同一套规则）。
                       Positioned(
                         top: 0,

@@ -8,6 +8,7 @@ import 'package:kira/api/novel/novel_api.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/novel_reading_progress.dart';
 import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_page_view.dart';
@@ -18,6 +19,7 @@ import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
 import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/novel_page_curl.dart';
+import 'package:kira/widgets/reader_status_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
@@ -710,14 +712,68 @@ void main() {
       find.byKey(const ValueKey('novel-focus-mask-bottom')),
     );
     expect(top.top, closeTo(0, 1));
-    expect(top.height, closeTo(height * 0.25, 1));
+    expect(top.height, closeTo(height * 0.2, 1));
     expect(bottom.bottom, closeTo(height, 1));
-    expect(bottom.height, closeTo(height * (1 - 0.75), 1));
+    expect(bottom.height, closeTo(height * (1 - 0.55), 1));
     // 遮罩触摸穿透：被遮区域点按仍能呼出工具栏。
     expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(400, 60));
     await _settle(tester);
     expect(_toolbarHidden(tester), isFalse, reason: '遮罩不应吞掉点按');
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('focus mode masks the top status overlay above it', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final status = NovelReaderStatusSettings();
+      await status.initFromPrefs(prefs);
+      await status.setStatusOverlay(true);
+      await status.setStatusOverlayPosition(0);
+    });
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      settings: const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        focusModeEnabled: true,
+      ),
+    );
+    final overlay = find.byType(ReaderStatusOverlay);
+    expect(overlay, findsOneWidget);
+    // 遮罩在状态组件之后绘制：同一 Stack 里后画的在上层，
+    // 顶部状态组件因此被压暗。
+    final stack = find.ancestor(
+      of: find.byKey(const ValueKey('novel-focus-mask-widget')),
+      matching: find.byType(Stack),
+    );
+    final children = tester.widget<Stack>(stack.first).children;
+    final maskAt = children.indexWhere(
+      (child) => child.key == const ValueKey('novel-focus-mask-widget'),
+    );
+    final overlayAt = children.indexWhere(
+      (child) => child.key == const ValueKey('novel-status-overlay'),
+    );
+    expect(overlayAt, isNonNegative);
+    expect(maskAt, greaterThan(overlayAt), reason: '遮罩必须画在状态组件之上');
+    // 遮罩不拦截点击：顶部状态组件仍可唤出工具栏。
+    expect(_toolbarHidden(tester), isTrue);
+    final maskTop = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-top')),
+    );
+    final showToolbar = find.byKey(const ValueKey('novel-reader-show-toolbar'));
+    expect(
+      maskTop.contains(tester.getCenter(showToolbar)),
+      isTrue,
+      reason: '点按位置必须落在顶部遮罩内才能验证穿透',
+    );
+    await tester.tap(showToolbar);
+    await _settle(tester);
+    expect(_toolbarHidden(tester), isFalse, reason: '遮罩不应吞掉状态组件的点按');
     expect(tester.takeException(), isNull);
     await _remove(tester);
   });

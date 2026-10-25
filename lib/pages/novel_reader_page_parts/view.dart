@@ -1,46 +1,6 @@
 part of '../novel_reader_page.dart';
 
 extension _NovelReaderViewPart on _NovelReaderPageState {
-  /// 专注模式：上下两条半透明黑遮罩夹出中间可见区（硬边界）。
-  /// IgnorePointer 保证翻页/点按唤栏穿透；工具栏画在其上层不受影响。
-  Widget _buildFocusMask() {
-    final color = ReaderChrome.dimOverlay(_settings.focusOpacity);
-    return Positioned.fill(
-      key: const ValueKey('novel-focus-mask'),
-      child: IgnorePointer(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final height = constraints.maxHeight;
-            return Stack(
-              children: [
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: height * _settings.focusTopRatio,
-                  child: ColoredBox(
-                    key: const ValueKey('novel-focus-mask-top'),
-                    color: color,
-                  ),
-                ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: height * (1 - _settings.focusBottomRatio),
-                  child: ColoredBox(
-                    key: const ValueKey('novel-focus-mask-bottom'),
-                    color: color,
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
   /// 状态组件：与漫画阅读器同一套摆放规则（六位 + 中间对齐），
   /// 工具栏隐藏时显示；点按唤出工具栏。
   Widget _buildStatusOverlay() {
@@ -50,6 +10,7 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
     final isLeft = {0: true, 5: true}[position] ?? false;
     final isCenter = position == 1 || position == 4;
     return Positioned(
+      key: const ValueKey('novel-status-overlay'),
       top: isTop ? 0 : null,
       bottom: isTop ? null : 0,
       left: isCenter || isLeft ? 0 : null,

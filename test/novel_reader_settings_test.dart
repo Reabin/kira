@@ -65,8 +65,8 @@ void main() {
       expect(defaults.ignoreBlankParagraphs, isFalse);
       expect(defaults.toJson()['ignoreBlankParagraphs'], isFalse);
       expect(defaults.focusModeEnabled, isFalse);
-      expect(defaults.focusTopRatio, 0.25);
-      expect(defaults.focusBottomRatio, 0.75);
+      expect(defaults.focusTopRatio, 0.2);
+      expect(defaults.focusBottomRatio, 0.55);
       expect(defaults.focusOpacity, 0.5);
       expect(
         await NovelReaderSettings.load(prefs: Future.value(prefs)),
@@ -98,6 +98,28 @@ void main() {
     expect(settings.mode, NovelReaderMode.paged);
     expect(settings.instantPageTurn, isTrue);
     expect(settings.volumeKey, isFalse);
+  });
+
+  test('entering paged mode disables focus but permits manual re-enabling', () {
+    const scrolling = NovelReaderSettings(focusModeEnabled: true);
+    final paged = scrolling.copyWith(mode: NovelReaderMode.paged);
+    expect(paged.mode, NovelReaderMode.paged);
+    expect(paged.focusModeEnabled, isFalse);
+    final enabled = paged.copyWith(focusModeEnabled: true);
+    expect(enabled.focusModeEnabled, isTrue);
+    expect(enabled.copyWith(fontSize: 24).focusModeEnabled, isTrue);
+    expect(
+      enabled.copyWith(mode: NovelReaderMode.paged).focusModeEnabled,
+      isTrue,
+    );
+    expect(NovelReaderSettings.fromJson(enabled.toJson()), enabled);
+    expect(
+      enabled
+          .copyWith(mode: NovelReaderMode.scroll)
+          .copyWith(mode: NovelReaderMode.paged)
+          .focusModeEnabled,
+      isFalse,
+    );
   });
 
   test('ignore blank paragraphs round-trips and falls back for old data', () {
@@ -570,14 +592,14 @@ void main() {
     expect(custom.toJson()['focusBottomRatio'], 0.9);
     expect(custom.toJson()['focusOpacity'], 0.8);
     expect(NovelReaderSettings.fromJson(custom.toJson()), custom);
-    // 越界与非法：构造函数逐字段 clamp。
+    // 越界与非法值安全回退，交叉边界仍保持至少 10% 间距。
     const over = NovelReaderSettings(
       focusTopRatio: 0.8,
       focusBottomRatio: 0.3,
       focusOpacity: 2,
     );
-    expect(over.focusTopRatio, 0.45);
-    expect(over.focusBottomRatio, 0.55);
+    expect(over.focusTopRatio, 0.8);
+    expect(over.focusBottomRatio, closeTo(0.9, 1e-12));
     expect(over.focusOpacity, 0.9);
     const under = NovelReaderSettings(
       focusTopRatio: -1,
@@ -585,21 +607,21 @@ void main() {
       focusOpacity: -3,
     );
     expect(under.focusTopRatio, 0);
-    expect(under.focusBottomRatio, 0.55);
+    expect(under.focusBottomRatio, 0.1);
     expect(under.focusOpacity, 0.1);
     const nan = NovelReaderSettings(
       focusTopRatio: double.nan,
       focusBottomRatio: double.nan,
       focusOpacity: double.nan,
     );
-    expect(nan.focusTopRatio, 0.25);
-    expect(nan.focusBottomRatio, 0.75);
+    expect(nan.focusTopRatio, 0.2);
+    expect(nan.focusBottomRatio, 0.55);
     expect(nan.focusOpacity, 0.5);
     // 旧记录无键：默认关闭 + 默认区域。
     final legacy = NovelReaderSettings.fromJson(const {});
     expect(legacy.focusModeEnabled, isFalse);
-    expect(legacy.focusTopRatio, 0.25);
-    expect(legacy.focusBottomRatio, 0.75);
+    expect(legacy.focusTopRatio, 0.2);
+    expect(legacy.focusBottomRatio, 0.55);
     expect(legacy.focusOpacity, 0.5);
     // copyWith 保留原值、定向改写。
     expect(custom.copyWith().focusTopRatio, 0.1);
@@ -627,6 +649,53 @@ void main() {
     expect(themed.focusOpacity, 0.8);
     expect(themed.removeCustomTheme('f1'), custom);
   });
+
+  test('focus bounds keep the minimum gap across the full ranges', () {
+    for (final top in [-1.0, 0.0, 0.45, 0.9, 2.0, double.nan]) {
+      for (final bottom in [-1.0, 0.1, 0.55, 1.0, 2.0, double.nan]) {
+        final settings = NovelReaderSettings(
+          focusTopRatio: top,
+          focusBottomRatio: bottom,
+        );
+        expect(settings.focusTopRatio, inInclusiveRange(0.0, 0.9));
+        expect(settings.focusBottomRatio, inInclusiveRange(0.1, 1.0));
+        expect(
+          settings.focusBottomRatio,
+          greaterThanOrEqualTo(settings.focusTopRatio + 0.1),
+        );
+        expect(settings.copyWith(), settings);
+        expect(NovelReaderSettings.fromJson(settings.toJson()), settings);
+      }
+    }
+    final raised = const NovelReaderSettings().copyWith(focusTopRatio: 0.9);
+    expect(raised.focusTopRatio, 0.9);
+    expect(raised.focusBottomRatio, 1.0);
+    final lowered = raised.copyWith(focusBottomRatio: 0.1);
+    expect(lowered.focusTopRatio, 0.0);
+    expect(lowered.focusBottomRatio, 0.1);
+  });
+
+  test(
+    'focus boundaries persist beyond the old limits after recreation',
+    () async {
+      for (final settings in [
+        const NovelReaderSettings(
+          focusModeEnabled: true,
+        ).copyWith(focusTopRatio: 0.9),
+        const NovelReaderSettings(
+          focusModeEnabled: true,
+        ).copyWith(focusBottomRatio: 0.1),
+      ]) {
+        await settings.save();
+        SharedPreferences.setMockInitialValues({
+          for (final key in prefs.getKeys())
+            if (prefs.get(key) case final Object value) key: value,
+        });
+        prefs = await SharedPreferences.getInstance();
+        expect(await NovelReaderSettings.load(), settings);
+      }
+    },
+  );
 
   test(
     'corrupt JSON and wrong root types load defaults without rewriting prefs',

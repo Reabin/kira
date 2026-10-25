@@ -9,6 +9,8 @@ import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
+import '../../utils/adaptive_motion.dart';
+import '../../widgets/collapsible_content.dart';
 import '../../widgets/reader_settings_fold.dart';
 import '../../widgets/reader_status_settings.dart';
 import '../../widgets/section_header.dart';
@@ -23,6 +25,7 @@ class NovelReaderSettingsSheet extends StatefulWidget {
     required this.settings,
     required this.onChanged,
     required this.systemBrightness,
+    this.dragPreview,
   });
 
   final NovelReaderSettings settings;
@@ -31,6 +34,10 @@ class NovelReaderSettingsSheet extends StatefulWidget {
   /// 当前系统亮暗，用于实时预览当前生效配色。
   final Brightness systemBrightness;
 
+  /// 拖动专注遮罩参数时置 true：宿主据此让整个面板淡出，
+  /// 读者可直接看到正文上的遮罩效果（与漫画阅读器的亮度调整一致）。
+  final ValueNotifier<bool>? dragPreview;
+
   @override
   State<NovelReaderSettingsSheet> createState() =>
       _NovelReaderSettingsSheetState();
@@ -38,6 +45,7 @@ class NovelReaderSettingsSheet extends StatefulWidget {
 
 class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
   late NovelReaderSettings _settings = widget.settings;
+  bool _focusExpanded = false;
 
   @override
   void didUpdateWidget(covariant NovelReaderSettingsSheet oldWidget) {
@@ -46,9 +54,14 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
   }
 
   void _change(NovelReaderSettings settings) {
-    setState(() => _settings = settings);
+    setState(() {
+      _settings = settings;
+      if (!settings.focusModeEnabled) _focusExpanded = false;
+    });
     widget.onChanged(settings);
   }
+
+  void _setDragPreview(bool dragging) => widget.dragPreview?.value = dragging;
 
   String _themeName(String id) {
     final l10n = AppLocalizations.of(context)!;
@@ -241,50 +254,92 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             onChanged: (value) =>
                 _change(_settings.copyWith(ignoreBlankParagraphs: value)),
           ),
-          SwitchListTile.adaptive(
-            key: const ValueKey('novel-focus-mode'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.novelReaderFocusMode),
-            value: _settings.focusModeEnabled,
-            onChanged: (value) =>
-                _change(_settings.copyWith(focusModeEnabled: value)),
+          Row(
+            children: [
+              Expanded(
+                child: SwitchListTile.adaptive(
+                  key: const ValueKey('novel-focus-mode'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.novelReaderFocusMode),
+                  value: _settings.focusModeEnabled,
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(focusModeEnabled: value)),
+                ),
+              ),
+              if (_settings.focusModeEnabled)
+                Semantics(
+                  expanded: _focusExpanded,
+                  child: IconButton(
+                    key: const ValueKey('novel-focus-details-toggle'),
+                    tooltip: _focusExpanded
+                        ? l10n.chapterCommentsCollapse
+                        : l10n.chapterCommentsExpand,
+                    onPressed: () =>
+                        setState(() => _focusExpanded = !_focusExpanded),
+                    icon: AnimatedRotation(
+                      key: ValueKey(prefersReducedMotion(context)),
+                      turns: _focusExpanded ? 0.5 : 0,
+                      duration: adaptiveDuration(
+                        context,
+                        const Duration(milliseconds: 180),
+                      ),
+                      child: const Icon(
+                        Icons.expand_more,
+                        size: AppIconSize.xl,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          // 开启后才构建滑块：遮罩区域与浓度只在专注模式下有意义。
-          if (_settings.focusModeEnabled) ...[
-            _slider(
-              key: const ValueKey('novel-focus-top'),
-              label: l10n.novelReaderFocusTopBound,
-              value: _settings.focusTopRatio,
-              min: NovelReaderSettings.minFocusTopRatio,
-              max: NovelReaderSettings.maxFocusTopRatio,
-              divisions: 45,
-              format: _focusPercent,
-              onChanged: (value) =>
-                  _change(_settings.copyWith(focusTopRatio: value)),
+          if (_settings.focusModeEnabled)
+            CollapsibleContent(
+              key: const ValueKey('novel-focus-details'),
+              expanded: _focusExpanded,
+              child: Column(
+                children: [
+                  _slider(
+                    key: const ValueKey('novel-focus-top'),
+                    label: l10n.novelReaderFocusTopBound,
+                    value: _settings.focusTopRatio,
+                    min: NovelReaderSettings.minFocusTopRatio,
+                    max: NovelReaderSettings.maxFocusTopRatio,
+                    divisions: 90,
+                    format: _focusPercent,
+                    onChangeStart: (_) => _setDragPreview(true),
+                    onChangeEnd: (_) => _setDragPreview(false),
+                    onChanged: (value) =>
+                        _change(_settings.copyWith(focusTopRatio: value)),
+                  ),
+                  _slider(
+                    key: const ValueKey('novel-focus-bottom'),
+                    label: l10n.novelReaderFocusBottomBound,
+                    value: _settings.focusBottomRatio,
+                    min: NovelReaderSettings.minFocusBottomRatio,
+                    max: NovelReaderSettings.maxFocusBottomRatio,
+                    divisions: 90,
+                    format: _focusPercent,
+                    onChangeStart: (_) => _setDragPreview(true),
+                    onChangeEnd: (_) => _setDragPreview(false),
+                    onChanged: (value) =>
+                        _change(_settings.copyWith(focusBottomRatio: value)),
+                  ),
+                  _slider(
+                    key: const ValueKey('novel-focus-opacity'),
+                    label: l10n.novelReaderFocusOpacity,
+                    value: _settings.focusOpacity,
+                    min: NovelReaderSettings.minFocusOpacity,
+                    max: NovelReaderSettings.maxFocusOpacity,
+                    divisions: 80,
+                    format: _focusPercent,
+                    onChangeStart: (_) => _setDragPreview(true),
+                    onChangeEnd: (_) => _setDragPreview(false),
+                    onChanged: (value) =>
+                        _change(_settings.copyWith(focusOpacity: value)),
+                  ),
+                ],
+              ),
             ),
-            _slider(
-              key: const ValueKey('novel-focus-bottom'),
-              label: l10n.novelReaderFocusBottomBound,
-              value: _settings.focusBottomRatio,
-              min: NovelReaderSettings.minFocusBottomRatio,
-              max: NovelReaderSettings.maxFocusBottomRatio,
-              divisions: 45,
-              format: _focusPercent,
-              onChanged: (value) =>
-                  _change(_settings.copyWith(focusBottomRatio: value)),
-            ),
-            _slider(
-              key: const ValueKey('novel-focus-opacity'),
-              label: l10n.novelReaderFocusOpacity,
-              value: _settings.focusOpacity,
-              min: NovelReaderSettings.minFocusOpacity,
-              max: NovelReaderSettings.maxFocusOpacity,
-              divisions: 80,
-              format: _focusPercent,
-              onChanged: (value) =>
-                  _change(_settings.copyWith(focusOpacity: value)),
-            ),
-          ],
           const Divider(height: AppSpacing.xxl),
           SectionHeader(
             title: l10n.novelReaderTheme,
@@ -519,6 +574,8 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
     required double max,
     required int divisions,
     required ValueChanged<double> onChanged,
+    ValueChanged<double>? onChangeStart,
+    ValueChanged<double>? onChangeEnd,
     String Function(double value)? format,
   }) {
     final display = format != null
@@ -537,6 +594,8 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
           max: max,
           divisions: divisions,
           label: display,
+          onChangeStart: onChangeStart,
+          onChangeEnd: onChangeEnd,
           onChanged: onChanged,
         ),
       ],

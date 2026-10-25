@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
@@ -123,6 +124,15 @@ Future<T?> showAppSheet<T>(
   double? maxHeightFactor,
   bool showHandle = true,
   EdgeInsets padding = EdgeInsets.zero,
+
+  /// 屏障颜色；传 [Colors.transparent] 时面板背后的页面保持原有明暗
+  /// （如调整遮罩类设置时需要实时看到正文）。
+  Color? barrierColor,
+
+  /// 为 true 时整个面板（含底色与把手）淡出，便于拖动遮罩类滑块时
+  /// 直接观察背后的实际效果；松手后恢复。淡出不改变布局与命中测试，
+  /// 正在进行的拖动可以继续。
+  ValueListenable<bool>? fadeOutWhen,
   required Widget child,
 }) {
   assert(
@@ -142,11 +152,28 @@ Future<T?> showAppSheet<T>(
           : size.height * maxHeightFactor,
     ),
     backgroundColor: Colors.transparent,
-    builder: (_) => AppSheet(
-      heightFactor: heightFactor,
-      showHandle: showHandle,
-      padding: padding,
-      child: child,
-    ),
+    barrierColor: barrierColor,
+    builder: (_) {
+      final sheet = AppSheet(
+        heightFactor: heightFactor,
+        showHandle: showHandle,
+        padding: padding,
+        child: child,
+      );
+      if (fadeOutWhen == null) return sheet;
+      return AnimatedBuilder(
+        animation: fadeOutWhen,
+        builder: (context, child) => AnimatedOpacity(
+          key: const ValueKey('app-sheet-fade'),
+          opacity: fadeOutWhen.value ? 0 : 1,
+          duration: adaptiveDuration(
+            context,
+            const Duration(milliseconds: 200),
+          ),
+          child: child,
+        ),
+        child: sheet,
+      );
+    },
   );
 }

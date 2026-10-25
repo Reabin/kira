@@ -7,6 +7,7 @@ import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/reader_settings.dart';
 import 'package:kira/pages/novel_reader/novel_reader_settings_sheet.dart';
 import 'package:kira/widgets/app_sheet.dart';
+import 'package:kira/widgets/collapsible_content.dart';
 import 'package:kira/widgets/reader_settings_fold.dart';
 import 'package:kira/widgets/reader_status_settings.dart';
 import 'package:kira/widgets/select_tile.dart';
@@ -23,6 +24,7 @@ Future<void> _mount(
   Locale locale = const Locale('zh'),
   Brightness systemBrightness = Brightness.light,
   bool reduceMotion = false,
+  ValueNotifier<bool>? dragPreview,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -46,9 +48,12 @@ Future<void> _mount(
             onPressed: () => showAppSheet<void>(
               context,
               maxHeightFactor: 0.7,
+              barrierColor: Colors.transparent,
+              fadeOutWhen: dragPreview,
               child: NovelReaderSettingsSheet(
                 settings: settings,
                 systemBrightness: systemBrightness,
+                dragPreview: dragPreview,
                 onChanged: onChanged,
               ),
             ),
@@ -412,19 +417,40 @@ void main() {
     expect(find.byKey(const ValueKey('novel-focus-top')), findsOneWidget);
     expect(find.byKey(const ValueKey('novel-focus-bottom')), findsOneWidget);
     expect(find.byKey(const ValueKey('novel-focus-opacity')), findsOneWidget);
-    // 范围由滑块保证：上 ≤45% < 55% ≤ 下；浓度 10%~90%；均 1% 步进。
+    expect(
+      tester
+          .widget<CollapsibleContent>(
+            find.byKey(const ValueKey('novel-focus-details')),
+          )
+          .expanded,
+      isFalse,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-focus-top')).hitTestable(),
+      findsNothing,
+    );
+    await _tapVisible(tester, 'novel-focus-details-toggle');
+    expect(
+      tester
+          .widget<CollapsibleContent>(
+            find.byKey(const ValueKey('novel-focus-details')),
+          )
+          .expanded,
+      isTrue,
+    );
+    // 两边界范围放开，浓度仍为 10%~90%；均为 1% 步进。
     final top = tester.widget<Slider>(
       find.byKey(const ValueKey('novel-focus-top')),
     );
     expect(top.min, 0.0);
-    expect(top.max, 0.45);
-    expect(top.divisions, 45);
+    expect(top.max, 0.9);
+    expect(top.divisions, 90);
     final bottom = tester.widget<Slider>(
       find.byKey(const ValueKey('novel-focus-bottom')),
     );
-    expect(bottom.min, 0.55);
+    expect(bottom.min, 0.1);
     expect(bottom.max, 1.0);
-    expect(bottom.divisions, 45);
+    expect(bottom.divisions, 90);
     final opacity = tester.widget<Slider>(
       find.byKey(const ValueKey('novel-focus-opacity')),
     );
@@ -432,8 +458,8 @@ void main() {
     expect(opacity.max, 0.9);
     expect(opacity.divisions, 80);
     // 比例按百分比展示。
-    expect(find.text('上边界 · 25%'), findsOneWidget);
-    expect(find.text('下边界 · 75%'), findsOneWidget);
+    expect(find.text('上边界 · 20%'), findsOneWidget);
+    expect(find.text('下边界 · 55%'), findsOneWidget);
     expect(find.text('遮罩浓度 · 50%'), findsOneWidget);
     tester
         .widget<Slider>(find.byKey(const ValueKey('novel-focus-top')))
@@ -465,6 +491,150 @@ void main() {
     });
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('focus boundaries move each other to keep a ten percent gap', (
+    tester,
+  ) async {
+    var latest = const NovelReaderSettings(focusModeEnabled: true);
+    await _mount(
+      tester,
+      settings: latest,
+      onChanged: (value) => latest = value,
+    );
+    await _tapVisible(tester, 'novel-focus-details-toggle');
+    final top = find.byKey(const ValueKey('novel-focus-top'));
+    final bottom = find.byKey(const ValueKey('novel-focus-bottom'));
+
+    tester.widget<Slider>(top).onChanged!(0.9);
+    await tester.pumpAndSettle();
+    expect(latest.focusTopRatio, 0.9);
+    expect(latest.focusBottomRatio, 1.0);
+    expect(tester.widget<Slider>(bottom).value, 1.0);
+
+    tester.widget<Slider>(bottom).onChanged!(0.1);
+    await tester.pumpAndSettle();
+    expect(latest.focusTopRatio, 0.0);
+    expect(latest.focusBottomRatio, 0.1);
+    expect(tester.widget<Slider>(top).value, 0.0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'entering page mode silently disables focus and allows re-enabling',
+    (tester) async {
+      var latest = const NovelReaderSettings(focusModeEnabled: true);
+      await _mount(
+        tester,
+        settings: latest,
+        onChanged: (value) => latest = value,
+      );
+      await tester.tap(find.text('翻页'));
+      await tester.pumpAndSettle();
+      expect(latest.mode, NovelReaderMode.paged);
+      expect(latest.focusModeEnabled, isFalse);
+      expect(find.byKey(const ValueKey('novel-focus-top')), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+
+      await _tapVisible(tester, 'novel-focus-mode');
+      expect(latest.focusModeEnabled, isTrue);
+      expect(latest.mode, NovelReaderMode.paged);
+      expect(find.byKey(const ValueKey('novel-focus-top')), findsOneWidget);
+      await _tapVisible(tester, 'novel-focus-details-toggle');
+      tester
+          .widget<Slider>(find.byKey(const ValueKey('novel-focus-top')))
+          .onChanged!(0.4);
+      await tester.pumpAndSettle();
+      expect(latest.focusModeEnabled, isTrue);
+      expect(latest.focusTopRatio, 0.4);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('focus details default collapsed and retain edits when toggled', (
+    tester,
+  ) async {
+    var latest = const NovelReaderSettings(focusModeEnabled: true);
+    await _mount(
+      tester,
+      settings: latest,
+      onChanged: (value) => latest = value,
+    );
+    final details = find.byKey(const ValueKey('novel-focus-details'));
+    expect(tester.widget<CollapsibleContent>(details).expanded, isFalse);
+    await _tapVisible(tester, 'novel-focus-details-toggle');
+    expect(tester.widget<CollapsibleContent>(details).expanded, isTrue);
+    tester
+        .widget<Slider>(find.byKey(const ValueKey('novel-focus-top')))
+        .onChanged!(0.4);
+    await tester.pumpAndSettle();
+    await _tapVisible(tester, 'novel-focus-details-toggle');
+    expect(tester.widget<CollapsibleContent>(details).expanded, isFalse);
+    expect(latest.focusTopRatio, 0.4);
+    expect(latest.focusModeEnabled, isTrue);
+    await _tapVisible(tester, 'novel-focus-mode');
+    expect(details, findsNothing);
+    await _tapVisible(tester, 'novel-focus-mode');
+    expect(tester.widget<CollapsibleContent>(details).expanded, isFalse);
+    expect(latest.focusTopRatio, 0.4);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final key in [
+    'novel-focus-top',
+    'novel-focus-bottom',
+    'novel-focus-opacity',
+  ]) {
+    testWidgets('dragging $key fades out the whole sheet', (tester) async {
+      var latest = const NovelReaderSettings(focusModeEnabled: true);
+      final dragPreview = ValueNotifier<bool>(false);
+      addTearDown(dragPreview.dispose);
+      await _mount(
+        tester,
+        settings: latest,
+        dragPreview: dragPreview,
+        onChanged: (value) => latest = value,
+      );
+      await _tapVisible(tester, 'novel-focus-details-toggle');
+      final slider = find.byKey(ValueKey(key));
+      await tester.ensureVisible(slider);
+      await tester.pumpAndSettle();
+      final fade = find.byKey(const ValueKey('app-sheet-fade'));
+      expect(tester.widget<AnimatedOpacity>(fade).opacity, 1);
+
+      final gesture = await tester.startGesture(tester.getCenter(slider));
+      await gesture.moveBy(const Offset(30, 0));
+      await tester.pump();
+      expect(dragPreview.value, isTrue);
+      expect(tester.widget<AnimatedOpacity>(fade).opacity, 0);
+      // 面板整体淡出（含底色与设置文本），不是只隐藏文字。
+      expect(
+        find.descendant(of: fade, matching: find.text('阅读设置')),
+        findsOneWidget,
+      );
+      // 淡出期间滑块仍可继续拖动并更新设置。
+      final before = {
+        'novel-focus-top': latest.focusTopRatio,
+        'novel-focus-bottom': latest.focusBottomRatio,
+        'novel-focus-opacity': latest.focusOpacity,
+      }[key];
+      await gesture.moveBy(const Offset(60, 0));
+      await tester.pump();
+      final after = {
+        'novel-focus-top': latest.focusTopRatio,
+        'novel-focus-bottom': latest.focusBottomRatio,
+        'novel-focus-opacity': latest.focusOpacity,
+      }[key];
+      expect(after, isNot(before));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(dragPreview.value, isFalse);
+      expect(tester.widget<AnimatedOpacity>(fade).opacity, 1);
+      expect(latest.focusModeEnabled, isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('reading mode switch reveals and edits page-turn settings', (
     tester,
