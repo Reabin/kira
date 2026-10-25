@@ -52,7 +52,8 @@ class FilterChipRow extends StatelessWidget {
       textDirection: Directionality.of(context),
       maxLines: 1,
     )..layout();
-    final rowHeight = math.max(48.0, labelPainter.height + AppSpacing.xxl);
+    // 38 为 shrinkWrap 下 labelLarge 文字的默认 chip 高；大字号时按文字高跟踪。
+    final rowHeight = math.max(38.0, labelPainter.height + AppSpacing.lg);
     labelPainter.dispose();
 
     final chips = SizedBox(
@@ -76,8 +77,7 @@ class FilterChipRow extends StatelessWidget {
             showCheckmark: false,
             labelStyle: tt.labelLarge?.copyWith(color: fg),
             onSelected: (_) => onTap(option),
-            materialTapTargetSize: MaterialTapTargetSize.padded,
-            visualDensity: VisualDensity.standard,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           );
         },
       ),
@@ -95,7 +95,7 @@ class FilterChipRow extends StatelessWidget {
   }
 }
 
-/// 筛选行行尾的文字按钮，与标签共用完整的触摸尺寸。
+/// 筛选行行尾的文字按钮，与标签同样保持紧凑外观。
 TextButton filterRowButton({
   required VoidCallback onPressed,
   required IconData icon,
@@ -104,10 +104,7 @@ TextButton filterRowButton({
   onPressed: onPressed,
   icon: Icon(icon, size: AppIconSize.lg),
   label: Text(label),
-  style: TextButton.styleFrom(
-    visualDensity: VisualDensity.standard,
-    tapTargetSize: MaterialTapTargetSize.padded,
-  ),
+  style: TextButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
 );
 
 /// 行尾「重置」按钮：与未选中筛选 chip 同款（边框 + 透明底 + onSurfaceVariant），
@@ -128,7 +125,6 @@ class FilterRowResetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    // 与同行标签共用 48dp 的最小触摸区域。
     return FilterChip(
       avatar: Icon(icon, size: AppIconSize.sm, color: cs.onSurfaceVariant),
       label: Text(
@@ -137,8 +133,7 @@ class FilterRowResetButton extends StatelessWidget {
       ),
       showCheckmark: false,
       onSelected: (_) => onPressed(),
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }
@@ -182,16 +177,12 @@ class AllTagsGrid extends StatelessWidget {
     return n.toString();
   }
 
-  /// 展开前后使用相同的触摸尺寸。
-  static const _chipDensity = VisualDensity.standard;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    // 标签保持紧凑外观，外层由系统组件扩展点击范围。
     FilterChip chip({
       required Widget label,
       required bool selected,
@@ -201,8 +192,7 @@ class AllTagsGrid extends StatelessWidget {
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onSelected(),
-      materialTapTargetSize: MaterialTapTargetSize.padded,
-      visualDensity: _chipDensity,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
 
     return Wrap(
@@ -329,8 +319,7 @@ class FilterRowAction extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         minimumSize: const Size(0, 34),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smR),
-        visualDensity: VisualDensity.standard,
-        tapTargetSize: MaterialTapTargetSize.padded,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
     return tooltip == null ? button : Tooltip(message: tooltip!, child: button);

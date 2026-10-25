@@ -8,7 +8,7 @@ void main() {
   setUp(setupSecureCredentialStoreForTest);
   tearDown(teardownSecureCredentialStoreForTest);
 
-  testWidgets('filter labels respond in the padded area outside the pill', (
+  testWidgets('filter chip stays compact and responds at the top edge', (
     tester,
   ) async {
     String? selected;
@@ -25,7 +25,8 @@ void main() {
     );
     final chip = find.byType(FilterChip);
     final rect = tester.getRect(chip);
-    expect(rect.height, greaterThanOrEqualTo(48));
+    // 紧凑档（shrinkWrap）：与热门搜索关键字同高，低于 48dp 触控建议值。
+    expect(rect.height, allOf(greaterThanOrEqualTo(38), lessThan(48)));
     await tester.tapAt(Offset(rect.center.dx, rect.top + 1));
     expect(selected, '');
     expect(tester.takeException(), isNull);
@@ -59,17 +60,15 @@ void main() {
       ),
     );
     final chip = find.widgetWithText(FilterChip, '爱情');
-    expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(chip).height, greaterThan(48));
     final resetButton = find.byType(FilterRowResetButton);
-    expect(tester.getSize(resetButton).height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(resetButton).height, greaterThan(48));
     await tester.tap(resetButton);
     expect(reset, 1);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('expanded tags keep the same minimum touch height', (
-    tester,
-  ) async {
+  testWidgets('expanded tags keep the same compact height', (tester) async {
     String? selected;
     await tester.pumpWidget(
       wrapWithApp(
@@ -82,7 +81,7 @@ void main() {
     );
     final chip = find.widgetWithText(FilterChip, '奇幻');
     final rect = tester.getRect(chip);
-    expect(rect.height, greaterThanOrEqualTo(48));
+    expect(rect.height, allOf(greaterThanOrEqualTo(38), lessThan(48)));
     await tester.tapAt(Offset(rect.center.dx, rect.top + 1));
     expect(selected, 'fantasy');
     expect(tester.takeException(), isNull);
