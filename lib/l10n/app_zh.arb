@@ -694,7 +694,7 @@
   "aiConfigFetch": "获取模型",
   "aiConfigClear": "清空",
   "aiConfigGetZhipuApiKey": "获取智谱 API 密钥",
-  "aiConfigAgnesName": "Agnes CN",
+  "aiConfigAgnesName": "Agnes",
   "aiConfigGetAgnesApiKey": "获取 Agnes API 密钥",
   "aiConfigProviderSaved": "供应商已保存",
   "aiConfigConfigureBaseUrlAndApiKey": "请先配置 Base URL 和 API 密钥",

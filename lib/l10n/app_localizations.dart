@@ -2122,7 +2122,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiConfigAgnesName.
   ///
   /// In zh, this message translates to:
-  /// **'Agnes CN'**
+  /// **'Agnes'**
   String get aiConfigAgnesName;
 
   /// No description provided for @aiConfigGetAgnesApiKey.

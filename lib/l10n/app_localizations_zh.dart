@@ -1126,7 +1126,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiConfigGetZhipuApiKey => '获取智谱 API 密钥';
 
   @override
-  String get aiConfigAgnesName => 'Agnes CN';
+  String get aiConfigAgnesName => 'Agnes';
 
   @override
   String get aiConfigGetAgnesApiKey => '获取 Agnes API 密钥';
@@ -5085,7 +5085,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aiConfigGetZhipuApiKey => '獲取智譜 API 金鑰';
 
   @override
-  String get aiConfigAgnesName => 'Agnes CN';
+  String get aiConfigAgnesName => 'Agnes';
 
   @override
   String get aiConfigGetAgnesApiKey => '獲取 Agnes API 金鑰';
