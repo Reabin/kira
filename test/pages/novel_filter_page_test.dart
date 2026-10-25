@@ -302,7 +302,7 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(NovelFilterPage)),
       )!;
-      await tester.tap(find.text(l10n.novelLoadMore));
+      await tester.tap(find.text(l10n.loadMore));
       await tester.pumpAndSettle();
       expect(find.text(_first.name), findsOneWidget);
       expect(find.text(l10n.novelLoadMoreFailed), findsOneWidget);

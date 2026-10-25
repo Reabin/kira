@@ -430,7 +430,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
               trailing: filterRowButton(
                 onPressed: _toggleTagList,
                 icon: Icons.expand_more,
-                label: l10n.novelTagsExpandAll,
+                label: l10n.tagsExpandAll,
               ),
             ),
           ],
@@ -698,7 +698,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             loading: _visible.loading,
                             onPressed: () => _loadMore(retry: true),
                             label: _visible.error == null
-                                ? l10n.novelLoadMore
+                                ? l10n.loadMore
                                 : l10n.novelLoadMoreFailed,
                             detail: _visible.error == null
                                 ? null

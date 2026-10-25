@@ -724,7 +724,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
                       child: InlineRetryNotice(
-                        message: l10n.searchLoadMoreFailed,
+                        message: l10n.loadMoreFailed,
                         detail: NetworkError.describe(_loadMoreError),
                         onRetry: () => unawaited(_loadMore(retry: true)),
                       ),

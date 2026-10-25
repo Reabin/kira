@@ -265,7 +265,7 @@ void main() {
       await tester.tap(find.text('beta'));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('是否切换?'), findsOneWidget);
-      expect(find.text('预览版更新更快,问题也可能更多'), findsOneWidget);
+      expect(find.text('预览版更新更快，问题也可能更多'), findsOneWidget);
       // 测试宿主是 Windows(非 Android arm64),arm64 提示应标成警告色。
       final danger = AppStatusColors.danger(
         Theme.of(tester.element(find.byType(AboutPage))).colorScheme,
@@ -274,9 +274,9 @@ void main() {
         tester.widget<Text>(find.text('仅限 Android arm64 设备。')).style?.color,
         danger,
       );
-      // 探测到设备环境时补一行「当前设备:...」,同样是警示色。
+      // 探测到设备环境时补一行「当前设备：...」,同样是警示色。
       final deviceLine = find.byWidgetPredicate(
-        (w) => w is Text && (w.data ?? '').startsWith('当前设备:'),
+        (w) => w is Text && (w.data ?? '').startsWith('当前设备：'),
       );
       expect(deviceLine, findsOneWidget);
       expect(tester.widget<Text>(deviceLine).style?.color, danger);

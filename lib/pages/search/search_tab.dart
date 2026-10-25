@@ -565,7 +565,7 @@ class _SearchTabState extends State<_SearchTab>
                               child: Column(
                                 children: [
                                   Text(
-                                    l10n.searchLoadMoreFailed,
+                                    l10n.loadMoreFailed,
                                     style: tt.bodyMedium?.copyWith(
                                       color: cs.error,
                                     ),

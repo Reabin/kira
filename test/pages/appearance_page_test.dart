@@ -599,9 +599,8 @@ void main() {
         }
         previousOffset = offset;
       }
-      final l10n = AppLocalizations.of(tester.element(nav))!;
-      expect(find.text(l10n.appearanceNavSwipeDesc), findsNothing);
-      expect(find.text(l10n.appearanceDarkCoverBrightnessDesc), findsNothing);
+      expect(find.text('关闭后只能点击底部导航按钮切换页面'), findsNothing);
+      expect(find.text('暗色模式下降低各个界面的卡片封面亮度'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

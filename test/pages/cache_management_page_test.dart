@@ -458,7 +458,7 @@ void main() {
 
     await _pumpPage(tester);
 
-    final warning = find.textContaining('请勿随意删除');
+    final warning = find.textContaining('删除会丢失');
     await tester.scrollUntilVisible(
       warning,
       200,

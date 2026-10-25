@@ -32,7 +32,6 @@
   "discoverEmptyResults": "暫無符合條件的漫畫，試試其他篩選條件",
   "discoverRequestFailed": "漫畫載入失敗，請重試",
   "discoverFiltersFailed": "篩選項載入失敗，請重試",
-  "searchLoadMoreFailed": "載入更多失敗，請重試",
   "searchHistoryTitle": "搜尋歷史",
   "searchHistoryClear": "清空歷史",
   "searchHistoryDelete": "刪除記錄",
@@ -204,18 +203,10 @@
   },
   "loginExpiredTitle": "登入已過期",
   "loginExpiredBookshelfContent": "書架需要登入後才能繼續使用，是否現在重新登入？",
-  "loginExpiredFeatureContent": "{featureName}需要登入後才能繼續使用，是否現在重新登入？",
-  "@loginExpiredFeatureContent": {
-    "placeholders": {
-      "featureName": {
-        "type": "String"
-      }
-    }
-  },
   "laterButton": "稍後再說",
   "goLoginButton": "去登入",
   "loginToViewBookshelf": "登入後可繼續檢視書架",
-  "searchHint": "搜尋{mode}...",
+  "searchHint": "搜尋{mode}…",
   "@searchHint": {
     "placeholders": {
       "mode": {
@@ -226,17 +217,8 @@
   "searchClearTooltip": "清空搜尋內容",
   "hotSearchTitle": "熱門搜尋",
   "allTagsTitle": "全部標籤",
-  "expandAllButton": "展開",
   "tagsExpandAll": "展開",
   "tagsCollapseAll": "收起",
-  "tagCount": "{count} 個",
-  "@tagCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "popularOrder": "熱度",
   "updateOrder": "更新",
   "loadMore": "載入更多",
@@ -282,29 +264,13 @@
   "remoteNoticeDesc": "開啟後應用啟動時自動檢查通知；關閉後僅在進入通知中心時獲取",
   "noticeSettingsTooltip": "通知設定",
   "bannerVisibleTitle": "顯示 Banner",
-  "bannerVisibleDesc": "關閉後漫畫首頁頂部 Banner 不顯示",
   "backExitConfirmTitle": "返回兩次退出應用",
-  "backExitConfirmDesc": "在底部導覽頁面第一次返回只提示，再次返回才退出",
   "backAgainToExitToast": "再次返回退出應用",
   "languageTitle": "語言",
   "languageSystem": "跟隨系統",
   "languageSimplified": "簡體中文",
   "languageTraditional": "繁體中文",
   "cacheManagementTitle": "快取管理",
-  "cacheManagementDesc": "檢視和刪除本地快取、歷史和帳號資料",
-  "exportSettingsTitle": "匯出設定",
-  "importSettingsTitle": "匯入設定",
-  "settingsExportedWithSensitive": "設定已匯出，包含敏感資訊",
-  "settingsExportedWithoutSensitive": "設定已匯出，未包含敏感資訊",
-  "exportFailed": "匯出失敗：{error}",
-  "@exportFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "noImportSettingsContent": "沒有可匯入的設定內容",
   "settingsBackupEmptyFile": "檔案裡沒有可匯入的設定",
   "settingsBackupInvalidJson": "設定格式不是有效的 JSON",
   "settingsBackupInvalidFormat": "設定格式不正確",
@@ -314,41 +280,7 @@
   "settingsBackupUnsupportedField": "設定中包含不支援的欄位",
   "settingsBackupInvalidFieldFormat": "設定欄位格式不正確",
   "settingsBackupUnsupportedFieldType": "設定欄位類型不受支援",
-  "importFailed": "匯入失敗：{error}",
-  "@importFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "overwriteImportTitle": "覆蓋匯入",
-  "overwriteImportContent": "將覆蓋目前 {count} 項持久化設定，包含帳號、主題、閱讀器設定和本地閱讀記錄。{backupTime}\n\n臨時快取不會匯入，目前設定會被取代。是否繼續？",
-  "@overwriteImportContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "backupTime": {
-        "type": "String"
-      }
-    }
-  },
-  "backupTimeLine": "\n\n備份時間：{time}",
-  "@backupTimeLine": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "confirmImportButton": "確認匯入",
-  "importingSettingsTitle": "正在匯入設定",
-  "importingSettingsBody": "正在寫入設定並重新載入,請稍候…",
-  "settingsImportedToast": "設定已匯入並覆蓋本地設定",
   "resetAppTitle": "重設應用",
-  "resetAppDesc": "清除本地設定、帳號、閱讀記錄和快取，不會刪除已下載的本地漫畫檔案",
-  "resettingApp": "正在重設...",
   "appResetToast": "應用已重設，已清除 {count} 項本地資料",
   "@appResetToast": {
     "placeholders": {
@@ -365,26 +297,7 @@
       }
     }
   },
-  "exportSettingsContent": "將匯出 {count} 項持久化設定到 JSON 檔案，內容為明文，請謹慎保管。",
-  "@exportSettingsContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "includeSensitiveSettingsTitle": "包含密碼和 API 重要資訊",
-  "noSensitiveSettingsFound": "目前沒有偵測到已儲存的敏感項",
-  "includeSensitiveSettingsDesc": "將額外包含 {count} 項權杖、密碼、API Key 或憑證資訊",
-  "@includeSensitiveSettingsDesc": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "copyButton": "複製",
-  "exportButton": "匯出",
   "confirmResetAppTitle": "確認重設應用",
   "resetAppWarning": "此操作會清除應用本地儲存的設定、帳號、閱讀記錄和快取，且無法復原。",
   "resetAppInstruction": "如需繼續，請在下方輸入框中輸入「{text}」。",
@@ -403,7 +316,6 @@
   "profileHotCredentialLabel": "熱辣漫畫",
   "accountAddedToast": "帳號已新增",
   "accountSwitchedToast": "帳號已切換",
-  "switchAccountTitle": "切換帳號",
   "addAccountButton": "新增帳號",
   "switchAccountFailedToast": "切換失敗，請重試",
   "logoutTitle": "登出",
@@ -418,9 +330,8 @@
       }
     }
   },
-  "copyProfileRefreshUnavailable": "暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱",
   "tokenUnavailableToast": "暫無可複製的權杖",
-  "tokenCopiedToast": "權杖已複製到剪貼簿",
+  "tokenCopiedToast": "權杖已複製",
   "appearanceTitle": "外觀",
   "appearanceLogoChanged": "桌面圖示已更換，可能需要重啟應用後生效",
   "appearanceColorPickerHeading": "點擊色盤選擇一個自訂主題色",
@@ -441,7 +352,6 @@
   "appearanceNavOrder": "導覽列順序",
   "appearanceNavOrderDragHint": "長按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑動切換頁面",
-  "appearanceNavSwipeDesc": "關閉後只能點擊底部導覽按鈕切換頁面",
   "appearanceFloatingNavTitle": "懸浮導覽列",
   "appearanceAppIcon": "應用圖示",
   "appearanceRefreshRateTitle": "螢幕重新整理率",
@@ -450,23 +360,10 @@
   "appearanceLightMode": "淺色",
   "appearanceDarkMode": "深色",
   "appearanceDarkCoverBrightness": "暗色模式封面亮度",
-  "appearanceDarkCoverBrightnessDesc": "暗色模式下降低各個介面的卡片封面亮度",
   "appearanceCardShadowSize": "統一陰影大小",
   "appearanceDefaultFontSize": "應用字型大小",
   "appearanceThemeStyle": "主題風格",
-  "appearanceCurrentStyle": "目前風格：{label} · {description}",
-  "@appearanceCurrentStyle": {
-    "placeholders": {
-      "label": {
-        "type": "String"
-      },
-      "description": {
-        "type": "String"
-      }
-    }
-  },
   "appearanceThemeColor": "主題配色",
-  "appearanceThemeColorDesc": "點擊色塊切換主題色，帶勾選的為目前配色。",
   "appearanceDynamicColor": "動態顏色",
   "appearanceAmoledDark": "AMOLED 純黑模式",
   "appearanceReduceMotionTitle": "減少動畫",
@@ -479,15 +376,6 @@
     }
   },
   "appearanceRefreshRateSaved": "重新整理率偏好已儲存",
-  "appearanceRefreshRateLoadFailed": "獲取裝置重新整理率失敗：{error}",
-  "@appearanceRefreshRateLoadFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "appearanceUnknownError": "未知錯誤",
   "appearanceAutoSystem": "自動（跟隨系統）",
   "appearanceAutoShort": "自動",
   "appearanceAutoRefreshRate": "自動 · {rate}Hz",
@@ -503,14 +391,6 @@
     "placeholders": {
       "rate": {
         "type": "int"
-      }
-    }
-  },
-  "appearanceApplyingRefreshRate": "正在套用 {rate}",
-  "@appearanceApplyingRefreshRate": {
-    "placeholders": {
-      "rate": {
-        "type": "String"
       }
     }
   },
@@ -632,7 +512,7 @@
       }
     }
   },
-  "networkTestingNodes": "正在檢測各節點...",
+  "networkTestingNodes": "正在檢測各節點…",
   "networkSpeedTestFailedDetail": "測速失敗：{detail}",
   "@networkSpeedTestFailedDetail": {
     "placeholders": {
@@ -859,7 +739,6 @@
   "bookmarksSearchHint": "搜尋書名或章節",
   "bookmarksSearchEmpty": "沒有找到相關書籤，試試其他關鍵詞",
   "statsTitle": "閱讀統計",
-  "continueReadingTitle": "繼續閱讀",
   "continueReadingPageLabel": "第 {page} 頁",
   "@continueReadingPageLabel": {
     "placeholders": {
@@ -958,9 +837,8 @@
     }
   },
   "bookmarksEmptyTitle": "還沒有書籤",
-  "bookmarksEmptySubtitle": "閱讀漫畫時，點擊右上角的書籤按鈕即可標記當前位置",
+  "bookmarksEmptySubtitle": "閱讀時點右上角書籤即可標記",
   "bookmarksClearTitle": "清空書籤",
-  "bookmarksClearContent": "確定要清空所有書籤嗎？",
   "bookmarksGroupDeleted": "已刪除 {count} 條書籤",
   "@bookmarksGroupDeleted": {
     "placeholders": {
@@ -973,9 +851,7 @@
   "aboutTitle": "關於",
   "aboutBrandTagline": "Kira 是一個開源免費的漫畫閱讀 App",
   "notLoggedInTitle": "未登入",
-  "loginPromptSubtitle": "點擊登入以使用書架等功能",
   "refreshUserButton": "重新整理使用者",
-  "switchAccountButton": "切換帳號",
   "copyTokenButton": "複製權杖",
   "appDisclaimerIntro": "請在使用本應用前仔細閱讀以下聲明：",
   "appDisclaimerItem1": "本應用（以下簡稱\"本軟體\"）係獨立開發的非官方第三方用戶端，與任何內容平台、出版商或權利人均無隸屬、合作或代理關係。",
@@ -984,9 +860,7 @@
   "appDisclaimerItem4": "您應自行判斷所瀏覽內容是否適合，並確保您的使用行為完全符合您所在地現行有效的法律法規。因您使用本軟體而產生的一切法律後果由您自行承擔。",
   "appDisclaimerItem5": "如任何第三方內容涉嫌侵犯他人合法權益或違反法律法規，權利人可透過本軟體提供的聯絡方式向開發者傳送有效通知，開發者將在合理期限內核實並採取必要措施。",
   "appDisclaimerItem6": "本軟體按\"現狀\"提供，開發者不對其功能性、可用性、準確性或可靠性作出任何明示或默示的保證。在任何情況下，開發者均不對因使用或無法使用本軟體而產生的任何直接、間接、附帶、特殊或後果性損害承擔責任。",
-  "appDisclaimerFooter": "繼續使用本軟體，即表示您已仔細閱讀、充分理解並同意接受上述全部條款的約束。如您不同意任一條款，請立即停止使用並解除安裝本軟體。",
   "profileUsernamePasswordRequired": "請輸入使用者名稱和密碼",
-  "profileLoginFailedProxyHint": "登入失敗，建議開啟代理後重試",
   "profileLoginFailedDetail": "登入失敗：{detail}",
   "@profileLoginFailedDetail": {
     "placeholders": {
@@ -997,10 +871,7 @@
   },
   "profileLoginIpBlockedHint": "目前 IP 已被封鎖，請更換網路環境或代理節點後重試",
   "profileTokenRequired": "請輸入權杖",
-  "profileTokenInvalidOrExpired": "權杖無效或已過期",
   "profileLoginTitle": "登入",
-  "profileAccountPasswordLoginMode": "帳號密碼",
-  "profileTokenLoginMode": "權杖",
   "profileTokenLoginEntry": "權杖登入",
   "copyAccountChannelWebApi": "網頁介面",
   "copyAccountChannelWeb": "網頁",
@@ -1032,12 +903,8 @@
   "profileRememberAccountLabel": "記住帳號",
   "profileLoginButton": "登入",
   "profileOpenOfficialRegisterFailed": "無法開啟官網註冊頁",
-  "profileHotMangaLabel": "熱辣漫畫",
-  "profileCopyMangaLabel": "拷貝漫畫",
-  "loginGoOfficialRegisterHot": "前往官網註冊帳號",
-  "loginGoOfficialRegisterCopy": "前往官網註冊帳號",
+  "loginGoOfficialRegister": "前往官網註冊帳號",
   "aboutMirrorPrefixTitle": "設定鏡像源",
-  "aboutMirrorPrefixDesc": "用於更新與播放元件下載的鏡像連結，會拼接在 GitHub 下載地址前。",
   "aboutMirrorPrefixLabel": "鏡像源地址",
   "aboutMirrorPrefixHelper": "留空將恢復預設鏡像源",
   "aboutInvalidMirrorPrefix": "請輸入有效的 http(s) 地址",
@@ -1046,7 +913,7 @@
   "aboutMirrorPrefixSavedToast": "鏡像源已儲存",
   "aboutStableChannelShort": "穩定版",
   "aboutBetaChannelConfirmTitle": "是否切換?",
-  "aboutBetaChannelNote": "預覽版更新更快,問題也可能更多",
+  "aboutBetaChannelNote": "預覽版更新更快，問題也可能更多",
   "aboutBetaChannelArm64Only": "僅限 Android arm64 裝置。",
   "aboutBetaChannelDevice": "目前裝置：{os} {arch}。",
   "@aboutBetaChannelDevice": {
@@ -1188,7 +1055,6 @@
   "commentSettingsPreloadTitle": "預載評論",
   "commentSettingsPreloadDesc": "進入章節時提前載入評論並顯示數量",
   "commentSettingsAutoLoadAllTitle": "自動載入全部評論",
-  "commentSettingsAutoLoadAllDesc": "開啟評論區時自動載入所有評論",
   "commentSettingsFontSizeTitle": "評論內容字型大小",
   "chapterCommentsNoSummaryComments": "目前沒有可總結的評論",
   "chapterCommentsEnableAiSummaryFirst": "請先在評論區設定中啟用 AI 總結",
@@ -1293,8 +1159,6 @@
   "chapterCommentsTitle": "章節評論",
   "chapterCommentsAiSummaryTooltip": "AI 總結評論",
   "chapterCommentsRegenerateAiSummaryTooltip": "重新生成 AI 總結",
-  "chapterCommentsSwitchToListLayout": "切換為列表版面",
-  "chapterCommentsSwitchToCompactLayout": "切換為緊湊版面",
   "chapterCommentsTotalCount": "{count} 條",
   "@chapterCommentsTotalCount": {
     "placeholders": {
@@ -1403,7 +1267,7 @@
       }
     }
   },
-  "comicCommentReplyHint": "回覆 {userName}...",
+  "comicCommentReplyHint": "回覆 {userName}…",
   "@comicCommentReplyHint": {
     "placeholders": {
       "userName": {
@@ -1411,7 +1275,7 @@
       }
     }
   },
-  "comicCommentPostHint": "說點什麼...",
+  "comicCommentPostHint": "說點什麼…",
   "comicCommentReplyPosted": "回覆已發布",
   "comicCommentReplyButton": "回覆",
   "comicCommentExpandFullText": "展開全文",
@@ -1421,12 +1285,10 @@
   "readerLeftToRight": "左到右",
   "readerRightToLeft": "右到左",
   "readerTopToBottom": "上到下",
-  "readerScrollSection": "捲動",
   "readerImageGap": "圖片間距",
   "readerContinuousReading": "連續閱讀",
   "readerContinuousReadingDesc": "到末頁後直接拼接下一話，上滑到頂拼接上一話，不重新載入",
   "readerHorizontalImageScale": "橫向圖片大小",
-  "readerHorizontalImageScaleDesc": "調整橫向捲動模式下圖片相對螢幕高度的比例（僅橫向捲動模式可用）",
   "readerAutoScroll": "自動捲動",
   "readerAutoScrollDesc": "開啟後在導覽列顯示自動捲動按鈕",
   "readerAutoScrollDistance": "捲動幅度",
@@ -1446,7 +1308,6 @@
   "readerVolumeKeyPageTurn": "音量鍵翻頁",
   "readerVolumeKeyPageTurnDesc": "音量+上一頁，音量-下一頁",
   "readerInstantPageTurn": "無動畫翻頁",
-  "readerDisplaySection": "顯示",
   "readerLongPressZoom": "長按縮放",
   "readerLongPressZoomDesc": "長按圖片放大，按住移動可查看細節，放開後恢復",
   "readerLongPressZoomPanSensitivity": "拖動靈敏度",
@@ -1475,7 +1336,6 @@
   "readerImageLoadingSection": "圖片載入",
   "readerTimeout": "逾時時間",
   "readerTimeoutDesc": "設定太小可能導致圖片載入失敗，太大可能導致長時間轉圈",
-  "readerNoLoadStats": "暫無載入紀錄（閱讀圖片後此處顯示平均耗時供參考）",
   "readerRecentLoadStats": "最近10分鐘內載入了 {count} 張，平均 {seconds} s",
   "@readerRecentLoadStats": {
     "placeholders": {
@@ -1577,14 +1437,6 @@
     }
   },
   "browseHistoryLatestLabel": "最新",
-  "browseHistoryLastSeen": "看到 {name}",
-  "@browseHistoryLastSeen": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
   "cacheSelectedCards": "已選 {count} 個卡片",
   "@cacheSelectedCards": {
     "placeholders": {
@@ -1610,7 +1462,7 @@
   "cacheImageCacheSection": "圖片快取",
   "cacheNovelTextSection": "輕小說快取",
   "cacheDataCacheSection": "資料快取",
-  "cacheDataCacheWarning": "資料快取包含書架、閱讀設定、閱讀歷史等本地資料，請勿隨意刪除，以免遺失。",
+  "cacheDataCacheWarning": "資料快取包含書架、設定與閱讀歷史，刪除會遺失。",
   "cacheNoLocalKeyValueData": "沒有可顯示的本地鍵值資料",
   "cacheEntryCountSize": "{count} 項 · {size}",
   "@cacheEntryCountSize": {
@@ -1677,7 +1529,7 @@
   "themeVariantRainbowDesc": "跳脫主色限制，整體更活潑。",
   "appLogEmpty": "暫無錯誤日誌",
   "appLogDisabledTitle": "日誌記錄已關閉",
-  "appLogCopied": "日誌已複製到剪貼簿",
+  "appLogCopied": "日誌已複製",
   "appLogCopyFailed": "複製失敗：{error}",
   "@appLogCopyFailed": {
     "placeholders": {
@@ -1705,7 +1557,6 @@
   "appLogLevelInfo": "資訊",
   "appLogLevelWarning": "警告",
   "appLogLevelError": "錯誤",
-  "appLogSearchHint": "搜尋日誌（訊息、來源、堆疊、上下文）",
   "appLogExportTooltip": "匯出日誌檔案",
   "appLogExported": "日誌已匯出",
   "appLogExportFailed": "匯出失敗：{error}",
@@ -1911,14 +1762,6 @@
       }
     }
   },
-  "downloadQueueDeleteBatchContent": "已下載的 {count} 頁檔案將一併刪除。",
-  "@downloadQueueDeleteBatchContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "downloadQueueDeleteSelectedConfirm": "所選下載任務及已儲存的相關檔案都會被刪除。",
   "downloadQueueSelect": "多選",
   "downloadQueueSelectAll": "全選",
@@ -1927,14 +1770,6 @@
   "downloadQueueFilterDownloading": "下載中",
   "downloadQueueFilterPaused": "已暫停",
   "downloadQueueDeleteSelected": "刪除所選",
-  "downloadQueueBatchDeleted": "已刪除 {count} 個任務",
-  "@downloadQueueBatchDeleted": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "downloadProgressCount": "{percent}% ({completed}/{total})",
   "@downloadProgressCount": {
     "placeholders": {
@@ -2052,8 +1887,8 @@
   "readerContinuePageNextChapter": "繼續翻頁進入下一話",
   "readerAlreadyLastChapter": "當前已無下一話",
   "readerContinueScrollOrTapNextChapter": "繼續下滑或點擊按鈕進入下一話",
-  "readerImagePathCopied": "圖片路徑已複製到剪貼簿",
-  "readerImageUrlCopied": "圖片連結已複製到剪貼簿",
+  "readerImagePathCopied": "圖片路徑已複製",
+  "readerImageUrlCopied": "圖片連結已複製",
   "readerLocalImageMissing": "本地圖片損壞或缺失",
   "readerCopyImagePath": "複製圖片路徑",
   "readerImageRetrying": "載入失敗，正在重試 {attempt}/{total}",
@@ -2213,8 +2048,6 @@
   "networkTestLatencyShort": "測速",
   "networkModeFixedNodeShort": "節點",
   "networkCurrentInUse": "使用中",
-  "networkModeRouteDesc": "請求自動在線路內的節點間切換",
-  "networkModeFixedNodeDesc": "固定使用單一節點",
   "networkNodesSectionTitle": "線路與節點",
   "alreadyCollectedLabel": "已收藏",
   "downloadActionButton": "下載",
@@ -2255,7 +2088,6 @@
     }
   },
   "backupTitle": "備份與同步",
-  "backupEntryDescription": "本機檔案與 WebDAV 備份",
   "backupContent": "備份內容",
   "backupCategorySettings": "應用程式設定",
   "backupCategoryHistory": "閱讀歷史",
@@ -2426,20 +2258,9 @@
   "novelCopyLogin": "登入拷貝帳戶",
   "novelContinueReading": "繼續閱讀",
   "novelStartReading": "開始閱讀",
-  "novelVolumeProgress": "本卷 {percent}%",
-  "@novelVolumeProgress": {
-    "placeholders": {
-      "percent": {
-        "type": "String"
-      }
-    }
-  },
-  "novelBrowseBooks": "瀏覽書籍",
   "novelAllThemes": "全部",
   "novelThemes": "題材",
-  "novelTagsExpandAll": "展開",
   "novelEmptyBooks": "暫無書籍，試試其他題材",
-  "novelLoadMore": "載入更多",
   "novelLoadMoreFailed": "載入失敗，點擊重試",
   "novelLoadFailed": "書籍載入失敗",
   "novelThemesFailed": "題材載入失敗",
@@ -2486,7 +2307,6 @@
   "novelManageVolumes": "管理分卷",
   "novelVolumeUnit": "卷",
   "novelDeleteToastSuffix": " 部本機輕小說",
-  "novelBrief": "簡介",
   "novelNoBrief": "暫無簡介",
   "novelUncollect": "取消收藏",
   "novelCollectFailed": "收藏操作失敗，請重試",
@@ -2507,14 +2327,10 @@
     }
   },
   "novelQueryFailed": "閱讀與收藏狀態載入失敗",
-  "novelAccountRequired": "閱讀權限由拷貝帳戶決定，可登入後重試",
-  "novelLocked": "目前內容受限，可嘗試切換拷貝帳戶",
   "novelEmptyShelf": "書架還是空的，去發現喜歡的小說吧",
-  "novelShelfFailed": "書架載入失敗",
   "novelEmptyHistory": "開始閱讀後，進度會儲存在這裡",
   "novelHistoryFailed": "閱讀記錄載入失敗",
   "novelClearHistory": "清空閱讀記錄",
-  "novelClearHistoryConfirm": "僅清除本機輕小說閱讀進度，不會取消書架收藏。",
   "novelRemoveHistory": "移除閱讀記錄",
   "novelHistoryDeleteFailedDetail": "移除失敗：{detail}",
   "@novelHistoryDeleteFailedDetail": {
@@ -2532,7 +2348,6 @@
   "novelPostComment": "發表評論",
   "novelCommentPosted": "評論已發表",
   "novelCommentFailed": "發表失敗，內容已保留，請重試",
-  "novelReplies": "查看回覆",
   "novelReply": "回覆",
   "novelReplyTitle": "評論回覆",
   "novelCommentCollapseReplies": "收起回覆",
@@ -2558,18 +2373,16 @@
       "userName": {}
     }
   },
-  "novelCommentReplyHint": "回覆 {userName}...",
+  "novelCommentReplyHint": "回覆 {userName}…",
   "@novelCommentReplyHint": {
     "placeholders": {
       "userName": {}
     }
   },
-  "novelCommentReplyPosted": "回覆已發布",
   "novelSerializing": "連載中",
   "novelCompleted": "已完結",
   "novelReaderTitle": "輕小說閱讀器",
   "novelReaderBack": "返回",
-  "novelReaderHideToolbar": "收起工具列",
   "novelReaderShowToolbar": "展開工具列",
   "novelReaderContents": "目錄",
   "novelReaderCatalog": "總目錄",
@@ -2593,7 +2406,6 @@
   "novelReaderParagraphSpacing": "段距",
   "novelReaderContentWidth": "正文寬度",
   "novelReaderTheme": "閱讀主題",
-  "novelReaderThemeSystem": "跟隨系統",
   "novelReaderThemePaper": "紙張",
   "novelReaderThemeDark": "夜間",
   "novelReaderThemeWhite": "白底",
@@ -2624,7 +2436,7 @@
   },
   "novelReaderBackgroundColor": "背景顏色",
   "novelReaderTextColor": "文字顏色",
-  "novelReaderPreviewText": "選擇適合你的閱讀配色與字級。",
+  "novelReaderPreviewText": "夜色溫柔，街燈次第亮起，故事從這一頁開始。",
   "novelReaderKeepScreenOn": "閱讀時螢幕常亮",
   "novelReaderIgnoreBlankParagraphs": "隱藏空白段落",
   "novelReaderIgnoreBlankParagraphsDenseHint": "可以適當增大段距以免文字過於密集",
@@ -2650,25 +2462,8 @@
       }
     }
   },
-  "novelReaderParagraphProgress": "{current} / {total} 段",
-  "@novelReaderParagraphProgress": {
-    "placeholders": {
-      "current": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "copyAccountTitle": "輕小說 · 獨立拷貝帳號",
   "copyAccountLoginTitle": "登入拷貝帳號",
   "copyAccountIndependentHint": "僅用於拷貝輕小說。登入、切換或登出此帳號都不會改變目前主帳號。",
-  "copyAccountConnected": "拷貝帳號已登入",
-  "copyAccountNotConnected": "尚未登入拷貝帳號",
-  "copyAccountSwitch": "切換拷貝帳號",
-  "copyAccountLogout": "登出拷貝帳號",
-  "copyAccountLogoutConfirm": "僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。",
   "copyAccountStorageFailed": "無法儲存拷貝帳號，請稍後重試；原帳號保持不變。",
   "copyAccountLoginSuperseded": "帳號狀態已改變，本次登入已取消，請重試。",
   "accountCenterTitle": "帳號中心",
@@ -2679,15 +2474,6 @@
   "accountCenterNovelCopyOnlyHint": "輕小說僅支援使用拷貝帳號",
   "accountCenterNotLoggedIn": "未登入",
   "accountProfileMissing": "已登入（未取得資料）",
-  "accountCenterAddPrimary": "登入漫畫帳號",
-  "accountCenterAddCopy": "新增拷貝帳號",
-  "accountCenterPickComic": "選擇漫畫使用的帳號",
-  "accountCenterPickNovel": "選擇輕小說使用的帳號",
-  "accountCenterNovelOnlyCopy": "輕小說只能使用拷貝帳號",
-  "accountCenterRenameTitle": "帳號備註",
-  "accountCenterRenameLabel": "備註名",
-  "accountCenterRenameHint": "例如：主號 / 小號",
-  "accountCenterRemoveTitle": "移除帳號",
   "accountCenterRemoveConfirm": "確定移除「{name}」嗎？僅刪除本機儲存的登入狀態。",
   "@accountCenterRemoveConfirm": {
     "placeholders": {
@@ -2709,7 +2495,5 @@
   "accountViewPasswordLabel": "密碼",
   "accountViewPasswordUnavailable": "未儲存密碼（該帳號未勾選「記住帳號」或使用權杖登入）",
   "accountViewTokenLabel": "權杖 (Token)",
-  "accountViewNoToken": "無權杖",
-  "accountViewCopiedToast": "已複製到剪貼簿",
-  "accountCenterNameNewTitle": "給新帳號起個備註名"
+  "accountViewCopiedToast": "已複製"
 }

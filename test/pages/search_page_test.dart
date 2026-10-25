@@ -328,7 +328,7 @@ void main() {
         await pumpSearchFrames(tester);
 
         expect(_visibleComics(tester), ['首屏漫画']);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsOneWidget);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsOneWidget);
         expect(find.text(_l10n(tester).retryButton), findsOneWidget);
         // 错误后滚动通知不能悄悄连续重试。
         await tester.drag(find.byType(CustomScrollView), const Offset(0, -90));
@@ -342,7 +342,7 @@ void main() {
         requests.last.succeed(['第二页漫画'], total: 2);
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['首屏漫画', '第二页漫画']);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         expect(find.byType(LoadMoreFooter), findsNothing);
       });
 
@@ -390,7 +390,7 @@ void main() {
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['新首屏']);
         expect(_footer(tester).loading, isTrue);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         expect(rig.manga.searches, hasLength(4));
 
         newPage.succeed(['新分页'], total: 2);
@@ -648,7 +648,7 @@ void main() {
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['冒险首屏']);
         expect(_footer(tester).loading, isTrue);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         currentPage.succeed(['冒险分页'], total: 2);
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['冒险首屏', '冒险分页']);

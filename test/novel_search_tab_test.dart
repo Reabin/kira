@@ -157,7 +157,7 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(NovelSearchTab)),
       )!;
-      await tester.tap(find.text(l10n.novelLoadMore));
+      await tester.tap(find.text(l10n.loadMore));
       await tester.pumpAndSettle();
       expect(find.text(_book.name), findsOneWidget);
       expect(find.text(l10n.novelLoadMoreFailed), findsOneWidget);
@@ -199,7 +199,7 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(NovelSearchTab)),
       )!;
-      await tester.tap(find.text(l10n.novelLoadMore));
+      await tester.tap(find.text(l10n.loadMore));
       await tester.pumpAndSettle();
 
       // 用户/开发者必须能在界面上看到失败原因，否则截图无从排查。

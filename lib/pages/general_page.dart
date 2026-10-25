@@ -87,7 +87,6 @@ class _GeneralPageState extends State<GeneralPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final tt = Theme.of(context).textTheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
     final isWide =
@@ -99,7 +98,6 @@ class _GeneralPageState extends State<GeneralPage> {
         SwitchListTile(
           secondary: const Icon(Icons.view_carousel_outlined),
           title: Text(l10n.bannerVisibleTitle),
-          subtitle: Text(l10n.bannerVisibleDesc, style: tt.bodySmall),
           value: _user.bannerVisible,
           onChanged: _user.setBannerVisible,
         ),
