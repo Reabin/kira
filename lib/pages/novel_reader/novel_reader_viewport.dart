@@ -82,7 +82,7 @@ class NovelReaderViewport extends StatefulWidget {
   /// 接近卷末（约两屏）时触发下一卷预取。
   final VoidCallback? onApproachEnd;
 
-  /// 卷末最后一段滑到距视口顶部 1/3 时触发追加下一卷。
+  /// 卷末最后一行距视口底部超过 10% 屏高时触发追加下一卷。
   final VoidCallback? onReachSeam;
 
   @override
@@ -93,6 +93,7 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   final _scroll = ItemScrollController();
   final _offset = ScrollOffsetController();
   final _positions = ItemPositionsListener.create();
+  final _lastParagraphBodyKey = GlobalKey();
   late NovelReaderAnchor _desired;
   NovelReaderLocation? _lastLocation;
   Size? _size;
@@ -343,10 +344,8 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
     widget.onPosition(location);
   }
 
-  /// 卷末接缝判定。末段的 leading edge 就是「最后一行到视口顶部」的距离
-  /// （末段被撑到至少一屏高，正文贴在段首）：
-  /// - ≤ 2 屏：提前预取下一卷，触发点到来时内容已就绪；
-  /// - ≤ 1/3 屏：追加下一卷，读者继续下滑即进入新卷正文。
+  /// 卷末接缝判定：末段接近两屏时预取，正文实际下沿距底部超过 10% 屏高时追加。
+  /// 末段有至少一屏的占位留白，不能用它的 item 边界代替正文末行。
   void _checkVolumeSeam() {
     if (!_scrolledForward) return;
     if (widget.onApproachEnd == null && widget.onReachSeam == null) return;
@@ -361,7 +360,14 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
       _approachNotified = true;
       widget.onApproachEnd?.call();
     }
-    if (!_seamNotified && last.itemLeadingEdge <= 1 / 3) {
+    if (_seamNotified) return;
+    final body = _lastParagraphBodyKey.currentContext?.findRenderObject();
+    final viewport = context.findRenderObject();
+    if (body is! RenderBox || viewport is! RenderBox || !body.hasSize) return;
+    final bottom = body
+        .localToGlobal(Offset(0, body.size.height), ancestor: viewport)
+        .dy;
+    if (bottom < viewport.size.height * 0.9) {
       _seamNotified = true;
       widget.onReachSeam?.call();
     }
@@ -565,11 +571,22 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         child: body,
       );
     }
+    if (index == widget.document.itemCount - 1) {
+      body = KeyedSubtree(key: _lastParagraphBodyKey, child: body);
+    }
     final child = Padding(
       key: ValueKey(
         'novel-paragraph-${entry.entryIndex}-${paragraph.paragraphIndex}',
       ),
-      padding: EdgeInsets.only(bottom: widget.settings.paragraphSpacing),
+      // 长末段也留出足够的卷末滚动空间，让正文下沿能越过底部 10% 阈值。
+      padding: EdgeInsets.only(
+        bottom:
+            widget.settings.paragraphSpacing +
+            (index == widget.document.itemCount - 1 &&
+                    widget.onReachSeam != null
+                ? (_size?.height ?? 0) * 0.1 + AppSpacing.xs
+                : 0),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

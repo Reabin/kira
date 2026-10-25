@@ -67,7 +67,7 @@ extension _NovelReaderContinuousPart on _NovelReaderPageState {
     );
   }
 
-  /// 卷末最后一行滑到距视口顶部 1/3：把下一卷正文接到当前卷之后。
+  /// 卷末最后一行上移，距视口底部超过 10% 屏高：把下一卷正文接到当前卷之后。
   Future<void> _appendNextVolume({bool force = false}) async {
     if (_paged || _loading || _disposed || _appending) return;
     final next = _nextStackVolumeId;
