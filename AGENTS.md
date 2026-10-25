@@ -80,8 +80,8 @@ Run these from the repository root:
 - `run-kira` — skill to start / stop / hot-restart / hot-reload kira。本机 gitignored 的配置有 `PostToolUse(Edit|Write)` 自动热重载 hook，新克隆不能假定存在。代码改动收尾先跑 `flutter analyze`，再在应用已运行且用户允许时热重载并检查日志；应用未运行时，冷启动须先征得用户同意。
 
 ### Other Entry Points
-- `scripts/`: PowerShell helpers — `run.ps1 <win|mumu|emu>` (device boot + `KIRA_DEVICE`), `build_apk.ps1`, `build_windows.ps1`, `release.ps1` (invokes the CHANGELOG generator), `count_lib_dart_lines.ps1`.
-- `docs/`: `persistence-and-cache.md`（动存储前必读）、`novel.md`（轻小说设计）、`architecture.md`（API 分层 / 缓存仓库解剖 / 序列化清单 / UserManager 偏好归属与通知）、`platform-build.md`（Windows / Android 构建排查）、`widgets.md`（复用组件模式）、`TODO.md`、`CHANGELOG.md`.
+- `scripts/`: PowerShell helpers — `run.ps1 <win|mumu|emu>` (device boot + `KIRA_DEVICE`), `build_apk.ps1`, `build_windows.ps1`, `count_lib_dart_lines.ps1`.
+- `docs/`: `persistence-and-cache.md`（动存储前必读）、`novel.md`（轻小说设计）、`architecture.md`（API 分层 / 缓存仓库解剖 / 序列化清单 / UserManager 偏好归属与通知）、`platform-build.md`（Windows / Android 构建排查）、`widgets.md`（复用组件模式）、`release.md`（发版手册）、`TODO.md`、`CHANGELOG.md`.
 - `.github/workflows/`: `build-ci.yml`（`v*-beta*` tag 或手动触发 Android 构建）、`release.yml`（非 beta 的 `v*` tag 或手动触发正式版构建）、`release-all.yaml` / `release-all-beta.yml`（手动、全平台）。
 
 ### Platform Build Notes (on-demand)
