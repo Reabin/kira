@@ -16,7 +16,6 @@ import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/screen_layout.dart';
-import '../utils/search_history.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/branch_bottom_slack.dart';
 import '../widgets/error_retry_view.dart';
@@ -63,12 +62,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   final _scrollController = ScrollController();
-  final _history = SearchHistory();
   late final NovelPagedController<NovelBook> _books;
   late final NovelPagedController<NovelBook> _results;
 
   List<NovelTag> _themes = [];
-  List<String> _historyKeywords = [];
   String _theme = '';
   _NovelOrdering _ordering = _NovelOrdering.popular;
   String? _query;
@@ -79,7 +76,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   bool _hasSearchText = false;
   bool _canScrollUp = false;
   int _themesEpoch = 0;
-  int _historyEpoch = 0;
 
   /// 仅分支首次激活的默认首屏读缓存仓库；消费一次后所有加载直连 API。
   bool _initialListLoad = true;
@@ -132,7 +128,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   @override
   void onBranchFirstActivated() {
     unawaited(_loadThemes(useCache: true));
-    unawaited(_loadHistory());
     unawaited(_restoreBodyState());
     unawaited(_books.refresh());
   }
@@ -177,29 +172,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     return ref
         .read(novelApiProvider)
         .getBooks(theme: _theme, ordering: _ordering.value, offset: offset);
-  }
-
-  Future<void> _loadHistory() => _updateHistory(_history.load());
-
-  Future<void> _updateHistory(Future<List<String>> operation) async {
-    final epoch = ++_historyEpoch;
-    final entries = await operation;
-    if (!mounted || epoch != _historyEpoch) return;
-    setState(() => _historyKeywords = entries);
-  }
-
-  void _removeHistory(String keyword) {
-    setState(() {
-      _historyKeywords = _historyKeywords
-          .where((entry) => entry != keyword)
-          .toList();
-    });
-    unawaited(_updateHistory(_history.remove(keyword)));
-  }
-
-  void _clearHistory() {
-    setState(() => _historyKeywords = []);
-    unawaited(_updateHistory(_history.clear()));
   }
 
   /// [useCache] 仅在分支首次激活时为 true：TTL 内直接读缓存不发请求。
@@ -292,7 +264,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     _results.clear();
     _searchController.clear();
     setState(() => _query = null);
-    unawaited(_loadHistory());
   }
 
   Future<void> _selectTheme(String theme) async {
@@ -330,11 +301,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
       await _results.refresh(keepItems: true);
       return;
     }
-    await Future.wait([
-      _books.refresh(keepItems: true),
-      _loadThemes(),
-      _loadHistory(),
-    ]);
+    await Future.wait([_books.refresh(keepItems: true), _loadThemes()]);
   }
 
   Future<void> _loadMore({bool retry = false}) async {
@@ -463,49 +430,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     );
   }
 
-  Widget _buildHistory(AppLocalizations l10n, double hp) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              icon: Icons.history_rounded,
-              title: l10n.searchHistoryTitle,
-              trailing: TextButton.icon(
-                onPressed: _clearHistory,
-                icon: const Icon(Icons.delete_sweep_outlined),
-                label: Text(l10n.searchHistoryClear),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final keyword in _historyKeywords)
-                  InputChip(
-                    label: Text(
-                      keyword,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () {
-                      _searchController.text = keyword;
-                      unawaited(_doSearch(keyword));
-                    },
-                    onDeleted: () => _removeHistory(keyword),
-                    deleteButtonTooltipMessage: l10n.searchHistoryDelete,
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -558,8 +482,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
-                      if (_idle && _historyKeywords.isNotEmpty)
-                        _buildHistory(l10n, hp),
                       // 浏览态保留筛选区，搜索态整块换成结果。
                       if (_idle)
                         SliverToBoxAdapter(child: _buildFilters(l10n, hp)),

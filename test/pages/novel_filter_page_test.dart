@@ -19,7 +19,6 @@ import 'package:kira/routing/app_router.dart';
 import 'package:kira/utils/app_storage.dart';
 import 'package:kira/utils/novel_download_manager.dart';
 import 'package:kira/utils/novel_reading_store.dart';
-import 'package:kira/utils/search_history.dart';
 import 'package:kira/widgets/comic_info_chips.dart';
 import 'package:kira/widgets/error_retry_view.dart';
 import 'package:kira/widgets/filter_chip_row.dart';
@@ -232,7 +231,6 @@ void _expectQuery(
 void main() {
   setUpAll(() => SharedPreferences.setMockInitialValues({}));
   setUp(() async {
-    await SearchHistory.flush();
     await (await AppStorage.sharedPreferences()).clear();
   });
 

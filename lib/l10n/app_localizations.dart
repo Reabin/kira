@@ -259,30 +259,6 @@ abstract class AppLocalizations {
   /// **'筛选项加载失败，请重试'**
   String get discoverFiltersFailed;
 
-  /// No description provided for @searchHistoryTitle.
-  ///
-  /// In zh, this message translates to:
-  /// **'搜索历史'**
-  String get searchHistoryTitle;
-
-  /// No description provided for @searchHistoryClear.
-  ///
-  /// In zh, this message translates to:
-  /// **'清空历史'**
-  String get searchHistoryClear;
-
-  /// No description provided for @searchHistoryDelete.
-  ///
-  /// In zh, this message translates to:
-  /// **'删除记录'**
-  String get searchHistoryDelete;
-
-  /// No description provided for @cacheCategorySearchHistory.
-  ///
-  /// In zh, this message translates to:
-  /// **'搜索历史'**
-  String get cacheCategorySearchHistory;
-
   /// No description provided for @bookshelfTabLabel.
   ///
   /// In zh, this message translates to:

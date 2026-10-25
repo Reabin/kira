@@ -101,18 +101,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discoverFiltersFailed => '筛选项加载失败，请重试';
 
   @override
-  String get searchHistoryTitle => '搜索历史';
-
-  @override
-  String get searchHistoryClear => '清空历史';
-
-  @override
-  String get searchHistoryDelete => '删除记录';
-
-  @override
-  String get cacheCategorySearchHistory => '搜索历史';
-
-  @override
   String get bookshelfTabLabel => '书架';
 
   @override
@@ -4070,18 +4058,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get discoverFiltersFailed => '篩選項載入失敗，請重試';
-
-  @override
-  String get searchHistoryTitle => '搜尋歷史';
-
-  @override
-  String get searchHistoryClear => '清空歷史';
-
-  @override
-  String get searchHistoryDelete => '刪除記錄';
-
-  @override
-  String get cacheCategorySearchHistory => '搜尋歷史';
 
   @override
   String get bookshelfTabLabel => '書架';

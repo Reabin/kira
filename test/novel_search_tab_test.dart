@@ -9,7 +9,6 @@ import 'package:kira/models/novel.dart';
 import 'package:kira/pages/novel_search_tab.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/utils/app_storage.dart';
-import 'package:kira/utils/search_history.dart';
 import 'package:kira/widgets/filter_chip_row.dart';
 import 'package:kira/widgets/load_more_footer.dart';
 import 'package:kira/widgets/shimmer_skeleton.dart';
@@ -127,7 +126,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => SharedPreferences.setMockInitialValues({}));
   setUp(() async {
-    await SearchHistory.flush();
     await (await AppStorage.sharedPreferences()).clear();
   });
 
@@ -207,26 +205,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-
-  testWidgets('历史只在未搜索时显示，点历史搜索及清空均保留浏览结果', (tester) async {
-    await AppStorage.preferences.setStringList(SearchHistory.storageKey, [
-      '历史词',
-    ]);
-    final api = _Api();
-    await _pump(tester, api);
-    await tester.pumpAndSettle();
-    expect(find.widgetWithText(InputChip, '历史词'), findsOneWidget);
-    await tester.tap(find.widgetWithText(InputChip, '历史词'));
-    await tester.pumpAndSettle();
-    expect(find.text(_hit.name), findsOneWidget);
-    expect(find.byType(InputChip), findsNothing);
-    expect(api.searchRequests, [('历史词', 0)]);
-    await tester.tap(find.byIcon(Icons.clear));
-    await tester.pumpAndSettle();
-    expect(find.text(_book.name), findsOneWidget);
-    expect(find.widgetWithText(InputChip, '历史词'), findsOneWidget);
-    expect(api.bookRequests, hasLength(1));
-  });
 
   for (final size in [const Size(320, 800), const Size(1000, 800)]) {
     testWidgets('宽度${size.width}大字号骨架与真实小说网格一致', (tester) async {
