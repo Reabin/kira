@@ -21,11 +21,46 @@ import '../utils/app_logger.dart';
 /// 轻小说侧传入独立 store 并以 [defaultForeground]/[defaultBackground]
 /// 给出跟随阅读主题的兜底配色；未手动指定颜色时使用兜底值。
 class ReaderStatusOverlay extends StatefulWidget {
-  /// 组件渲染高度：顶部内边距 2 + 内容行 18 + 底部内边距 4。
-  /// 内容行高取段位渲染后的实测最大值（含文本行高），与启用的
-  /// 段位无关。阅读区在「状态组件置顶」时据此在首图上方预留等高
-  /// 留白，避免遮挡第一页顶部。
-  static const double reservedHeight = 2 + 18 + AppSpacing.xs;
+  static const double _topPadding = 2;
+  static const double _bottomPadding = AppSpacing.xs;
+  static const double _iconSize = 14;
+  static const _textStyle = TextStyle(
+    fontSize: 11,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
+
+  /// 首图避让高度，与状态文字的系统/全局缩放及字体行高保持一致。
+  static double reservedHeightFor(BuildContext context) {
+    final textScaler = MediaQuery.textScalerOf(context);
+    // 宿主在 Scaffold 之上测量，组件实际继承其 Material 的 bodyMedium。
+    var style =
+        (Theme.of(context).textTheme.bodyMedium ??
+                DefaultTextStyle.of(context).style)
+            .merge(_textStyle);
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.copyWith(fontWeight: FontWeight.bold);
+    }
+    if (MediaQuery.maybeLineHeightScaleFactorOverrideOf(context)
+        case final height?) {
+      style = style.copyWith(height: height);
+    }
+    final painter = TextPainter(
+      text: TextSpan(text: '0:00', style: style),
+      textDirection: Directionality.of(context),
+      textScaler: textScaler,
+      locale: Localizations.maybeLocaleOf(context),
+      maxLines: 1,
+      textHeightBehavior: DefaultTextHeightBehavior.maybeOf(context),
+    )..layout();
+    final textHeight = painter.height;
+    painter.dispose();
+    final iconHeight = (IconTheme.of(context).applyTextScaling ?? false)
+        ? textScaler.scale(_iconSize)
+        : _iconSize;
+    return _topPadding +
+        (textHeight > iconHeight ? textHeight : iconHeight) +
+        _bottomPadding;
+  }
 
   final int currentPage;
   final int totalPages;
@@ -276,12 +311,9 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
         background,
       );
     }
-    const fontSize = 11.0;
-    const iconSize = 14.0;
-    final textStyle = TextStyle(
+    const iconSize = ReaderStatusOverlay._iconSize;
+    final textStyle = ReaderStatusOverlay._textStyle.copyWith(
       color: foreground,
-      fontSize: fontSize,
-      fontFeatures: const [FontFeature.tabularFigures()],
     );
 
     final segments = <Widget>[];
@@ -392,9 +424,9 @@ class _ReaderStatusOverlayState extends State<ReaderStatusOverlay>
     final isCenter = pos == 1 || pos == 4;
     Widget overlay = Container(
       padding: EdgeInsets.only(
-        top: 2,
+        top: ReaderStatusOverlay._topPadding,
         right: isCenter ? AppSpacing.lg : (isLeft ? 10 : AppSpacing.lg),
-        bottom: AppSpacing.xs,
+        bottom: ReaderStatusOverlay._bottomPadding,
         left: isCenter ? AppSpacing.lg : (isLeft ? AppSpacing.lg : 10),
       ),
       decoration: BoxDecoration(

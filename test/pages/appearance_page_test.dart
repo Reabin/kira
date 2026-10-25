@@ -105,6 +105,28 @@ Future<void> _showPage(WidgetTester tester) async {
   await tester.runAsync(() => FontManager().listDownloadedFonts());
 }
 
+Future<Finder> _showTextScaleSlider(WidgetTester tester) async {
+  await tester.pumpWidget(
+    wrapWithApp(const AppearancePage(), wrapInScaffold: false),
+  );
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('全局文字缩放'),
+    250,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  await tester.runAsync(() => FontManager().listDownloadedFonts());
+  final card = find.ancestor(
+    of: find.text('全局文字缩放'),
+    matching: find.byType(Card),
+  );
+  final slider = find.descendant(of: card, matching: find.byType(Slider));
+  await tester.ensureVisible(slider);
+  await tester.pumpAndSettle();
+  return slider;
+}
+
 Future<void> _openMenu(WidgetTester tester) async {
   await tester.tap(_select);
   await tester.pumpAndSettle();
@@ -151,6 +173,68 @@ void main() {
     PathProviderPlatform.instance = oldPaths;
     directory.deleteSync(recursive: true);
   });
+
+  testWidgets('全局文字缩放以百分比显示，保留原范围与步长', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final sliderFinder = await _showTextScaleSlider(tester);
+      final slider = tester.widget<Slider>(sliderFinder);
+
+      expect(slider.label, '100%');
+      expect(slider.value, ThemeSettings.defaultAppFontSize);
+      expect(slider.min, 8);
+      expect(slider.max, 26);
+      expect(slider.divisions, 18);
+      expect(find.semantics.byValue('100%'), findsOneWidget);
+      expect(find.text('应用字体大小'), findsNothing);
+      final traditional = await AppLocalizations.delegate.load(
+        const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+      );
+      expect(traditional.appearanceTextScale, '全域文字縮放');
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('全局文字缩放预览百分比，松手后仍写入兼容偏好', (tester) async {
+    final sliderFinder = await _showTextScaleSlider(tester);
+    tester.widget<Slider>(sliderFinder).onChanged!(21);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Slider>(sliderFinder).label, '150%');
+    expect(UserManager().theme.defaultFontSize, 14);
+    tester.widget<Slider>(sliderFinder).onChangeEnd!(21);
+    await tester.pumpAndSettle();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getDouble('default_font_size'), 21);
+    expect(UserManager().theme.defaultFontSize, 21);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await ThemeSettings().initFromPrefs(prefs, persistMigrations: false);
+    final reopened = await _showTextScaleSlider(tester);
+    expect(tester.widget<Slider>(reopened).label, '150%');
+    expect(tester.widget<Slider>(reopened).value, 21);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  for (final (storedValue, expectedLabel) in [(8.0, '57%'), (26.0, '186%')]) {
+    testWidgets('原字号 $storedValue 保持原缩放并显示为 $expectedLabel', (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('default_font_size', storedValue);
+      await ThemeSettings().initFromPrefs(prefs, persistMigrations: false);
+      final sliderFinder = await _showTextScaleSlider(tester);
+      final slider = tester.widget<Slider>(sliderFinder);
+
+      expect(slider.value, storedValue);
+      expect(slider.label, expectedLabel);
+      expect(slider.semanticFormatterCallback!(storedValue), expectedLabel);
+      expect(prefs.getDouble('default_font_size'), storedValue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 
   testWidgets('auto capsule reads 60/120Hz and keeps the open menu current', (
     tester,
@@ -582,7 +666,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final theme = find.widgetWithText(ListTile, '主题模式');
-      final font = find.text('应用字体大小');
+      final font = find.text('全局文字缩放');
       final motion = find.widgetWithText(SwitchListTile, '减少动画');
       final nav = find.widgetWithText(ListTile, '底部导航栏文字');
       final scrollable = find.byType(Scrollable).first;

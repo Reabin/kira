@@ -298,7 +298,7 @@ class _ReaderPageState extends State<ReaderPage> {
           _statusOverlayIsTop &&
           !_isHorizontalScrollMode &&
           !_isPageMode)
-      ? ReaderStatusOverlay.reservedHeight
+      ? ReaderStatusOverlay.reservedHeightFor(context)
       : 0.0;
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   bool get _isHorizontalScrollMode =>

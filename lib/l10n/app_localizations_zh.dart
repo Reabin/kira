@@ -665,7 +665,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceCardShadowSize => '统一阴影大小';
 
   @override
-  String get appearanceDefaultFontSize => '应用字体大小';
+  String get appearanceTextScale => '全局文字缩放';
 
   @override
   String get appearanceThemeStyle => '主题风格';
@@ -4636,7 +4636,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceCardShadowSize => '統一陰影大小';
 
   @override
-  String get appearanceDefaultFontSize => '應用字型大小';
+  String get appearanceTextScale => '全域文字縮放';
 
   @override
   String get appearanceThemeStyle => '主題風格';

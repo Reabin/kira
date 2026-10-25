@@ -319,6 +319,9 @@ class _AppFontCardState extends State<_AppFontCard> {
     showToast(context, l10n.appearanceCustomFontAdded(fontName));
   }
 
+  String _textScaleLabel(double fontSize) =>
+      '${(fontSize / ThemeSettings.defaultAppFontSize * 100).round()}%';
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -336,13 +339,14 @@ class _AppFontCardState extends State<_AppFontCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 字体大小设置常驻显示，不随字体列表折叠。
+          // 全局文字缩放常驻显示，不随字体列表折叠。
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: _AppearanceSliderControl(
               icon: Icons.format_size_rounded,
-              title: l10n.appearanceDefaultFontSize,
-              valueText: defaultFontSize.toStringAsFixed(0),
+              title: l10n.appearanceTextScale,
+              valueText: _textScaleLabel(defaultFontSize),
+              semanticFormatterCallback: _textScaleLabel,
               value: defaultFontSize,
               min: ThemeSettings.minDefaultFontSize,
               max: ThemeSettings.maxDefaultFontSize,

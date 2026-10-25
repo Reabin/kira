@@ -361,7 +361,7 @@
   "appearanceDarkMode": "深色",
   "appearanceDarkCoverBrightness": "暗色模式封面亮度",
   "appearanceCardShadowSize": "統一陰影大小",
-  "appearanceDefaultFontSize": "應用字型大小",
+  "appearanceTextScale": "全域文字縮放",
   "appearanceThemeStyle": "主題風格",
   "appearanceThemeColor": "主題配色",
   "appearanceDynamicColor": "動態顏色",

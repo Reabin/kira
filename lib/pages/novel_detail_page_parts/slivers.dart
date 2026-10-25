@@ -129,7 +129,10 @@ extension _NovelDetailSliversPart on _NovelDetailPageState {
                   brief,
                   maxLines: expanded ? null : 3,
                   overflow: expanded ? null : TextOverflow.ellipsis,
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  style: tt.bodyMedium?.copyWith(
+                    fontSize: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               );
             },

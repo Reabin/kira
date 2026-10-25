@@ -1303,11 +1303,11 @@ abstract class AppLocalizations {
   /// **'统一阴影大小'**
   String get appearanceCardShadowSize;
 
-  /// No description provided for @appearanceDefaultFontSize.
+  /// No description provided for @appearanceTextScale.
   ///
   /// In zh, this message translates to:
-  /// **'应用字体大小'**
-  String get appearanceDefaultFontSize;
+  /// **'全局文字缩放'**
+  String get appearanceTextScale;
 
   /// No description provided for @appearanceThemeStyle.
   ///

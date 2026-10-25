@@ -559,6 +559,49 @@ void main() {
     expect(find.text('搜索命中'), findsNothing);
   });
 
+  for (final textScale in [1.0, 1.5]) {
+    testWidgets('详情简介以13号正文显示，${textScale}x缩放下保留展开折叠', (tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final h = _Harness();
+      final brief = List.filled(12, '一段用于验证简介排版的文字。').join();
+      h.repository.detail = () async => NovelDetail(
+        book: NovelBook(
+          pathWord: 'book',
+          name: '测试小说',
+          uuid: 'book-uuid',
+          brief: brief,
+        ),
+      );
+      await h.pump(
+        tester,
+        const NovelDetailPage(pathWord: 'book'),
+        textScale: textScale,
+      );
+      await tester.pumpAndSettle();
+      final finder = find.text(brief);
+      final collapsed = tester.widget<Text>(finder);
+      expect(collapsed.style?.fontSize, 13);
+      expect(collapsed.maxLines, 3);
+      expect(collapsed.overflow, TextOverflow.ellipsis);
+      expect(
+        MediaQuery.textScalerOf(tester.element(finder)).scale(13),
+        13 * textScale,
+      );
+
+      await _tapAndSettle(tester, finder);
+      final expanded = tester.widget<Text>(finder);
+      expect(expanded.style?.fontSize, 13);
+      expect(expanded.maxLines, isNull);
+      expect(expanded.overflow, isNull);
+      await _tapAndSettle(tester, finder);
+      expect(tester.widget<Text>(finder).maxLines, 3);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
   testWidgets('详情继续阅读优先本地卷而非远端或首卷', (tester) async {
     final h = _Harness();
     h.store.items = [_Progress()];
