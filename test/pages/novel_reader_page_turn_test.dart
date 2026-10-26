@@ -27,7 +27,7 @@ class _Harness {
   );
   NovelReaderAnchor target = const NovelReaderAnchor(entryIndex: 0);
   int jumpRevision = 0;
-  int bookmarkRevision = 0;
+  NovelReaderAnchor? highlight;
   int turns = 0;
   int toolbarTaps = 0;
   bool toolbarVisible = false;
@@ -53,7 +53,7 @@ class _Harness {
               palette: NovelReaderPalette.resolve(settings, Brightness.light),
               target: target,
               jumpRevision: jumpRevision,
-              bookmarkRevision: bookmarkRevision,
+              highlight: highlight,
               emptyChapterText: 'empty',
               contentPadding: const EdgeInsets.all(24),
               onPosition: positions.add,
@@ -486,6 +486,53 @@ void main() {
     expect(harness.turns, 1);
     expect(find.byType(NovelPageCurl), findsNothing);
     expect(find.byKey(_slideKey), findsNothing);
+  });
+
+  testWidgets('paragraph highlight keeps plain text layout and position', (
+    tester,
+  ) async {
+    final harness = _Harness()
+      ..settings = const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        instantPageTurn: true,
+      );
+    await harness.mount(tester);
+    await _settle(tester);
+    harness.key.currentState!.nextPage();
+    await _settle(tester);
+    final before = harness.key.currentState!.currentLocation!;
+    final paragraph = harness.document.paragraphAt(before.itemIndex);
+    final text = find.text(paragraph.text);
+    final rect = tester.getRect(text);
+    expect(tester.widget<Text>(text).textSpan, isNull);
+    harness.positions.clear();
+
+    harness.highlight = before.anchor;
+    await harness.mount(tester);
+    await _settle(tester);
+    final paint = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint && widget.painter is NovelHighlightPainter,
+    );
+    expect(paint, findsOneWidget);
+    expect(find.byIcon(Icons.bookmark), findsNothing);
+    expect(tester.widget<Text>(text).textSpan, isNull);
+    expect(tester.getRect(text), rect);
+    expect(harness.progress, before.progress);
+    expect(harness.positions, isEmpty, reason: '高亮变化不应重新分页或上报新位置');
+
+    harness.highlight = null;
+    await harness.mount(tester);
+    await _settle(tester);
+    expect(paint, findsNothing);
+    expect(tester.getRect(text), rect);
+    expect(harness.progress, before.progress);
+    expect(harness.positions, isEmpty);
+    await tester.longPress(text);
+    await _settle(tester);
+    expect(harness.longPresses, 1);
+    expect(harness.progress, before.progress);
+    expect(harness.turns, 1);
   });
 
   testWidgets('curl includes page margins, not just the text column', (

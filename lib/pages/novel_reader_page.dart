@@ -133,8 +133,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   int _request = 0;
   int _jumpRevision = 0;
 
-  /// 书签集合版本号：翻页视图据此只重建受影响段落之后的分页。
-  int _bookmarkRevision = 0;
+  /// 阅读位置只通知进度与工具栏，不带动正文重新构建。
+  final _locationRevision = ValueNotifier<int>(0);
+  ThemeData? _readerTheme;
+  ThemeData? _readerThemeBase;
+  NovelReaderPalette? _readerThemePalette;
   bool _volumeChannelAvailable = true;
   bool _loading = true;
   bool _toolbarVisible = false;
@@ -225,9 +228,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   }
 
   void _onBookmarksChanged() {
-    if (mounted) {
-      setState(() => ++_bookmarkRevision);
-    }
+    if (mounted) setState(() {});
   }
 
   void _onStatusSettingsChanged() {
@@ -784,7 +785,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             previous.itemIndex != location.itemIndex ||
             (previous.progress * 100).round() !=
                 (location.progress * 100).round())) {
-      setState(() {});
+      ++_locationRevision.value;
     }
   }
 
@@ -1074,59 +1075,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ];
   }
 
-  /// 段落是否已有书签（驱动正文里的小书签标记）。
-  bool _isParagraphBookmarked(NovelReaderParagraph paragraph) =>
-      _bookmarksLoaded &&
-      _bookmarks.isBookmarked(
-        pathWord: _pathWord,
-        volumeId: paragraph.volumeId.isEmpty ? _volumeId : paragraph.volumeId,
-        entryIndex: paragraph.entry.entryIndex,
-        paragraphIndex: paragraph.paragraphIndex,
-      );
-
-  /// 点按段落上的小书签标记：取消该书签。
-  Future<void> _removeParagraphBookmark(NovelReaderParagraph paragraph) async {
-    if (_bookmarking) return;
-    final anchor = NovelReaderAnchor(
-      entryIndex: paragraph.entry.entryIndex,
-      paragraphIndex: paragraph.paragraphIndex,
-      volumeId: paragraph.volumeId,
-    );
-    final volumeId = paragraph.volumeId.isEmpty
-        ? _volumeId
-        : paragraph.volumeId;
-    final bookmark = _bookmarks.bookmarks
-        .where(
-          (item) =>
-              item.pathWord == _pathWord &&
-              item.volumeId == volumeId &&
-              item.entryIndex == anchor.entryIndex &&
-              item.paragraphIndex == anchor.paragraphIndex,
-        )
-        .firstOrNull;
-    if (bookmark == null) return;
-    final session = _session;
-    setState(() => _bookmarking = true);
-    try {
-      await _bookmarks.remove(bookmark.id);
-      if (!mounted || !_active(session)) return;
-      if (_isSameAnchor(_highlight, anchor)) _clearHighlight();
-    } catch (error, stack) {
-      _warn(error, stack, 'bookmarks.remove');
-      if (mounted && _active(session)) {
-        showToast(
-          context,
-          AppLocalizations.of(
-            context,
-          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
-          isError: true,
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _bookmarking = false);
-    }
-  }
-
   /// 对任意段落打/取消书签：进度取该段落在卷内的位置，对齐值用段首。
   /// 空行/空章节占位不接受书签（菜单项已禁用，这里再兜底）。
   Future<void> _toggleParagraphBookmark(NovelReaderAnchor anchor) async {
@@ -1239,6 +1187,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ++_session;
     ++_request;
     _saveTimer?.cancel();
+    _locationRevision.dispose();
     _highlightTimer?.cancel();
     _highlightFade?.dispose();
     _bookmarks.removeListener(_onBookmarksChanged);
@@ -1257,6 +1206,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     super.dispose();
   }
 
+  ThemeData _themeForPalette(NovelReaderPalette palette) {
+    final base = Theme.of(context);
+    final cached = _readerTheme;
+    if (cached != null &&
+        _readerThemeBase == base &&
+        _readerThemePalette?.background == palette.background &&
+        _readerThemePalette?.foreground == palette.foreground) {
+      return cached;
+    }
+    _readerThemeBase = base;
+    _readerThemePalette = palette;
+    return _readerTheme = palette.applyTo(base);
+  }
+
   @override
   Widget build(BuildContext context) {
     // 阅读纸张固定跟随系统亮暗选择配色方案，不受 App 强制主题影响。
@@ -1270,11 +1233,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         _error == null &&
         document != null &&
         document.itemCount > 0;
-    final header = _buildHeader();
+    // 隐藏的工具栏复用 child；位置变化只更新可见的阅读 chrome。
+    final header = ValueListenableBuilder<int>(
+      valueListenable: _locationRevision,
+      child: _toolbarVisible ? null : _buildHeader(),
+      builder: (context, revision, child) => child ?? _buildHeader(),
+    );
     final body = _buildBody();
-    final toolbar = _buildToolbar();
+    final toolbar = ValueListenableBuilder<int>(
+      valueListenable: _locationRevision,
+      child: _toolbarVisible ? null : _buildToolbar(),
+      builder: (context, revision, child) => child ?? _buildToolbar(),
+    );
     return Theme(
-      data: palette.applyTo(Theme.of(context)),
+      data: _themeForPalette(palette),
       child: PopScope(
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) unawaited(_flush());
