@@ -10,9 +10,6 @@ on:
 
 env:
   RELEASE_TAG: ${{ github.event.inputs.tag_name }}
-  # lock 里的 hosted url 来自开发机的镜像,CI 必须用同一来源否则 enforce 失败
-  PUB_HOSTED_URL: https://pub.flutter-io.cn
-  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
 
 jobs:
   build-android:
@@ -49,19 +46,8 @@ jobs:
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          # 与本文件其余 job 及开发机保持同一版本
-          flutter-version: "3.44.2"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Assert lockfile untouched
-        run: git diff --exit-code -- pubspec.lock
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build APK (arm64-v8a)
         shell: bash
@@ -98,14 +84,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build Windows
         shell: pwsh
@@ -218,14 +198,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build macOS
         run: flutter build macos --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
@@ -261,14 +235,8 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev \
             mpv libmpv-dev
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build Linux
         run: flutter build linux --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}

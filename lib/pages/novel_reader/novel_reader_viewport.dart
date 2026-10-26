@@ -7,7 +7,6 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/novel_reader_settings.dart';
-import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../utils/app_logger.dart';
@@ -28,8 +27,6 @@ class NovelReaderViewport extends StatefulWidget {
     required this.onPosition,
     required this.onTap,
     this.onParagraphLongPress,
-    this.isBookmarkedParagraph,
-    this.onBookmarkMarkerTap,
     this.highlight,
     this.highlightOpacity,
     this.onScroll,
@@ -52,12 +49,6 @@ class NovelReaderViewport extends StatefulWidget {
   /// 供菜单定位。点按仍然只切换工具栏（由外层 surface 统一处理）。
   final void Function(NovelReaderParagraph paragraph, Offset position)?
   onParagraphLongPress;
-
-  /// 段落是否已有书签（决定是否渲染小书签标记）。
-  final bool Function(NovelReaderParagraph paragraph)? isBookmarkedParagraph;
-
-  /// 点按段落上的小书签标记（取消该书签）。
-  final void Function(NovelReaderParagraph paragraph)? onBookmarkMarkerTap;
 
   /// 短暂高亮的书签段落（书签指向处进入/打书签成功时闪光提示）。
   /// 由阅读页持有定时清除，viewport 只按参数渲染，不改变布局。
@@ -513,40 +504,7 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
     final bodyText = entry.paragraphs.isEmpty
         ? l10n.novelReaderEmptyChapter
         : (paragraph.text.isEmpty ? ' ' : paragraph.text);
-    // 已加书签的段落在段末显示一个小书签标记（正文同色，弱化存在感）；
-    // 点按标记直接取消书签。
-    final marked = widget.isBookmarkedParagraph?.call(paragraph) ?? false;
-    Widget body = marked
-        ? Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: bodyText),
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: GestureDetector(
-                    key: ValueKey(
-                      'novel-paragraph-marker-${entry.entryIndex}-'
-                      '${paragraph.paragraphIndex}',
-                    ),
-                    onTap: () => widget.onBookmarkMarkerTap?.call(paragraph),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.sm),
-                      // 标记常驻正文，用降透明度的正文色弱化存在感。
-                      child: Icon(
-                        Icons.bookmark,
-                        size: AppIconSize.md,
-                        color: widget.palette.foreground.withValues(
-                          alpha: 0.45,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            style: style,
-          )
-        : Text(bodyText, style: style);
+    Widget body = Text(bodyText, style: style);
     // 高亮样式由演示切换器实时决定；DecoratedBox 不参与布局，高亮
     // 出现/消失时正文一个像素都不动，锚点与进度不受闪光影响。
     // 高亮卡片画在段落矩形之外的留白里（不参与布局），出现/消失正文

@@ -59,7 +59,6 @@ class _Harness {
                 palette: palette,
                 target: target,
                 jumpRevision: 0,
-                bookmarkRevision: 0,
                 toolbarVisible: false,
                 contentPadding: _safePadding,
                 emptyChapterText: '空章节',

@@ -41,25 +41,30 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
     );
   }
 
-  Widget _statusOverlayChild() {
-    final palette = NovelReaderPalette.resolve(
-      _settings,
-      MediaQuery.platformBrightnessOf(context),
-    );
-    return ReaderStatusOverlay(
-      // 浮层进度降为一位小数（紧凑、与电量数字区分）；工具栏滑杆
-      // 标签仍用两位小数的 _progressLabel。
-      progressLabel: _overlayProgressLabel(_location?.progress ?? 0),
-      chapterLabel: _chapterName(AppLocalizations.of(context)!),
-      prefs: _statusSettings,
-      // 未手动指定颜色时，状态组件底色/字色跟随当前阅读主题。
-      defaultForeground: palette.foreground,
-      defaultBackground: palette.background,
-      // 角落位 Positioned 只锚一侧、约束无界：传屏幕宽让章节名的
-      // Flexible 有界，超长才会截断。
-      maxWidth: MediaQuery.sizeOf(context).width,
-    );
-  }
+  Widget _statusOverlayChild() => RepaintBoundary(
+    child: ValueListenableBuilder<int>(
+      valueListenable: _locationRevision,
+      builder: (context, revision, child) {
+        final palette = NovelReaderPalette.resolve(
+          _settings,
+          MediaQuery.platformBrightnessOf(context),
+        );
+        return ReaderStatusOverlay(
+          // 浮层进度降为一位小数（紧凑、与电量数字区分）；工具栏滑杆
+          // 标签仍用两位小数的 _progressLabel。
+          progressLabel: _overlayProgressLabel(_location?.progress ?? 0),
+          chapterLabel: _chapterName(AppLocalizations.of(context)!),
+          prefs: _statusSettings,
+          // 未手动指定颜色时，状态组件底色/字色跟随当前阅读主题。
+          defaultForeground: palette.foreground,
+          defaultBackground: palette.background,
+          // 角落位 Positioned 只锚一侧、约束无界：传屏幕宽让章节名的
+          // Flexible 有界，超长才会截断。
+          maxWidth: MediaQuery.sizeOf(context).width,
+        );
+      },
+    ),
+  );
 
   String _overlayProgressLabel(double progress) {
     final percent = progress * 100;
@@ -161,7 +166,6 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
         palette: palette,
         target: _target,
         jumpRevision: _jumpRevision,
-        bookmarkRevision: _bookmarkRevision,
         emptyChapterText: l10n.novelReaderEmptyChapter,
         contentPadding: _systemPadding ?? EdgeInsets.zero,
         onPosition: onPosition,
@@ -169,9 +173,6 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
         onTap: () => _setToolbarVisible(!_toolbarVisible),
         onParagraphLongPress: (paragraph, position) =>
             unawaited(_showParagraphMenu(paragraph, position)),
-        isBookmarkedParagraph: _isParagraphBookmarked,
-        onBookmarkMarkerTap: (paragraph) =>
-            unawaited(_removeParagraphBookmark(paragraph)),
         highlight: _highlight,
         highlightOpacity: _highlightFade,
         onPageTurned: () {
@@ -200,9 +201,6 @@ extension _NovelReaderViewPart on _NovelReaderPageState {
       onTap: () => _setToolbarVisible(!_toolbarVisible),
       onParagraphLongPress: (paragraph, position) =>
           unawaited(_showParagraphMenu(paragraph, position)),
-      isBookmarkedParagraph: _isParagraphBookmarked,
-      onBookmarkMarkerTap: (paragraph) =>
-          unawaited(_removeParagraphBookmark(paragraph)),
       onScroll: () {
         _clearHighlight();
         _setToolbarVisible(false);

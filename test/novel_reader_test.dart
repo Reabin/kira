@@ -22,7 +22,6 @@ import 'package:kira/pages/novel_reader_page.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/repositories/novel_reader_source.dart';
 import 'package:kira/repositories/novel_repository.dart';
-import 'package:kira/theme/app_icon_sizes.dart';
 import 'package:kira/theme/novel_reader_theme.dart';
 import 'package:kira/theme/reader_chrome.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
@@ -239,6 +238,7 @@ Future<void> _mount(
   double textScale = 1,
   bool highlightOnEntry = false,
   NovelReaderSource? source,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -249,6 +249,7 @@ Future<void> _mount(
         novelApiProvider.overrideWithValue(_Api()),
       ],
       child: MaterialApp(
+        theme: theme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(
             padding: padding,
@@ -316,6 +317,11 @@ NovelReaderLocation _location(WidgetTester tester) => tester
     .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
     .currentLocation!;
 
+ThemeData _readingTheme(WidgetTester tester) => tester
+    .element(find.byType(NovelReaderViewport))
+    .findAncestorWidgetOfExactType<Theme>()!
+    .data;
+
 /// 段落闪光高亮（浅底卡片画笔，画在段落矩形之外的留白里）。
 /// 不传颜色时匹配任意高亮画笔。
 Finder highlightBand([Color? color]) => find.byWidgetPredicate((widget) {
@@ -329,15 +335,10 @@ Finder highlightBand([Color? color]) => find.byWidgetPredicate((widget) {
 Color? paragraphForeground(WidgetTester tester, Finder paragraph) =>
     tester.widget<Text>(paragraph).style?.color;
 
-/// 精确匹配段落文本（忽略书签标记的 WidgetSpan 占位符，且避免
-/// 「paragraph 7」误匹配「paragraph 70」之类的前缀包含问题）。
+/// 精确匹配段落文本，避免「paragraph 7」误匹配「paragraph 70」。
 Finder paragraphText(String text) => find.byWidgetPredicate((widget) {
   if (widget is! Text) return false;
-  final plain = (widget.data ?? widget.textSpan?.toPlainText())?.replaceAll(
-    '\uFFFC',
-    '',
-  );
-  return plain == text;
+  return (widget.data ?? widget.textSpan?.toPlainText()) == text;
 });
 
 NovelReaderLocation _centerLocation(WidgetTester tester) => tester
@@ -847,6 +848,130 @@ void main() {
     await _remove(tester);
   });
 
+  for (final showStatus in [false, true]) {
+    testWidgets(
+      'scroll position updates keep body and hidden chrome stable: status=$showStatus',
+      (tester) async {
+        final status = NovelReaderStatusSettings();
+        await tester.runAsync(() async {
+          await status.initFromPrefs(await SharedPreferences.getInstance());
+          await status.setStatusOverlay(showStatus);
+          await status.setStatusOverlayFps(false);
+        });
+        addTearDown(() => status.setStatusOverlay(false));
+        await _mount(tester, repository, store);
+        await _flush(tester);
+        store.writes.clear();
+        final viewport = find.byType(NovelReaderViewport);
+        final body = tester.widget<NovelReaderViewport>(viewport);
+        final theme = _readingTheme(tester);
+        final button = find.byKey(const ValueKey('novel-reader-bookmark'));
+        final slider = find.byKey(const ValueKey('novel-reader-progress'));
+        final oldButton = tester.widget<IconButton>(button);
+        final oldSlider = tester.widget<Slider>(slider);
+        final before = _location(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('novel-reader-surface'))),
+        );
+        // 模拟高刷拖动帧，只验证重建/保存不变量，不把它当真机 FPS 测量。
+        for (var frame = 0; frame < 24; frame++) {
+          await gesture.moveBy(const Offset(0, -12));
+          await tester.pump(const Duration(microseconds: 8333));
+        }
+        await gesture.up();
+        await tester.pump();
+        await tester.pump();
+        expect(_location(tester).itemIndex, greaterThan(before.itemIndex));
+        expect(tester.widget<NovelReaderViewport>(viewport), same(body));
+        expect(_readingTheme(tester), same(theme));
+        expect(tester.widget<IconButton>(button), same(oldButton));
+        expect(tester.widget<Slider>(slider), same(oldSlider));
+        expect(store.writes, isEmpty);
+        if (showStatus) {
+          final overlay = tester.widget<ReaderStatusOverlay>(
+            find.byType(ReaderStatusOverlay),
+          );
+          expect(overlay.progressLabel, isNot('0.0%'));
+        }
+        expect(tester.takeException(), isNull);
+        await _remove(tester);
+      },
+    );
+  }
+
+  testWidgets('visible chrome tracks position without rebuilding the body', (
+    tester,
+  ) async {
+    await _mount(tester, repository, store);
+    await _showToolbar(tester);
+    final viewport = find.byType(NovelReaderViewport);
+    final body = tester.widget<NovelReaderViewport>(viewport);
+    final theme = _readingTheme(tester);
+    final location = NovelReaderLocation(
+      anchor: body.document.anchorFor(101, alignment: -0.02),
+      itemIndex: 101,
+      progress: 101 / 300,
+    );
+    body.onPosition(location);
+    await tester.pump();
+    expect(tester.widget<NovelReaderViewport>(viewport), same(body));
+    expect(_readingTheme(tester), same(theme));
+    final slider = tester.widget<Slider>(
+      find.byKey(const ValueKey('novel-reader-progress')),
+    );
+    expect(slider.value, 101);
+    expect(slider.label, '33.67%');
+    expect(find.text('v1 chapter 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets(
+    'reading theme is cached and invalidates for theme or paper changes',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _mount(
+        tester,
+        repository,
+        store,
+        theme: ThemeData(colorSchemeSeed: Colors.blue),
+      );
+      final before = _readingTheme(tester);
+      await _showToolbar(tester);
+      expect(_readingTheme(tester), same(before));
+      await tester.tapAt(
+        tester.getCenter(find.byKey(const ValueKey('novel-reader-surface'))),
+      );
+      await _settle(tester);
+      expect(_readingTheme(tester), same(before));
+
+      await _mount(
+        tester,
+        repository,
+        store,
+        theme: ThemeData(colorSchemeSeed: Colors.purple),
+      );
+      final changed = _readingTheme(tester);
+      expect(changed, isNot(same(before)));
+      expect(changed.colorScheme.primary, isNot(before.colorScheme.primary));
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await _settle(tester);
+      final dark = _readingTheme(tester);
+      expect(dark, isNot(same(changed)));
+      expect(dark.colorScheme.brightness, Brightness.dark);
+      expect(
+        dark.colorScheme.surface,
+        NovelReaderPalette.resolve(
+          await _readSettings(tester),
+          Brightness.dark,
+        ).background,
+      );
+      expect(tester.takeException(), isNull);
+      await _remove(tester);
+    },
+  );
+
   testWidgets(
     'scroll position is debounced and lifecycle inactive flushes immediately',
     (tester) async {
@@ -1292,10 +1417,10 @@ void main() {
         () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
       );
       await _mount(tester, repository, store);
-      // 已收藏段落带小书签标记，长按菜单文案仍为「书签」。
+      // 已收藏段落仍可通过长按取消，但正文不显示书签标记。
       expect(
         find.byKey(const ValueKey('novel-paragraph-marker-0-0')),
-        findsOneWidget,
+        findsNothing,
       );
       await _longPress(tester, paragraphText('v1 entry 0 paragraph 0'));
       await tester.tap(find.text('书签'));
@@ -1306,37 +1431,36 @@ void main() {
     },
   );
 
-  testWidgets(
-    'bookmarked paragraphs show a subtle marker that removes the bookmark',
-    (tester) async {
-      await tester.runAsync(
-        () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
-      );
-      await _mount(tester, repository, store);
-      final marker = find.byKey(const ValueKey('novel-paragraph-marker-0-0'));
-      expect(marker, findsOneWidget);
-      // 未收藏的段落没有标记。
-      expect(
-        find.byKey(const ValueKey('novel-paragraph-marker-0-1')),
-        findsNothing,
-      );
-      // 标记为正文色降透明度（弱化存在感）、正常尺寸。
-      final icon = tester.widget<Icon>(
-        find.descendant(of: marker, matching: find.byType(Icon)),
-      );
-      final paragraph = paragraphText('v1 entry 0 paragraph 0');
-      expect(icon.size, AppIconSize.md);
-      expect(
-        icon.color,
-        paragraphForeground(tester, paragraph)?.withValues(alpha: 0.45),
-      );
-      await tester.tap(marker);
-      await _settle(tester);
-      expect(_bookmarks.bookmarks, isEmpty);
-      expect(marker, findsNothing);
-      await _remove(tester);
-    },
-  );
+  testWidgets('bookmarks do not add paragraph icons or change text layout', (
+    tester,
+  ) async {
+    await _mount(tester, repository, store);
+    final paragraph = paragraphText('v1 entry 0 paragraph 0');
+    final before = tester.getRect(paragraph);
+    final anchor = _location(tester).anchor;
+    await tester.runAsync(
+      () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
+    );
+    await _settle(tester);
+    expect(_bookmarks.bookmarks.single.paragraphIndex, 0);
+    expect(tester.widget<Text>(paragraph).data, 'v1 entry 0 paragraph 0');
+    expect(tester.getRect(paragraph), before);
+    expect(_location(tester).anchor.paragraphIndex, anchor.paragraphIndex);
+    expect(_location(tester).anchor.alignment, closeTo(anchor.alignment, 1e-6));
+    expect(
+      find.descendant(
+        of: find.byType(NovelReaderViewport),
+        matching: find.byType(Icon),
+      ),
+      findsNothing,
+    );
+    await _longPress(tester, paragraph);
+    await tester.tap(find.text('书签'));
+    await _settle(tester);
+    expect(_bookmarks.bookmarks, isEmpty);
+    expect(tester.getRect(paragraph), before);
+    await _remove(tester);
+  });
 
   testWidgets(
     'toolbar bookmark skips blank paragraphs for the nearest text paragraph',
@@ -1353,12 +1477,12 @@ void main() {
       final bookmark = _bookmarks.bookmarks.single;
       expect(bookmark.entryIndex, 0);
       expect(bookmark.paragraphIndex, 2);
-      // 命中的段落带书签标记。
+      // 命中的段落只高亮，不附加书签图标。
       expect(
         find.byKey(
           ValueKey('novel-paragraph-marker-0-${bookmark.paragraphIndex}'),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       await tester.pump(const Duration(seconds: 3));
       await tester.pump();
