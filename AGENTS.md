@@ -67,9 +67,9 @@ Anime was removed outright (`569f482`), not merely frozen — treat it as absent
 
 Run these from the repository root:
 
-发布构建前核对本地与对应 CI job 的 Flutter 版本，二者须保持一致；用 `flutter pub get --enforce-lockfile` 安装发布依赖，并以 `git diff --exit-code -- pubspec.lock` 确认锁文件未变化。
+发布构建前核对本地与对应 CI job 的 Flutter 版本（以 `.flutter-version` 为准），二者须保持一致；依赖一律用 `flutter pub get --enforce-lockfile` 安装，并以 `git diff --exit-code -- pubspec.lock` 确认锁文件未变化。依赖源固定为 pub.dev，不要设置 `PUB_HOSTED_URL`。
 
-- `flutter pub get` — install dependencies
+- `flutter pub get --enforce-lockfile` — install dependencies from pub.dev
 - `flutter run` — launch on current device/emulator
 - `flutter analyze` — run lint rules from `analysis_options.yaml`; baseline 无 error/warning，仍有既有 info（见 Testing）
 - `flutter test test/xxx_test.dart --reporter compact` — 默认只运行与改动相关的测试；全量测试须用户明确要求
@@ -82,7 +82,7 @@ Run these from the repository root:
 ### Other Entry Points
 - `scripts/`: PowerShell helpers — `run.ps1 <win|mumu|emu>` (device boot + `KIRA_DEVICE`), `build_apk.ps1`, `build_windows.ps1`, `count_lib_dart_lines.ps1`.
 - `docs/`: `persistence-and-cache.md`（动存储前必读）、`novel.md`（轻小说设计）、`architecture.md`（API 分层 / 缓存仓库解剖 / 序列化清单 / UserManager 偏好归属与通知）、`platform-build.md`（Windows / Android 构建排查）、`widgets.md`（复用组件模式）、`release.md`（发版手册）、`TODO.md`、`CHANGELOG.md`.
-- `.github/workflows/`: `build-ci.yml`（`v*-beta*` tag 或手动触发 Android 构建）、`release.yml`（非 beta 的 `v*` tag 或手动触发正式版构建）、`release-all.yaml` / `release-all-beta.yml`（手动、全平台）。
+- `.github/workflows/`: `build-ci.yml`（`v*-beta*` tag 或手动触发 Android 构建）、`release.yml`（非 beta 的 `v*` tag 或手动触发正式版构建）、`release-all.yaml`（手动、全平台）。
 
 ### Platform Build Notes (on-demand)
 
@@ -92,7 +92,7 @@ Windows / Android 构建问题按报错先读 `docs/platform-build.md`，不要�
 - **Android**：`flutter clean` 后 `flutter run` 报 `package identifier or launch activity not found` —— 先跑一次 `flutter build apk --debug` 即恢复；**不要**给 `MainActivity` 加 LAUNCHER intent-filter、也不要禁用它（会破坏切换 logo 功能），原因见文档。
 
 ### Platform Scope
-Android 是主维护目标，Windows 是开发/调试宿主。维护定位不等于构建产物：`release.yml` 产出 arm/arm64/x64 APK 与 Windows 安装包；`release-all.yaml` / `release-all-beta.yml` 还构建 macOS/Linux，后二者不手工维护。`pubspec.yaml` 没有 `platforms:` 键；不要添加该键或仅为调试宿主引入平台原生依赖。
+Android 是主维护目标，Windows 是开发/调试宿主。维护定位不等于构建产物：`release.yml` 产出 arm/arm64/x64 APK 与 Windows 安装包；`release-all.yaml` 还构建 macOS/Linux，后二者不手工维护。`pubspec.yaml` 没有 `platforms:` 键；不要添加该键或仅为调试宿主引入平台原生依赖。
 
 ## Coding Style & Naming Conventions
 
