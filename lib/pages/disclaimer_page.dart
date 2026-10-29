@@ -50,7 +50,7 @@ class DisclaimerPage extends StatelessWidget {
                   ],
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    l10n.appDisclaimerFooter,
+                    l10n.disclaimerAgreeNote,
                     style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                   ),
                 ],

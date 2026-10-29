@@ -230,6 +230,27 @@ void main() {
     teardownSecureCredentialStoreForTest();
   });
 
+  testWidgets('子 store 改变滚动方向会即时更新阅读器', (tester) async {
+    final user = UserManager();
+    await user.init();
+    await _openReader(tester, continuousReading: false);
+    expect(_scrollList(tester).scrollDirection, Axis.horizontal);
+    expect(_scrollList(tester).reverse, isFalse);
+
+    await user.reader.setScrollDirection(1);
+    await tester.pumpAndSettle();
+    expect(user.readerScrollDirection, 1);
+    expect(_scrollList(tester).scrollDirection, Axis.horizontal);
+    expect(_scrollList(tester).reverse, isTrue);
+
+    await user.setReaderScrollDirection(2);
+    await tester.pumpAndSettle();
+    expect(user.reader.scrollDirection, 2);
+    expect(_scrollList(tester).scrollDirection, Axis.vertical);
+    expect(_scrollList(tester).reverse, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final direction in [0, 1]) {
     testWidgets(
       'iPad landscape spreads turn, keep direction, and preserve rotation anchor ($direction)',

@@ -360,7 +360,7 @@ void main() {
     await tester.tap(copyIcons.last);
     await tester.pumpAndSettle();
     expect(clipboard, 'second-pass');
-    expect(find.text('已复制到剪贴板'), findsOneWidget);
+    expect(find.text('已复制'), findsOneWidget);
   });
 
   testWidgets('refresh inactive HOT changes only its stored profile', (

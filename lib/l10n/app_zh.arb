@@ -1,5 +1,21 @@
 {
   "@@locale": "zh",
+  "historyModeOnline": "在线",
+  "historyModeLocal": "本地",
+  "localReadingHistoryTitle": "本地阅读记录",
+  "localHistorySearchHint": "搜索作品名",
+  "localHistorySearchEmpty": "没有匹配的作品",
+  "localHistoryTotal": "共 {count} 条阅读记录",
+  "@localHistoryTotal": {"placeholders": {"count": {"type": "int"}}},
+  "localHistoryPageProgress": "第 {page} / {total} 页",
+  "@localHistoryPageProgress": {"placeholders": {"page": {"type": "int"}, "total": {"type": "int"}}},
+  "localHistoryRemoveConfirm": "确定移除《{name}》的本机阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。",
+  "@localHistoryRemoveConfirm": {"placeholders": {"name": {"type": "String"}}},
+  "localHistoryClearConfirm": "确定清空本机所有{type}阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。",
+  "@localHistoryClearConfirm": {"placeholders": {"type": {"type": "String"}}},
+  "browseHistorySeenLabel": "看到",
+  "browseHistoryUpdatedAt": "更新于 {time}",
+  "@browseHistoryUpdatedAt": {"placeholders": {"time": {"type": "String"}}},
   "comicTabLabel": "漫画",
   "novelTitle": "轻小说",
   "novelDownloadUnavailable": "该卷未下载或本地文件已损坏，请前往下载中心重新下载。",
@@ -16,11 +32,6 @@
   "discoverEmptyResults": "暂无符合条件的漫画，试试其他筛选条件",
   "discoverRequestFailed": "漫画加载失败，请重试",
   "discoverFiltersFailed": "筛选项加载失败，请重试",
-  "searchLoadMoreFailed": "加载更多失败，请重试",
-  "searchHistoryTitle": "搜索历史",
-  "searchHistoryClear": "清空历史",
-  "searchHistoryDelete": "删除记录",
-  "cacheCategorySearchHistory": "搜索历史",
   "bookshelfTabLabel": "书架",
   "profileTabLabel": "我的",
   "disclaimerTitle": "免责声明",
@@ -188,18 +199,10 @@
   },
   "loginExpiredTitle": "登录已过期",
   "loginExpiredBookshelfContent": "书架需要登录后才能继续使用，是否现在重新登录？",
-  "loginExpiredFeatureContent": "{featureName}需要登录后才能继续使用，是否现在重新登录？",
-  "@loginExpiredFeatureContent": {
-    "placeholders": {
-      "featureName": {
-        "type": "String"
-      }
-    }
-  },
   "laterButton": "稍后再说",
   "goLoginButton": "去登录",
   "loginToViewBookshelf": "登录后可继续查看书架",
-  "searchHint": "搜索{mode}...",
+  "searchHint": "搜索{mode}…",
   "@searchHint": {
     "placeholders": {
       "mode": {
@@ -210,20 +213,12 @@
   "searchClearTooltip": "清空搜索内容",
   "hotSearchTitle": "热门搜索",
   "allTagsTitle": "全部标签",
-  "expandAllButton": "展开",
   "tagsExpandAll": "展开",
   "tagsCollapseAll": "收起",
-  "tagCount": "{count} 个",
-  "@tagCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "popularOrder": "热度",
   "updateOrder": "更新",
   "loadMore": "加载更多",
+  "loadMoreFailed": "加载更多失败，请重试",
   "loadMoreProgress": "加载更多（{loaded}/{total}）",
   "@loadMoreProgress": {
     "placeholders": {
@@ -265,29 +260,13 @@
   "remoteNoticeDesc": "开启后应用启动时自动检查通知；关闭后仅在进入通知中心时获取",
   "noticeSettingsTooltip": "通知设置",
   "bannerVisibleTitle": "显示Banner",
-  "bannerVisibleDesc": "关闭后漫画主页顶部Banner不显示",
   "backExitConfirmTitle": "返回两次退出应用",
-  "backExitConfirmDesc": "在底部导航页面第一次返回只提示，再次返回才退出",
   "backAgainToExitToast": "再次返回退出应用",
   "languageTitle": "语言",
   "languageSystem": "跟随系统",
   "languageSimplified": "简体中文",
   "languageTraditional": "繁體中文",
   "cacheManagementTitle": "缓存管理",
-  "cacheManagementDesc": "查看和删除本地缓存、历史和账号数据",
-  "exportSettingsTitle": "导出设置",
-  "importSettingsTitle": "导入设置",
-  "settingsExportedWithSensitive": "设置已导出，包含敏感信息",
-  "settingsExportedWithoutSensitive": "设置已导出，未包含敏感信息",
-  "exportFailed": "导出失败：{error}",
-  "@exportFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "noImportSettingsContent": "没有可导入的配置内容",
   "settingsBackupEmptyFile": "文件里没有可导入的配置",
   "settingsBackupInvalidJson": "配置格式不是有效的 JSON",
   "settingsBackupInvalidFormat": "配置格式不正确",
@@ -297,41 +276,7 @@
   "settingsBackupUnsupportedField": "配置中包含不支持的字段",
   "settingsBackupInvalidFieldFormat": "配置字段格式不正确",
   "settingsBackupUnsupportedFieldType": "配置字段类型不受支持",
-  "importFailed": "导入失败：{error}",
-  "@importFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "overwriteImportTitle": "覆盖导入",
-  "overwriteImportContent": "将覆盖当前 {count} 项持久化配置，包含账号、主题、阅读器设置和本地阅读记录。{backupTime}\n\n临时缓存不会导入，当前配置会被替换。是否继续？",
-  "@overwriteImportContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "backupTime": {
-        "type": "String"
-      }
-    }
-  },
-  "backupTimeLine": "\n\n备份时间：{time}",
-  "@backupTimeLine": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "confirmImportButton": "确认导入",
-  "importingSettingsTitle": "正在导入设置",
-  "importingSettingsBody": "正在写入配置并重新加载,请稍候…",
-  "settingsImportedToast": "配置已导入并覆盖本地设置",
   "resetAppTitle": "重置应用",
-  "resetAppDesc": "清除本地设置、账号、阅读记录和缓存，不会删除已下载的本地漫画文件",
-  "resettingApp": "正在重置...",
   "appResetToast": "应用已重置，已清除 {count} 项本地数据",
   "@appResetToast": {
     "placeholders": {
@@ -348,26 +293,7 @@
       }
     }
   },
-  "exportSettingsContent": "将导出 {count} 项持久化配置到 JSON 文件，内容为明文，请谨慎保管。",
-  "@exportSettingsContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "includeSensitiveSettingsTitle": "包含密码和 API 重要信息",
-  "noSensitiveSettingsFound": "当前没有检测到已保存的敏感项",
-  "includeSensitiveSettingsDesc": "将额外包含 {count} 项令牌、密码、API Key 或凭据信息",
-  "@includeSensitiveSettingsDesc": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "copyButton": "复制",
-  "exportButton": "导出",
   "confirmResetAppTitle": "确认重置应用",
   "resetAppWarning": "此操作会清除应用本地保存的设置、账号、阅读记录和缓存，且无法撤销。",
   "resetAppInstruction": "如需继续，请在下方输入框中输入“{text}”。",
@@ -386,7 +312,6 @@
   "profileHotCredentialLabel": "热辣漫画",
   "accountAddedToast": "账号已添加",
   "accountSwitchedToast": "账号已切换",
-  "switchAccountTitle": "切换账号",
   "addAccountButton": "添加账号",
   "switchAccountFailedToast": "切换失败，请重试",
   "logoutTitle": "退出登录",
@@ -401,9 +326,8 @@
       }
     }
   },
-  "copyProfileRefreshUnavailable": "暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名",
   "tokenUnavailableToast": "暂无可复制的令牌",
-  "tokenCopiedToast": "令牌已复制到剪贴板",
+  "tokenCopiedToast": "令牌已复制",
   "appearanceTitle": "外观",
   "appearanceLogoChanged": "桌面图标已更换，可能需要重启应用后生效",
   "appearanceColorPickerHeading": "点击色盘选择一个自定义主题色",
@@ -418,50 +342,27 @@
   },
   "appearanceBottomNavLabelMode": "底部导航栏文字",
   "appearanceBottomNavLabelModeSelectedOnly": "选中时显示",
-  "appearanceBottomNavLabelModeSelectedOnlyDesc": "胶囊导航，仅选中项显示文字",
   "appearanceBottomNavLabelModeHidden": "不显示文字",
-  "appearanceBottomNavLabelModeHiddenDesc": "胶囊导航，只显示图标",
   "appearanceBottomNavLabelModeAlways": "始终显示文字",
-  "appearanceBottomNavLabelModeAlwaysDesc": "经典导航，文字显示在图标下方",
   "appearanceFloatingNavLabelModeHint": "悬浮底栏不支持始终显示文字，已改为选中时显示",
   "appearanceNavOrder": "导航栏顺序",
   "appearanceNavOrderDragHint": "长按可拖放排序",
   "appearanceNavSwipeTitle": "左右滑动切换页面",
-  "appearanceNavSwipeDesc": "关闭后只能点击底部导航按钮切换页面",
-  "appearanceFloatingNavTitle": "悬浮底部导航栏",
-  "appearanceFloatingNavDesc": "关闭后导航栏固定在页面底部",
+  "appearanceFloatingNavTitle": "悬浮导航栏",
   "appearanceAppIcon": "应用图标",
-  "appearanceAppIconRestartHint": "更换后重启应用生效",
   "appearanceRefreshRateTitle": "屏幕刷新率",
   "appearanceThemeMode": "主题模式",
   "appearanceSystemMode": "系统",
   "appearanceLightMode": "浅色",
   "appearanceDarkMode": "深色",
   "appearanceDarkCoverBrightness": "暗色模式封面亮度",
-  "appearanceDarkCoverBrightnessDesc": "暗色模式下降低各个界面的卡片封面亮度",
-  "appearanceShadowTitle": "阴影",
   "appearanceCardShadowSize": "统一阴影大小",
-  "appearanceCardShadowSizeDesc": "统一调整应用内普通卡片的阴影大小",
-  "appearanceDefaultFontSize": "默认字体大小",
-  "appearanceDefaultFontSizeDesc": "当前默认正文为 14；标题与辅助文字会按比例调整",
+  "appearanceTextScale": "全局文字缩放",
   "appearanceThemeStyle": "主题风格",
-  "appearanceCurrentStyle": "当前风格：{label} · {description}",
-  "@appearanceCurrentStyle": {
-    "placeholders": {
-      "label": {
-        "type": "String"
-      },
-      "description": {
-        "type": "String"
-      }
-    }
-  },
   "appearanceThemeColor": "主题配色",
-  "appearanceThemeColorDesc": "点击颜色块切换主题色，带勾选的为当前配色。",
   "appearanceDynamicColor": "动态颜色",
-  "appearanceDynamicColorDesc": "基于壁纸动态生成主题配色（Android 12+，开启后忽略上方主题配色）",
   "appearanceAmoledDark": "AMOLED 纯黑模式",
-  "appearanceAmoledDarkDesc": "在暗色主题中使用纯黑背景",
+  "appearanceReduceMotionTitle": "减少动画",
   "appearanceRefreshRateRequested": "已请求刷新率 {rate}",
   "@appearanceRefreshRateRequested": {
     "placeholders": {
@@ -471,15 +372,6 @@
     }
   },
   "appearanceRefreshRateSaved": "刷新率偏好已保存",
-  "appearanceRefreshRateLoadFailed": "获取设备刷新率失败：{error}",
-  "@appearanceRefreshRateLoadFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "appearanceUnknownError": "未知错误",
   "appearanceAutoSystem": "自动（跟随系统）",
   "appearanceAutoShort": "自动",
   "appearanceAutoRefreshRate": "自动 · {rate}Hz",
@@ -495,14 +387,6 @@
     "placeholders": {
       "rate": {
         "type": "int"
-      }
-    }
-  },
-  "appearanceApplyingRefreshRate": "正在应用 {rate}",
-  "@appearanceApplyingRefreshRate": {
-    "placeholders": {
-      "rate": {
-        "type": "String"
       }
     }
   },
@@ -525,6 +409,7 @@
     }
   },
   "appearanceAppFont": "应用字体",
+  "appearanceDesktopFont": "系统字体",
   "appearanceSystemDefault": "系统默认",
   "appearanceChooseFont": "选择字体",
   "appearanceSearchFont": "搜索字体",
@@ -564,8 +449,18 @@
     }
   },
   "appearanceCustomFontBadge": "自定义",
+  "appearanceImportLocalFont": "从本地导入字体",
+  "appearanceImportFontInvalid": "无法读取该字体文件，请选择有效的 .ttf / .otf 字体",
+  "appearanceImportFontFailed": "导入字体失败：{error}",
+  "@appearanceImportFontFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "appearanceCustomFontRemoveTitle": "移除自定义字体",
-  "appearanceCustomFontRemoveContent": "确定要移除自定义字体 {fontName} 吗？本地文件也会被删除。",
+  "appearanceCustomFontRemoveContent": "确定要移除自定义字体 {fontName} 吗？",
   "@appearanceCustomFontRemoveContent": {
     "placeholders": {
       "fontName": {
@@ -613,7 +508,7 @@
       }
     }
   },
-  "networkTestingNodes": "正在检测各节点...",
+  "networkTestingNodes": "正在检测各节点…",
   "networkSpeedTestFailedDetail": "测速失败：{detail}",
   "@networkSpeedTestFailedDetail": {
     "placeholders": {
@@ -752,8 +647,6 @@
   "networkTestLatencyShort": "测速",
   "networkModeFixedNodeShort": "节点",
   "networkCurrentInUse": "使用中",
-  "networkModeRouteDesc": "请求自动在线路内的节点间切换",
-  "networkModeFixedNodeDesc": "固定使用单个节点",
   "networkNodesSectionTitle": "线路与节点",
   "aiConfigTitle": "AI配置",
   "aiConfigNewChat": "新对话",
@@ -801,7 +694,7 @@
   "aiConfigFetch": "获取模型",
   "aiConfigClear": "清空",
   "aiConfigGetZhipuApiKey": "获取智谱 API 密钥",
-  "aiConfigAgnesName": "Agnes CN",
+  "aiConfigAgnesName": "Agnes",
   "aiConfigGetAgnesApiKey": "获取 Agnes API 密钥",
   "aiConfigProviderSaved": "供应商已保存",
   "aiConfigConfigureBaseUrlAndApiKey": "请先配置 Base URL 和 API 密钥",
@@ -858,11 +751,17 @@
   },
   "novelBookmarksEmptySubtitle": "阅读轻小说时，点击工具栏右上角添加书签",
   "bookmarksLoadFailed": "书签加载失败，请重试",
-  "bookmarksUpdateFailed": "书签保存失败，请重试",
+  "bookmarksUpdateFailedDetail": "书签保存失败：{detail}",
+  "@bookmarksUpdateFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "bookmarksSearchHint": "搜索书名或章节",
   "bookmarksSearchEmpty": "没有找到相关书签，试试其他关键词",
   "statsTitle": "阅读统计",
-  "continueReadingTitle": "继续阅读",
   "continueReadingPageLabel": "第 {page} 页",
   "@continueReadingPageLabel": {
     "placeholders": {
@@ -961,9 +860,8 @@
     }
   },
   "bookmarksEmptyTitle": "还没有书签",
-  "bookmarksEmptySubtitle": "阅读漫画时，点击右上角的书签按钮即可标记当前位置",
+  "bookmarksEmptySubtitle": "阅读时点右上角书签即可标记",
   "bookmarksClearTitle": "清空书签",
-  "bookmarksClearContent": "确定要清空所有书签吗？",
   "bookmarksGroupDeleted": "已删除 {count} 条书签",
   "@bookmarksGroupDeleted": {
     "placeholders": {
@@ -976,9 +874,7 @@
   "aboutTitle": "关于",
   "aboutBrandTagline": "Kira 是一个开源免费的漫画阅读 App",
   "notLoggedInTitle": "未登录",
-  "loginPromptSubtitle": "点击登录以使用书架等功能",
   "refreshUserButton": "刷新用户",
-  "switchAccountButton": "切换账号",
   "copyTokenButton": "复制令牌",
   "appDisclaimerIntro": "请在使用本应用前仔细阅读以下声明：",
   "appDisclaimerItem1": "本应用（以下简称\"本软件\"）系独立开发的非官方第三方客户端，与任何内容平台、出版商或权利人均无隶属、合作或代理关系。",
@@ -987,9 +883,7 @@
   "appDisclaimerItem4": "您应自行判断所浏览内容是否适合，并确保您的使用行为完全符合您所在地现行有效的法律法规。因您使用本软件而产生的一切法律后果由您自行承担。",
   "appDisclaimerItem5": "如任何第三方内容涉嫌侵犯他人合法权益或违反法律法规，权利人可通过本软件提供的联系方式向开发者发送有效通知，开发者将在合理期限内核实并采取必要措施。",
   "appDisclaimerItem6": "本软件按\"现状\"提供，开发者不对其功能性、可用性、准确性或可靠性作出任何明示或默示的保证。在任何情况下，开发者均不对因使用或无法使用本软件而产生的任何直接、间接、附带、特殊或后果性损害承担责任。",
-  "appDisclaimerFooter": "继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。",
   "profileUsernamePasswordRequired": "请输入用户名和密码",
-  "profileLoginFailedProxyHint": "登录失败，建议开启代理后重试",
   "profileLoginFailedDetail": "登录失败：{detail}",
   "@profileLoginFailedDetail": {
     "placeholders": {
@@ -1000,10 +894,7 @@
   },
   "profileLoginIpBlockedHint": "当前 IP 被封禁，请更换网络环境或代理节点后重试",
   "profileTokenRequired": "请输入令牌",
-  "profileTokenInvalidOrExpired": "令牌无效或已过期",
   "profileLoginTitle": "登录",
-  "profileAccountPasswordLoginMode": "账号密码",
-  "profileTokenLoginMode": "令牌",
   "profileTokenLoginEntry": "令牌登录",
   "copyAccountChannelWebApi": "网页接口",
   "copyAccountChannelWeb": "网页",
@@ -1035,12 +926,8 @@
   "profileRememberAccountLabel": "记住账号",
   "profileLoginButton": "登录",
   "profileOpenOfficialRegisterFailed": "无法打开官网注册页",
-  "profileHotMangaLabel": "热辣漫画",
-  "profileCopyMangaLabel": "拷贝漫画",
-  "loginGoOfficialRegisterHot": "前往官网注册账号",
-  "loginGoOfficialRegisterCopy": "前往官网注册账号",
+  "loginGoOfficialRegister": "前往官网注册账号",
   "aboutMirrorPrefixTitle": "设置镜像源",
-  "aboutMirrorPrefixDesc": "用于更新与播放组件下载的镜像链接，会拼接在 GitHub 下载地址前。",
   "aboutMirrorPrefixLabel": "镜像源地址",
   "aboutMirrorPrefixHelper": "留空将恢复默认镜像源",
   "aboutInvalidMirrorPrefix": "请输入有效的 http(s) 地址",
@@ -1049,9 +936,9 @@
   "aboutMirrorPrefixSavedToast": "镜像源已保存",
   "aboutStableChannelShort": "稳定版",
   "aboutBetaChannelConfirmTitle": "是否切换?",
-  "aboutBetaChannelNote": "预览版更新更快,问题也可能更多",
+  "aboutBetaChannelNote": "预览版更新更快，问题也可能更多",
   "aboutBetaChannelArm64Only": "仅限 Android arm64 设备。",
-  "aboutBetaChannelDevice": "当前设备:{os} {arch}。",
+  "aboutBetaChannelDevice": "当前设备：{os} {arch}。",
   "@aboutBetaChannelDevice": {
     "placeholders": {
       "os": { "type": "String" },
@@ -1063,8 +950,17 @@
   "aboutCheckUpdateTitle": "检查更新",
   "aboutAutoCheckUpdateTitle": "启动时检查更新",
   "aboutLogTitle": "日志",
-  "aboutLicenseTitle": "许可证",
+  "aboutLicenseTitle": "开源许可",
   "licenseMitSummary": "本项目采用 MIT 开源许可证",
+  "licenseThirdPartyTitle": "第三方依赖",
+  "licenseFontsTitle": "字体",
+  "licenseThirdPartyEmpty": "未收集到第三方许可",
+  "licenseCount": "{count} 份许可",
+  "@licenseCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
   "cacheDeleteEntryTitle": "删除缓存项",
   "cacheDeleteEntryContent": "确定要删除 {key} 吗？此操作不可恢复。",
   "@cacheDeleteEntryContent": {
@@ -1182,7 +1078,6 @@
   "commentSettingsPreloadTitle": "预加载评论",
   "commentSettingsPreloadDesc": "进入章节时提前加载评论并显示数量",
   "commentSettingsAutoLoadAllTitle": "自动加载全部评论",
-  "commentSettingsAutoLoadAllDesc": "打开评论区时自动加载所有评论",
   "commentSettingsFontSizeTitle": "评论内容字体大小",
   "chapterCommentsNoSummaryComments": "当前没有可总结的评论",
   "chapterCommentsEnableAiSummaryFirst": "请先在评论区设置中启用 AI 总结",
@@ -1287,8 +1182,6 @@
   "chapterCommentsTitle": "章节评论",
   "chapterCommentsAiSummaryTooltip": "AI 总结评论",
   "chapterCommentsRegenerateAiSummaryTooltip": "重新生成 AI 总结",
-  "chapterCommentsSwitchToListLayout": "切换为列表布局",
-  "chapterCommentsSwitchToCompactLayout": "切换为紧凑布局",
   "chapterCommentsTotalCount": "{count} 条",
   "@chapterCommentsTotalCount": {
     "placeholders": {
@@ -1397,7 +1290,7 @@
       }
     }
   },
-  "comicCommentReplyHint": "回复 {userName}...",
+  "comicCommentReplyHint": "回复 {userName}…",
   "@comicCommentReplyHint": {
     "placeholders": {
       "userName": {
@@ -1405,7 +1298,7 @@
       }
     }
   },
-  "comicCommentPostHint": "说点什么...",
+  "comicCommentPostHint": "说点什么…",
   "comicCommentReplyPosted": "回复已发布",
   "comicCommentReplyButton": "回复",
   "comicCommentExpandFullText": "展开全文",
@@ -1415,12 +1308,10 @@
   "readerLeftToRight": "左到右",
   "readerRightToLeft": "右到左",
   "readerTopToBottom": "上到下",
-  "readerScrollSection": "滚动",
   "readerImageGap": "图片间距",
   "readerContinuousReading": "连续阅读",
   "readerContinuousReadingDesc": "到末页后直接拼接下一话，上滑到顶拼接上一话，不重新加载",
   "readerHorizontalImageScale": "横向图片大小",
-  "readerHorizontalImageScaleDesc": "调整横向滚动模式下图片相对屏幕高度的比例（仅横向滚动模式可用）",
   "readerAutoScroll": "自动滚动",
   "readerAutoScrollDesc": "开启后在导航栏显示自动滚动按钮",
   "readerAutoScrollDistance": "滚动幅度",
@@ -1440,7 +1331,6 @@
   "readerVolumeKeyPageTurn": "音量键翻页",
   "readerVolumeKeyPageTurnDesc": "音量+上一页，音量-下一页",
   "readerInstantPageTurn": "无动画翻页",
-  "readerDisplaySection": "显示",
   "readerLongPressZoom": "长按缩放",
   "readerLongPressZoomDesc": "长按图片放大，按住移动可查看细节，松手恢复",
   "readerLongPressZoomPanSensitivity": "拖动灵敏度",
@@ -1448,7 +1338,9 @@
   "readerStatusTime": "时间",
   "readerStatusNetwork": "网络",
   "readerStatusBattery": "电量",
+  "readerStatusChapter": "章节名",
   "readerStatusPage": "页码",
+  "readerStatusProgress": "进度",
   "readerStatusFps": "帧率",
   "readerStatusOverlayPosition": "显示位置",
   "readerStatusOverlayTopLeft": "左上",
@@ -1458,11 +1350,15 @@
   "readerStatusOverlayBottomCenter": "底部中间",
   "readerStatusOverlayBottomLeft": "左下",
   "readerStatusOverlayOpacity": "背景不透明度",
+  "readerStatusOverlayForeground": "前景色",
+  "readerStatusOverlayBackground": "背景色",
+  "readerStatusOverlayFollowTheme": "跟随阅读主题",
+  "readerStatusOverlayDefaultColor": "默认",
+  "readerStatusOverlayColorPicker": "选择颜色",
   "readerDimming": "降低亮度",
   "readerImageLoadingSection": "图片加载",
   "readerTimeout": "超时时间",
   "readerTimeoutDesc": "设置太小可能导致图片加载失败，太大可能导致长时间转圈",
-  "readerNoLoadStats": "暂无加载记录（阅读图片后此处显示平均耗时供参考）",
   "readerRecentLoadStats": "最近10分钟内加载了 {count} 张，平均 {seconds} s",
   "@readerRecentLoadStats": {
     "placeholders": {
@@ -1512,6 +1408,14 @@
   "browseHistoryLoginExpiredContent": "浏览记录需要登录后才能继续查看，是否现在重新登录？",
   "browseHistoryLoginToView": "登录后可继续查看浏览记录",
   "browseHistoryLoginHintComicOnly": "浏览过的漫画会同步显示在这里",
+  "browseHistoryLoadFailed": "浏览记录加载失败：{detail}",
+  "@browseHistoryLoadFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "browseHistoryEmptyTitle": "还没有{mode}浏览记录",
   "@browseHistoryEmptyTitle": {
     "placeholders": {
@@ -1555,22 +1459,7 @@
       }
     }
   },
-  "browseHistoryLatestChapter": "最新 {chapter}",
-  "@browseHistoryLatestChapter": {
-    "placeholders": {
-      "chapter": {
-        "type": "String"
-      }
-    }
-  },
-  "browseHistoryLastSeen": "上次看到 {name}",
-  "@browseHistoryLastSeen": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
+  "browseHistoryLatestLabel": "最新",
   "cacheSelectedCards": "已选 {count} 个卡片",
   "@cacheSelectedCards": {
     "placeholders": {
@@ -1596,7 +1485,7 @@
   "cacheImageCacheSection": "图片缓存",
   "cacheNovelTextSection": "轻小说缓存",
   "cacheDataCacheSection": "数据缓存",
-  "cacheDataCacheWarning": "数据缓存包含书架、阅读设置、阅读历史等本地数据，请勿随意删除，以免丢失。",
+  "cacheDataCacheWarning": "数据缓存包含书架、设置与阅读历史，删除会丢失。",
   "cacheNoLocalKeyValueData": "没有可显示的本地键值数据",
   "cacheEntryCountSize": "{count} 项 · {size}",
   "@cacheEntryCountSize": {
@@ -1663,7 +1552,7 @@
   "themeVariantRainbowDesc": "跳脱主色限制，整体更活泼。",
   "appLogEmpty": "暂无错误日志",
   "appLogDisabledTitle": "日志记录已关闭",
-  "appLogCopied": "日志已复制到剪贴板",
+  "appLogCopied": "日志已复制",
   "appLogCopyFailed": "复制失败：{error}",
   "@appLogCopyFailed": {
     "placeholders": {
@@ -1691,7 +1580,6 @@
   "appLogLevelInfo": "信息",
   "appLogLevelWarning": "警告",
   "appLogLevelError": "错误",
-  "appLogSearchHint": "搜索日志（消息、来源、堆栈、上下文）",
   "appLogExportTooltip": "导出日志文件",
   "appLogExported": "日志已导出",
   "appLogExportFailed": "导出失败：{error}",
@@ -1907,14 +1795,6 @@
       }
     }
   },
-  "downloadQueueDeleteBatchContent": "已下载的 {count} 页文件将一并删除。",
-  "@downloadQueueDeleteBatchContent": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "downloadQueueDeleteSelectedConfirm": "所选下载任务及已保存的相关文件都会被删除。",
   "downloadQueueSelect": "多选",
   "downloadQueueSelectAll": "全选",
@@ -1923,14 +1803,6 @@
   "downloadQueueFilterDownloading": "下载中",
   "downloadQueueFilterPaused": "已暂停",
   "downloadQueueDeleteSelected": "删除所选",
-  "downloadQueueBatchDeleted": "已删除 {count} 个任务",
-  "@downloadQueueBatchDeleted": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "downloadProgressCount": "{percent}% ({completed}/{total})",
   "@downloadProgressCount": {
     "placeholders": {
@@ -2062,8 +1934,8 @@
   "readerContinuePageNextChapter": "继续翻页进入下一话",
   "readerAlreadyLastChapter": "当前已无下一话",
   "readerContinueScrollOrTapNextChapter": "继续下滑或点击按钮进入下一话",
-  "readerImagePathCopied": "图片路径已复制到剪贴板",
-  "readerImageUrlCopied": "图片链接已复制到剪贴板",
+  "readerImagePathCopied": "图片路径已复制",
+  "readerImageUrlCopied": "图片链接已复制",
   "readerLocalImageMissing": "本地图片损坏或缺失",
   "readerCopyImagePath": "复制图片路径",
   "readerImageRetrying": "加载失败，正在重试 {attempt}/{total}",
@@ -2081,7 +1953,14 @@
   "readerCopyImageUrl": "复制图片链接",
   "readerSaveImage": "保存图片",
   "readerImageSaved": "图片已保存到相册",
-  "readerSaveImageFailed": "图片保存失败",
+  "readerSaveImageFailedDetail": "图片保存失败：{detail}",
+  "@readerSaveImageFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "readerSaveImagePermissionDenied": "没有相册写入权限，保存失败",
   "updateAlreadyLatest": "当前已是最新版本",
   "updateNoPackageForPlatform": "当前平台暂无安装包",
@@ -2229,7 +2108,6 @@
     }
   },
   "backupTitle": "备份与同步",
-  "backupEntryDescription": "本地文件与 WebDAV 备份",
   "backupContent": "备份内容",
   "backupCategorySettings": "应用设置",
   "backupCategoryHistory": "阅读历史",
@@ -2407,20 +2285,9 @@
   "novelCopyLogin": "登录拷贝账户",
   "novelContinueReading": "继续阅读",
   "novelStartReading": "开始阅读",
-  "novelVolumeProgress": "本卷 {percent}%",
-  "@novelVolumeProgress": {
-    "placeholders": {
-      "percent": {
-        "type": "String"
-      }
-    }
-  },
-  "novelBrowseBooks": "浏览书籍",
   "novelAllThemes": "全部",
   "novelThemes": "题材",
-  "novelTagsExpandAll": "展开",
   "novelEmptyBooks": "暂无书籍，试试其他题材",
-  "novelLoadMore": "加载更多",
   "novelLoadMoreFailed": "加载失败，点击重试",
   "novelLoadFailed": "书籍加载失败",
   "novelThemesFailed": "题材加载失败",
@@ -2467,7 +2334,6 @@
   "novelManageVolumes": "管理分卷",
   "novelVolumeUnit": "卷",
   "novelDeleteToastSuffix": " 部本地轻小说",
-  "novelBrief": "简介",
   "novelNoBrief": "暂无简介",
   "novelUncollect": "取消收藏",
   "novelCollectFailed": "收藏操作失败，请重试",
@@ -2488,16 +2354,19 @@
     }
   },
   "novelQueryFailed": "阅读与收藏状态加载失败",
-  "novelAccountRequired": "阅读权限由拷贝账户决定，可登录后重试",
-  "novelLocked": "当前内容受限，可尝试切换拷贝账户",
   "novelEmptyShelf": "书架还是空的，去发现喜欢的小说吧",
-  "novelShelfFailed": "书架加载失败",
   "novelEmptyHistory": "开始阅读后，进度会保存在这里",
   "novelHistoryFailed": "阅读记录加载失败",
   "novelClearHistory": "清空阅读记录",
-  "novelClearHistoryConfirm": "仅清除本机轻小说阅读进度，不会取消书架收藏。",
   "novelRemoveHistory": "移除阅读记录",
-  "novelHistoryDeleteFailed": "移除失败，请重试",
+  "novelHistoryDeleteFailedDetail": "移除失败：{detail}",
+  "@novelHistoryDeleteFailedDetail": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "novelBookDetails": "查看详情",
   "novelNoComments": "暂无评论",
   "novelCommentsFailed": "评论加载失败",
@@ -2506,7 +2375,6 @@
   "novelPostComment": "发表评论",
   "novelCommentPosted": "评论已发表",
   "novelCommentFailed": "发表失败，内容已保留，请重试",
-  "novelReplies": "查看回复",
   "novelReply": "回复",
   "novelReplyTitle": "评论回复",
   "novelCommentCollapseReplies": "收起回复",
@@ -2532,24 +2400,21 @@
       "userName": {}
     }
   },
-  "novelCommentReplyHint": "回复 {userName}...",
+  "novelCommentReplyHint": "回复 {userName}…",
   "@novelCommentReplyHint": {
     "placeholders": {
       "userName": {}
     }
   },
-  "novelCommentReplyPosted": "回复已发布",
   "novelSerializing": "连载中",
   "novelCompleted": "已完结",
   "novelReaderTitle": "轻小说阅读器",
   "novelReaderBack": "返回",
-  "novelReaderHideToolbar": "收起工具栏",
   "novelReaderShowToolbar": "展开工具栏",
   "novelReaderContents": "目录",
   "novelReaderCatalog": "总目录",
   "novelReaderVolume": "卷册",
   "novelReaderBookmark": "书签",
-  "novelReaderCopiedToast": "段落已复制到剪贴板",
   "novelReaderVolumesRetry": "卷册加载失败，重试",
   "novelReaderVolumesRetryDetail": "卷册加载失败：{detail}（点击重试）",
   "@novelReaderVolumesRetryDetail": {
@@ -2566,12 +2431,13 @@
   "novelReaderFontSize": "字号",
   "novelReaderLineHeight": "行距",
   "novelReaderParagraphSpacing": "段距",
+  "novelReaderContentWidth": "正文宽度",
   "novelReaderTheme": "阅读主题",
-  "novelReaderThemeSystem": "跟随系统",
   "novelReaderThemePaper": "纸张",
   "novelReaderThemeDark": "夜间",
   "novelReaderThemeWhite": "白底",
   "novelReaderThemeGreen": "护眼绿",
+  "novelReaderThemeGray": "灰",
   "novelReaderThemeCustom": "自定义",
   "novelReaderThemeLightMode": "浅色模式",
   "novelReaderThemeDarkMode": "深色模式",
@@ -2597,8 +2463,14 @@
   },
   "novelReaderBackgroundColor": "背景颜色",
   "novelReaderTextColor": "文字颜色",
-  "novelReaderPreviewText": "选择适合你的阅读配色与字号。",
+  "novelReaderPreviewText": "夜色温柔，街灯次第亮起，故事从这一页开始。",
   "novelReaderKeepScreenOn": "阅读时屏幕常亮",
+  "novelReaderIgnoreBlankParagraphs": "隐藏空白段落",
+  "novelReaderIgnoreBlankParagraphsDenseHint": "可以适当增大段距以免文字过于密集",
+  "novelReaderFocusMode": "专注模式",
+  "novelReaderFocusTopBound": "上边界",
+  "novelReaderFocusBottomBound": "下边界",
+  "novelReaderFocusOpacity": "遮罩浓度",
   "novelReaderIllustration": "插图",
   "novelReaderImageFailed": "插图加载失败",
   "novelReaderEmptyChapter": "本章节暂无正文",
@@ -2617,25 +2489,8 @@
       }
     }
   },
-  "novelReaderParagraphProgress": "{current} / {total} 段",
-  "@novelReaderParagraphProgress": {
-    "placeholders": {
-      "current": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "copyAccountTitle": "轻小说 · 独立拷贝账号",
   "copyAccountLoginTitle": "登录拷贝账号",
   "copyAccountIndependentHint": "仅用于拷贝轻小说。登录、切换或退出此账号都不会改变当前主账号。",
-  "copyAccountConnected": "拷贝账号已登录",
-  "copyAccountNotConnected": "尚未登录拷贝账号",
-  "copyAccountSwitch": "切换拷贝账号",
-  "copyAccountLogout": "退出拷贝账号",
-  "copyAccountLogoutConfirm": "仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。",
   "copyAccountStorageFailed": "无法保存拷贝账号，请稍后重试；原账号保持不变。",
   "copyAccountLoginSuperseded": "账号状态已改变，本次登录已取消，请重试。",
   "accountCenterTitle": "账号中心",
@@ -2646,15 +2501,6 @@
   "accountCenterNovelCopyOnlyHint": "轻小说仅支持使用拷贝账号",
   "accountCenterNotLoggedIn": "未登录",
   "accountProfileMissing": "已登录（未获取资料）",
-  "accountCenterAddPrimary": "登录漫画账号",
-  "accountCenterAddCopy": "添加拷贝账号",
-  "accountCenterPickComic": "选择漫画使用的账号",
-  "accountCenterPickNovel": "选择轻小说使用的账号",
-  "accountCenterNovelOnlyCopy": "轻小说只能使用拷贝账号",
-  "accountCenterRenameTitle": "账号备注",
-  "accountCenterRenameLabel": "备注名",
-  "accountCenterRenameHint": "例如：主号 / 小号",
-  "accountCenterRemoveTitle": "移除账号",
   "accountCenterRemoveConfirm": "确定移除「{name}」吗？仅删除本机保存的登录状态。",
   "@accountCenterRemoveConfirm": {
     "placeholders": {

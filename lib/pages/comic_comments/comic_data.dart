@@ -4,7 +4,10 @@ extension _ComicData on _ComicCommentsSheetState {
   Future<void> _loadComments({bool loadMore = false}) async {
     if (loadMore) {
       if (_loading || _loadingMore || _comments.length >= _total) return;
-      _setState(() => _loadingMore = true);
+      _setState(() {
+        _loadingMore = true;
+        _error = null;
+      });
     } else {
       _setState(() {
         _loading = true;
@@ -40,7 +43,9 @@ extension _ComicData on _ComicCommentsSheetState {
       _setState(() {
         _loading = false;
         _loadingMore = false;
-        _error = e.toString();
+        // 保留真实原因（DNS/TLS/超时/HTTP 状态/业务错误码），不要只留
+        // 「加载失败」。
+        _error = NetworkError.describe(e);
       });
     }
   }

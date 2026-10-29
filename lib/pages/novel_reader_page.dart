@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,15 +13,17 @@ import '../api/novel/novel_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/novel_reader_settings.dart';
+import '../models/novel_reader_status_settings.dart';
 import '../models/novel_reading_progress.dart';
-import '../models/reader_settings.dart';
 import '../providers/novel_providers.dart';
 import '../repositories/novel_reader_source.dart';
 import '../repositories/novel_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
 import '../theme/novel_reader_theme.dart';
 import '../theme/reader_chrome.dart';
+import '../utils/adaptive_motion.dart';
 import '../utils/app_logger.dart';
 import '../utils/novel_bookmark_store.dart';
 import '../utils/novel_reading_store.dart';
@@ -29,11 +32,15 @@ import '../widgets/app_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/reader_status_overlay.dart';
 import 'novel_reader/novel_chapter_slider_track_shape.dart';
+import 'novel_reader/novel_focus_mask.dart';
 import 'novel_reader/novel_reader_contents_sheet.dart';
 import 'novel_reader/novel_reader_document.dart';
 import 'novel_reader/novel_reader_page_view.dart';
 import 'novel_reader/novel_reader_settings_sheet.dart';
 import 'novel_reader/novel_reader_viewport.dart';
+
+part 'novel_reader_page_parts/continuous.dart';
+part 'novel_reader_page_parts/view.dart';
 
 class NovelReaderPage extends ConsumerStatefulWidget {
   const NovelReaderPage({
@@ -76,7 +83,7 @@ class NovelReaderPage extends ConsumerStatefulWidget {
 }
 
 class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   /// 与漫画阅读器共用同一个音量键通道；同一时刻只有一个阅读页在前台，
   /// 各自在 init/dispose 与设置变化时同步 enable/disable，避免双重拦截。
   static const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
@@ -85,9 +92,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   late final NovelApi _api;
   late final NovelReadingStore _store;
   late final NovelBookmarkStore _bookmarks;
-  // 状态组件直接共享漫画阅读器的全局配置（开关/位置/段位/不透明度）。
-  late final ReaderSettings _statusSettings = ReaderSettings()
-    ..addListener(_onStatusSettingsChanged);
+  // 状态组件配置与漫画阅读器相互独立（开关/位置/段位/颜色）。
+  late final NovelReaderStatusSettings _statusSettings =
+      NovelReaderStatusSettings()..addListener(_onStatusSettingsChanged);
   bool _bookmarksLoaded = false;
   bool _bookmarking = false;
   GlobalKey<NovelReaderViewportState> _viewportKey = GlobalKey();
@@ -95,7 +102,18 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   NovelReaderSettings _settings = const NovelReaderSettings();
   NovelVolumeContent? _content;
   NovelVolumeDetail? _accessDetail;
-  NovelReaderDocument? _document;
+  NovelTextDocument? _document;
+
+  // ── 滚动模式连续阅读（卷末继续下滑进入下一卷）──
+  /// 卷栈：当前卷 + 已追加的下一卷（最多两卷）。手动跳卷/换卷时重置。
+  final _stackVolumes = <NovelReaderVolumeDocument>[];
+  final _stackContents = <String, NovelVolumeContent>{};
+  final _stackLoads = <String, Future<NovelVolumeContent>>{};
+  NovelReaderStack? _stack;
+  int _contentRevision = 0;
+  bool _appending = false;
+  Object? _seamError;
+  bool _seamUnavailable = false;
   NovelReaderLocation? _location;
   NovelReaderAnchor _target = const NovelReaderAnchor(entryIndex: 0);
   NovelReadingProgress? _pendingProgress;
@@ -116,16 +134,30 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   int _request = 0;
   int _jumpRevision = 0;
 
-  /// 书签集合版本号：翻页视图据此只重建受影响段落之后的分页。
-  int _bookmarkRevision = 0;
+  /// 阅读位置只通知进度与工具栏，不带动正文重新构建。
+  final _locationRevision = ValueNotifier<int>(0);
+  ThemeData? _readerTheme;
+  ThemeData? _readerThemeBase;
+  NovelReaderPalette? _readerThemePalette;
   bool _volumeChannelAvailable = true;
   bool _loading = true;
-  bool _toolbarVisible = true;
+  bool _toolbarVisible = false;
+
+  /// 工具栏滑出屏幕的位移倍数（留一点余量，避免边缘露出）。
+  static const _hiddenToolbarSlideOffset = 1.05;
 
   /// 短暂高亮的书签段落；定时自动清除，滚动或跳转提前清除。
   static const _highlightDuration = Duration(milliseconds: 2500);
   NovelReaderAnchor? _highlight;
   Timer? _highlightTimer;
+
+  /// 高亮卡片的淡入淡出：出现 180ms、消失 400ms；「减少动画」时直接
+  /// 跳到目标值。画笔挂在该动画上逐帧重绘，高亮不触发整树 rebuild。
+  AnimationController? _highlightFade;
+
+  /// 高亮代数：新一次高亮会使上一次未完成的淡出作废，防止迟到的
+  /// whenComplete 把新高亮一并清掉。
+  int _highlightGen = 0;
 
   /// 从书签进入时待生效的高亮锚点：等卷内容加载、锚点解析后再应用，
   /// 避免高亮显示在错误位置（如 resume 改变了落点时丢弃）。
@@ -182,7 +214,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _systemPadding ??= MediaQuery.paddingOf(context);
+    if (_systemPadding == null) {
+      _systemPadding = MediaQuery.paddingOf(context);
+      // 先保存常规系统栏 inset，再同步首次进入的沉浸模式。
+      _syncSystemUi();
+    }
   }
 
   Future<void> _loadBookmarks() async {
@@ -195,9 +231,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   }
 
   void _onBookmarksChanged() {
-    if (mounted) {
-      setState(() => ++_bookmarkRevision);
-    }
+    if (mounted) setState(() {});
   }
 
   void _onStatusSettingsChanged() {
@@ -254,7 +288,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
   void _setToolbarVisible(bool visible) {
     if (_toolbarVisible == visible) return;
     setState(() => _toolbarVisible = visible);
-    if (visible) {
+    _syncSystemUi();
+  }
+
+  void _syncSystemUi() {
+    if (_toolbarVisible) {
       SystemChrome.setEnabledSystemUIMode(
         SystemUiMode.manual,
         overlays: SystemUiOverlay.values,
@@ -264,17 +302,48 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     }
   }
 
+  /// 工具栏显隐过渡：隐藏时滑出屏幕，并交回点击（隐藏态不拦正文手势）。
+  /// 时长走 [adaptiveDuration]，开启「减少动画」时直接切换。
+  Widget _slideOnToolbar(Widget child, {required bool fromTop}) {
+    final hiddenOffset = _hiddenToolbarSlideOffset * (fromTop ? -1 : 1);
+    return IgnorePointer(
+      ignoring: !_toolbarVisible,
+      child: AnimatedSlide(
+        duration: adaptiveDuration(context, const Duration(milliseconds: 200)),
+        curve: adaptiveCurve(context, Curves.easeOutCubic),
+        offset: Offset(0, _toolbarVisible ? 0 : hiddenOffset),
+        child: child,
+      ),
+    );
+  }
+
   /// 工具栏书签按钮的参照段落：视口垂直中点覆盖的段落（阅读习惯以
   /// 屏幕中间为基准），顶部首段仅在视口状态不可用时兜底。
   NovelReaderAnchor? get _bookmarkAnchor =>
       _viewerCenter?.anchor ?? _location?.anchor;
+
+  /// 当前正在读的卷。连续阅读跨过接缝后正文属于下一卷，工具栏、
+  /// 书签、目录与上/下一卷都要跟着它走。锚点自带卷 id 时直接采信，
+  /// 避免回收旧卷后 item 下标短暂错位。
+  String get _currentVolumeId {
+    final located = (_viewerLocation ?? _location)?.anchor.volumeId ?? '';
+    if (located.isNotEmpty) return located;
+    final document = _document;
+    if (document == null || document.itemCount == 0) return _volumeId;
+    final item = (_location?.itemIndex ?? document.itemFor(_target)).clamp(
+      0,
+      document.itemCount - 1,
+    );
+    final volumeId = document.volumeIdForItem(item);
+    return volumeId.isEmpty ? _volumeId : volumeId;
+  }
 
   bool get _isBookmarked {
     final anchor = _bookmarkAnchor;
     return anchor != null &&
         _bookmarks.isBookmarked(
           pathWord: _pathWord,
-          volumeId: _volumeId,
+          volumeId: anchor.volumeId.isEmpty ? _volumeId : anchor.volumeId,
           entryIndex: anchor.entryIndex,
           paragraphIndex: anchor.paragraphIndex,
         );
@@ -286,15 +355,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     if (location == null || _content == null || _document == null) return;
     final progress = _progressAt(location, DateTime.now());
     final session = _session;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _bookmarking = true);
     try {
       final added = await _bookmarks.toggle(progress: progress);
       if (!mounted || !_active(session)) return;
       setState(() => _bookmarksLoaded = true);
-      showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
-      // 打书签的当下就闪光高亮目标段落，让「高亮 = 书签指向的段落」
-      // 的语义在按钮入口同样可见；取消书签时同步撤掉正在显示的高亮。
+      // 添加/取消书签都不弹提示：添加有段落闪光确认，取消时书签
+      // 标记消失本身已可见。
       if (added) {
         _showHighlight(location.anchor);
       } else if (_isSameAnchor(_highlight, location.anchor)) {
@@ -303,33 +370,86 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.toggle');
       if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+        showToast(
+          context,
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _bookmarking = false);
     }
   }
 
-  /// 闪光高亮一个段落（书签指向处）：定时自动清除，滚动/跳转提前清除。
+  /// 闪光高亮一个段落（书签指向处）：淡入后保持，到期/滚动/跳转淡出。
   void _showHighlight(NovelReaderAnchor anchor) {
     _highlightTimer?.cancel();
     setState(() => _highlight = anchor);
-    _highlightTimer = Timer(_highlightDuration, () {
-      if (mounted && !_disposed) setState(() => _highlight = null);
-    });
+    _startHighlightFade();
+  }
+
+  /// 长按菜单打开期间的段落选中态：同高亮卡片样式，但不自动过期，
+  /// 随菜单关闭淡出。传 null 清除。
+  void _selectParagraph(NovelReaderAnchor? anchor) {
+    _highlightTimer?.cancel();
+    if (anchor == null) {
+      _clearHighlight();
+      return;
+    }
+    setState(() => _highlight = anchor);
+    _startHighlightFade(expire: false);
+  }
+
+  /// 启动一次高亮生命周期：淡入 → 保持 [_highlightDuration]。
+  /// [expire] 为 false 时不安排自动清除（长按选中态由调用方控制）。
+  void _startHighlightFade({bool expire = true}) {
+    ++_highlightGen;
+    final fade =
+        _highlightFade ??
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 180),
+          reverseDuration: const Duration(milliseconds: 400),
+        );
+    if (prefersReducedMotion(context)) {
+      fade.stop();
+      fade.value = 1;
+    } else {
+      fade.forward(from: 0);
+    }
+    if (expire) {
+      _highlightTimer = Timer(_highlightDuration, _clearHighlight);
+    }
   }
 
   void _clearHighlight() {
     _highlightTimer?.cancel();
     if (_highlight == null) return;
-    setState(() => _highlight = null);
+    final fade = _highlightFade;
+    final gen = ++_highlightGen;
+    if (fade == null || prefersReducedMotion(context)) {
+      fade?.stop();
+      fade?.value = 0;
+      setState(() => _highlight = null);
+      return;
+    }
+    fade.reverse().whenCompleteOrCancel(() {
+      // 淡出期间又打了新书签：旧淡出作废，新高亮不受影响。
+      if (gen != _highlightGen) return;
+      if (mounted && !_disposed && _highlight != null) {
+        setState(() => _highlight = null);
+      }
+    });
   }
 
-  /// 高亮锚点与某段落是否同一位置。
+  /// 高亮锚点与某段落是否同一位置（连续阅读下卷 id 也参与判定）。
   bool _isSameAnchor(NovelReaderAnchor? a, NovelReaderAnchor b) =>
       a != null &&
       a.entryIndex == b.entryIndex &&
-      a.paragraphIndex == b.paragraphIndex;
+      a.paragraphIndex == b.paragraphIndex &&
+      (a.volumeId.isEmpty || b.volumeId.isEmpty || a.volumeId == b.volumeId);
 
   void _beginSession() {
     final session = ++_session;
@@ -435,6 +555,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             _loading = false;
             _error = const NovelDownloadUnavailableException();
           });
+          _setToolbarVisible(true);
           return;
         }
       }
@@ -487,6 +608,11 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     bool lastEntry = false,
   }) async {
     unawaited(_flush());
+    // 异常/空卷页为返回而展开的工具栏，重试时重新收起；正常换卷不重置。
+    if (!_loading &&
+        (_error != null || _document == null || _document!.itemCount == 0)) {
+      _setToolbarVisible(false);
+    }
     final session = _session;
     final request = ++_request;
     final path = _pathWord;
@@ -505,6 +631,15 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       _pageViewKey = GlobalKey();
       _highlightTimer?.cancel();
       _highlight = null;
+      // 手动换卷是跳跃式跳转，不是连续下滑：卷栈重置为单卷。
+      _stackVolumes.clear();
+      _stackContents.clear();
+      _stackLoads.clear();
+      _stack = null;
+      ++_contentRevision;
+      _appending = false;
+      _seamError = null;
+      _seamUnavailable = false;
     });
     try {
       final content = await _source.loadContent(
@@ -520,9 +655,26 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       }
       if (content.detail.isLocked) throw NovelAccessException(content.detail);
       _volumeDetails[volume] = content.detail;
-      final document = NovelReaderDocument(content.entries);
+      // 卷栈以当前卷起步；滚动模式下后续可原位追加下一卷。
+      final stackVolume = NovelReaderVolumeDocument(
+        volumeId: volume,
+        volumeName: content.detail.volume.name,
+        document: NovelReaderDocument(
+          content.entries,
+          ignoreBlankParagraphs: _settings.ignoreBlankParagraphs,
+        ),
+      );
+      final stack = NovelReaderStack([stackVolume]);
+      final document = stack;
       setState(() {
         _content = content;
+        _stackVolumes
+          ..clear()
+          ..add(stackVolume);
+        _stackContents
+          ..clear()
+          ..[volume] = content;
+        _stack = stack;
         _document = document;
         _accessDetail = content.detail;
         if (document.itemCount > 0) {
@@ -547,10 +699,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             document.itemFor(pending),
             alignment: 0.5,
           );
-          _highlightTimer?.cancel();
+          // 这里已处于 setState 内，直接改字段即可；动画启动交给
+          // 帧回调，避免在同一次 build 里触发 vsync 断言。
           _highlight = pending;
-          _highlightTimer = Timer(_highlightDuration, () {
-            if (mounted && !_disposed) setState(() => _highlight = null);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_disposed && _highlight == pending) {
+              _startHighlightFade();
+            }
           });
         }
       });
@@ -565,24 +720,32 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } finally {
       if (_active(session) && request == _request) {
         setState(() => _loading = false);
+        if (_error != null || _document == null || _document!.itemCount == 0) {
+          _setToolbarVisible(true);
+        }
       }
     }
   }
 
+  /// 进度按「当前正在读的卷」记录。连续阅读跨过接缝后，卷元数据跟着
+  /// 段落所属卷走，进度条与恢复定位始终对应同一卷。
   NovelReadingProgress _progressAt(
     NovelReaderLocation location,
     DateTime updatedAt,
   ) {
-    final content = _content!;
-    final book = content.detail.book;
-    final volume = content.detail.volume;
+    final document = _document!;
+    final volumeId = document.volumeIdForItem(location.itemIndex);
+    final content = _stackContents[volumeId] ?? _content!;
+    final detail = content.detail;
+    final book = detail.book;
+    final volume = detail.volume;
     return NovelReadingProgress(
       pathWord: _pathWord,
       name: book.name.isEmpty ? _fallbackName : book.name,
       cover: book.cover.isEmpty ? _fallbackCover : book.cover,
-      volumeId: _volumeId,
+      volumeId: volume.id.isEmpty ? _volumeId : volume.id,
       volumeName: volume.name,
-      chapterName: _document!.paragraphAt(location.itemIndex).entry.name,
+      chapterName: document.paragraphAt(location.itemIndex).entry.name,
       entryIndex: location.anchor.entryIndex,
       paragraphIndex: location.anchor.paragraphIndex,
       paragraphAlignment: location.anchor.alignment,
@@ -602,10 +765,12 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     if (_disposed || content == null || document == null || _loading) return;
     final previous = _location;
     _location = location;
+    // 连续阅读时 entryIndex 会跨卷重复，卷 id 必须一起比较。
     final changed =
         previous == null ||
         previous.anchor.entryIndex != location.anchor.entryIndex ||
         previous.anchor.paragraphIndex != location.anchor.paragraphIndex ||
+        previous.anchor.volumeId != location.anchor.volumeId ||
         (previous.anchor.alignment - location.anchor.alignment).abs() > 0.0001;
     if (!changed) return;
     final now = DateTime.now();
@@ -626,7 +791,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
             previous.itemIndex != location.itemIndex ||
             (previous.progress * 100).round() !=
                 (location.progress * 100).round())) {
-      setState(() {});
+      ++_locationRevision.value;
     }
   }
 
@@ -657,6 +822,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     return _lastWrite;
   }
 
+  void _onSliderValueChanged(double value) {
+    setState(() => _sliderValue = value);
+  }
+
   void _jumpTo(NovelReaderAnchor anchor) {
     final document = _document;
     if (document == null || document.itemCount == 0) return;
@@ -672,26 +841,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     });
   }
 
-  String? _adjacentVolume(int direction) {
-    final volume = _content?.detail.volume;
-    final linked = direction < 0 ? volume?.prev : volume?.next;
-    if (linked != null && linked.isNotEmpty && linked != _volumeId) {
-      return linked;
-    }
-    final index = _volumes.indexWhere((volume) => volume.id == _volumeId);
-    final next = index + direction;
-    return index >= 0 && next >= 0 && next < _volumes.length
-        ? _volumes[next].id
-        : null;
-  }
+  String? _adjacentVolume(int direction) =>
+      _adjacentVolumeOf(_currentVolumeId, direction);
 
-  int get _entrySlot =>
-      _document?.entries.indexWhere(
-        (entry) =>
-            entry.entryIndex ==
-            (_location?.anchor.entryIndex ?? _target.entryIndex),
-      ) ??
-      -1;
+  /// 供分片扩展方法更新界面（扩展方法不能直接调用受保护的 setState）。
+  void _refresh(VoidCallback update) {
+    if (mounted && !_disposed) setState(update);
+  }
 
   bool _canStepVolume(int direction) =>
       !_loading && !_disposed && _adjacentVolume(direction) != null;
@@ -705,7 +861,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     unawaited(
       _loadVolume(
         volume,
-        anchor: const NovelReaderAnchor(entryIndex: 0),
+        anchor: NovelReaderAnchor(entryIndex: 0, volumeId: volume),
         lastEntry: direction < 0,
       ),
     );
@@ -713,6 +869,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
 
   Future<void> _showContents() async {
     final session = _session;
+    final current = _currentVolumeId;
     final selection = await showAppSheet<Object?>(
       context,
       heightFactor: 0.85,
@@ -720,7 +877,7 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         repository: _repository,
         source: _source,
         pathWord: _pathWord,
-        volumeId: _volumeId,
+        volumeId: current,
         entryIndex: _location?.anchor.entryIndex ?? _target.entryIndex,
         detail: _accessDetail,
         volumes: _volumesReady ? _volumes : null,
@@ -737,10 +894,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       return;
     }
     if (selection case (final String volume, final int entry)) {
-      if (volume == _volumeId && _document != null) {
-        _jumpTo(NovelReaderAnchor(entryIndex: entry));
+      if (volume == current && _document != null) {
+        _jumpTo(NovelReaderAnchor(entryIndex: entry, volumeId: current));
       } else {
-        await _loadVolume(volume, anchor: NovelReaderAnchor(entryIndex: entry));
+        await _loadVolume(
+          volume,
+          anchor: NovelReaderAnchor(entryIndex: entry, volumeId: volume),
+        );
       }
     }
   }
@@ -770,9 +930,34 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final anchor = settings.mode != _settings.mode
         ? (_viewerLocation?.anchor ?? _location?.anchor)
         : null;
+    // 空行显隐改变文档形状：以当前位置为落点重建，锚点身份不变。
+    // 连续阅读的卷栈逐卷重建，已追加的下一卷不会被丢掉。
+    final reflow =
+        settings.ignoreBlankParagraphs != _settings.ignoreBlankParagraphs;
+    final current = _document;
     setState(() {
       _settings = settings;
       if (anchor != null) _target = anchor;
+      if (reflow &&
+          _stackVolumes.isNotEmpty &&
+          current != null &&
+          current.itemCount > 0) {
+        for (var index = 0; index < _stackVolumes.length; index++) {
+          _stackVolumes[index] = _stackVolumes[index].rebuilt(
+            ignoreBlankParagraphs: settings.ignoreBlankParagraphs,
+          );
+        }
+        _stack = NovelReaderStack(List.of(_stackVolumes));
+        _document = _stack;
+        ++_contentRevision;
+        // 文档形状变了，必须重新定位（与单纯追加下一卷区分开）。
+        ++_jumpRevision;
+        final base = anchor ?? _target;
+        _target = _document!.anchorFor(
+          _document!.itemFor(base),
+          alignment: base.alignment,
+        );
+      }
     });
     _setScreenOn(settings.keepScreenOn);
     _updateVolumeIntercept();
@@ -783,15 +968,25 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     );
   }
 
-  Future<void> _showSettings() => showAppSheet<void>(
-    context,
-    maxHeightFactor: 0.7,
-    child: NovelReaderSettingsSheet(
-      settings: _settings,
-      systemBrightness: MediaQuery.platformBrightnessOf(context),
-      onChanged: _changeSettings,
-    ),
-  );
+  Future<void> _showSettings() async {
+    final dragPreview = ValueNotifier<bool>(false);
+    try {
+      await showAppSheet<void>(
+        context,
+        maxHeightFactor: 0.7,
+        barrierColor: Colors.transparent,
+        fadeOutWhen: dragPreview,
+        child: NovelReaderSettingsSheet(
+          settings: _settings,
+          systemBrightness: MediaQuery.platformBrightnessOf(context),
+          dragPreview: dragPreview,
+          onChanged: _changeSettings,
+        ),
+      );
+    } finally {
+      dragPreview.dispose();
+    }
+  }
 
   /// 长按段落弹出的轻量上下文菜单：复制、书签。两种阅读模式同一手势
   /// （点按在翻页模式要翻页，双击识别会给单击引入延迟或先翻两页）。
@@ -807,16 +1002,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final anchor = NovelReaderAnchor(
       entryIndex: paragraph.entry.entryIndex,
       paragraphIndex: paragraph.paragraphIndex,
+      volumeId: paragraph.volumeId,
     );
     final bookmarked = _bookmarks.isBookmarked(
       pathWord: _pathWord,
-      volumeId: _volumeId,
+      volumeId: paragraph.volumeId.isEmpty ? _volumeId : paragraph.volumeId,
       entryIndex: anchor.entryIndex,
       paragraphIndex: anchor.paragraphIndex,
     );
     final overlay =
         Overlay.of(context, rootOverlay: true).context.findRenderObject()!
             as RenderBox;
+    // 菜单打开期间给目标段落挂选中态（同书签高亮卡片，但由菜单生命
+    // 周期控制）：长按到「操作哪个段落」一目了然。
+    _selectParagraph(anchor);
     final action = await showMenu<_ParagraphAction>(
       context: context,
       position: RelativeRect.fromRect(
@@ -825,14 +1024,16 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       ),
       items: _paragraphMenuItems(paragraph, bookmarked),
     );
-    if (!_active(session) || request != _request || action == null) return;
+    final stillHere = _active(session) && request == _request;
+    if (stillHere) _selectParagraph(null);
+    if (!stillHere || action == null) return;
     switch (action) {
       case _ParagraphAction.copy:
         await Clipboard.setData(ClipboardData(text: paragraph.text));
         if (mounted && _active(session)) {
           showToast(
             context,
-            AppLocalizations.of(context)!.novelReaderCopiedToast,
+            AppLocalizations.of(context)!.chapterCommentsCopied,
           );
         }
       case _ParagraphAction.toggleBookmark:
@@ -880,51 +1081,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ];
   }
 
-  /// 段落是否已有书签（驱动正文里的小书签标记）。
-  bool _isParagraphBookmarked(NovelReaderParagraph paragraph) =>
-      _bookmarksLoaded &&
-      _bookmarks.isBookmarked(
-        pathWord: _pathWord,
-        volumeId: _volumeId,
-        entryIndex: paragraph.entry.entryIndex,
-        paragraphIndex: paragraph.paragraphIndex,
-      );
-
-  /// 点按段落上的小书签标记：取消该书签。
-  Future<void> _removeParagraphBookmark(NovelReaderParagraph paragraph) async {
-    if (_bookmarking) return;
-    final anchor = NovelReaderAnchor(
-      entryIndex: paragraph.entry.entryIndex,
-      paragraphIndex: paragraph.paragraphIndex,
-    );
-    final bookmark = _bookmarks.bookmarks
-        .where(
-          (item) =>
-              item.pathWord == _pathWord &&
-              item.volumeId == _volumeId &&
-              item.entryIndex == anchor.entryIndex &&
-              item.paragraphIndex == anchor.paragraphIndex,
-        )
-        .firstOrNull;
-    if (bookmark == null) return;
-    final session = _session;
-    final l10n = AppLocalizations.of(context)!;
-    setState(() => _bookmarking = true);
-    try {
-      await _bookmarks.remove(bookmark.id);
-      if (!mounted || !_active(session)) return;
-      showToast(context, l10n.bookmarkRemoved);
-      if (_isSameAnchor(_highlight, anchor)) _clearHighlight();
-    } catch (error, stack) {
-      _warn(error, stack, 'bookmarks.remove');
-      if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
-      }
-    } finally {
-      if (mounted) setState(() => _bookmarking = false);
-    }
-  }
-
   /// 对任意段落打/取消书签：进度取该段落在卷内的位置，对齐值用段首。
   /// 空行/空章节占位不接受书签（菜单项已禁用，这里再兜底）。
   Future<void> _toggleParagraphBookmark(NovelReaderAnchor anchor) async {
@@ -937,10 +1093,10 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     final location = NovelReaderLocation(
       anchor: anchor,
       itemIndex: item,
-      progress: (item / document.itemCount).clamp(0, 1),
+      // 段落书签落在段首：进度按该段落在所属卷内的位置计算。
+      progress: document.progressAt(item, 0),
     );
     final session = _session;
-    final l10n = AppLocalizations.of(context)!;
     setState(() => _bookmarking = true);
     try {
       final added = await _bookmarks.toggle(
@@ -948,7 +1104,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
       );
       if (!mounted || !_active(session)) return;
       setState(() => _bookmarksLoaded = true);
-      showToast(context, added ? l10n.bookmarkAdded : l10n.bookmarkRemoved);
       if (added) {
         _showHighlight(anchor);
       } else if (_isSameAnchor(_highlight, anchor)) {
@@ -957,7 +1112,13 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     } catch (error, stack) {
       _warn(error, stack, 'bookmarks.toggle');
       if (mounted && _active(session)) {
-        showToast(context, l10n.bookmarksUpdateFailed, isError: true);
+        showToast(
+          context,
+          AppLocalizations.of(
+            context,
+          )!.bookmarksUpdateFailedDetail(novelErrorMessage(error)),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _bookmarking = false);
@@ -1032,7 +1193,9 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     ++_session;
     ++_request;
     _saveTimer?.cancel();
+    _locationRevision.dispose();
     _highlightTimer?.cancel();
+    _highlightFade?.dispose();
     _bookmarks.removeListener(_onBookmarksChanged);
     _statusSettings.removeListener(_onStatusSettingsChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -1053,6 +1216,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
     super.dispose();
   }
 
+  ThemeData _themeForPalette(NovelReaderPalette palette) {
+    final base = Theme.of(context);
+    final cached = _readerTheme;
+    if (cached != null &&
+        _readerThemeBase == base &&
+        _readerThemePalette?.background == palette.background &&
+        _readerThemePalette?.foreground == palette.foreground) {
+      return cached;
+    }
+    _readerThemeBase = base;
+    _readerThemePalette = palette;
+    return _readerTheme = palette.applyTo(base);
+  }
+
   @override
   Widget build(BuildContext context) {
     // 阅读纸张固定跟随系统亮暗选择配色方案，不受 App 强制主题影响。
@@ -1066,11 +1243,20 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
         _error == null &&
         document != null &&
         document.itemCount > 0;
-    final header = _buildHeader();
+    // 隐藏的工具栏复用 child；位置变化只更新可见的阅读 chrome。
+    final header = ValueListenableBuilder<int>(
+      valueListenable: _locationRevision,
+      child: _toolbarVisible ? null : _buildHeader(),
+      builder: (context, revision, child) => child ?? _buildHeader(),
+    );
     final body = _buildBody();
-    final toolbar = _buildToolbar();
+    final toolbar = ValueListenableBuilder<int>(
+      valueListenable: _locationRevision,
+      child: _toolbarVisible ? null : _buildToolbar(),
+      builder: (context, revision, child) => child ?? _buildToolbar(),
+    );
     return Theme(
-      data: palette.applyTo(Theme.of(context)),
+      data: _themeForPalette(palette),
       child: PopScope(
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) unawaited(_flush());
@@ -1090,16 +1276,30 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                       // 一致）：安全区 inset 经 contentPadding 交给列表内容
                       // 层，viewport 尺寸恒定，不会触发 anchor restoration。
                       body,
+                      // 状态浮层先画、专注遮罩后画：开启专注模式时顶部
+                      // 状态组件同样被遮罩压暗，不会在暗区里格外显眼。
+                      // 遮罩本身 IgnorePointer，状态组件的点按不受影响。
                       if (_statusSettings.statusOverlay) _buildStatusOverlay(),
-                      if (_toolbarVisible) ...[
-                        Positioned(top: 0, left: 0, right: 0, child: header),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: toolbar,
-                        ),
-                      ],
+                      NovelFocusMask(
+                        key: const ValueKey('novel-focus-mask-widget'),
+                        enabled: _settings.focusModeEnabled,
+                        topRatio: _settings.focusTopRatio,
+                        bottomRatio: _settings.focusBottomRatio,
+                        opacity: _settings.focusOpacity,
+                      ),
+                      // 显隐都留在树里做滑动过渡（与漫画阅读器同一套规则）。
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        child: _slideOnToolbar(header, fromTop: true),
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: _slideOnToolbar(toolbar, fromTop: false),
+                      ),
                     ],
                   )
                 // Loading / retry actions remain outside the chrome so they
@@ -1115,406 +1315,6 @@ class _NovelReaderPageState extends ConsumerState<NovelReaderPage>
                   ),
           ),
         ),
-      ),
-    );
-  }
-
-  /// 状态组件：与漫画阅读器同一套摆放规则（六位 + 中间对齐），
-  /// 工具栏隐藏时显示；点按唤出工具栏。
-  Widget _buildStatusOverlay() {
-    // 0左上 1顶中 2右上 3右下 4底中 5左下
-    final position = _statusSettings.statusOverlayPosition;
-    final isTop = position < 3;
-    final isLeft = {0: true, 5: true}[position] ?? false;
-    final isCenter = position == 1 || position == 4;
-    return Positioned(
-      top: isTop ? 0 : null,
-      bottom: isTop ? null : 0,
-      left: isCenter || isLeft ? 0 : null,
-      right: isCenter || !isLeft ? 0 : null,
-      child: Visibility(
-        visible: !_toolbarVisible,
-        maintainState: true,
-        child: TickerMode(
-          enabled: !_toolbarVisible,
-          child: Semantics(
-            button: true,
-            label: AppLocalizations.of(context)!.novelReaderShowToolbar,
-            child: InkWell(
-              key: const ValueKey('novel-reader-show-toolbar'),
-              onTap: () => _setToolbarVisible(true),
-              child: isCenter
-                  ? Align(
-                      alignment: isTop
-                          ? Alignment.topCenter
-                          : Alignment.bottomCenter,
-                      child: _statusOverlayChild(),
-                    )
-                  : _statusOverlayChild(),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _statusOverlayChild() => ReaderStatusOverlay(
-    progressLabel: _progressLabel(_location?.progress ?? 0),
-  );
-
-  Widget _buildHeader() {
-    final l10n = AppLocalizations.of(context)!;
-    final bookName = _content?.detail.book.name ?? _fallbackName;
-    final isBookmarked = _bookmarksLoaded && _isBookmarked;
-    return ColoredBox(
-      color: ReaderChrome.surface,
-      // 工具栏位于全屏 Stack 顶层（覆盖到状态栏底下），内部避开系统栏。
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: kToolbarHeight,
-          child: Row(
-            children: [
-              IconButton(
-                key: const ValueKey('novel-reader-back'),
-                tooltip: l10n.novelReaderBack,
-                color: ReaderChrome.onSurface,
-                onPressed: _back,
-                icon: const Icon(Icons.arrow_back),
-              ),
-              Expanded(
-                child: Text(
-                  bookName.isEmpty ? l10n.novelReaderTitle : bookName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: ReaderChrome.onSurface,
-                  ),
-                ),
-              ),
-              IconButton(
-                key: const ValueKey('novel-reader-bookmark'),
-                tooltip: isBookmarked ? l10n.bookmarkRemove : l10n.bookmarkAdd,
-                // 与漫画阅读器一致，书签高亮不随正文配色改变。
-                color: isBookmarked
-                    ? Colors.amberAccent
-                    : ReaderChrome.onSurface,
-                onPressed: _loading || _bookmarking || _location == null
-                    ? null
-                    : _toggleBookmark,
-                icon: Icon(
-                  isBookmarked ? Icons.bookmark : Icons.bookmark_border,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody() {
-    final l10n = AppLocalizations.of(context)!;
-    final document = _document;
-    final request = _request;
-    if (_loading) return const Center(child: ExpressiveLoadingIndicator());
-    if (_error != null) return _buildError();
-    if (document == null || document.itemCount == 0) {
-      return Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: ErrorRetryView(
-            icon: Icons.menu_book_outlined,
-            message: l10n.novelReaderEmptyVolume,
-            onRetry: () => unawaited(
-              _loadVolume(_volumeId, anchor: _target, refresh: true),
-            ),
-          ),
-        ),
-      );
-    }
-    final palette = NovelReaderPalette.resolve(
-      _settings,
-      MediaQuery.platformBrightnessOf(context),
-    );
-    void onPosition(NovelReaderLocation location) {
-      if (_request == request && identical(_document, document)) {
-        _recordLocation(location);
-      }
-    }
-
-    if (_paged) {
-      return NovelReaderPageView(
-        key: _pageViewKey,
-        document: document,
-        settings: _settings,
-        palette: palette,
-        target: _target,
-        jumpRevision: _jumpRevision,
-        bookmarkRevision: _bookmarkRevision,
-        emptyChapterText: l10n.novelReaderEmptyChapter,
-        contentPadding: _systemPadding ?? EdgeInsets.zero,
-        onPosition: onPosition,
-        toolbarVisible: _toolbarVisible,
-        onTap: () => _setToolbarVisible(!_toolbarVisible),
-        onParagraphLongPress: (paragraph, position) =>
-            unawaited(_showParagraphMenu(paragraph, position)),
-        isBookmarkedParagraph: _isParagraphBookmarked,
-        onBookmarkMarkerTap: (paragraph) =>
-            unawaited(_removeParagraphBookmark(paragraph)),
-        highlight: _highlight,
-        onPageTurned: () {
-          _clearHighlight();
-          _setToolbarVisible(false);
-        },
-        // 卷末继续翻页进入下一卷首页；卷首回翻进入上一卷末页。
-        onBoundary: (forward) => _stepVolume(forward ? 1 : -1),
-      );
-    }
-    return NovelReaderViewport(
-      key: _viewportKey,
-      document: document,
-      settings: _settings,
-      contentPadding: _systemPadding ?? EdgeInsets.zero,
-      palette: palette,
-      target: _target,
-      jumpRevision: _jumpRevision,
-      highlight: _highlight,
-      onPosition: onPosition,
-      onTap: () => _setToolbarVisible(!_toolbarVisible),
-      onParagraphLongPress: (paragraph, position) =>
-          unawaited(_showParagraphMenu(paragraph, position)),
-      isBookmarkedParagraph: _isParagraphBookmarked,
-      onBookmarkMarkerTap: (paragraph) =>
-          unawaited(_removeParagraphBookmark(paragraph)),
-      onScroll: () {
-        _clearHighlight();
-        _setToolbarVisible(false);
-      },
-    );
-  }
-
-  String _progressLabel(double progress) {
-    final percent = progress * 100;
-    // 四舍五入到两位小数，但未到结尾不得显示成 100%。
-    final capped = progress >= 1
-        ? 100.0
-        : percent > 99.99
-        ? 99.99
-        : percent;
-    return '${capped.toStringAsFixed(2)}%';
-  }
-
-  String _chapterName(AppLocalizations l10n) {
-    final slot = _entrySlot;
-    final entries = _document?.entries ?? [];
-    if (slot < 0 || slot >= entries.length) {
-      return _accessDetail?.volume.name ?? l10n.novelReaderTitle;
-    }
-    return entries[slot].name.isEmpty
-        ? l10n.novelReaderUnnamedChapter(slot + 1)
-        : entries[slot].name;
-  }
-
-  Widget _buildToolbar() {
-    final l10n = AppLocalizations.of(context)!;
-    final primary = Theme.of(context).colorScheme.primary;
-    final document = _document;
-    final count = document?.itemCount ?? 0;
-    final current =
-        _location?.itemIndex ?? (count > 0 ? document!.itemFor(_target) : 0);
-    final value = _sliderValue ?? current.toDouble();
-    final progress = _sliderValue != null
-        ? (count > 1 ? value.round() / (count - 1) : 0.0)
-        : (_location?.progress ?? (count > 1 ? current / (count - 1) : 0.0));
-    final progressLabel = _progressLabel(progress);
-    return ColoredBox(
-      color: ReaderChrome.surface,
-      // 工具栏位于全屏 Stack 底部顶层（延伸到导航栏底下），内部避开系统栏。
-      child: SafeArea(
-        top: false,
-        child: IconTheme(
-          data: const IconThemeData(color: ReaderChrome.onSurface),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Row(
-                    children: [
-                      if (_offline)
-                        const Padding(
-                          padding: EdgeInsets.only(right: AppSpacing.xs),
-                          child: Icon(Icons.offline_pin_outlined, size: 16),
-                        ),
-                      Expanded(
-                        child: Text(
-                          _chapterName(l10n),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: ReaderChrome.onSurfaceMuted),
-                        ),
-                      ),
-                      Text(
-                        progressLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: ReaderChrome.onSurfaceMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SliderTheme(
-                  // 与漫画阅读器底栏进度条同一套配色/粗细/滑块；唯一差别是
-                  // 小说的「刻度」不是等距分页，而是按章节段落偏移定位的圆点。
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 7,
-                    ),
-                    trackShape: NovelChapterSliderTrackShape(
-                      chapterStarts: document?.chapterStarts ?? const [],
-                      activeColor: primary,
-                      inactiveColor: ReaderChrome.trackInactive,
-                    ),
-                    activeTrackColor: primary,
-                    inactiveTrackColor: ReaderChrome.trackInactive,
-                    thumbColor: primary,
-                    overlayColor: primary.withValues(alpha: 0.2),
-                  ),
-                  child: Slider(
-                    key: const ValueKey('novel-reader-progress'),
-                    value: value.clamp(0, count > 1 ? count - 1.0 : 1.0),
-                    max: count > 1 ? count - 1.0 : 1,
-                    label: progressLabel,
-                    onChanged: count > 1 && !_loading
-                        ? (value) => setState(() => _sliderValue = value)
-                        : null,
-                    onChangeEnd: count > 1 && !_loading
-                        ? (value) => _jumpTo(document!.anchorFor(value.round()))
-                        : null,
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      key: const ValueKey('novel-reader-previous'),
-                      tooltip: l10n.novelReaderPrevious,
-                      onPressed: _canStepVolume(-1)
-                          ? () => _stepVolume(-1)
-                          : null,
-                      // 与漫画阅读器底栏一致：颜色显式指定，禁用态仍可见。
-                      icon: Icon(
-                        Icons.skip_previous,
-                        color: _canStepVolume(-1)
-                            ? ReaderChrome.onSurface
-                            : ReaderChrome.onSurfaceFaint,
-                      ),
-                    ),
-                    IconButton(
-                      key: const ValueKey('novel-reader-contents'),
-                      tooltip: l10n.novelReaderContents,
-                      onPressed: _showContents,
-                      icon: const Icon(Icons.format_list_bulleted),
-                    ),
-                    IconButton(
-                      key: const ValueKey('novel-reader-settings'),
-                      tooltip: l10n.novelReaderSettings,
-                      onPressed: _loading ? null : _showSettings,
-                      icon: const Icon(Icons.settings_outlined),
-                    ),
-                    IconButton(
-                      key: const ValueKey('novel-reader-next'),
-                      tooltip: l10n.novelReaderNext,
-                      onPressed: _canStepVolume(1)
-                          ? () => _stepVolume(1)
-                          : null,
-                      icon: Icon(
-                        Icons.skip_next,
-                        color: _canStepVolume(1)
-                            ? ReaderChrome.onSurface
-                            : ReaderChrome.onSurfaceFaint,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildError() {
-    final l10n = AppLocalizations.of(context)!;
-    final error = _error;
-    final locked = _accessDetail?.isLocked ?? false;
-    final unauthorized = error is NovelApiException && error.isUnauthorized;
-    final canLogin =
-        unauthorized ||
-        (error is NovelAccessException &&
-            (!error.detail.isLoggedIn || !_api.hasCopyToken));
-    final message = error is NovelDownloadUnavailableException
-        ? l10n.novelDownloadUnavailable
-        : locked
-        ? l10n.novelReaderLocked
-        : error is _NoCachedVolume
-        ? l10n.novelReaderNoCache
-        : error is NovelAccessException
-        ? l10n.novelReaderEmptyVolume
-        : unauthorized
-        ? l10n.novelReaderLoginRequired
-        : novelErrorMessage(error, fallback: l10n.novelReaderLoadFailed);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.xxl),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ErrorRetryView(
-            icon: locked ? Icons.lock_outline : Icons.cloud_off_outlined,
-            message: message,
-            onRetry: () => unawaited(
-              _loadVolume(_volumeId, anchor: _target, refresh: true),
-            ),
-          ),
-          if (canLogin)
-            TextButton.icon(
-              key: const ValueKey('novel-reader-login'),
-              onPressed: _login,
-              icon: const Icon(Icons.login),
-              label: Text(l10n.novelReaderCopyLogin),
-            ),
-          if (_source.localOnly || widget.localOnly)
-            TextButton.icon(
-              key: const ValueKey('novel-reader-open-downloads'),
-              onPressed: () async {
-                final session = _session;
-                await context.pushNamed(
-                  AppRoutes.downloadCenter,
-                  queryParameters: {'tab': '2'},
-                );
-                if (_active(session)) {
-                  await _loadVolume(_volumeId, anchor: _target);
-                }
-              },
-              icon: const Icon(Icons.download_outlined),
-              label: Text(l10n.downloadCenterTitle),
-            )
-          else
-            TextButton.icon(
-              key: const ValueKey('novel-reader-open-cache'),
-              onPressed: () => unawaited(
-                _loadVolume(_volumeId, anchor: _target, cachedOnly: true),
-              ),
-              icon: const Icon(Icons.offline_pin_outlined),
-              label: Text(l10n.novelReaderOpenCache),
-            ),
-        ],
       ),
     );
   }

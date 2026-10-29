@@ -612,11 +612,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 onPressed: _loading ? null : _openOfficialRegister,
                 icon: const Icon(Icons.open_in_new, size: 16),
-                label: Text(
-                  _useCopyLogin
-                      ? l10n.loginGoOfficialRegisterCopy
-                      : l10n.loginGoOfficialRegisterHot,
-                ),
+                label: Text(l10n.loginGoOfficialRegister),
               ),
             ],
           ),

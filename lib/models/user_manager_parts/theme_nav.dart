@@ -1,80 +1,27 @@
 part of '../user_manager.dart';
 
 extension UserManagerThemeNavPart on UserManager {
-  Future<void> setThemeMode(ThemeMode mode) async {
-    _themeMode = mode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyThemeMode, mode.index);
-    _notifyListeners();
-  }
+  Future<void> setThemeMode(ThemeMode mode) => theme.setThemeMode(mode);
 
-  Future<void> setThemeColor(String themeColor) async {
-    final nextThemeColor = themeColor == customThemeOptionId
-        ? customThemeOptionId
-        : resolveAppThemeOption(themeColor).id;
-    if (_themeColor == nextThemeColor) return;
+  Future<void> setThemeColor(String themeColor) =>
+      theme.setThemeColor(themeColor);
 
-    _themeColor = nextThemeColor;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(UserManager._keyThemeColor, nextThemeColor);
-    _notifyListeners();
-  }
+  Future<void> setThemeVariant(DynamicSchemeVariant variant) =>
+      theme.setThemeVariant(variant);
 
-  Future<void> setThemeVariant(DynamicSchemeVariant variant) async {
-    if (_themeVariant == variant) return;
-
-    _themeVariant = variant;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(UserManager._keyThemeVariant, variant.name);
-    _notifyListeners();
-  }
-
-  Future<void> setCustomThemeColor(Color color) async {
-    final nextColorValue = color.toARGB32();
-    final shouldNotify =
-        _customThemeColorValue != nextColorValue ||
-        _themeColor != customThemeOptionId;
-
-    _customThemeColorValue = nextColorValue;
-    _themeColor = customThemeOptionId;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyCustomThemeColor, nextColorValue);
-    await prefs.setString(UserManager._keyThemeColor, customThemeOptionId);
-
-    if (shouldNotify) _notifyListeners();
-  }
+  Future<void> setCustomThemeColor(Color color) =>
+      theme.setCustomThemeColor(color);
 
   Future<void> setDarkModeCoverBrightness(
     double value, {
     bool persist = true,
-  }) async {
-    final nextValue = UserManager._normalizeDarkModeCoverBrightness(value);
-    if (_darkModeCoverBrightness == nextValue) return;
+  }) => theme.setDarkModeCoverBrightness(value, persist: persist);
 
-    _darkModeCoverBrightness = nextValue;
-    if (persist) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble(UserManager._keyDarkModeCoverBrightness, nextValue);
-    }
-    _notifyListeners();
-  }
+  Future<void> setBottomNavShowLabels(bool enabled) =>
+      theme.setBottomNavShowLabels(enabled);
 
-  Future<void> setBottomNavShowLabels(bool enabled) async {
-    await setBottomNavLabelMode(
-      enabled ? BottomNavLabelMode.selectedOnly : BottomNavLabelMode.hidden,
-    );
-  }
-
-  Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) async {
-    // ThemeSettings 持有同一份偏好，且负责与悬浮的互斥降级；以它的结果为准。
-    await theme.setBottomNavLabelMode(mode);
-    final next = theme.bottomNavLabelMode;
-    if (_bottomNavLabelMode == next) return;
-
-    _bottomNavLabelMode = next;
-    _notifyListeners();
-  }
+  Future<void> setBottomNavLabelMode(BottomNavLabelMode mode) =>
+      theme.setBottomNavLabelMode(mode);
 
   Future<void> setNavOrder(List<String> order) => theme.setNavOrder(order);
 
@@ -92,15 +39,8 @@ extension UserManagerThemeNavPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setDisplayModeRefreshRate(int refreshRate) async {
-    final nextRate = UserManager._normalizeDisplayModeRefreshRate(refreshRate);
-    if (_displayModeRefreshRate == nextRate) return;
-
-    _displayModeRefreshRate = nextRate;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyDisplayModeRefreshRate, nextRate);
-    _notifyListeners();
-  }
+  Future<void> setDisplayModeRefreshRate(int refreshRate) =>
+      theme.setDisplayModeRefreshRate(refreshRate);
 
   Future<void> setBookshelfOrdering(String ordering) async {
     _bookshelfOrdering = ordering;
@@ -109,25 +49,5 @@ extension UserManagerThemeNavPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setLogoIndex(int index) async {
-    final next = index.clamp(0, UserManager.appLogoPaths.length - 1);
-    if (_logoIndex == next) return;
-    _logoIndex = next;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyLogoIndex, next);
-    _notifyListeners();
-    if (Platform.isAndroid || Platform.isIOS) {
-      try {
-        await AppIconSwitcher.setAppIcon(next);
-      } catch (e, stack) {
-        unawaited(
-          AppLogger.instance.recordWarning(
-            e,
-            stackTrace: stack,
-            source: 'user_manager.set_app_icon',
-          ),
-        );
-      }
-    }
-  }
+  Future<void> setLogoIndex(int index) => theme.setLogoIndex(index);
 }

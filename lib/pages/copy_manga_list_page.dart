@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,13 +7,15 @@ import '../models/comic.dart' hide Theme;
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
 import '../utils/cover_brightness_filter.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/back_to_top_button.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
-import '../widgets/cover_placeholder.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 
@@ -50,6 +51,7 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
   int _offset = 0;
   int _total = 0;
   String? _error;
+  String? _loadMoreError;
   String _rankDateType = 'day';
   String _rankAudienceType = 'male';
 
@@ -124,6 +126,7 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _loadMoreError = null;
       _comics.clear();
       _offset = 0;
       _total = 0;
@@ -140,7 +143,7 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = NetworkError.message(e);
         _loading = false;
       });
     }
@@ -148,7 +151,10 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || _offset >= _total) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _fetch(_offset);
       if (!mounted) return;
@@ -157,8 +163,9 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
         _offset = _comics.length;
         _total = data.total;
       });
-    } catch (_) {
+    } catch (e) {
       // Keep the current list visible; the next scroll can retry.
+      if (mounted) setState(() => _loadMoreError = NetworkError.message(e));
     }
     if (mounted) {
       setState(() => _loadingMore = false);
@@ -283,6 +290,7 @@ class _CopyMangaListPageState extends State<CopyMangaListPage> {
                     label: AppLocalizations.of(
                       context,
                     )!.loadMoreProgress(_offset, _total),
+                    detail: _loadMoreError,
                     horizontalPadding: hp,
                   ),
                 ),
@@ -409,22 +417,17 @@ class _CopyListComicCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Hero(
+            child: AppHero(
               tag: ComicHeroTags.cover(heroTagBase),
               createRectTween: ComicHeroTags.createRectTween,
               placeholderBuilder: (_, heroSize, _) =>
                   SizedBox(width: heroSize.width, height: heroSize.height),
               child: ComicCardSurface(
                 child: CoverBrightnessFilter(
-                  child: CachedNetworkImage(
-                    imageUrl: comic.cover,
-                    fit: BoxFit.cover,
+                  child: CoverImage(
+                    url: comic.cover,
                     width: double.infinity,
                     height: double.infinity,
-                    fadeInDuration: Duration.zero,
-                    fadeOutDuration: Duration.zero,
-                    placeholder: (_, _) => const CoverPlaceholder(),
-                    errorWidget: (_, _, _) => const CoverPlaceholder.error(),
                   ),
                 ),
               ),

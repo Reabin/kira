@@ -242,7 +242,13 @@ class _ReaderImageViewerState extends State<_ReaderImageViewer> {
         ),
       );
       if (mounted) {
-        showToast(context, l10n.readerSaveImageFailed, isError: true);
+        showToast(
+          context,
+          l10n.readerSaveImageFailedDetail(
+            NetworkError.message(error),
+          ),
+          isError: true,
+        );
       }
     }
   }

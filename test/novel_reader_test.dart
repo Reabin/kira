@@ -11,6 +11,7 @@ import 'package:kira/api/novel/novel_api.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/novel_reading_progress.dart';
 import 'package:kira/models/reader_settings.dart';
 import 'package:kira/pages/novel_reader/novel_chapter_slider_track_shape.dart';
@@ -19,8 +20,8 @@ import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_viewport.dart';
 import 'package:kira/pages/novel_reader_page.dart';
 import 'package:kira/providers/novel_providers.dart';
+import 'package:kira/repositories/novel_reader_source.dart';
 import 'package:kira/repositories/novel_repository.dart';
-import 'package:kira/theme/app_icon_sizes.dart';
 import 'package:kira/theme/novel_reader_theme.dart';
 import 'package:kira/theme/reader_chrome.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
@@ -236,6 +237,8 @@ Future<void> _mount(
   EdgeInsets padding = EdgeInsets.zero,
   double textScale = 1,
   bool highlightOnEntry = false,
+  NovelReaderSource? source,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -246,6 +249,7 @@ Future<void> _mount(
         novelApiProvider.overrideWithValue(_Api()),
       ],
       child: MaterialApp(
+        theme: theme,
         builder: (context, child) => MediaQuery(
           data: MediaQuery.of(context).copyWith(
             padding: padding,
@@ -264,6 +268,7 @@ Future<void> _mount(
           initialParagraphIndex: initialParagraph,
           initialParagraphAlignment: initialAlignment,
           highlightOnEntry: highlightOnEntry,
+          source: source,
         ),
       ),
     ),
@@ -312,31 +317,28 @@ NovelReaderLocation _location(WidgetTester tester) => tester
     .state<NovelReaderViewportState>(find.byType(NovelReaderViewport))
     .currentLocation!;
 
-/// 段落闪光高亮的正文色描边（DecoratedBox，无布局影响）。
-/// 不传颜色时匹配任意描边高亮。
+ThemeData _readingTheme(WidgetTester tester) => tester
+    .element(find.byType(NovelReaderViewport))
+    .findAncestorWidgetOfExactType<Theme>()!
+    .data;
+
+/// 段落闪光高亮（浅底卡片画笔，画在段落矩形之外的留白里）。
+/// 不传颜色时匹配任意高亮画笔。
 Finder highlightBand([Color? color]) => find.byWidgetPredicate((widget) {
-  if (widget is! DecoratedBox) return false;
-  final decoration = widget.decoration;
-  if (decoration is! BoxDecoration || decoration.border is! Border) {
-    return false;
-  }
-  final top = (decoration.border as Border).top.color;
-  return color == null || top == color;
+  if (widget is! CustomPaint) return false;
+  final painter = widget.painter;
+  if (painter is! NovelHighlightPainter) return false;
+  return color == null || painter.color == color;
 });
 
 /// 段落正文的颜色（= 高亮描边用色）。
 Color? paragraphForeground(WidgetTester tester, Finder paragraph) =>
     tester.widget<Text>(paragraph).style?.color;
 
-/// 精确匹配段落文本（忽略书签标记的 WidgetSpan 占位符，且避免
-/// 「paragraph 7」误匹配「paragraph 70」之类的前缀包含问题）。
+/// 精确匹配段落文本，避免「paragraph 7」误匹配「paragraph 70」。
 Finder paragraphText(String text) => find.byWidgetPredicate((widget) {
   if (widget is! Text) return false;
-  final plain = (widget.data ?? widget.textSpan?.toPlainText())?.replaceAll(
-    '\uFFFC',
-    '',
-  );
-  return plain == text;
+  return (widget.data ?? widget.textSpan?.toPlainText()) == text;
 });
 
 NovelReaderLocation _centerLocation(WidgetTester tester) => tester
@@ -349,7 +351,23 @@ Future<void> _longPress(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _showToolbar(WidgetTester tester) async {
+  final back = find.byKey(const ValueKey('novel-reader-back')).hitTestable();
+  if (back.evaluate().isNotEmpty) return;
+  await tester.tapAt(
+    tester.getRect(find.byKey(const ValueKey('novel-reader-surface'))).center,
+  );
+  await _settle(tester);
+  expect(back, findsOneWidget);
+}
+
+Future<void> _tapToolbar(WidgetTester tester, String key) async {
+  await _showToolbar(tester);
+  await tester.tap(find.byKey(ValueKey(key)));
+}
+
 Future<void> _slideTo(WidgetTester tester, double item) async {
+  await _showToolbar(tester);
   final slider = tester.widget<Slider>(
     find.byKey(const ValueKey('novel-reader-progress')),
   );
@@ -486,12 +504,69 @@ void main() {
     );
   });
 
+  test('blank paragraph filtering keeps source indexes and maps anchors', () {
+    const source = [
+      NovelReaderEntry(
+        entryIndex: 0,
+        entry: NovelContentEntry(name: 'a', contentType: 1),
+        paragraphs: ['x', '', '  ', 'y', ''],
+      ),
+      NovelReaderEntry(
+        entryIndex: 1,
+        entry: NovelContentEntry(name: 'blank chapter', contentType: 1),
+        paragraphs: ['', '  '],
+      ),
+      NovelReaderEntry(
+        entryIndex: 2,
+        entry: NovelContentEntry(name: 'b', contentType: 1),
+        paragraphs: ['z'],
+      ),
+    ];
+    final document = NovelReaderDocument(source, ignoreBlankParagraphs: true);
+    // 空行不占槽：a 章 2 段 + 空白章占位 1 + b 章 1 段。
+    expect(document.itemCount, 4);
+    // paragraphAt 返回的仍是源数组下标，锚点身份不变。
+    expect(document.paragraphAt(0).paragraphIndex, 0);
+    expect(document.paragraphAt(1).paragraphIndex, 3);
+    expect(document.paragraphAt(2).paragraphIndex, 0);
+    expect(document.paragraphAt(3).paragraphIndex, 0);
+    expect(document.paragraphAt(3).entry.entryIndex, 2);
+    // 落在空行上的旧锚点向前映射到最近的可见段。
+    expect(
+      document.itemFor(
+        const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 1),
+      ),
+      0,
+    );
+    expect(
+      document.itemFor(
+        const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 4),
+      ),
+      1,
+    );
+    // 章首前的空行锚点退回该章最后一个可见段。
+    expect(document.itemFor(const NovelReaderAnchor(entryIndex: 0)), 0);
+    expect(document.itemFor(const NovelReaderAnchor(entryIndex: 2)), 3);
+    // 关闭过滤时行为与旧版本完全一致。
+    final legacy = NovelReaderDocument(source);
+    expect(legacy.itemCount, 8);
+    expect(legacy.paragraphAt(1).text, '');
+  });
+
   testWidgets(
     'resume restores exact paragraph and negative alignment, not chapter start',
     (tester) async {
       await tester.runAsync(() => store.saveProgress(_progress()));
       store.writes.clear();
       await _mount(tester, repository, store, resume: true);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       final position = _location(tester).anchor;
       expect(position.entryIndex, 1);
       expect(position.paragraphIndex, 40);
@@ -541,6 +616,163 @@ void main() {
     },
   );
 
+  testWidgets(
+    'entry hides both toolbars before loading and restores system bars on exit',
+    (tester) async {
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          calls.add(call);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final pending = Completer<NovelVolumeContent>();
+      repository.pending['v1'] = pending;
+      await _mount(tester, repository, store, settle: false);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        calls
+            .where(
+              (call) => call.method == 'SystemChrome.setEnabledSystemUIMode',
+            )
+            .map((call) => call.arguments),
+        contains('SystemUiMode.immersiveSticky'),
+      );
+      pending.complete(_volume());
+      await _settle(tester);
+      expect(find.byType(NovelReaderViewport), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
+      await _showToolbar(tester);
+      expect(
+        calls
+            .lastWhere(
+              (call) =>
+                  call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+            )
+            .arguments,
+        ['SystemUiOverlay.top', 'SystemUiOverlay.bottom'],
+      );
+      await tester.tapAt(
+        tester.getRect(find.byType(NovelReaderViewport)).center,
+      );
+      await _settle(tester);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      await _remove(tester);
+      expect(
+        calls
+            .lastWhere(
+              (call) =>
+                  call.method == 'SystemChrome.setEnabledSystemUIOverlays',
+            )
+            .arguments,
+        ['SystemUiOverlay.top', 'SystemUiOverlay.bottom'],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'failed loading shows a return action and retry hides toolbars again',
+    (tester) async {
+      repository.errors['v1'] = const NovelApiException('network unavailable');
+      await _mount(tester, repository, store);
+      expect(find.textContaining('network unavailable'), findsOneWidget);
+      final back = find
+          .byKey(const ValueKey('novel-reader-back'))
+          .hitTestable();
+      final settings = find
+          .byKey(const ValueKey('novel-reader-settings'))
+          .hitTestable();
+      expect(back.hitTestable(), findsOneWidget);
+      expect(settings, findsOneWidget);
+      final pending = Completer<NovelVolumeContent>();
+      repository.pending['v1'] = pending;
+      repository.errors.clear();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ErrorRetryView),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.byType(ExpressiveLoadingIndicator), findsOneWidget);
+      expect(back, findsNothing);
+      expect(settings, findsNothing);
+      pending.complete(_volume());
+      await _settle(tester);
+      expect(find.byType(NovelReaderViewport), findsOneWidget);
+      expect(back, findsNothing);
+      expect(settings, findsNothing);
+      await _showToolbar(tester);
+      await _remove(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final visible in [false, true]) {
+    testWidgets(
+      'returning from the background preserves toolbar visibility: $visible',
+      (tester) async {
+        await _mount(tester, repository, store);
+        if (visible) await _showToolbar(tester);
+        final back = find
+            .byKey(const ValueKey('novel-reader-back'))
+            .hitTestable();
+        expect(back, visible ? findsOneWidget : findsNothing);
+        final before = _location(tester).anchor;
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        await tester.pump();
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await _settle(tester);
+        expect(back, visible ? findsOneWidget : findsNothing);
+        expect(_location(tester).anchor.paragraphIndex, before.paragraphIndex);
+        expect(
+          _location(tester).anchor.alignment,
+          closeTo(before.alignment, 1e-6),
+        );
+        await _remove(tester);
+      },
+    );
+  }
+
   testWidgets('volume loading uses the shared patterned indicator', (
     tester,
   ) async {
@@ -580,6 +812,14 @@ void main() {
   ) async {
     await _seed(tester, store, _progress());
     await _mount(tester, repository, store, initialEntry: 2);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(_location(tester).anchor.entryIndex, 2);
     expect(_location(tester).anchor.paragraphIndex, 0);
     await _remove(tester);
@@ -607,6 +847,130 @@ void main() {
     expect(_location(tester).anchor.paragraphIndex, 8000);
     await _remove(tester);
   });
+
+  for (final showStatus in [false, true]) {
+    testWidgets(
+      'scroll position updates keep body and hidden chrome stable: status=$showStatus',
+      (tester) async {
+        final status = NovelReaderStatusSettings();
+        await tester.runAsync(() async {
+          await status.initFromPrefs(await SharedPreferences.getInstance());
+          await status.setStatusOverlay(showStatus);
+          await status.setStatusOverlayFps(false);
+        });
+        addTearDown(() => status.setStatusOverlay(false));
+        await _mount(tester, repository, store);
+        await _flush(tester);
+        store.writes.clear();
+        final viewport = find.byType(NovelReaderViewport);
+        final body = tester.widget<NovelReaderViewport>(viewport);
+        final theme = _readingTheme(tester);
+        final button = find.byKey(const ValueKey('novel-reader-bookmark'));
+        final slider = find.byKey(const ValueKey('novel-reader-progress'));
+        final oldButton = tester.widget<IconButton>(button);
+        final oldSlider = tester.widget<Slider>(slider);
+        final before = _location(tester);
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const ValueKey('novel-reader-surface'))),
+        );
+        // 模拟高刷拖动帧，只验证重建/保存不变量，不把它当真机 FPS 测量。
+        for (var frame = 0; frame < 24; frame++) {
+          await gesture.moveBy(const Offset(0, -12));
+          await tester.pump(const Duration(microseconds: 8333));
+        }
+        await gesture.up();
+        await tester.pump();
+        await tester.pump();
+        expect(_location(tester).itemIndex, greaterThan(before.itemIndex));
+        expect(tester.widget<NovelReaderViewport>(viewport), same(body));
+        expect(_readingTheme(tester), same(theme));
+        expect(tester.widget<IconButton>(button), same(oldButton));
+        expect(tester.widget<Slider>(slider), same(oldSlider));
+        expect(store.writes, isEmpty);
+        if (showStatus) {
+          final overlay = tester.widget<ReaderStatusOverlay>(
+            find.byType(ReaderStatusOverlay),
+          );
+          expect(overlay.progressLabel, isNot('0.0%'));
+        }
+        expect(tester.takeException(), isNull);
+        await _remove(tester);
+      },
+    );
+  }
+
+  testWidgets('visible chrome tracks position without rebuilding the body', (
+    tester,
+  ) async {
+    await _mount(tester, repository, store);
+    await _showToolbar(tester);
+    final viewport = find.byType(NovelReaderViewport);
+    final body = tester.widget<NovelReaderViewport>(viewport);
+    final theme = _readingTheme(tester);
+    final location = NovelReaderLocation(
+      anchor: body.document.anchorFor(101, alignment: -0.02),
+      itemIndex: 101,
+      progress: 101 / 300,
+    );
+    body.onPosition(location);
+    await tester.pump();
+    expect(tester.widget<NovelReaderViewport>(viewport), same(body));
+    expect(_readingTheme(tester), same(theme));
+    final slider = tester.widget<Slider>(
+      find.byKey(const ValueKey('novel-reader-progress')),
+    );
+    expect(slider.value, 101);
+    expect(slider.label, '33.67%');
+    expect(find.text('v1 chapter 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets(
+    'reading theme is cached and invalidates for theme or paper changes',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _mount(
+        tester,
+        repository,
+        store,
+        theme: ThemeData(colorSchemeSeed: Colors.blue),
+      );
+      final before = _readingTheme(tester);
+      await _showToolbar(tester);
+      expect(_readingTheme(tester), same(before));
+      await tester.tapAt(
+        tester.getCenter(find.byKey(const ValueKey('novel-reader-surface'))),
+      );
+      await _settle(tester);
+      expect(_readingTheme(tester), same(before));
+
+      await _mount(
+        tester,
+        repository,
+        store,
+        theme: ThemeData(colorSchemeSeed: Colors.purple),
+      );
+      final changed = _readingTheme(tester);
+      expect(changed, isNot(same(before)));
+      expect(changed.colorScheme.primary, isNot(before.colorScheme.primary));
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await _settle(tester);
+      final dark = _readingTheme(tester);
+      expect(dark, isNot(same(changed)));
+      expect(dark.colorScheme.brightness, Brightness.dark);
+      expect(
+        dark.colorScheme.surface,
+        NovelReaderPalette.resolve(
+          await _readSettings(tester),
+          Brightness.dark,
+        ).background,
+      );
+      expect(tester.takeException(), isNull);
+      await _remove(tester);
+    },
+  );
 
   testWidgets(
     'scroll position is debounced and lifecycle inactive flushes immediately',
@@ -696,6 +1060,7 @@ void main() {
       'v2': _volume(id: 'v2', previous: 'v1'),
     });
     await _mount(tester, repository, store, initialEntry: 1);
+    await _showToolbar(tester);
     expect(
       tester
           .widget<IconButton>(
@@ -750,6 +1115,7 @@ void main() {
     pending.complete(_volume());
     await _settle(tester);
     await _flush(tester);
+    await _showToolbar(tester);
     expect(find.text('another title'), findsOneWidget);
     expect(store.writes.last.pathWord, 'another');
     expect(store.writes.last.volumeId, 'v2');
@@ -830,7 +1196,7 @@ void main() {
 
   for (final showStatus in [true, false]) {
     testWidgets(
-      'shared status setting and percentage stay stable: $showStatus',
+      'novel status setting and percentage stay stable: $showStatus',
       (tester) async {
         final statusSettings = ReaderSettings();
         await tester.runAsync(() async {
@@ -841,6 +1207,10 @@ void main() {
             await SharedPreferences.getInstance(),
           );
           await const NovelReaderSettings().save();
+          // 小说页状态组件配置独立：初始化小说侧 store（首启继承漫画值）。
+          await NovelReaderStatusSettings().initFromPrefs(
+            await SharedPreferences.getInstance(),
+          );
         });
         await _mount(tester, repository, store);
         await _slideTo(tester, 150);
@@ -876,7 +1246,8 @@ void main() {
           final status = tester.widget<ReaderStatusOverlay>(
             find.byType(ReaderStatusOverlay, skipOffstage: false),
           );
-          expect(status.progressLabel, '50.00%');
+          // 浮层进度是一位小数（与工具栏滑杆标签的两位小数不同）。
+          expect(status.progressLabel, '50.0%');
         }
         expect(tester.takeException(), isNull);
         await _remove(tester);
@@ -905,6 +1276,7 @@ void main() {
         store.writes.clear();
         // 按钮书签以视口中点段落为参照，而不是顶部首段。
         final location = _centerLocation(tester);
+        await _showToolbar(tester);
         final button = find.byKey(const ValueKey('novel-reader-bookmark'));
         expect(Theme.of(tester.element(button)).brightness, brightness);
         final chrome = tester.widget<ColoredBox>(
@@ -1004,7 +1376,7 @@ void main() {
     await tester.tap(find.text('复制'));
     await _settle(tester);
     expect(clipboard, 'v1 entry 0 paragraph 0');
-    expect(find.text('段落已复制到剪贴板'), findsOneWidget);
+    expect(find.text('已复制'), findsOneWidget);
     // 复制不产生书签，也不闪光高亮。
     expect(_bookmarks.bookmarks, isEmpty);
     expect(highlightBand(), findsNothing);
@@ -1045,10 +1417,10 @@ void main() {
         () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
       );
       await _mount(tester, repository, store);
-      // 已收藏段落带小书签标记，长按菜单文案仍为「书签」。
+      // 已收藏段落仍可通过长按取消，但正文不显示书签标记。
       expect(
         find.byKey(const ValueKey('novel-paragraph-marker-0-0')),
-        findsOneWidget,
+        findsNothing,
       );
       await _longPress(tester, paragraphText('v1 entry 0 paragraph 0'));
       await tester.tap(find.text('书签'));
@@ -1059,55 +1431,58 @@ void main() {
     },
   );
 
-  testWidgets(
-    'bookmarked paragraphs show a subtle marker that removes the bookmark',
-    (tester) async {
-      await tester.runAsync(
-        () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
-      );
-      await _mount(tester, repository, store);
-      final marker = find.byKey(const ValueKey('novel-paragraph-marker-0-0'));
-      expect(marker, findsOneWidget);
-      // 未收藏的段落没有标记。
-      expect(
-        find.byKey(const ValueKey('novel-paragraph-marker-0-1')),
-        findsNothing,
-      );
-      // 标记用正文同色、正常尺寸。
-      final icon = tester.widget<Icon>(
-        find.descendant(of: marker, matching: find.byType(Icon)),
-      );
-      final paragraph = paragraphText('v1 entry 0 paragraph 0');
-      expect(icon.size, AppIconSize.md);
-      expect(icon.color, paragraphForeground(tester, paragraph));
-      await tester.tap(marker);
-      await _settle(tester);
-      expect(_bookmarks.bookmarks, isEmpty);
-      expect(marker, findsNothing);
-      await _remove(tester);
-    },
-  );
+  testWidgets('bookmarks do not add paragraph icons or change text layout', (
+    tester,
+  ) async {
+    await _mount(tester, repository, store);
+    final paragraph = paragraphText('v1 entry 0 paragraph 0');
+    final before = tester.getRect(paragraph);
+    final anchor = _location(tester).anchor;
+    await tester.runAsync(
+      () => _bookmarks.toggle(progress: _progress(entry: 0, paragraph: 0)),
+    );
+    await _settle(tester);
+    expect(_bookmarks.bookmarks.single.paragraphIndex, 0);
+    expect(tester.widget<Text>(paragraph).data, 'v1 entry 0 paragraph 0');
+    expect(tester.getRect(paragraph), before);
+    expect(_location(tester).anchor.paragraphIndex, anchor.paragraphIndex);
+    expect(_location(tester).anchor.alignment, closeTo(anchor.alignment, 1e-6));
+    expect(
+      find.descendant(
+        of: find.byType(NovelReaderViewport),
+        matching: find.byType(Icon),
+      ),
+      findsNothing,
+    );
+    await _longPress(tester, paragraph);
+    await tester.tap(find.text('书签'));
+    await _settle(tester);
+    expect(_bookmarks.bookmarks, isEmpty);
+    expect(tester.getRect(paragraph), before);
+    await _remove(tester);
+  });
 
   testWidgets(
     'toolbar bookmark skips blank paragraphs for the nearest text paragraph',
     (tester) async {
       // 段落 3..40 为空行：屏幕中点必落在空行区间内，按钮书签应就近
       // 改选有文本的段落（可见项里最近的是段落 2），绝不给空行打书签。
+      // 本用例验证空行可见（关闭隐藏）时的兜底；隐藏空行的行为另有用例。
       repository = _Repository({
         'v1': _volume(blanks: {for (var i = 3; i <= 40; i++) i}),
       });
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _tapToolbar(tester, 'novel-reader-bookmark');
       await _settle(tester);
       final bookmark = _bookmarks.bookmarks.single;
       expect(bookmark.entryIndex, 0);
       expect(bookmark.paragraphIndex, 2);
-      // 命中的段落带书签标记。
+      // 命中的段落只高亮，不附加书签图标。
       expect(
         find.byKey(
           ValueKey('novel-paragraph-marker-0-${bookmark.paragraphIndex}'),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       await tester.pump(const Duration(seconds: 3));
       await tester.pump();
@@ -1156,7 +1531,7 @@ void main() {
       );
       final foreground = paragraphForeground(tester, marked);
       final topBefore = tester.getTopLeft(marked).dy;
-      await tester.tap(find.byKey(const ValueKey('novel-reader-bookmark')));
+      await _tapToolbar(tester, 'novel-reader-bookmark');
       await _settle(tester);
       expect(_bookmarks.bookmarks.single.paragraphIndex, center.paragraphIndex);
       expect(
@@ -1183,6 +1558,14 @@ void main() {
         initialParagraph: 25,
         initialAlignment: -0.03,
         highlightOnEntry: true,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
       );
       final paragraph = paragraphText('v1 entry 1 paragraph 25');
       expect(
@@ -1225,7 +1608,7 @@ void main() {
         padding: padding,
         textScale: textScale,
       );
-      await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+      await _tapToolbar(tester, 'novel-reader-settings');
       await _settle(tester);
 
       final sheet = find.byType(AppSheet);
@@ -1253,7 +1636,7 @@ void main() {
   ) async {
     await _seed(tester, store, _progress(alignment: -0.03));
     await _mount(tester, repository, store, resume: true);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+    await _tapToolbar(tester, 'novel-reader-settings');
     await _settle(tester);
     expect(find.byType(AppSheet), findsOneWidget);
     for (final (key, value) in [
@@ -1321,7 +1704,10 @@ void main() {
       await _settle(tester);
       await _flush(tester);
       // 用户滚动会自动隐藏工具栏；本用例专注几何稳定，先点回工具栏。
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       // 点在页边空白（非段落文字），只切工具栏，不会弹段落菜单。
       await tester.tapAt(
         Offset(
@@ -1366,7 +1752,7 @@ void main() {
         await _settle(tester);
         expectStablePosition();
         expect(
-          find.byKey(const ValueKey('novel-reader-settings')),
+          find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
           toggle.isEven ? findsNothing : findsOneWidget,
         );
       }
@@ -1390,6 +1776,7 @@ void main() {
   ) async {
     await _seed(tester, store, _progress());
     await _mount(tester, repository, store, resume: true);
+    await _showToolbar(tester);
     await tester.binding.setSurfaceSize(const Size(420, 820));
     await _settle(tester);
     expect(_location(tester).anchor.paragraphIndex, 40);
@@ -1406,7 +1793,10 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(_location(tester).anchor.paragraphIndex, 40);
     await tester.binding.setSurfaceSize(const Size(820, 420));
     await _settle(tester);
@@ -1425,7 +1815,10 @@ void main() {
       ),
     );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(_location(tester).anchor.paragraphIndex, 40);
     expect(tester.takeException(), isNull);
     await _remove(tester);
@@ -1436,7 +1829,7 @@ void main() {
     'reader theme and screen preference are local and plugin failure is safe',
     (tester) async {
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
+      await _tapToolbar(tester, 'novel-reader-settings');
       await _settle(tester);
       // 浅色模式下拉选择「纸张」。
       final lightTile = find.byKey(const ValueKey('novel-light-theme'));
@@ -1475,13 +1868,15 @@ void main() {
     tester,
   ) async {
     repository.content['v2'] = _volume(id: 'v2');
+    await _mount(tester, repository, store);
+    await _showToolbar(tester);
     store.pendingRead = Completer<NovelReadingProgress?>();
     await _mount(tester, repository, store, resume: true, settle: false);
     for (var frame = 0; frame < 8; frame++) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pump(const Duration(milliseconds: 20));
     }
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await tester.pump(const Duration(milliseconds: 350));
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -1492,7 +1887,7 @@ void main() {
     expect(_location(tester).anchor.entryIndex, 2);
     store.pendingRead!.complete(_progress());
     await _settle(tester);
-    expect(repository.calls, ['book/v2/false']);
+    expect(repository.calls, ['book/v1/false', 'book/v2/false']);
     expect(_location(tester).anchor.entryIndex, 2);
     await _flush(tester);
     expect(store.writes.last.volumeId, 'v2');
@@ -1506,7 +1901,7 @@ void main() {
     await _mount(tester, repository, store);
     expect(repository.volumeCalls, ['book']);
     for (var open = 0; open < 2; open++) {
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       await _settle(tester);
       expect(
         find.descendant(
@@ -1535,7 +1930,7 @@ void main() {
       final pending = Completer<List<NovelVolume>>();
       repository.volumesPending = pending;
       await _mount(tester, repository, store);
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       expect(repository.volumeCalls, ['book']);
@@ -1552,6 +1947,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository, store);
+    await _showToolbar(tester);
     final sliderFinder = find.byKey(const ValueKey('novel-reader-progress'));
     final sliderTheme = tester
         .widget<SliderTheme>(
@@ -1588,7 +1984,9 @@ void main() {
       tester
           .widget<Icon>(
             find.descendant(
-              of: find.byKey(const ValueKey('novel-reader-settings')),
+              of: find
+                  .byKey(const ValueKey('novel-reader-settings'))
+                  .hitTestable(),
               matching: find.byType(Icon),
             ),
           )
@@ -1606,7 +2004,7 @@ void main() {
   ) async {
     repository.content['v2'] = _volume(id: 'v2');
     await _mount(tester, repository, store);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await _settle(tester);
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -1628,8 +2026,29 @@ void main() {
     await _mount(tester, repository, store, resume: true);
     expect(find.byType(ErrorRetryView), findsOneWidget);
     expect(find.text('本卷暂无可阅读的正文'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsOneWidget,
+    );
     await _flush(tester);
     expect(store.writes, isEmpty);
+    repository.content['v1'] = _volume();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ErrorRetryView),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await _settle(tester);
+    expect(find.byType(NovelReaderViewport), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await _remove(tester);
   });
 
@@ -1644,6 +2063,14 @@ void main() {
     tester.widget<ErrorRetryView>(find.byType(ErrorRetryView)).onRetry();
     await _settle(tester);
     expect(find.byType(NovelReaderViewport), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     expect(repository.calls.last, 'book/v1/true');
     await _remove(tester);
   });
@@ -1659,6 +2086,14 @@ void main() {
       await _settle(tester);
       expect(repository.calls, ['book/v1/false', 'cache/book/v1']);
       expect(_location(tester).anchor.paragraphIndex, 40);
+      expect(
+        find.byKey(const ValueKey('novel-reader-back')).hitTestable(),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       await _remove(tester);
     },
   );
@@ -1685,6 +2120,7 @@ void main() {
     expect(find.byKey(const ValueKey('novel-image-1')), findsNothing);
     expect(_location(tester).anchor.entryIndex, 0);
     expect(_location(tester).anchor.paragraphIndex, 2);
+    await _showToolbar(tester);
     expect(
       tester
           .widget<IconButton>(find.byKey(const ValueKey('novel-reader-next')))
@@ -1727,7 +2163,7 @@ void main() {
     );
     await _settle(tester);
     await _slideTo(tester, 188);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-back')));
+    await _tapToolbar(tester, 'novel-reader-back');
     await _settle(tester);
     await returned;
     expect((await _read(tester, store, 'book'))!.paragraphIndex, 88);
@@ -1757,14 +2193,16 @@ void main() {
     'stale response from another volume of the same book is ignored',
     (tester) async {
       final stale = Completer<NovelVolumeContent>();
-      repository.pending['v1'] = stale;
       repository.content['v2'] = _volume(id: 'v2');
-      await _mount(tester, repository, store, settle: false);
+      await _mount(tester, repository, store);
+      await _showToolbar(tester);
+      repository.pending['v1'] = stale;
+      await _mount(tester, repository, store, resume: true, settle: false);
       for (var i = 0; i < 5; i++) {
         await tester.runAsync(() => Future<void>.delayed(Duration.zero));
         await tester.pump(const Duration(milliseconds: 20));
       }
-      await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+      await _tapToolbar(tester, 'novel-reader-contents');
       // The underlying loading spinner is intentional while the sheet is open.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -1792,7 +2230,7 @@ void main() {
     final stale = Completer<NovelVolumeDetail>();
     repository.detailPending['v2'] = stale;
     await _mount(tester, repository, store);
-    await tester.tap(find.byKey(const ValueKey('novel-reader-contents')));
+    await _tapToolbar(tester, 'novel-reader-contents');
     await _settle(tester);
     tester
         .widget<SelectTile<String>>(find.byType(SelectTile<String>))
@@ -2038,18 +2476,35 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository, store);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
+    await _showToolbar(tester);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     await tester.drag(
       find.byKey(const ValueKey('novel-reader-surface')),
       const Offset(0, -200),
     );
     await tester.pump();
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsNothing,
+    );
     await tester.tap(find.byKey(const ValueKey('novel-reader-surface')));
     await _settle(tester);
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await _remove(tester);
   });
@@ -2064,13 +2519,20 @@ void main() {
           await SharedPreferences.getInstance(),
         );
         await const NovelReaderSettings().save();
+        // 小说页状态组件配置独立：直接初始化小说侧 store（含首启继承）。
+        await NovelReaderStatusSettings().initFromPrefs(
+          await SharedPreferences.getInstance(),
+        );
       });
       await _mount(tester, repository, store);
       final surface = find.byKey(const ValueKey('novel-reader-surface'));
       // 带速度的甩动模拟惯性滚动：松手后仍有 ballistic 更新流。
       await tester.fling(surface, const Offset(0, -600), 1000);
       await tester.pump();
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       // 惯性尚未结束时，用户点状态组件展开工具栏；状态组件位于正文
       // 之上，点击不会让 Scrollable hold/结束惯性，更新流继续到来。
       await tester.pump(const Duration(milliseconds: 60));
@@ -2079,14 +2541,25 @@ void main() {
         warnIfMissed: false,
       );
       await tester.pump();
+      // 过渡刚开始时按钮尚未滑入屏幕，检查显隐目标而不是点击命中。
       expect(
-        find.byKey(const ValueKey('novel-reader-settings')),
-        findsOneWidget,
+        tester
+            .widget<AnimatedSlide>(
+              find.ancestor(
+                of: find.byKey(const ValueKey('novel-reader-settings')),
+                matching: find.byType(AnimatedSlide),
+              ),
+            )
+            .offset,
+        Offset.zero,
       );
       // 后续惯性 ScrollUpdate 到来时再次隐藏。
       await tester.pump(const Duration(milliseconds: 100));
       await _settle(tester);
-      expect(find.byKey(const ValueKey('novel-reader-settings')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
       await _remove(tester);
       await tester.runAsync(() async {
@@ -2100,10 +2573,275 @@ void main() {
     await _slideTo(tester, 150);
     await _settle(tester);
     // 程序化锚点恢复（滑杆跳转）不是用户滚动会话，工具栏保持可见。
-    expect(find.byKey(const ValueKey('novel-reader-settings')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('novel-reader-settings')).hitTestable(),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await _remove(tester);
   });
+
+  test('stack resolves anchors and progress per volume', () {
+    final stack = NovelReaderStack([
+      NovelReaderVolumeDocument(
+        volumeId: 'v1',
+        volumeName: 'one',
+        document: NovelReaderDocument(const [
+          NovelReaderEntry(
+            entryIndex: 0,
+            entry: NovelContentEntry(name: 'a', contentType: 1),
+            paragraphs: ['a0', 'a1', 'a2'],
+          ),
+        ]),
+      ),
+      NovelReaderVolumeDocument(
+        volumeId: 'v2',
+        volumeName: 'two',
+        document: NovelReaderDocument(const [
+          NovelReaderEntry(
+            entryIndex: 0,
+            entry: NovelContentEntry(name: 'b', contentType: 1),
+            paragraphs: ['b0', 'b1'],
+          ),
+        ]),
+      ),
+    ]);
+    expect(stack.itemCount, 5);
+    // 两卷的 entryIndex 重复，卷 id 决定落点。
+    expect(
+      stack.itemFor(const NovelReaderAnchor(entryIndex: 0, volumeId: 'v1')),
+      0,
+    );
+    expect(
+      stack.itemFor(
+        const NovelReaderAnchor(
+          entryIndex: 0,
+          paragraphIndex: 1,
+          volumeId: 'v2',
+        ),
+      ),
+      4,
+    );
+    expect(stack.anchorFor(3).volumeId, 'v2');
+    expect(stack.anchorFor(3).paragraphIndex, 0);
+    // 进度按当前卷计算：第二卷末段的段首是第二卷的一半，滚到段尾才是 100%。
+    expect(stack.progressAt(4, 0), 0.5);
+    expect(stack.progressAt(4, 1), 1);
+    expect(stack.progressAt(0, 0), 0);
+    expect(stack.localItemFor(4), 1);
+    expect(stack.localItemCountFor(4), 2);
+    // 章节刻度用卷栈的绝对坐标，两卷的章节起点各出现一次。
+    expect(stack.chapterStarts, [0, 3 / 4]);
+  });
+
+  testWidgets('scrolling past the volume end appends the next volume', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 6, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 6),
+    });
+    await _mount(tester, repository, store);
+    final viewport = find.byType(NovelReaderViewport);
+    expect(tester.widget<NovelReaderViewport>(viewport).document.itemCount, 6);
+
+    for (var attempt = 0; attempt < 6; attempt++) {
+      await tester.drag(
+        find.byKey(const ValueKey('novel-reader-surface')),
+        const Offset(0, -300),
+      );
+      await _settle(tester);
+      if (tester.widget<NovelReaderViewport>(viewport).document.itemCount > 6) {
+        break;
+      }
+    }
+    expect(repository.calls, contains('book/v2/false'));
+    // 追加是原位拼接：已有段落位置不变，文档变长。
+    expect(tester.widget<NovelReaderViewport>(viewport).document.itemCount, 12);
+    expect(
+      tester.widget<NovelReaderViewport>(viewport).document.volumeIdForItem(7),
+      'v2',
+    );
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('progress follows the volume that owns the paragraph', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 4, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 4),
+    });
+    await _mount(tester, repository, store);
+    for (var attempt = 0; attempt < 8; attempt++) {
+      await tester.drag(
+        find.byKey(const ValueKey('novel-reader-surface')),
+        const Offset(0, -300),
+      );
+      await _settle(tester);
+      if (_location(tester).anchor.volumeId == 'v2') break;
+    }
+    expect(_location(tester).anchor.volumeId, 'v2');
+    await _flush(tester);
+    expect(store.writes.last.volumeId, 'v2');
+    expect(store.writes.last.volumeName, 'v2 volume');
+    await _remove(tester);
+  });
+
+  testWidgets('a failed next volume shows an inline retry at the seam', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 4, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 4),
+    });
+    repository.errors['v2'] = StateError('offline');
+    await _mount(tester, repository, store);
+    for (var attempt = 0; attempt < 8; attempt++) {
+      await tester.drag(
+        find.byKey(const ValueKey('novel-reader-surface')),
+        const Offset(0, -300),
+      );
+      await _settle(tester);
+      if (find
+          .byKey(const ValueKey('novel-reader-seam'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+    }
+    expect(find.byKey(const ValueKey('novel-reader-seam')), findsOneWidget);
+    // 正文本身不受影响，错误与重试贴在卷末。
+    expect(find.byType(ErrorRetryView), findsNothing);
+    repository.errors.remove('v2');
+    await tester.tap(find.byKey(const ValueKey('novel-reader-seam-retry')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-reader-seam')), findsNothing);
+    expect(
+      tester
+          .widget<NovelReaderViewport>(find.byType(NovelReaderViewport))
+          .document
+          .itemCount,
+      8,
+    );
+    await _remove(tester);
+  });
+
+  testWidgets('an undownloaded next volume explains itself without retry', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 4, next: 'v2'),
+    });
+    await _mount(
+      tester,
+      repository,
+      store,
+      source: _OfflineSource(repository, available: {'v1'}),
+    );
+    for (var attempt = 0; attempt < 8; attempt++) {
+      await tester.drag(
+        find.byKey(const ValueKey('novel-reader-surface')),
+        const Offset(0, -300),
+      );
+      await _settle(tester);
+      if (find
+          .byKey(const ValueKey('novel-reader-seam'))
+          .evaluate()
+          .isNotEmpty) {
+        break;
+      }
+    }
+    expect(find.byKey(const ValueKey('novel-reader-seam')), findsOneWidget);
+    expect(find.text('该卷未下载或本地文件已损坏，请前往下载中心重新下载。'), findsOneWidget);
+    expect(find.byKey(const ValueKey('novel-reader-seam-retry')), findsNothing);
+    await _remove(tester);
+  });
+
+  testWidgets('only the current and next volume stay in memory', (
+    tester,
+  ) async {
+    repository = _Repository({
+      'v1': _volume(entries: 1, paragraphs: 3, next: 'v2'),
+      'v2': _volume(id: 'v2', entries: 1, paragraphs: 3, next: 'v3'),
+      'v3': _volume(id: 'v3', entries: 1, paragraphs: 3),
+    });
+    await _mount(tester, repository, store);
+    for (var round = 0; round < 2; round++) {
+      for (var attempt = 0; attempt < 8; attempt++) {
+        final before = tester
+            .widget<NovelReaderViewport>(find.byType(NovelReaderViewport))
+            .document
+            .itemCount;
+        await tester.drag(
+          find.byKey(const ValueKey('novel-reader-surface')),
+          const Offset(0, -300),
+        );
+        await _settle(tester);
+        final after = tester
+            .widget<NovelReaderViewport>(find.byType(NovelReaderViewport))
+            .document
+            .itemCount;
+        if (after > before) break;
+      }
+    }
+    final document = tester
+        .widget<NovelReaderViewport>(find.byType(NovelReaderViewport))
+        .document;
+    // 两卷共存，且已回收第一卷。
+    expect(document.itemCount, 6);
+    expect(document.volumeIdForItem(0), 'v2');
+    expect(document.volumeIdForItem(3), 'v3');
+    expect(_location(tester).anchor.volumeId, isNot('v1'));
+    await _remove(tester);
+  });
+}
+
+/// 只有部分卷可用的本地来源：模拟「下一卷未下载」。
+class _OfflineSource implements NovelReaderSource {
+  _OfflineSource(this.repository, {required this.available});
+
+  final _Repository repository;
+  final Set<String> available;
+
+  @override
+  bool get localOnly => true;
+
+  @override
+  Future<List<NovelVolume>> loadVolumes(String pathWord) =>
+      repository.loadVolumes(pathWord);
+
+  @override
+  Future<NovelVolumeDetail> loadVolumeDetail(
+    String pathWord,
+    String volumeId,
+  ) async {
+    if (!available.contains(volumeId)) {
+      throw const NovelDownloadUnavailableException();
+    }
+    return repository.loadVolumeDetail(pathWord, volumeId);
+  }
+
+  @override
+  Future<NovelVolumeContent?> loadContent(
+    String pathWord,
+    String volumeId, {
+    bool refresh = false,
+    bool cachedOnly = false,
+  }) async {
+    if (!available.contains(volumeId)) {
+      throw const NovelDownloadUnavailableException();
+    }
+    return repository.loadVolumeContent(pathWord, volumeId);
+  }
+
+  @override
+  Future<List<int>> loadImageBytes(
+    String pathWord,
+    String volumeId,
+    String url,
+  ) async => const [];
 }
 
 // No socket is ever opened, including by Image.network. Any unexpected host

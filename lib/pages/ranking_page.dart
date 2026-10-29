@@ -59,6 +59,7 @@ class _RankingPageState extends State<RankingPage> {
   int _offset = 0;
   int _total = 0;
   bool _loadingMore = false;
+  String? _loadMoreError;
   late String _ordering;
 
   final _scrollController = ScrollController();
@@ -116,6 +117,7 @@ class _RankingPageState extends State<RankingPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _loadMoreError = null;
       _comics = [];
       _offset = 0;
     });
@@ -151,7 +153,10 @@ class _RankingPageState extends State<RankingPage> {
 
   Future<void> _loadMore() async {
     if (_loadingMore || _offset >= _total) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _api.manga.getComicList(
         ordering: _ordering,
@@ -172,6 +177,9 @@ class _RankingPageState extends State<RankingPage> {
           source: 'ranking_page.load_more',
         ),
       );
+      if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
+      }
     }
     if (mounted) {
       setState(() => _loadingMore = false);
@@ -298,6 +306,7 @@ class _RankingPageState extends State<RankingPage> {
                         loading: _loadingMore,
                         onPressed: _loadMore,
                         label: l10n.loadMoreProgress(_offset, _total),
+                        detail: _loadMoreError,
                         horizontalPadding: hp,
                       ),
                     ),

@@ -21,11 +21,9 @@ NovelReaderDocument _document(List<NovelReaderEntry> entries) =>
 const _style = TextStyle(fontSize: 20, height: 1.8);
 
 NovelPaginationSpec _spec({
-  required NovelReaderDocument document,
   Size size = const Size(360, 360),
   double? viewportHeight,
   double contentTopInset = 0,
-  bool Function(NovelReaderParagraph)? isMarked,
   String emptyChapterText = '本章节暂无正文',
   double paragraphSpacing = 16,
 }) => NovelPaginationSpec(
@@ -40,10 +38,6 @@ NovelPaginationSpec _spec({
   paragraphSpacing: paragraphSpacing,
   titleSpacing: 24,
   emptyChapterText: emptyChapterText,
-  markerSpacing: 8,
-  markerSize: 18,
-  markerColor: const Color(0xFF000000),
-  isMarked: isMarked ?? (_) => false,
 );
 
 /// 分页结构快照：每页每片段的 (段落, 起始行, 结束行)。
@@ -113,10 +107,7 @@ void main() {
         ],
       ),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
 
     expect(paginator.complete, isTrue);
@@ -148,10 +139,7 @@ void main() {
     final document = _document([
       _entry(entryIndex: 0, name: '第一章', paragraphs: [long]),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
 
     expect(paginator.pages.length, greaterThan(1));
@@ -182,10 +170,7 @@ void main() {
         _entry(entryIndex: 1, name: '空章', paragraphs: []),
         _entry(entryIndex: 2, name: '第三章', paragraphs: ['', '结束。']),
       ]);
-      final paginator = NovelReaderPaginator(
-        document: document,
-        spec: _spec(document: document),
-      );
+      final paginator = NovelReaderPaginator(document: document, spec: _spec());
       while (paginator.buildMore()) {}
 
       // 标题与首行同页：带标题的片段所在页必须有正文片段。
@@ -220,10 +205,7 @@ void main() {
         paragraphs: [for (var i = 0; i < 60; i++) '段落 $i 的内容。' * 3],
       ),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
 
     for (var page = 0; page < paginator.pages.length; page++) {
@@ -238,10 +220,7 @@ void main() {
       _entry(entryIndex: 0, name: '第一章', paragraphs: [long]),
       _entry(entryIndex: 1, name: '第二章', paragraphs: ['尾巴。']),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
 
     final pageCount = paginator.pages.length;
@@ -271,7 +250,7 @@ void main() {
     );
   });
 
-  test('bookmark markers participate in layout and rebuild only the tail', () {
+  test('rebuilding an unchanged tail preserves page structure and anchors', () {
     final document = _document([
       _entry(
         entryIndex: 0,
@@ -279,41 +258,38 @@ void main() {
         paragraphs: [for (var i = 0; i < 40; i++) '段落 $i 的内容稍微长一点点。' * 3],
       ),
     ]);
-    final marked = <int>{};
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(
-        document: document,
-        isMarked: (paragraph) => marked.contains(
-          document.itemFor(
-            NovelReaderAnchor(
-              entryIndex: paragraph.entry.entryIndex,
-              paragraphIndex: paragraph.paragraphIndex,
-            ),
-          ),
-        ),
-      ),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
-    final before = List.of(paginator.pages.map((page) => List.of(page.slices)));
+    final before = _structure(paginator);
+    final pages = List.of(paginator.pages);
+    final anchors = [
+      for (var page = 0; page < pages.length; page++)
+        paginator.anchorForPage(page),
+    ];
+    final pageOfFive = paginator.pageForAnchor(
+      const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 5),
+    )!;
+    expect(pageOfFive, greaterThan(0));
 
-    marked.add(5);
     paginator.rebuildFrom(5);
     while (paginator.buildMore()) {}
 
     expect(paginator.complete, isTrue);
-    // 5 之前的页面前缀保持不变。
-    final pageOfFive = paginator.pageForAnchor(
-      const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 5),
-    )!;
+    expect(_structure(paginator), before);
     for (var page = 0; page < pageOfFive; page++) {
+      expect(paginator.pages[page], same(pages[page]));
+    }
+    for (var page = 0; page < anchors.length; page++) {
+      expect(paginator.pageForAnchor(anchors[page]), page);
       expect(
-        paginator.pages[page].slices.length,
-        before[page].length,
-        reason: '前缀页 $page 不应因书签变化重排',
+        _pageHeight(paginator, paginator.pages[page]),
+        lessThanOrEqualTo(360.001),
       );
     }
-    expect(_reconstruct(document, paginator)[5], isNotEmpty);
+    expect(_reconstruct(document, paginator), [
+      for (var item = 0; item < document.itemCount; item++)
+        novelParagraphDisplayText(document.paragraphAt(item), '本章节暂无正文'),
+    ]);
   });
 
   test('locationForPage progress increases and reaches 1.0 at the end', () {
@@ -324,10 +300,7 @@ void main() {
         paragraphs: [for (var i = 0; i < 30; i++) '段落 $i。' * 4],
       ),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     while (paginator.buildMore()) {}
 
     var previous = -1.0;
@@ -349,7 +322,7 @@ void main() {
     ]);
     final paginator = NovelReaderPaginator(
       document: document,
-      spec: _spec(document: document, size: const Size(360, 720)),
+      spec: _spec(size: const Size(360, 720)),
     );
     while (paginator.buildMore()) {}
 
@@ -368,7 +341,7 @@ void main() {
     ]);
     final paginator = NovelReaderPaginator(
       document: document,
-      spec: _spec(document: document, size: const Size(360, 200)),
+      spec: _spec(size: const Size(360, 200)),
     );
     var guard = 0;
     while (paginator.buildMore() && guard++ < 1000) {}
@@ -391,11 +364,7 @@ void main() {
       final paginator = NovelReaderPaginator(
         document: document,
         // 整屏 800 而正文区 360、顶部 inset 44（接近真机状态栏）。
-        spec: _spec(
-          document: document,
-          viewportHeight: 800,
-          contentTopInset: 44,
-        ),
+        spec: _spec(viewportHeight: 800, contentTopInset: 44),
       );
       while (paginator.buildMore()) {}
 
@@ -424,7 +393,6 @@ void main() {
       final paginator = NovelReaderPaginator(
         document: document,
         spec: _spec(
-          document: document,
           size: const Size(360, 480),
           viewportHeight: viewport,
           contentTopInset: inset,
@@ -468,10 +436,7 @@ void main() {
         paragraphs: [for (var i = 0; i < 30; i++) '段落 $i。' * 4],
       ),
     ]);
-    final paginator = NovelReaderPaginator(
-      document: document,
-      spec: _spec(document: document),
-    );
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
     var guard = 0;
     while (!paginator.complete && guard++ < 200) {
       paginator.buildMore(maxItems: 1);
@@ -486,48 +451,79 @@ void main() {
     expect(paginator.locationForPage(paginator.pages.length - 1).progress, 1.0);
   });
 
-  test('rebuildFrom invalidates the metrics of every changed paragraph', () {
-    // 每段 35 字：测试字体每字 20px、正文宽 360px → 无书签 2 行；
-    // 末尾加书签标记后末行放不下 → 3 行。行数变化会改变后续分页。
+  test('reset discards all measurements before rebuilding the document', () {
+    final paragraphs = [for (var i = 0; i < 12; i++) '第$i段的正文。' * 4];
     final document = _document([
-      _entry(
-        entryIndex: 0,
-        name: '第一章',
-        paragraphs: [
-          for (var i = 0; i < 12; i++) '第$i段${List.filled(32, '字').join()}',
-        ],
-      ),
+      _entry(entryIndex: 0, name: '第一章', paragraphs: paragraphs),
     ]);
-    final marked = <int>{};
+    final paginator = NovelReaderPaginator(document: document, spec: _spec());
+    while (paginator.buildMore()) {}
+    final linesBefore = _coveredLines(paginator, 0);
+    paragraphs[0] *= 4;
+
+    paginator.reset();
+    expect(paginator.builtItems, 0);
+    expect(paginator.complete, isFalse);
+    expect(paginator.pages.single.slices, isEmpty);
+    expect(
+      paginator.pageForAnchor(const NovelReaderAnchor(entryIndex: 0)),
+      isNull,
+    );
+    while (paginator.buildMore()) {}
+    final fresh = NovelReaderPaginator(document: document, spec: _spec());
+    while (fresh.buildMore()) {}
+
+    expect(_coveredLines(paginator, 0), greaterThan(linesBefore));
+    expect(_structure(paginator), _structure(fresh));
+    expect(_reconstruct(document, paginator), paragraphs);
+  });
+
+  test('rebuildFrom invalidates the metrics of every changed paragraph', () {
+    // 保留段落身份，只修改文本长度，验证同批多段变化不会沿用旧测量。
+    final paragraphs = [
+      for (var i = 0; i < 12; i++) '第$i段${List.filled(32, '字').join()}',
+    ];
+    final document = _document([
+      _entry(entryIndex: 0, name: '第一章', paragraphs: paragraphs),
+    ]);
     NovelReaderPaginator build() {
-      final paginator = NovelReaderPaginator(
-        document: document,
-        spec: _spec(
-          document: document,
-          isMarked: (paragraph) => marked.contains(
-            document.itemFor(
-              NovelReaderAnchor(
-                entryIndex: paragraph.entry.entryIndex,
-                paragraphIndex: paragraph.paragraphIndex,
-              ),
-            ),
-          ),
-        ),
-      );
+      final paginator = NovelReaderPaginator(document: document, spec: _spec());
       while (paginator.buildMore()) {}
       return paginator;
     }
 
     final baseline = build();
     final incremental = build();
-    marked.addAll([5, 9]);
+    final prefix = _structure(baseline)
+        .take(
+          baseline.pageForAnchor(
+            const NovelReaderAnchor(entryIndex: 0, paragraphIndex: 5),
+          )!,
+        )
+        .toList();
+    for (final item in [5, 9]) {
+      paragraphs[item] *= 4;
+    }
     // 只从最早的段落重建，但同一批里变化的段落都要失效测量缓存。
     incremental.rebuildFrom(5, invalidate: {5, 9});
     while (incremental.buildMore()) {}
     final fresh = build();
 
-    // 前提：书签标记确实改变了排版（否则本用例无法暴露陈旧测量）。
-    expect(_coveredLines(fresh, 9), greaterThan(_coveredLines(baseline, 9)));
+    for (final item in [5, 9]) {
+      expect(
+        _coveredLines(fresh, item),
+        greaterThan(_coveredLines(baseline, item)),
+      );
+    }
     expect(_structure(incremental), _structure(fresh));
+    expect(_structure(incremental).take(prefix.length).toList(), prefix);
+    expect(_reconstruct(document, incremental), paragraphs);
+    for (var page = 0; page < incremental.pages.length; page++) {
+      expect(
+        _pageHeight(incremental, incremental.pages[page]),
+        lessThanOrEqualTo(360.001),
+      );
+      expect(incremental.pageForAnchor(incremental.anchorForPage(page)), page);
+    }
   });
 }

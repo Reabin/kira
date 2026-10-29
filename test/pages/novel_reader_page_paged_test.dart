@@ -8,6 +8,7 @@ import 'package:kira/api/novel/novel_api.dart';
 import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/novel.dart';
 import 'package:kira/models/novel_reader_settings.dart';
+import 'package:kira/models/novel_reader_status_settings.dart';
 import 'package:kira/models/novel_reading_progress.dart';
 import 'package:kira/pages/novel_reader/novel_reader_document.dart';
 import 'package:kira/pages/novel_reader/novel_reader_page_view.dart';
@@ -18,7 +19,10 @@ import 'package:kira/repositories/novel_repository.dart';
 import 'package:kira/utils/novel_bookmark_store.dart';
 import 'package:kira/utils/novel_reading_store.dart';
 import 'package:kira/widgets/novel_page_curl.dart';
+import 'package:kira/widgets/reader_status_overlay.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../test_helpers.dart';
 
 /// 翻页模式集成测试：点击分区、模式切换的位置交接、音量键拦截、
 /// 卷末自动跳卷与进度落盘。
@@ -224,6 +228,17 @@ NovelReaderPageViewState _pager(WidgetTester tester) =>
 NovelReaderLocation _pagedLocation(WidgetTester tester) =>
     _pager(tester).currentLocation!;
 
+/// 工具栏收起时只是滑出屏幕（保留在树里做过渡），所以按位移判断显隐。
+bool _toolbarHidden(WidgetTester tester) {
+  final slide = tester.widget<AnimatedSlide>(
+    find.ancestor(
+      of: find.byKey(const ValueKey('novel-reader-back')),
+      matching: find.byType(AnimatedSlide),
+    ),
+  );
+  return slide.offset.dy != 0;
+}
+
 /// 模拟原生侧的音量键回调。
 Future<void> _pressVolume(WidgetTester tester, String method) async {
   await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
@@ -240,20 +255,45 @@ Future<void> _dismissSheet(WidgetTester tester) async {
   await _settle(tester);
 }
 
+Future<void> _showToolbar(WidgetTester tester) async {
+  if (!_toolbarHidden(tester)) return;
+  final surface = find.byType(NovelReaderPageView).evaluate().isNotEmpty
+      ? find.byType(NovelReaderPageView)
+      : find.byType(NovelReaderViewport);
+  await tester.tapAt(tester.getCenter(surface));
+  await _settle(tester);
+  expect(_toolbarHidden(tester), isFalse);
+}
+
 Future<void> _openSettings(WidgetTester tester) async {
+  await _showToolbar(tester);
   await tester.tap(find.byKey(const ValueKey('novel-reader-settings')));
   await _settle(tester);
 }
 
 Future<void> _tapSheetSwitch(WidgetTester tester, String key) async {
-  final finder = find.byKey(ValueKey(key));
+  final expand = find.descendant(
+    of: find.byKey(const ValueKey('novel-page-turn-settings')),
+    matching: find.byIcon(Icons.expand_more),
+  );
+  if (expand.evaluate().isNotEmpty) {
+    await tester.ensureVisible(expand);
+    await _settle(tester);
+    await tester.tap(expand);
+    await _settle(tester);
+  }
+  final finder = find.descendant(
+    of: find.byKey(ValueKey(key)),
+    matching: find.byType(Switch),
+  );
   await tester.ensureVisible(finder);
-  await tester.pumpAndSettle();
+  await _settle(tester);
   await tester.tap(finder);
   await _settle(tester);
 }
 
 Future<void> _slideTo(WidgetTester tester, double item) async {
+  await _showToolbar(tester);
   final slider = tester.widget<Slider>(
     find.byKey(const ValueKey('novel-reader-progress')),
   );
@@ -268,6 +308,7 @@ void main() {
   late _Repository repository;
 
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     store = _Store(await SharedPreferences.getInstance());
     _bookmarks = NovelBookmarkStore.forTesting(
@@ -275,6 +316,8 @@ void main() {
     );
     repository = _Repository({'v1': _volume()});
   });
+
+  tearDown(teardownSecureCredentialStoreForTest);
 
   testWidgets('dragging the sheet curls it and settles on release', (
     tester,
@@ -341,15 +384,17 @@ void main() {
           );
           expect(find.byType(NovelReaderPageView), findsOneWidget);
           expect(find.byType(NovelReaderViewport), findsNothing);
-          final toolbar = find.byKey(const ValueKey('novel-reader-back'));
           final start = _pagedLocation(tester).progress;
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isTrue);
+          await _showToolbar(tester);
+          expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
+          expect(_toolbarHidden(tester), isFalse);
 
           // 工具栏显示时点右侧只收起；再次点击才翻到下一页。
           await tester.tapAt(const Offset(700, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           await tester.tapAt(const Offset(700, 300));
           await _settle(tester);
           final next = _pagedLocation(tester).progress;
@@ -358,12 +403,12 @@ void main() {
           // 在可回翻的页面唤出工具栏，点左侧同样先收起、不翻页。
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isFalse);
           expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
           await tester.tapAt(const Offset(100, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(next, 1e-9));
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           await tester.tapAt(const Offset(100, 300));
           await _settle(tester);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
@@ -371,10 +416,10 @@ void main() {
           // 中间区域只切换工具栏，不改变位置。
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsOneWidget);
+          expect(_toolbarHidden(tester), isFalse);
           await tester.tapAt(const Offset(400, 300));
           await _settle(tester);
-          expect(toolbar, findsNothing);
+          expect(_toolbarHidden(tester), isTrue);
           expect(_pagedLocation(tester).progress, closeTo(start, 1e-9));
           expect(tester.takeException(), isNull);
           await _remove(tester);
@@ -483,7 +528,7 @@ void main() {
       repository.calls.any((call) => call.startsWith('book/v2/')),
       isFalse,
     );
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     expect(
@@ -504,8 +549,7 @@ void main() {
     tester,
   ) async {
     await _mount(tester, repository: repository, store: store);
-    await tester.tapAt(const Offset(400, 300));
-    await _settle(tester);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(700, 300));
     await _settle(tester);
     await tester.pump(const Duration(milliseconds: 400));
@@ -557,6 +601,7 @@ void main() {
       'v2': _volume(id: 'v2', entryTexts: _texts('v2', [6]), previous: 'v1'),
     });
     await _mount(tester, repository: repository, store: store, volume: 'v2');
+    await _showToolbar(tester);
     final start = _pagedLocation(tester).progress;
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
@@ -565,7 +610,7 @@ void main() {
       repository.calls.any((call) => call.startsWith('book/v1/')),
       isFalse,
     );
-    expect(find.byKey(const ValueKey('novel-reader-back')), findsNothing);
+    expect(_toolbarHidden(tester), isTrue);
     await tester.tapAt(const Offset(100, 300));
     await _settle(tester);
     expect(
@@ -616,8 +661,7 @@ void main() {
         paragraphSpacing: 32,
       ),
     );
-    await tester.tapAt(const Offset(400, 300));
-    await _settle(tester);
+    expect(_toolbarHidden(tester), isTrue);
     for (var turn = 1; turn <= 6; turn++) {
       await tester.tapAt(const Offset(700, 300));
       await _settle(tester);
@@ -646,6 +690,126 @@ void main() {
       await _remove(tester);
     },
   );
+
+  testWidgets('focus mode masks top and bottom bands without blocking taps', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      settings: const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        focusModeEnabled: true,
+      ),
+    );
+    final height =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    final top = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-top')),
+    );
+    final bottom = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-bottom')),
+    );
+    expect(top.top, closeTo(0, 1));
+    expect(top.height, closeTo(height * 0.2, 1));
+    expect(bottom.bottom, closeTo(height, 1));
+    expect(bottom.height, closeTo(height * (1 - 0.55), 1));
+    // 遮罩触摸穿透：被遮区域点按仍能呼出工具栏。
+    expect(_toolbarHidden(tester), isTrue);
+    await tester.tapAt(const Offset(400, 60));
+    await _settle(tester);
+    expect(_toolbarHidden(tester), isFalse, reason: '遮罩不应吞掉点按');
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('focus mode masks the top status overlay above it', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final status = NovelReaderStatusSettings();
+      await status.initFromPrefs(prefs);
+      await status.setStatusOverlay(true);
+      await status.setStatusOverlayPosition(0);
+    });
+    await _mount(
+      tester,
+      repository: repository,
+      store: store,
+      settings: const NovelReaderSettings(
+        mode: NovelReaderMode.paged,
+        focusModeEnabled: true,
+      ),
+    );
+    final overlay = find.byType(ReaderStatusOverlay);
+    expect(overlay, findsOneWidget);
+    // 遮罩在状态组件之后绘制：同一 Stack 里后画的在上层，
+    // 顶部状态组件因此被压暗。
+    final stack = find.ancestor(
+      of: find.byKey(const ValueKey('novel-focus-mask-widget')),
+      matching: find.byType(Stack),
+    );
+    final children = tester.widget<Stack>(stack.first).children;
+    final maskAt = children.indexWhere(
+      (child) => child.key == const ValueKey('novel-focus-mask-widget'),
+    );
+    final overlayAt = children.indexWhere(
+      (child) => child.key == const ValueKey('novel-status-overlay'),
+    );
+    expect(overlayAt, isNonNegative);
+    expect(maskAt, greaterThan(overlayAt), reason: '遮罩必须画在状态组件之上');
+    // 遮罩不拦截点击：顶部状态组件仍可唤出工具栏。
+    expect(_toolbarHidden(tester), isTrue);
+    final maskTop = tester.getRect(
+      find.byKey(const ValueKey('novel-focus-mask-top')),
+    );
+    final showToolbar = find.byKey(const ValueKey('novel-reader-show-toolbar'));
+    expect(
+      maskTop.contains(tester.getCenter(showToolbar)),
+      isTrue,
+      reason: '点按位置必须落在顶部遮罩内才能验证穿透',
+    );
+    await tester.tap(showToolbar);
+    await _settle(tester);
+    expect(_toolbarHidden(tester), isFalse, reason: '遮罩不应吞掉状态组件的点按');
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
+
+  testWidgets('focus mode is off by default and hides the mask', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    await _remove(tester);
+  });
+
+  testWidgets('toolbar button toggles the focus mask and persists it', (
+    tester,
+  ) async {
+    await _mount(tester, repository: repository, store: store);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    await _showToolbar(tester);
+    await tester.tap(find.byKey(const ValueKey('novel-reader-focus-mode')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsOneWidget);
+    await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = NovelReaderSettings.fromJson(
+        jsonDecode(prefs.getString(NovelReaderSettings.storageKey)!)
+            as Map<String, dynamic>,
+      );
+      expect(saved.focusModeEnabled, isTrue);
+    });
+    // 再点一次关闭，遮罩消失。
+    await tester.tap(find.byKey(const ValueKey('novel-reader-focus-mode')));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('novel-focus-mask')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await _remove(tester);
+  });
 
   testWidgets('long-press opens the paragraph menu without turning the page', (
     tester,

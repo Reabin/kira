@@ -1,0 +1,33 @@
+name: Set up Flutter and locked dependencies
+description: Install the pinned Flutter SDK and dependencies from pub.dev
+
+runs:
+  using: composite
+  steps:
+    - name: Read pinned Flutter version
+      id: version
+      shell: bash
+      run: |
+        set -euo pipefail
+        version="$(tr -d '\r\n' < .flutter-version)"
+        if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error:: .flutter-version must contain an exact stable Flutter version"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: Install Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        flutter-version: ${{ steps.version.outputs.version }}
+        cache: true
+        cache-key: "kira-flutter-:os:-:channel:-:version:-:arch:-:hash:"
+        pub-cache-key: "kira-pub-:os:-:channel:-:version:-:arch:-:hash:"
+
+    - name: Get locked dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        flutter pub get --enforce-lockfile
+        git diff --exit-code -- pubspec.lock

@@ -6,7 +6,7 @@
 
 基于 [caolib/kira](https://github.com/caolib/kira) 的 Flutter 漫画与轻小说客户端。本 Fork 在安卓代码基础上适配 iPhone / iPad，并增加最近更新地区筛选、iOS 返回手势。
 
-**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.3+558**，最低支持 **iOS 14**。
+**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.4+594**，最低支持 **iOS 14**。
 
 ## 安装到自己的 iPhone / iPad
 
@@ -51,7 +51,7 @@ iOS 已移除音量键翻页插件和设置入口，音量键正常调节系统�
 
 ## 开发与构建
 
-已同步上游截至 2026 年 10 月 18 日的提交 `d205f495b013723c4bd3eab5be567b35dbef180d`，包含轻小说翻页、拷贝登录、横屏适配、书签与编码修复。
+已同步上游截至 2026 年 10 月 26 日的提交 `dde2cde0896a1a7f07ad66b75f887de48d7bd227`（1.7.4），包含轻小说专注模式、阅读性能优化、全局文字缩放和历史记录切换；保留本分支的 iPad 双页阅读、章节大页倒序与 iOS 网络适配。
 
 ```sh
 git clone --branch ios-port https://github.com/Reabin/kira.git
@@ -62,7 +62,7 @@ flutter analyze
 
 当前 iOS 工作流使用 Flutter 3.44.2、Xcode 26.3、macOS 15 和 CocoaPods，先运行静态检查与相关测试，再构建真机 Release 应用并打包 IPA。Windows 无法本地编译 iOS，请使用 Actions；Mac 本地构建步骤见 [iOS 构建指南](docs/ios-build.md)。
 
-本地与云端保持相同的 pub 源：`PUB_HOSTED_URL=https://pub.flutter-io.cn`，并使用 `--enforce-lockfile` 避免隐式升级依赖。
+本地与云端保持相同的 pub 源：`PUB_HOSTED_URL=https://pub.dev`，并使用 `--enforce-lockfile` 避免隐式升级依赖。
 
 开发时保持 `pubspec.lock`，不要提交 Apple 账号、签名证书或其他凭据。项目结构与贡献约定见 [AGENTS.md](AGENTS.md)。
 

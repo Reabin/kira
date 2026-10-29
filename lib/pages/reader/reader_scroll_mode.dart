@@ -384,7 +384,7 @@ extension _ReaderScrollMode on _ReaderPageState {
               initialAlignment: _scrollModeInitialAlignment,
               scrollDirection: scrollDirection,
               reverse: _isReversedScrollMode,
-              padding: EdgeInsets.only(top: _statusOverlayTopInset),
+              padding: EdgeInsets.zero,
               physics: _isHorizontalScrollMode
                   ? null
                   : const AlwaysScrollableScrollPhysics(),
@@ -441,6 +441,14 @@ extension _ReaderScrollMode on _ReaderPageState {
                           height: viewportSize.height * scale,
                           child: image,
                         ),
+                      );
+                    }
+                    // 把避让放进首图项：按索引定位会跳过列表 padding，
+                    // 但不应为此缩小整个视口或留下常驻顶部空白。
+                    if (item.globalIndex == 0) {
+                      return Padding(
+                        padding: EdgeInsets.only(top: _statusOverlayTopInset),
+                        child: image,
                       );
                     }
                     return image;

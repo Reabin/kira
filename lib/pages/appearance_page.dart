@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
@@ -193,16 +195,6 @@ class _AppearancePageState extends State<AppearancePage>
     BottomNavLabelMode.always => l10n.appearanceBottomNavLabelModeAlways,
   };
 
-  String _bottomNavLabelModeDesc(
-    BottomNavLabelMode mode,
-    AppLocalizations l10n,
-  ) => switch (mode) {
-    BottomNavLabelMode.selectedOnly =>
-      l10n.appearanceBottomNavLabelModeSelectedOnlyDesc,
-    BottomNavLabelMode.hidden => l10n.appearanceBottomNavLabelModeHiddenDesc,
-    BottomNavLabelMode.always => l10n.appearanceBottomNavLabelModeAlwaysDesc,
-  };
-
   Future<void> _selectBottomNavLabelMode(BottomNavLabelMode mode) async {
     await _user.setBottomNavLabelMode(mode);
     if (!mounted ||
@@ -309,20 +301,14 @@ class _AppearancePageState extends State<AppearancePage>
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
     final isWide =
-        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint &&
+        MediaQuery.textScalerOf(context).scale(14) <= 21;
 
-    // 第一块卡片：底部导航标签模式 / 滑动切换 / 导航排序预览。
     final navCard = SettingTileGroup(
       children: [
         ListTile(
           leading: Icon(Icons.text_fields_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceBottomNavLabelMode),
-          // 与主题模式一致用下拉列表；选中项说明保留在副标题里，
-          // 免得「胶囊导航 / 经典导航」的差异只藏在弹层里。
-          subtitle: Text(
-            _bottomNavLabelModeDesc(_user.bottomNavLabelMode, l10n),
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           trailing: SelectTile<BottomNavLabelMode>(
             value: _user.bottomNavLabelMode,
             items: [
@@ -335,10 +321,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.swipe_outlined, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceNavSwipeTitle),
-          subtitle: Text(
-            l10n.appearanceNavSwipeDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.navSwipeEnabled,
           onChanged: (value) =>
               unawaited(_user.theme.setNavSwipeEnabled(value)),
@@ -346,10 +328,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.layers_outlined, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceFloatingNavTitle),
-          subtitle: Text(
-            l10n.appearanceFloatingNavDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.floatingNavEnabled,
           onChanged: (value) =>
               unawaited(_user.theme.setFloatingNavEnabled(value)),
@@ -451,15 +429,13 @@ class _AppearancePageState extends State<AppearancePage>
 
     final appFontCard = _AppFontCard(user: _user);
 
+    // 阴影卡片不再要标题：滑块自己写着「统一阴影大小」。
     final shadowSection = SettingsSection(
-      icon: Icons.layers_outlined,
-      title: l10n.appearanceShadowTitle,
       child: Column(
         children: [
           _AppearanceSliderControl(
             icon: Icons.view_agenda_outlined,
             title: l10n.appearanceCardShadowSize,
-            description: l10n.appearanceCardShadowSizeDesc,
             valueText: cardShadowElevation.toStringAsFixed(1),
             value: cardShadowElevation,
             min: ThemeSettings.minCardShadowElevation,
@@ -480,7 +456,6 @@ class _AppearancePageState extends State<AppearancePage>
     final iconSection = SettingsSection(
       icon: Icons.switch_account_outlined,
       title: l10n.appearanceAppIcon,
-      description: l10n.appearanceAppIconRestartHint,
       child: Wrap(
         spacing: 16,
         runSpacing: 12,
@@ -553,15 +528,10 @@ class _AppearancePageState extends State<AppearancePage>
                     color: cs.onSurfaceVariant,
                   ),
                   const SizedBox(width: AppSpacing.lg),
-                  Text(l10n.appearanceDarkCoverBrightness),
+                  Expanded(child: Text(l10n.appearanceDarkCoverBrightness)),
                 ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                l10n.appearanceDarkCoverBrightnessDesc,
-                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.sm),
               Row(
                 children: [
                   Expanded(
@@ -656,10 +626,6 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.colorize_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceDynamicColor),
-          subtitle: Text(
-            l10n.appearanceDynamicColorDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.useDynamicColor,
           onChanged: (value) =>
               unawaited(_user.theme.setUseDynamicColor(value)),
@@ -667,12 +633,23 @@ class _AppearancePageState extends State<AppearancePage>
         SwitchListTile(
           secondary: Icon(Icons.contrast_rounded, color: cs.onSurfaceVariant),
           title: Text(l10n.appearanceAmoledDark),
-          subtitle: Text(
-            l10n.appearanceAmoledDarkDesc,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
           value: _user.theme.amoledDark,
           onChanged: (value) => unawaited(_user.theme.setAmoledDark(value)),
+        ),
+      ],
+    );
+
+    // 动效开关：与系统无障碍设置取并集，影响页面切换、封面交叉淡化与骨架。
+    final motionSection = SettingTileGroup(
+      children: [
+        SwitchListTile(
+          secondary: Icon(
+            Icons.motion_photos_off_outlined,
+            color: cs.onSurfaceVariant,
+          ),
+          title: Text(l10n.appearanceReduceMotionTitle),
+          value: _user.theme.reduceMotion,
+          onChanged: (value) => unawaited(_user.theme.setReduceMotion(value)),
         ),
       ],
     );
@@ -686,10 +663,9 @@ class _AppearancePageState extends State<AppearancePage>
 
     final Widget body;
     if (isWide) {
-      // 宽屏双列：左列导航与字体卡片，右列阴影/图标/刷新率/主题卡片，
-      // 两列顶部对齐、各自纵向堆叠。
+      // 常用外观在左、导航和设备选项在右；大字号回到单列。
       body = ListView(
-        padding: EdgeInsets.fromLTRB(hp, 8, hp, 8),
+        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.sm),
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,23 +674,24 @@ class _AppearancePageState extends State<AppearancePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: spaced([
-                    navCard,
-                    ?desktopFontCard,
+                    themeModeSection,
+                    colorOptionsSection,
+                    if (!_user.theme.useDynamicColor) themeStyleSection,
                     appFontCard,
-                    shadowSection,
+                    ?desktopFontCard,
+                    motionSection,
                   ]),
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: spaced([
+                    navCard,
+                    shadowSection,
                     iconSection,
                     ?refreshRateCard,
-                    themeModeSection,
-                    themeStyleSection,
-                    colorOptionsSection,
                   ]),
                 ),
               ),
@@ -724,17 +701,18 @@ class _AppearancePageState extends State<AppearancePage>
       );
     } else {
       body = ListView(
-        padding: EdgeInsets.fromLTRB(hp, 8, hp, 8),
+        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.sm),
         children: spaced([
-          navCard,
-          ?desktopFontCard,
+          themeModeSection,
+          colorOptionsSection,
+          if (!_user.theme.useDynamicColor) themeStyleSection,
           appFontCard,
+          ?desktopFontCard,
+          motionSection,
+          navCard,
           shadowSection,
           iconSection,
           ?refreshRateCard,
-          themeModeSection,
-          themeStyleSection,
-          colorOptionsSection,
         ]),
       );
     }

@@ -109,7 +109,7 @@ extension _AiConfigProviderDialogs on _AiConfigPageState {
     const customPreset = 'custom';
     const zhipuPreset = AiSettings.builtInZhipuProviderId;
     const agnesPreset = 'agnes';
-    const agnesBaseUrl = 'https://api.agnes-ai.cn/v1';
+    const agnesBaseUrl = 'https://apihub.agnes-ai.com/v1';
     var providerPreset =
         !isNew && editing.id == AiSettings.builtInZhipuProviderId
         ? zhipuPreset
@@ -412,7 +412,7 @@ extension _AiConfigProviderDialogs on _AiConfigPageState {
                         Uri.parse(
                           providerPreset == zhipuPreset
                               ? 'https://open.bigmodel.cn/apikey/platform'
-                              : 'https://platform.agnes-ai.cn/settings/apiKeys',
+                              : 'https://platform.agnes-ai.com/settings/apiKeys',
                         ),
                         mode: LaunchMode.externalApplication,
                       ),

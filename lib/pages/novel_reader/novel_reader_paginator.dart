@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../models/novel_reader_settings.dart';
 import '../../theme/app_spacing.dart';
 import 'novel_reader_document.dart';
 
@@ -14,39 +15,6 @@ String novelParagraphDisplayText(
   if (paragraph.entry.paragraphs.isEmpty) return emptyChapterText;
   return paragraph.text.isEmpty ? ' ' : paragraph.text;
 }
-
-/// 构造段落 InlineSpan：书签段落在文本尾部附加小书签标记（WidgetSpan）。
-/// 分页测量与页面渲染共用同一构造逻辑，避免测量与渲染的排版漂移。
-InlineSpan buildNovelParagraphSpan({
-  required String text,
-  required bool marked,
-  required double markerSpacing,
-  required double markerSize,
-  required Color markerColor,
-  Widget? markerChild,
-}) {
-  if (!marked) return TextSpan(text: text);
-  return TextSpan(
-    children: [
-      TextSpan(text: text),
-      WidgetSpan(
-        alignment: PlaceholderAlignment.middle,
-        child:
-            markerChild ??
-            Padding(
-              padding: EdgeInsets.only(left: markerSpacing),
-              child: Icon(Icons.bookmark, size: markerSize, color: markerColor),
-            ),
-      ),
-    ],
-  );
-}
-
-/// 书签标记的占位尺寸（宽度含左间距），供 TextPainter 设置占位符维度。
-Size novelBookmarkMarkerPlaceholderSize({
-  required double markerSpacing,
-  required double markerSize,
-}) => Size(markerSpacing + markerSize, markerSize);
 
 /// 一个页面片段：某段落在本页显示的行区间 [startLine, endLine)，
 /// 以及对应的字符区间 [startOffset, endOffset)，渲染时按字符区间取子串。
@@ -92,10 +60,6 @@ class NovelPaginationSpec {
     required this.paragraphSpacing,
     required this.titleSpacing,
     required this.emptyChapterText,
-    required this.markerSpacing,
-    required this.markerSize,
-    required this.markerColor,
-    required this.isMarked,
   });
 
   /// 正文样式（含 fontSize / height / color）。
@@ -122,12 +86,6 @@ class NovelPaginationSpec {
   /// 章节标题上下的固定留白（与滚动模式的 AppSpacing.xxl 一致）。
   final double titleSpacing;
   final String emptyChapterText;
-  final double markerSpacing;
-  final double markerSize;
-  final Color markerColor;
-
-  /// 段落是否已加书签（书签标记参与排版，与滚动模式一致）。
-  final bool Function(NovelReaderParagraph paragraph) isMarked;
 }
 
 /// 单个段落的测量结果：只保留行高、行边界与累计高度，
@@ -167,14 +125,14 @@ class _Checkpoint {
 /// 增量分页器：按目录顺序逐段测量并切页，可在任意段落边界检查点续算。
 ///
 /// 页面是「前缀稳定」的：一旦某段落被分页覆盖，它所在页与页内位置不再变化，
-/// 除非从更早的检查点重建。书签变化只需从受影响段落重建（[rebuildFrom]），
+/// 除非从更早的检查点重建。段落变化可从受影响段落重建（[rebuildFrom]），
 /// 字体/尺寸变化则整体重建（[reset]）。
 class NovelReaderPaginator {
   NovelReaderPaginator({required this.document, required this.spec}) {
     _resetPages();
   }
 
-  final NovelReaderDocument document;
+  final NovelTextDocument document;
   final NovelPaginationSpec spec;
 
   /// 已构建的页（`pages.last` 是正在填充的当前页）。
@@ -211,10 +169,10 @@ class NovelReaderPaginator {
     _resetPages();
   }
 
-  /// 从 [itemIndex] 的检查点重建（书签变化：只影响该段落及其后）。
+  /// 从 [itemIndex] 的检查点重建，仅重新分页该段落及其后续内容。
   ///
-  /// [invalidate] 里列出的其他段落（同一批变化中受影响者）会一并丢弃
-  /// 测量缓存，避免它们沿用旧的无标记排版、与渲染不一致。
+  /// [invalidate] 里列出的其他变化段落会一并丢弃测量缓存，
+  /// 避免同批变化沿用旧排版、与渲染不一致。
   void rebuildFrom(int itemIndex, {Iterable<int>? invalidate}) {
     final checkpoint = _checkpoints[itemIndex];
     if (checkpoint == null) {
@@ -339,56 +297,19 @@ class NovelReaderPaginator {
     pages.add(NovelPaginatedPage(<NovelPageSlice>[]));
   }
 
-  NovelTextMetrics _measure(NovelReaderParagraph paragraph) {
-    final text = novelParagraphDisplayText(paragraph, spec.emptyChapterText);
-    final marked = spec.isMarked(paragraph) && text.trim().isNotEmpty;
-    return _measureText(
-      text,
-      spec.textStyle,
-      marked: marked,
-      placeholder: marked
-          ? novelBookmarkMarkerPlaceholderSize(
-              markerSpacing: spec.markerSpacing,
-              markerSize: spec.markerSize,
-            )
-          : null,
-    );
-  }
+  NovelTextMetrics _measure(NovelReaderParagraph paragraph) => _measureText(
+    novelParagraphDisplayText(paragraph, spec.emptyChapterText),
+    spec.textStyle,
+  );
 
-  NovelTextMetrics _measureText(
-    String text,
-    TextStyle style, {
-    bool marked = false,
-    Size? placeholder,
-  }) {
+  NovelTextMetrics _measureText(String text, TextStyle style) {
     // TextPainter 没有 style 参数：样式必须挂在根 span 上，否则会按默认
     // 字号测量，与渲染结果不一致（页面溢出）。
     final painter = TextPainter(
-      text: TextSpan(
-        style: style,
-        children: [
-          buildNovelParagraphSpan(
-            text: text,
-            marked: marked,
-            markerSpacing: spec.markerSpacing,
-            markerSize: spec.markerSize,
-            markerColor: spec.markerColor,
-          ),
-        ],
-      ),
+      text: TextSpan(text: text, style: style),
       textDirection: spec.textDirection,
       textScaler: spec.textScaler,
-    );
-    if (placeholder != null) {
-      painter.setPlaceholderDimensions([
-        PlaceholderDimensions(
-          size: placeholder,
-          alignment: PlaceholderAlignment.middle,
-          baseline: TextBaseline.alphabetic,
-        ),
-      ]);
-    }
-    painter.layout(maxWidth: spec.size.width);
+    )..layout(maxWidth: spec.size.width);
     final metrics = painter.computeLineMetrics();
     final lineHeights = <double>[];
     final lineTops = <double>[];
@@ -598,13 +519,14 @@ const double _epsilon = 0.001;
 /// 触发 RenderFlex 溢出提示，代价是每页少放半像素内容。
 const double _pageHeightSafety = 0.5;
 
-/// 计算正文可用宽度：与滚动模式一致，先扣系统栏 inset，再按 720dp 限宽居中。
+/// 滚动与分页共用的正文宽度：先扣系统栏 inset，再按设定的最大宽度居中。
 ({double width, double horizontalPadding}) novelPageMetricsFor(
   Size size,
-  EdgeInsets contentPadding,
-) {
+  EdgeInsets contentPadding, {
+  double maxContentWidth = NovelReaderSettings.defaultContentWidth,
+}) {
   final contentWidth = math.max(0.0, size.width - contentPadding.horizontal);
-  final side = math.max(AppSpacing.xxl, (contentWidth - 720) / 2);
+  final side = math.max(AppSpacing.xxl, (contentWidth - maxContentWidth) / 2);
   return (
     width: math.max(0.0, contentWidth - side * 2),
     horizontalPadding: side,

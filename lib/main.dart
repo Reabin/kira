@@ -180,7 +180,9 @@ Future<void> _bootstrap() async {
     );
   }
   final novelDownloads = NovelDownloadManager();
-  await _startupStep('novel_downloads', novelDownloads.init);
+  // 离线库可能包含大量小说文件：恢复队列、探测清单与自动续传都不该挡在
+  // 首帧之前，否则开屏白屏时长随用户下载量线性增长。首帧渲染完再跑。
+  unawaited(_startupStep('novel_downloads', novelDownloads.init));
   // 两种下载共用一个前台服务，避免各自启停互相覆盖通知状态。
   final downloadListenable = Listenable.merge([comicDownloads, novelDownloads]);
   await _startupStep(
@@ -570,6 +572,9 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
           mediaQuery.textScaler,
           fontSizeFactor,
         ),
+        // 应用内开关与系统「减少动画」取并集：任一侧开启都跳过动效。
+        disableAnimations:
+            mediaQuery.disableAnimations || _user.theme.reduceMotion,
       ),
       child: child ?? const SizedBox.shrink(),
     );

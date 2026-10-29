@@ -3,10 +3,13 @@ part of '../comic_detail_page.dart';
 extension _ComicDetailActions on _ComicDetailPageState {
   Future<void> _toggleCollect() async {
     final comicId = _comic?.uuid;
-    if (comicId == null || comicId.isEmpty) return;
+    if (comicId == null || comicId.isEmpty || _collecting) return;
 
     final newState = !_isCollected;
-    _setState(() => _isCollected = newState);
+    _setState(() {
+      _collecting = true;
+      _isCollected = newState;
+    });
     try {
       await _api.manga.toggleCollect(comicId, collect: newState);
       await _saveCache();
@@ -18,9 +21,13 @@ extension _ComicDetailActions on _ComicDetailPageState {
           source: 'comic_detail.toggle_collect',
         ),
       );
-      if (!mounted) return;
-      _setState(() => _isCollected = !newState);
-      await _saveCache();
+      if (mounted) {
+        _setState(() => _isCollected = !newState);
+        await _saveCache();
+      }
+    } finally {
+      // 早退时也要解锁，否则一次失败就再也点不动。
+      if (mounted) _setState(() => _collecting = false);
     }
   }
 

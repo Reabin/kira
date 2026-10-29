@@ -7,6 +7,8 @@ import 'package:kira/widgets/select_tile.dart';
 import '../test_helpers.dart';
 
 void main() {
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
   testWidgets('open menu updates labels, selection and capsule width', (
     tester,
   ) async {
@@ -277,5 +279,92 @@ void main() {
     // 胶囊 = 标签(cap) + 水平内边距 32 + 间隙 6 + 箭头 18。
     expect(pillWidth, closeTo(cap + 56, 0.5));
     expect(pillWidth, lessThan(224.0));
+  });
+  testWidgets('many items cap the menu height to the screen and scroll', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 300);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      wrapWithApp(
+        Center(
+          child: SelectTile<int>(
+            value: 0,
+            items: [
+              for (var i = 0; i < 30; i++) SelectItem(i, '选项 $i'),
+            ],
+            onChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(SelectTile<int>));
+    await tester.pumpAndSettle();
+
+    final menu = tester.getRect(
+      find.ancestor(of: find.text('选项 29'), matching: find.byType(Material)),
+    );
+    // 菜单底部不越过屏幕；顶部贴住触发器。
+    expect(menu.bottom, lessThanOrEqualTo(300));
+    // 内容超出上限时菜单内部可滚动，最后一项滚入视野后可点击。
+    final scrollable = find.descendant(
+      of: find.byType(Material),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('选项 29'),
+      100,
+      scrollable: scrollable,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.text('选项 29').last).bottom, lessThan(300));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reduced motion settles the arrow and preserves menu selection', (
+    tester,
+  ) async {
+    var selected = 0;
+    var reduced = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      wrapWithApp(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+              child: Center(
+                child: SelectTile<int>(
+                  value: selected,
+                  items: const [SelectItem(0, '自动'), SelectItem(1, '手动')],
+                  onChanged: (value) => setState(() => selected = value),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.tap(find.byType(SelectTile<int>));
+    await tester.pump(const Duration(milliseconds: 30));
+    rebuild(() => reduced = true);
+    await tester.pump();
+    final rotation = tester.widget<AnimatedRotation>(
+      find.byType(AnimatedRotation),
+    );
+    expect(rotation.duration, Duration.zero);
+    expect(rotation.turns, 0.5);
+    expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+    await tester.tap(find.text('手动'));
+    await tester.pump();
+    expect(selected, 1);
+    expect(
+      tester.widget<AnimatedRotation>(find.byType(AnimatedRotation)).turns,
+      0,
+    );
+    expect(tester.takeException(), isNull);
   });
 }

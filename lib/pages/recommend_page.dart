@@ -32,6 +32,7 @@ class _RecommendPageState extends State<RecommendPage> {
   String? _error;
   int _offset = 0;
   bool _loadingMore = false;
+  String? _loadMoreError;
   // 推荐接口不返回 total：以「某页返回空列表」作为到底标志。
   bool _hasMore = true;
 
@@ -60,7 +61,12 @@ class _RecommendPageState extends State<RecommendPage> {
   }
 
   Future<void> _load() async {
-    if (_error != null) setState(() => _error = null);
+    if (_error != null || _loadMoreError != null) {
+      setState(() {
+        _error = null;
+        _loadMoreError = null;
+      });
+    }
     try {
       final data = await _api.manga.getRecommendations(limit: 21);
       if (!mounted) return;
@@ -89,7 +95,10 @@ class _RecommendPageState extends State<RecommendPage> {
 
   Future<void> _loadMore() async {
     if (_loadingMore || !_hasMore) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _api.manga.getRecommendations(
         limit: 21,
@@ -109,6 +118,9 @@ class _RecommendPageState extends State<RecommendPage> {
           source: 'recommend_page.load_more',
         ),
       );
+      if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
+      }
     }
     if (mounted) {
       setState(() => _loadingMore = false);
@@ -199,6 +211,7 @@ class _RecommendPageState extends State<RecommendPage> {
                         loading: _loadingMore,
                         onPressed: _loadMore,
                         label: l10n.loadMore,
+                        detail: _loadMoreError,
                         horizontalPadding: hp,
                       ),
                     ),

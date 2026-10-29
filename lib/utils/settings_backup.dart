@@ -13,7 +13,6 @@ import '../backup/backup_runtime.dart';
 import '../models/secure_credential_store.dart';
 import '../models/user_manager.dart' show SavedCredential;
 import 'app_logger.dart';
-import 'search_history.dart';
 
 export '../backup/backup_category.dart';
 export '../backup/backup_document.dart';
@@ -274,7 +273,6 @@ class SettingsBackupService {
     _ensureAvailable();
     _restoring = true;
     try {
-      await SearchHistory.flush();
       await _runtime.pause();
       final keys = (await _preferences.readAll()).keys.toList();
       for (final key in {

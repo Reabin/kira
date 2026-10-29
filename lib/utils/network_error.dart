@@ -129,6 +129,21 @@ class NetworkError {
     return error.toString();
   }
 
+  /// 面向界面的错误详情：始终保留上游/底层原因，供「操作失败：{detail}」
+  /// 这类文案拼接。只有错误本身完全没有文本时才使用 [fallback]。
+  ///
+  /// 界面上任何失败提示都必须带上它——只显示「加载失败」会让用户和开发者
+  /// 都无从判断是 DNS、TLS、超时、401 还是业务错误码。
+  static String describe(
+    Object? error, {
+    String fallback = '',
+    AppLocalizations? l10n,
+  }) {
+    if (error == null) return fallback;
+    final text = message(error, l10n: l10n).trim();
+    return text.isEmpty ? fallback : text;
+  }
+
   static String? _messageFromData(Object? data) {
     if (data is Map) {
       final error = data['error'];

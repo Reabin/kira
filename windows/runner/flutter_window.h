@@ -23,11 +23,17 @@ class FlutterWindow : public Win32Window {
                          LPARAM const lparam) noexcept override;
 
  private:
+  // Notifies the engine of the monitor DPI the restored window opened on.
+  void SyncInitialDpi();
+
   // The project to run.
   flutter::DartProject project_;
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  bool window_state_ready_ = false;
+  bool sizing_or_moving_ = false;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

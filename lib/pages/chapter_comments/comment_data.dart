@@ -16,7 +16,10 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
       if (_comments.length >= _total) return;
       // 手动翻页优先：作废正在跑的补页循环（其 in-flight 结果会被丢弃）。
       _cancelPrefetch();
-      _setState(() => _loadingMore = true);
+      _setState(() {
+        _loadingMore = true;
+        _error = null;
+      });
     } else {
       // 重试首屏时取消未完成的补页，避免两路同时从 offset 0 之后追加。
       _cancelPrefetch();
@@ -68,7 +71,9 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
       _setState(() {
         _loading = false;
         _loadingMore = false;
-        _error = e.toString();
+        // 保留真实原因（DNS/TLS/超时/HTTP 状态/业务错误码），不要只留
+        // 「加载失败」。
+        _error = NetworkError.describe(e);
       });
     }
   }

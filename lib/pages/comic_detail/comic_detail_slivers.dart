@@ -18,21 +18,14 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                 ClipRRect(
                   borderRadius: AppRadius.mdR,
                   child: CoverBrightnessFilter(
-                    child: CachedNetworkImage(
-                      imageUrl: comic.cover,
+                    child: CoverImage(
+                      url: comic.cover,
                       width: 120,
                       height: 160,
-                      fit: BoxFit.cover,
-                      fadeInDuration: Duration.zero,
-                      fadeOutDuration: Duration.zero,
-                      placeholder: (_, _) => Container(
-                        width: 120,
-                        height: 160,
+                      placeholder: ColoredBox(
                         color: cs.surfaceContainerHighest,
                       ),
-                      errorWidget: (_, _, _) => Container(
-                        width: 120,
-                        height: 160,
+                      errorWidget: Container(
                         color: cs.surfaceContainerHighest,
                         child: Icon(
                           Icons.broken_image,
@@ -158,7 +151,10 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                     comic.brief!,
                     maxLines: expanded ? null : 3,
                     overflow: expanded ? null : TextOverflow.ellipsis,
-                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                    style: tt.bodyMedium?.copyWith(
+                      fontSize: 13,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 );
               },
@@ -248,8 +244,8 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                                     disabledBackgroundColor: cs.primary,
                                     disabledForegroundColor: cs.onPrimary,
                                     shape: pageButtonShape,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize: MaterialTapTargetSize.padded,
+                                    visualDensity: VisualDensity.standard,
                                   ),
                                   child: Text('${i + 1}'),
                                 )
@@ -263,8 +259,8 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                                     backgroundColor: cs.surfaceContainerHigh,
                                     foregroundColor: cs.onSurfaceVariant,
                                     shape: pageButtonShape,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize: MaterialTapTargetSize.padded,
+                                    visualDensity: VisualDensity.standard,
                                   ),
                                   child: Text('${i + 1}'),
                                 ),
@@ -329,7 +325,9 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
             ),
           ),
         ),
-      const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
+      SliverPadding(
+        padding: EdgeInsets.only(bottom: _readingActionsBottomPadding),
+      ),
     ];
   }
 }

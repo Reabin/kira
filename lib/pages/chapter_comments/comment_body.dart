@@ -20,6 +20,15 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
   /// 服务端每页只给 10 条，宽屏下一屏就能铺满且列表不可滚动，近底自动加载
   /// 永远等不到触发，这个按钮是那种场景下的兜底（与书架页一致）。
   Widget? _buildLoadMoreFooter(AppLocalizations l10n) {
+    // 翻页失败时也要留入口：既显示真实原因，也能手动重试。
+    if (_error != null && _comments.isNotEmpty) {
+      return LoadMoreFooter(
+        loading: false,
+        onPressed: () => _loadComments(loadMore: true),
+        label: l10n.loadMoreFailed,
+        detail: _error,
+      );
+    }
     if (_allCommentsLoaded || _total <= 0) return null;
     return LoadMoreFooter(
       loading: _loadingMore,
@@ -32,12 +41,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
     final l10n = AppLocalizations.of(context)!;
     if (_loading && _comments.isEmpty) {
       return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          _ChapterCommentsSheetState._commentListBottomPadding,
-        ),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 8,
         separatorBuilder: (context, index) => const SizedBox(height: 10),
@@ -110,12 +114,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
         child: ListView.separated(
           controller: scrollController,
           physics: CommentScrollBehavior.alwaysDraggablePhysics,
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            12,
-            16,
-            _ChapterCommentsSheetState._commentListBottomPadding,
-          ),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
           itemCount: summaryOffset + entries.length + (footer != null ? 1 : 0),
           separatorBuilder: (_, index) => const SizedBox(height: 10),
           itemBuilder: (_, index) {
@@ -160,12 +159,7 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
           child: ListView.separated(
             controller: scrollController,
             physics: CommentScrollBehavior.alwaysDraggablePhysics,
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              _ChapterCommentsSheetState._commentListBottomPadding,
-            ),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
             itemCount: summaryOffset + rows.length + (footer != null ? 1 : 0),
             separatorBuilder: (_, index) =>
                 const SizedBox(height: AppSpacing.sm),

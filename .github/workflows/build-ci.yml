@@ -15,13 +15,6 @@ on:
     tags:
       - "v*-beta*"
 
-env:
-  # 必须与开发机一致,否则 pub get 会重解析依赖并改写 lock
-  FLUTTER_VERSION: "3.44.2"
-  # lock 里的 hosted url 来自开发机的镜像,CI 必须用同一来源否则 enforce 失败
-  PUB_HOSTED_URL: https://pub.flutter-io.cn
-  FLUTTER_STORAGE_BASE_URL: https://storage.flutter-io.cn
-
 jobs:
   build-android:
     name: Build Android CI APK (arm64-v8a)
@@ -83,18 +76,8 @@ jobs:
             -keypass "$ANDROID_KEY_PASSWORD" \
             > /dev/null
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get --enforce-lockfile
-
-      - name: Assert lockfile untouched
-        run: git diff --exit-code -- pubspec.lock
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build APK (arm64-v8a)
         shell: bash

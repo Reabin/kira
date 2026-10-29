@@ -133,4 +133,41 @@ void main() {
     );
     expect(tester.getSize(sheet).height, closeTo(680, 0.01));
   });
+
+  testWidgets('reduced motion opens and closes a sheet without a transition', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrapWithApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showAppSheet<void>(
+                  context,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('关闭'),
+                  ),
+                ),
+                child: const Text('打开'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pump();
+    await tester.pump();
+    final route = ModalRoute.of(tester.element(find.text('关闭')))!;
+    expect(route.animation!.value, 1);
+    expect(route.animation!.isAnimating, isFalse);
+    await tester.tap(find.text('关闭'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('关闭'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -5,8 +5,35 @@ import 'package:kira/models/user_manager.dart';
 import 'package:kira/utils/data_cache.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
+
+  test(
+    'sub-store route changes immediately affect the existing transport',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final user = UserManager();
+      await user.init();
+      final transport = ApiTransport(
+        dio: Dio(),
+        commentDio: Dio(),
+        user: user,
+        cache: DataCache(),
+      );
+
+      await user.network.setApiRoute(1);
+      expect(user.apiRoute, 1);
+      expect(routes[1], contains(transport.nextHost()));
+      await user.setApiRoute(0);
+      expect(user.network.apiRoute, 0);
+      expect(routes[0], contains(transport.nextHost()));
+    },
+  );
 
   test('fixed node mode always uses the selected host', () async {
     SharedPreferences.setMockInitialValues({});

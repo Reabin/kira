@@ -19,6 +19,7 @@ import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/comment_skeleton.dart';
+import '../widgets/load_more_footer.dart';
 import '../widgets/text_controller_scope.dart';
 import 'chapter_comments/comment_paging.dart';
 import 'chapter_comments/comment_scroll_behavior.dart';
@@ -75,7 +76,12 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
 
   @override
   bool get canLoadMore =>
-      !_loading && !_loadingMore && _comments.length < _total;
+      !_loading &&
+      !_loadingMore &&
+      // 上一页失败后不再由滚动自动重试：失败原因已显示在列表底部，
+      // 交给用户显式点击，避免近底滚动反复打同一个失败请求。
+      _error == null &&
+      _comments.length < _total;
 
   @override
   void loadMoreComments() => _loadComments(loadMore: true);
@@ -100,6 +106,7 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
     final tt = Theme.of(context).textTheme;
     final width = MediaQuery.sizeOf(context).width;
     final height = MediaQuery.sizeOf(context).height * 0.85;
+    final countLabel = _buildCountLabel(l10n);
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -120,20 +127,32 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                     const AppSheetHandle(),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(20, 14, 12, 12),
-                      child: Row(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
                                   l10n.comicCommentTitle,
                                   style: tt.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
+                              ),
+                              IconButton(
+                                onPressed: _showCommentSettings,
+                                tooltip: l10n.comicCommentSettingsTooltip,
+                                icon: const Icon(Icons.tune),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            key: const ValueKey('comic-comments-subtitle'),
+                            children: [
+                              Expanded(
+                                child: Text(
                                   widget.comicName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -141,19 +160,19 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                                     color: cs.onSurfaceVariant,
                                   ),
                                 ),
+                              ),
+                              if (countLabel.isNotEmpty) ...[
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  countLabel,
+                                  key: const ValueKey('comic-comments-count'),
+                                  maxLines: 1,
+                                  style: tt.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
                               ],
-                            ),
-                          ),
-                          Text(
-                            _buildCountLabel(l10n),
-                            style: tt.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: _showCommentSettings,
-                            tooltip: l10n.comicCommentSettingsTooltip,
-                            icon: const Icon(Icons.tune),
+                            ],
                           ),
                         ],
                       ),
@@ -176,8 +195,8 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                 valueListenable: showFloatingButtons,
                 builder: (context, showFloatingButtons, child) {
                   final buttonStyle = FilledButton.styleFrom(
-                    backgroundColor: cs.primaryContainer,
-                    foregroundColor: cs.onPrimaryContainer,
+                    backgroundColor: cs.secondaryContainer,
+                    foregroundColor: cs.onSecondaryContainer,
                     elevation: 6,
                     shadowColor: AppShadows.floatingTint(0.22),
                     minimumSize: const Size(0, 52),
@@ -205,7 +224,14 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             FilledButton.icon(
-                              style: buttonStyle,
+                              style: buttonStyle.copyWith(
+                                backgroundColor: WidgetStatePropertyAll(
+                                  cs.primary,
+                                ),
+                                foregroundColor: WidgetStatePropertyAll(
+                                  cs.onPrimary,
+                                ),
+                              ),
                               onPressed: _showPostCommentDialog,
                               icon: const Icon(Icons.comment_outlined),
                               label: Text(l10n.chapterCommentsComment),
@@ -362,13 +388,24 @@ class _ComicCommentsSheetState extends State<ComicCommentsSheet>
         controller: scrollController,
         physics: CommentScrollBehavior.alwaysDraggablePhysics,
         padding: const EdgeInsets.fromLTRB(16, 12, 16, _listBottomPadding),
-        itemCount: _groupedEntries.length + (_loadingMore ? 1 : 0),
+        itemCount:
+            _groupedEntries.length +
+            (_loadingMore || (_error != null && _comments.isNotEmpty) ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, index) {
-          if (index == _groupedEntries.length && _loadingMore) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: ExpressiveLoadingIndicator()),
+          if (index == _groupedEntries.length) {
+            if (_loadingMore) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: ExpressiveLoadingIndicator()),
+              );
+            }
+            // 翻页失败：保留已加载评论，同时把真实原因和重试入口放到列表底部。
+            return LoadMoreFooter(
+              loading: false,
+              onPressed: () => _loadComments(loadMore: true),
+              label: l10n.loadMoreFailed,
+              detail: _error,
             );
           }
 

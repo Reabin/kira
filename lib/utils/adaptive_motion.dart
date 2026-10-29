@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Fade duration when a real cover takes over from its placeholder.
+const coverFadeDuration = Duration(milliseconds: 200);
+
 /// Whether the user (or platform) requested reduced motion.
 bool prefersReducedMotion(BuildContext context) {
   return MediaQuery.disableAnimationsOf(context);

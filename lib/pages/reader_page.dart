@@ -38,8 +38,10 @@ import '../utils/reading_history.dart';
 import '../utils/reading_stats.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/collapsible_content.dart';
 import '../widgets/image_reveal_hold.dart';
 import '../widgets/pinch_zoomable.dart';
+import '../widgets/reader_settings_fold.dart';
 import '../widgets/reader_status_overlay.dart';
 import '../widgets/reader_status_settings.dart';
 import 'chapter_comment_display.dart';
@@ -300,7 +302,7 @@ class _ReaderPageState extends State<ReaderPage> {
           _statusOverlayIsTop &&
           !_isHorizontalScrollMode &&
           !_isPageMode)
-      ? ReaderStatusOverlay.reservedHeight
+      ? ReaderStatusOverlay.reservedHeightFor(context)
       : 0.0;
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   bool get _isHorizontalScrollMode =>
@@ -481,10 +483,17 @@ class _ReaderPageState extends State<ReaderPage> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.transparent,
       isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+      sheetAnimationStyle: prefersReducedMotion(context)
+          ? AnimationStyle.noAnimation
+          : null,
+      constraints: const BoxConstraints(),
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(sheetContext).width,
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+        ),
+        child: _ReaderSettingsPanel(onChanged: _onSettingsChanged),
       ),
-      builder: (_) => _ReaderSettingsPanel(onChanged: _onSettingsChanged),
     ).whenComplete(() {
       if (!mounted) return;
       _resumeAutoScrollAfterOverlay();

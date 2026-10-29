@@ -122,22 +122,33 @@ Win32Window::~Win32Window() {
 
 bool Win32Window::Create(const std::wstring& title,
                          const Point& origin,
-                         const Size& size) {
+                         const Size& size,
+                         const RECT* physical_bounds) {
   Destroy();
 
   const wchar_t* window_class =
       WindowClassRegistrar::GetInstance()->GetWindowClass();
 
-  const POINT target_point = {static_cast<LONG>(origin.x),
-                              static_cast<LONG>(origin.y)};
+  const POINT target_point =
+      physical_bounds
+          ? POINT{physical_bounds->left, physical_bounds->top}
+          : POINT{static_cast<LONG>(origin.x), static_cast<LONG>(origin.y)};
   HMONITOR monitor = MonitorFromPoint(target_point, MONITOR_DEFAULTTONEAREST);
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  const int x = physical_bounds ? physical_bounds->left
+                                : Scale(origin.x, scale_factor);
+  const int y = physical_bounds ? physical_bounds->top
+                                : Scale(origin.y, scale_factor);
+  const int width = physical_bounds
+                        ? physical_bounds->right - physical_bounds->left
+                        : Scale(size.width, scale_factor);
+  const int height = physical_bounds
+                         ? physical_bounds->bottom - physical_bounds->top
+                         : Scale(size.height, scale_factor);
   HWND window = CreateWindow(
-      window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      window_class, title.c_str(), WS_OVERLAPPEDWINDOW, x, y, width, height,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {

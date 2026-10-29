@@ -66,11 +66,22 @@ class FontManager {
   bool _remoteListLoaded = false;
   List<RemoteFontInfo> _customList = const [];
   bool _customFontsLoaded = false;
+  List<RemoteFontInfo> _downloadedList = const [];
 
   /// Combined catalog: remote fonts first, then user-added custom fonts.
   /// Custom entries override remote ones with the same name.
-  List<RemoteFontInfo> get cachedList =>
-      _mergedFontList(_remoteList, _customList);
+  ///
+  /// Fonts already downloaded to local storage are appended even when the
+  /// remote catalog no longer lists them, so a downloaded font never becomes
+  /// unselectable. Such entries carry an empty [RemoteFontInfo.url].
+  List<RemoteFontInfo> get cachedList {
+    final merged = _mergedFontList(_remoteList, _customList);
+    final known = merged.map((font) => font.name).toSet();
+    return [
+      ...merged,
+      ..._downloadedList.where((font) => !known.contains(font.name)),
+    ];
+  }
 
   List<RemoteFontInfo> get customFonts => List.unmodifiable(_customList);
 
@@ -84,7 +95,9 @@ class FontManager {
               isCustom: isCustom,
             ),
           )
-          .where((font) => font.name.isNotEmpty && font.url.isNotEmpty)
+          .where(
+            (font) => font.name.isNotEmpty && (font.url.isNotEmpty || isCustom),
+          )
           .toList();
     }
     if (data is List) {
@@ -96,7 +109,9 @@ class FontManager {
               isCustom: isCustom,
             ),
           )
-          .where((font) => font.name.isNotEmpty && font.url.isNotEmpty)
+          .where(
+            (font) => font.name.isNotEmpty && (font.url.isNotEmpty || isCustom),
+          )
           .toList();
     }
     return const [];
@@ -133,6 +148,22 @@ class FontManager {
     );
   }
 
+  /// Rescans the local font directory so downloaded fonts that disappeared
+  /// from the remote catalog still show up in the picker.
+  Future<void> _refreshDownloadedList() async {
+    try {
+      final names = await listDownloadedFonts();
+      _downloadedList = names
+          .where((name) => name.isNotEmpty && name != defaultFontId)
+          .map((name) => RemoteFontInfo(name: name, url: ''))
+          .toList(growable: false);
+    } catch (error, stackTrace) {
+      // path_provider may be unavailable (tests); the catalog stays usable.
+      await AppLogger.instance.recordWarning(error, stackTrace: stackTrace);
+      _downloadedList = const [];
+    }
+  }
+
   /// Loads the font list with a 3-day persistent cache strategy:
   /// - Returns the in-memory catalog after the first attempt in this process.
   /// - Uses valid persistent data without requesting the remote catalog.
@@ -141,6 +172,7 @@ class FontManager {
   /// User-added custom fonts are always merged into the result.
   Future<List<RemoteFontInfo>> fetchAvailableFonts({bool force = false}) async {
     await _ensureCustomFontsLoaded();
+    await _refreshDownloadedList();
 
     if (!force && _remoteListLoaded) {
       return cachedList;
@@ -254,6 +286,76 @@ class FontManager {
     return true;
   }
 
+  /// Imports a user-picked local font file into the managed font directory.
+  ///
+  /// The font is registered as a custom entry without a download URL, using
+  /// [name] (the file name without its extension) as its family name.
+  ///
+  /// Returns `false` when [name] is unusable, the bytes are not a supported
+  /// font file, or writing to disk fails.
+  Future<bool> importLocalFont({
+    required String name,
+    required Uint8List bytes,
+  }) async {
+    final trimmedName = _sanitizeFontName(name);
+    if (trimmedName.isEmpty || trimmedName == defaultFontId) return false;
+    if (!_looksLikeFontFile(bytes)) return false;
+
+    try {
+      await File(
+        await fontFilePath(trimmedName),
+      ).writeAsBytes(bytes, flush: true);
+    } catch (error, stackTrace) {
+      await AppLogger.instance.recordError(
+        error,
+        stackTrace: stackTrace,
+        source: 'font_import',
+      );
+      return false;
+    }
+
+    await _ensureCustomFontsLoaded();
+    final entry = RemoteFontInfo(name: trimmedName, url: '', isCustom: true);
+    final existingIndex = _customList.indexWhere(
+      (font) => font.name == trimmedName,
+    );
+    if (existingIndex >= 0) {
+      _customList = List<RemoteFontInfo>.from(_customList)
+        ..[existingIndex] = entry;
+    } else {
+      _customList = [..._customList, entry];
+    }
+    await _persistCustomFonts();
+
+    if (!_downloadedList.any((font) => font.name == trimmedName)) {
+      _downloadedList = [
+        ..._downloadedList,
+        RemoteFontInfo(name: trimmedName, url: ''),
+      ];
+    }
+    return true;
+  }
+
+  /// Strips characters that cannot appear in a portable file name.
+  String _sanitizeFontName(String name) {
+    return name
+        .replaceAll(RegExp(r'[\\/:*?"<>|]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  /// Recognises the SFNT/OpenType signatures Flutter's FontLoader accepts.
+  bool _looksLikeFontFile(List<int> bytes) {
+    if (bytes.length < 4) return false;
+    final signature =
+        (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+    return signature == 0x00010000 || // TrueType outlines
+        signature == 0x4F54544F || // 'OTTO' (CFF outlines)
+        signature == 0x74727565 || // 'true' (legacy Apple)
+        signature == 0x74746366 || // 'ttcf' (TrueType collection)
+        signature == 0x74797031; // 'typ1'
+  }
+
   /// Removes a user-defined font entry and its local file (if present).
   Future<void> removeCustomFont(String fontName) async {
     if (fontName.isEmpty || fontName == defaultFontId) return;
@@ -323,6 +425,12 @@ class FontManager {
       }
       await outFile.writeAsBytes(bytes);
       client.close();
+      if (!_downloadedList.any((entry) => entry.name == font.name)) {
+        _downloadedList = [
+          ..._downloadedList,
+          RemoteFontInfo(name: font.name, url: ''),
+        ];
+      }
       return true;
     } catch (e, stack) {
       if (await outFile.exists()) {
@@ -398,6 +506,9 @@ class FontManager {
     if (await file.exists()) {
       await file.delete();
     }
+    _downloadedList = _downloadedList
+        .where((font) => font.name != fontName)
+        .toList(growable: false);
   }
 
   /// Lists all downloaded font names from local storage.
@@ -422,6 +533,7 @@ class FontManager {
     _remoteListLoaded = false;
     _customList = const [];
     _customFontsLoaded = false;
+    _downloadedList = const [];
     _fontDir = null;
     _dirInitialized = false;
   }

@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kira/l10n/app_localizations.dart';
 import 'package:kira/models/chapter_comment.dart';
 import 'package:kira/models/user_manager.dart';
+import 'package:kira/pages/chapter_comments/comment_toolbar.dart';
 import 'package:kira/pages/chapter_comments_sheet.dart';
 import 'package:kira/widgets/load_more_footer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
 
   ChapterComment comment({
     required int id,
@@ -44,6 +48,9 @@ void main() {
     List<ChapterComment>? comments,
     int? initialTotal,
     Size viewSize = const Size(593, 279),
+    bool reducedMotion = false,
+    double textScale = 1,
+    bool hasNextChapter = false,
   }) async {
     SharedPreferences.setMockInitialValues({
       'comment_compact_layout': true,
@@ -58,27 +65,35 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
-    comments ??= <ChapterComment>[
-      ...mergedComments('会赢的', 101, 1000),
-      ...mergedComments('圣地巡礼', 5, 2000),
-      ...mergedComments('想你了，牢师', 3, 3000),
-      ...mergedComments('惠赢的', 3, 4000),
-      ...mergedComments('会赢是你的谎言', 2, 5000),
-      ...mergedComments('赢会的', 2, 6000),
-      ...mergedComments('周年纪念', 2, 7000),
-      ...mergedComments('會贏的', 2, 8000),
-    ];
+    final resolvedComments =
+        comments ??
+        <ChapterComment>[
+          ...mergedComments('会赢的', 101, 1000),
+          ...mergedComments('圣地巡礼', 5, 2000),
+          ...mergedComments('想你了，牢师', 3, 3000),
+          ...mergedComments('惠赢的', 3, 4000),
+          ...mergedComments('会赢是你的谎言', 2, 5000),
+          ...mergedComments('赢会的', 2, 6000),
+          ...mergedComments('周年纪念', 2, 7000),
+          ...mergedComments('會贏的', 2, 8000),
+        ];
 
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: ChapterCommentsSheet(
-            chapterUuid: 'chapter-1',
-            chapterName: '第 1 话',
-            initialComments: comments,
-            initialTotal: initialTotal ?? comments.length,
+      wrapWithApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              disableAnimations: reducedMotion,
+              textScaler: TextScaler.linear(textScale),
+            ),
+            child: ChapterCommentsSheet(
+              chapterUuid: 'chapter-1',
+              chapterName: '第 1 话',
+              initialComments: resolvedComments,
+              initialTotal: initialTotal ?? resolvedComments.length,
+              hasNextChapter: hasNextChapter,
+              onNextChapter: () {},
+            ),
           ),
         ),
       ),
@@ -186,8 +201,120 @@ void main() {
     expect(find.byType(LoadMoreFooter), findsNothing);
   });
 
+  testWidgets('评论计数显示在章节名之后', (tester) async {
+    await pumpCommentsSheet(tester, viewSize: const Size(360, 800));
+
+    final nameRect = tester.getRect(find.text('第 1 话'));
+    final countRect = tester.getRect(
+      find.byKey(const ValueKey('chapter-comments-count')),
+    );
+    expect(countRect.left, greaterThan(nameRect.right));
+    expect(countRect.center.dy, closeTo(nameRect.center.dy, 1));
+    final rowRect = tester.getRect(
+      find.byKey(const ValueKey('chapter-comments-subtitle')),
+    );
+    expect(countRect.right, closeTo(rowRect.right, 0.01));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('顶部不再提供布局切换，设置面板仍可切换并保存布局', (tester) async {
+    await pumpCommentsSheet(tester, viewSize: const Size(360, 800));
+    expect(find.byTooltip('切换为列表布局'), findsNothing);
+    expect(find.byTooltip('切换为紧凑布局'), findsNothing);
+    expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+    expect(find.byIcon(Icons.view_agenda_outlined), findsNothing);
+
+    await tester.tap(find.byTooltip('评论区设置'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentSettingsPanel), findsOneWidget);
+    final layouts = find.byType(SegmentedButton<bool>);
+    expect(tester.widget<SegmentedButton<bool>>(layouts).selected, {true});
+    final listLayout = find.text('列表布局');
+    await tester.ensureVisible(listLayout);
+    await tester.tap(listLayout);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SegmentedButton<bool>>(layouts).selected, {false});
+    expect(UserManager().commentCompactLayout, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('comment_compact_layout'), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('隐藏工具组不接收点击，减少动画时直接显隐', (tester) async {
+    await pumpCommentsSheet(
+      tester,
+      viewSize: const Size(360, 800),
+      reducedMotion: true,
+      comments: List.generate(
+        30,
+        (i) => comment(
+          id: i,
+          userId: 'user-$i',
+          userName: '读者$i',
+          content: '不同评论$i',
+        ),
+      ),
+    );
+    final toolbar = find.byKey(const ValueKey('chapter_comment_action'));
+    final opacity = find.ancestor(
+      of: toolbar,
+      matching: find.byType(AnimatedOpacity),
+    );
+    final pointer = find.ancestor(
+      of: toolbar,
+      matching: find.byType(IgnorePointer),
+    );
+    expect(tester.widget<AnimatedOpacity>(opacity).duration, Duration.zero);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -100));
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(opacity).opacity, 0);
+    expect(tester.widget<IgnorePointer>(pointer.first).ignoring, isTrue);
+    final focus = find.ancestor(
+      of: toolbar,
+      matching: find.byType(ExcludeFocus),
+    );
+    expect(tester.widget<ExcludeFocus>(focus.first).excluding, isTrue);
+    expect(toolbar.hitTestable(), findsNothing);
+  });
+
+  testWidgets('评论列表留白跟随恢复后的按钮组高度', (tester) async {
+    await pumpCommentsSheet(
+      tester,
+      viewSize: const Size(320, 800),
+      textScale: 2,
+      hasNextChapter: true,
+      comments: List.generate(
+        20,
+        (i) => comment(
+          id: i,
+          userId: 'reader-$i',
+          userName: '读者$i',
+          content: '内容$i',
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final toolbar = find.byType(ChapterCommentToolbar);
+    final list = tester.widget<ListView>(find.byType(ListView).last);
+    expect(
+      list.padding!.resolve(TextDirection.ltr).bottom,
+      greaterThan(tester.getSize(toolbar).height),
+    );
+  });
+
   testWidgets('floating buttons reappear at the bottom', (tester) async {
-    await pumpCommentsSheet(tester);
+    await pumpCommentsSheet(
+      tester,
+      comments: List.generate(
+        60,
+        (i) => comment(
+          id: i,
+          userId: 'scroll-reader-$i',
+          userName: '读者$i',
+          content: '滚动内容$i',
+        ),
+      ),
+    );
 
     final list = find.byType(ListView).last;
     final opacity = find.ancestor(
@@ -195,12 +322,14 @@ void main() {
       matching: find.byType(AnimatedOpacity),
     );
 
-    await tester.drag(list, const Offset(0, -80));
+    final dragStart = tester.getTopLeft(list) + const Offset(24, 24);
+    await tester.dragFrom(dragStart, const Offset(0, -80));
     await tester.pumpAndSettle();
     expect(tester.widget<AnimatedOpacity>(opacity).opacity, 0);
 
-    await tester.fling(list, const Offset(0, -10000), 10000);
+    await tester.flingFrom(dragStart, const Offset(0, -10000), 10000);
     await tester.pumpAndSettle();
     expect(tester.widget<AnimatedOpacity>(opacity).opacity, 1);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -96,12 +96,7 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setApiRoute(int route) async {
-    _apiRoute = route;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(UserManager._keyApiRoute, route);
-    _notifyListeners();
-  }
+  Future<void> setApiRoute(int route) => network.setApiRoute(route);
 
   Future<void> setNetworkSelectionMode(NetworkSelectionMode mode) async {
     await network.setSelectionMode(mode);
@@ -148,13 +143,8 @@ extension UserManagerAppSettingsPart on UserManager {
     _notifyListeners();
   }
 
-  Future<void> setBannerVisible(bool visible) async {
-    if (_bannerVisible == visible) return;
-    _bannerVisible = visible;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(UserManager._keyBannerVisible, visible);
-    _notifyListeners();
-  }
+  Future<void> setBannerVisible(bool visible) =>
+      theme.setBannerVisible(visible);
 
   Future<void> setMangaHomeSource(String source) async {
     if (_mangaHomeSource == source) return;

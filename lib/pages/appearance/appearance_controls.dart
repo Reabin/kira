@@ -3,7 +3,6 @@ part of '../appearance_page.dart';
 class _AppearanceSliderControl extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String description;
   final String valueText;
   final double value;
   final double min;
@@ -11,11 +10,11 @@ class _AppearanceSliderControl extends StatelessWidget {
   final int divisions;
   final ValueChanged<double> onChanged;
   final ValueChanged<double> onChangeEnd;
+  final String Function(double)? semanticFormatterCallback;
 
   const _AppearanceSliderControl({
     required this.icon,
     required this.title,
-    required this.description,
     required this.valueText,
     required this.value,
     required this.min,
@@ -23,6 +22,7 @@ class _AppearanceSliderControl extends StatelessWidget {
     required this.divisions,
     required this.onChanged,
     required this.onChangeEnd,
+    this.semanticFormatterCallback,
   });
 
   @override
@@ -43,21 +43,12 @@ class _AppearanceSliderControl extends StatelessWidget {
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: textTheme.titleSmall),
-                    const SizedBox(height: 2),
-                    Text(
-                      description,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                  children: [Text(title, style: textTheme.titleSmall)],
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              SizedBox(
-                width: 52,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 52),
                 child: Text(
                   valueText,
                   textAlign: TextAlign.end,
@@ -75,6 +66,7 @@ class _AppearanceSliderControl extends StatelessWidget {
             max: max,
             divisions: divisions,
             label: valueText,
+            semanticFormatterCallback: semanticFormatterCallback,
             onChanged: onChanged,
             onChangeEnd: onChangeEnd,
           ),

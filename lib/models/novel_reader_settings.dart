@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_logger.dart';
 import '../utils/json_helpers.dart';
 
-enum NovelReaderTheme { paper, dark, white, green }
+enum NovelReaderTheme { paper, dark, white, green, gray }
 
 /// 阅读模式：连续滚动 / 整页翻页。翻页模式固定左到右横向翻页。
 enum NovelReaderMode { scroll, paged }
@@ -85,6 +85,7 @@ class NovelReaderSettings {
     double fontSize = defaultFontSize,
     double lineHeight = defaultLineHeight,
     double paragraphSpacing = defaultParagraphSpacing,
+    double contentWidth = defaultContentWidth,
     this.lightThemeId = defaultLightThemeId,
     this.darkThemeId = defaultDarkThemeId,
     this.keepScreenOn = true,
@@ -92,6 +93,11 @@ class NovelReaderSettings {
     this.realisticPageTurn = true,
     this.instantPageTurn = false,
     this.volumeKey = true,
+    this.ignoreBlankParagraphs = defaultIgnoreBlankParagraphs,
+    this.focusModeEnabled = defaultFocusModeEnabled,
+    double focusTopRatio = defaultFocusTopRatio,
+    double focusBottomRatio = defaultFocusBottomRatio,
+    double focusOpacity = defaultFocusOpacity,
   }) : _customThemes = const [],
        fontSize = fontSize != fontSize
            ? defaultFontSize
@@ -113,7 +119,35 @@ class NovelReaderSettings {
            ? minParagraphSpacing
            : paragraphSpacing > maxParagraphSpacing
            ? maxParagraphSpacing
-           : paragraphSpacing;
+           : paragraphSpacing,
+       contentWidth = contentWidth != contentWidth
+           ? defaultContentWidth
+           : contentWidth < minContentWidth
+           ? minContentWidth
+           : contentWidth > maxContentWidth
+           ? maxContentWidth
+           : contentWidth,
+       focusTopRatio = focusTopRatio != focusTopRatio
+           ? defaultFocusTopRatio
+           : focusTopRatio < minFocusTopRatio
+           ? minFocusTopRatio
+           : focusTopRatio > maxFocusTopRatio
+           ? maxFocusTopRatio
+           : focusTopRatio,
+       _focusBottomRatio = focusBottomRatio != focusBottomRatio
+           ? defaultFocusBottomRatio
+           : focusBottomRatio < minFocusBottomRatio
+           ? minFocusBottomRatio
+           : focusBottomRatio > maxFocusBottomRatio
+           ? maxFocusBottomRatio
+           : focusBottomRatio,
+       focusOpacity = focusOpacity != focusOpacity
+           ? defaultFocusOpacity
+           : focusOpacity < minFocusOpacity
+           ? minFocusOpacity
+           : focusOpacity > maxFocusOpacity
+           ? maxFocusOpacity
+           : focusOpacity;
 
   NovelReaderSettings._withThemes(
     NovelReaderSettings base,
@@ -121,6 +155,7 @@ class NovelReaderSettings {
   ) : fontSize = base.fontSize,
       lineHeight = base.lineHeight,
       paragraphSpacing = base.paragraphSpacing,
+      contentWidth = base.contentWidth,
       lightThemeId = base.lightThemeId,
       darkThemeId = base.darkThemeId,
       keepScreenOn = base.keepScreenOn,
@@ -128,6 +163,11 @@ class NovelReaderSettings {
       realisticPageTurn = base.realisticPageTurn,
       instantPageTurn = base.instantPageTurn,
       volumeKey = base.volumeKey,
+      ignoreBlankParagraphs = base.ignoreBlankParagraphs,
+      focusModeEnabled = base.focusModeEnabled,
+      focusTopRatio = base.focusTopRatio,
+      _focusBottomRatio = base.focusBottomRatio,
+      focusOpacity = base.focusOpacity,
       _customThemes = List.unmodifiable(themes);
 
   static const storageKey = 'reader_novel_settings_v1';
@@ -141,15 +181,40 @@ class NovelReaderSettings {
   static const minParagraphSpacing = 0.0;
   static const maxParagraphSpacing = 64.0;
   static const defaultParagraphSpacing = 16.0;
+  static const minContentWidth = 320.0;
+  static const maxContentWidth = 1200.0;
+  static const defaultContentWidth = 720.0;
   static const defaultLightThemeId = 'white';
-  static const defaultDarkThemeId = 'dark';
+
+  /// 内置「灰」主题（#222222/#C8C8C8）为深色模式默认。
+  static const defaultDarkThemeId = 'gray';
   static const legacyCustomThemeId = 'custom-legacy';
   static const defaultCustomBackgroundColor = 0xFFF3EEDC;
   static const defaultCustomTextColor = 0xFF38352D;
 
+  /// 网译源 txt 常以空行分隔段落；默认保留空行，开启后仅隐藏显示，
+  /// 源数据与段落下标不变。
+  static const defaultIgnoreBlankParagraphs = false;
+
+  /// 专注模式：上下黑遮罩夹出中间可见区，两边界至少相隔 10% 屏高。
+  static const defaultFocusModeEnabled = false;
+  static const minFocusGapRatio = 0.1;
+  static const minFocusTopRatio = 0.0;
+  static const maxFocusTopRatio = 0.9;
+  static const defaultFocusTopRatio = 0.2;
+  static const minFocusBottomRatio = 0.1;
+  static const maxFocusBottomRatio = 1.0;
+  static const defaultFocusBottomRatio = 0.55;
+  static const minFocusOpacity = 0.1;
+  static const maxFocusOpacity = 0.9;
+  static const defaultFocusOpacity = 0.5;
+
   final double fontSize;
   final double lineHeight;
   final double paragraphSpacing;
+
+  /// 正文最大宽度（逻辑像素）；窄屏仍保留安全区与两侧最小留白。
+  final double contentWidth;
   final String lightThemeId;
   final String darkThemeId;
   final bool keepScreenOn;
@@ -163,6 +228,23 @@ class NovelReaderSettings {
 
   /// 翻页模式下允许音量键翻页（音量+上一页、音量-下一页）。
   final bool volumeKey;
+
+  /// 隐藏正文里的空白段落（仅影响显示，不改变段落下标与锚点身份）。
+  final bool ignoreBlankParagraphs;
+
+  /// 专注模式开关：开启后上下各加一条半透明黑遮罩。
+  final bool focusModeEnabled;
+
+  /// 可见区上/下边界，占屏幕高度比例；遮罩触摸穿透，不挡翻页与点按。
+  final double focusTopRatio;
+  final double _focusBottomRatio;
+  double get focusBottomRatio =>
+      _focusBottomRatio < focusTopRatio + minFocusGapRatio
+      ? focusTopRatio + minFocusGapRatio
+      : _focusBottomRatio;
+
+  /// 遮罩不透明度。
+  final double focusOpacity;
   final List<NovelReaderCustomTheme> _customThemes;
   List<NovelReaderCustomTheme> get customThemes => _customThemes;
 
@@ -237,6 +319,11 @@ class NovelReaderSettings {
         'paragraphSpacing',
         fallback: defaultParagraphSpacing,
       ),
+      contentWidth: jsonDouble(
+        json,
+        'contentWidth',
+        fallback: defaultContentWidth,
+      ),
       lightThemeId: jsonString(
         json,
         'lightThemeId',
@@ -253,6 +340,25 @@ class NovelReaderSettings {
       realisticPageTurn: jsonBool(json, 'realisticPageTurn', fallback: true),
       instantPageTurn: jsonBool(json, 'instantPageTurn'),
       volumeKey: jsonBool(json, 'volumeKey', fallback: true),
+      // 旧记录没有该键时保持默认（保留空行）。
+      ignoreBlankParagraphs: jsonBool(json, 'ignoreBlankParagraphs'),
+      // 旧记录没有专注模式各键时：默认关闭、默认区域与浓度。
+      focusModeEnabled: jsonBool(json, 'focusModeEnabled'),
+      focusTopRatio: jsonDouble(
+        json,
+        'focusTopRatio',
+        fallback: defaultFocusTopRatio,
+      ),
+      focusBottomRatio: jsonDouble(
+        json,
+        'focusBottomRatio',
+        fallback: defaultFocusBottomRatio,
+      ),
+      focusOpacity: jsonDouble(
+        json,
+        'focusOpacity',
+        fallback: defaultFocusOpacity,
+      ),
     ).copyWith(customThemes: themes);
   }
 
@@ -260,6 +366,7 @@ class NovelReaderSettings {
     'fontSize': fontSize,
     'lineHeight': lineHeight,
     'paragraphSpacing': paragraphSpacing,
+    'contentWidth': contentWidth,
     'lightThemeId': themeIdFor(dark: false),
     'darkThemeId': themeIdFor(dark: true),
     'customThemes': _customThemes.map((theme) => theme.toJson()).toList(),
@@ -268,12 +375,18 @@ class NovelReaderSettings {
     'realisticPageTurn': realisticPageTurn,
     'instantPageTurn': instantPageTurn,
     'volumeKey': volumeKey,
+    'ignoreBlankParagraphs': ignoreBlankParagraphs,
+    'focusModeEnabled': focusModeEnabled,
+    'focusTopRatio': focusTopRatio,
+    'focusBottomRatio': focusBottomRatio,
+    'focusOpacity': focusOpacity,
   };
 
   NovelReaderSettings copyWith({
     double? fontSize,
     double? lineHeight,
     double? paragraphSpacing,
+    double? contentWidth,
     String? lightThemeId,
     String? darkThemeId,
     List<NovelReaderCustomTheme>? customThemes,
@@ -282,11 +395,32 @@ class NovelReaderSettings {
     bool? realisticPageTurn,
     bool? instantPageTurn,
     bool? volumeKey,
+    bool? ignoreBlankParagraphs,
+    bool? focusModeEnabled,
+    double? focusTopRatio,
+    double? focusBottomRatio,
+    double? focusOpacity,
   }) {
+    final bottom = focusBottomRatio == null
+        ? this.focusBottomRatio
+        : focusBottomRatio.isNaN
+        ? defaultFocusBottomRatio
+        : focusBottomRatio.clamp(minFocusBottomRatio, maxFocusBottomRatio);
+    // 单独下调下边界时联动上边界；上调上边界则由 getter 抬高下边界。
+    final top =
+        focusTopRatio ??
+        (focusBottomRatio != null &&
+                this.focusTopRatio + minFocusGapRatio > bottom
+            ? (bottom - minFocusGapRatio).clamp(
+                minFocusTopRatio,
+                maxFocusTopRatio,
+              )
+            : this.focusTopRatio);
     final base = NovelReaderSettings(
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
+      contentWidth: contentWidth ?? this.contentWidth,
       lightThemeId: lightThemeId ?? this.lightThemeId,
       darkThemeId: darkThemeId ?? this.darkThemeId,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
@@ -294,6 +428,16 @@ class NovelReaderSettings {
       realisticPageTurn: realisticPageTurn ?? this.realisticPageTurn,
       instantPageTurn: instantPageTurn ?? this.instantPageTurn,
       volumeKey: volumeKey ?? this.volumeKey,
+      ignoreBlankParagraphs:
+          ignoreBlankParagraphs ?? this.ignoreBlankParagraphs,
+      focusModeEnabled:
+          focusModeEnabled ??
+          (mode == NovelReaderMode.paged && this.mode != NovelReaderMode.paged
+              ? false
+              : this.focusModeEnabled),
+      focusTopRatio: top,
+      focusBottomRatio: bottom,
+      focusOpacity: focusOpacity ?? this.focusOpacity,
     );
     final seen = NovelReaderTheme.values.map((theme) => theme.name).toSet();
     final themes = (customThemes ?? _customThemes)
@@ -388,6 +532,7 @@ class NovelReaderSettings {
       fontSize == other.fontSize &&
       lineHeight == other.lineHeight &&
       paragraphSpacing == other.paragraphSpacing &&
+      contentWidth == other.contentWidth &&
       themeIdFor(dark: false) == other.themeIdFor(dark: false) &&
       themeIdFor(dark: true) == other.themeIdFor(dark: true) &&
       listEquals(_customThemes, other._customThemes) &&
@@ -395,13 +540,19 @@ class NovelReaderSettings {
       mode == other.mode &&
       realisticPageTurn == other.realisticPageTurn &&
       instantPageTurn == other.instantPageTurn &&
-      volumeKey == other.volumeKey;
+      volumeKey == other.volumeKey &&
+      ignoreBlankParagraphs == other.ignoreBlankParagraphs &&
+      focusModeEnabled == other.focusModeEnabled &&
+      focusTopRatio == other.focusTopRatio &&
+      focusBottomRatio == other.focusBottomRatio &&
+      focusOpacity == other.focusOpacity;
 
   @override
   int get hashCode => Object.hash(
     fontSize,
     lineHeight,
     paragraphSpacing,
+    contentWidth,
     themeIdFor(dark: false),
     themeIdFor(dark: true),
     Object.hashAll(_customThemes),
@@ -410,6 +561,11 @@ class NovelReaderSettings {
     realisticPageTurn,
     instantPageTurn,
     volumeKey,
+    ignoreBlankParagraphs,
+    focusModeEnabled,
+    focusTopRatio,
+    focusBottomRatio,
+    focusOpacity,
   );
 }
 

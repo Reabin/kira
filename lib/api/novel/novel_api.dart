@@ -40,16 +40,8 @@ class NovelIdentityChangedException extends NovelApiException {
 /// User-facing text for a novel failure. Keeps the upstream detail instead of
 /// collapsing every failure into a generic label; [fallback] is only used when
 /// the error carries no text at all.
-String novelErrorMessage(Object? error, {String? fallback}) {
-  if (error == null) return fallback ?? '';
-  if (error is NovelApiException) {
-    final text = error.message.trim();
-    return text.isEmpty ? (fallback ?? '') : text;
-  }
-  if (error is DioException) return NetworkError.message(error);
-  final text = error.toString().trim();
-  return text.isEmpty ? (fallback ?? '') : text;
-}
+String novelErrorMessage(Object? error, {String? fallback}) =>
+    NetworkError.describe(error, fallback: fallback ?? '');
 
 /// An in-memory request snapshot. Credentials are private and never serialized.
 class NovelRequestIdentity {
@@ -424,14 +416,20 @@ class NovelApi {
       );
       ensureIdentity(identity);
       if (response.statusCode != 200 || response.data == null) {
-        throw NovelApiException('正文或插图获取失败', statusCode: response.statusCode);
+        throw NovelApiException(
+          '正文或插图获取失败（HTTP ${response.statusCode ?? '无响应'}）',
+          statusCode: response.statusCode,
+        );
       }
       return response.data!;
     } on DioException catch (error) {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(error.message, statusCode: error.response?.statusCode),
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }
@@ -473,6 +471,27 @@ class NovelApi {
       }),
       NovelShelfEntry.fromJson,
     );
+  });
+
+  /// 在线浏览记录。条目不携带 id/uuid，分页由服务端 total/offset 决定。
+  Future<NovelPage<NovelBrowseEntry>> getBrowseHistory({
+    int limit = 18,
+    int offset = 0,
+  }) => withIdentity(() async {
+    _validatePage(limit, offset);
+    return NovelPage.fromJson(
+      await _get('/api/v3/member/browse/books', {
+        'limit': limit,
+        'offset': offset,
+      }),
+      NovelBrowseEntry.fromJson,
+    );
+  });
+
+  /// 抓包确认 DELETE 无实体参数，清除账号下全部在线浏览记录；
+  /// 成功响应为 `results: null`，因此只校验外层信封。
+  Future<void> clearBrowseHistory() => withIdentity(() async {
+    await _request('/api/v3/member/browse/books', method: 'DELETE');
   });
 
   Future<void> setCollected({
@@ -550,6 +569,7 @@ class NovelApi {
     String path, {
     Map<String, dynamic>? params,
     Map<String, dynamic>? data,
+    String? method,
     bool browserComment = false,
   }) async {
     final identity = requestIdentity;
@@ -560,7 +580,8 @@ class NovelApi {
         queryParameters: {...?params, 'platform': 3},
         data: data,
         options: Options(
-          method: data == null ? 'GET' : 'POST',
+          // Explicit methods (DELETE) must not be inferred from the body.
+          method: method ?? (data == null ? 'GET' : 'POST'),
           responseType: ResponseType.plain,
           contentType: Headers.formUrlEncodedContentType,
           followRedirects: false,
@@ -608,7 +629,10 @@ class NovelApi {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        _describeFailure(error.message, statusCode: error.response?.statusCode),
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }

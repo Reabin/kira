@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_logger.dart';
+import 'json_helpers.dart';
+
 /// 本地阅读记录，记录每部漫画在各分组上次阅读到哪一话、章节列表页和图片页。
 ///
 /// [save] 是防抖的：翻页会高频触发，而每次保存都要读回旧记录、合并已读章节
@@ -23,7 +26,7 @@ class ReadingHistory {
   /// 用 record 作键，值相等语义由语言保证，省去手工拼接分隔符的歧义。
   static final Map<(String, String?), _PendingSave> _pending = {};
   static Timer? _debounceTimer;
-  static Future<void>? _flushing;
+  static Future<void>? _queue;
   static bool _restoring = false;
 
   /// 组键在键名里分隔 pathWord 与组名的标记。
@@ -79,38 +82,60 @@ class ReadingHistory {
     if (chapterUuid.isNotEmpty) entry.readChapterUuids.add(chapterUuid);
 
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounceDelay, () => unawaited(flush()));
+    _debounceTimer = Timer(_debounceDelay, _flushInBackground);
   }
 
-  /// 立即落盘全部待写进度。无待写数据时为无开销的空操作。
-  static Future<void> flush() async {
-    // Join an already-running disk write, rather than observing an empty
-    // pending map while the previous batch is still in flight.
-    while (_flushing != null) {
-      await _flushing;
+  static Future<void> _flushInBackground() async {
+    try {
+      await flush();
+    } catch (error, stack) {
+      _logWarning(error, stack, 'flush');
     }
+  }
+
+  /// 立即落盘全部待写进度，并等待此前排队的读写完成。
+  static Future<void> flush() {
     _debounceTimer?.cancel();
     _debounceTimer = null;
-    if (_pending.isEmpty) return;
-
     final entries = _pending.values.toList(growable: false);
     _pending.clear();
-    final writing = _writeBatch(entries);
-    _flushing = writing;
-    try {
-      await writing;
-    } finally {
-      _flushing = null;
-    }
+    if (entries.isEmpty) return _queue ?? Future<void>.value();
+    return _enqueue((prefs) async {
+      for (final entry in entries) {
+        await _write(prefs, entry);
+      }
+      // 落盘完成后再通知，保证监听方读到的是新数据。
+      changes.value++;
+    });
   }
 
-  static Future<void> _writeBatch(List<_PendingSave> entries) async {
-    final prefs = await SharedPreferences.getInstance();
-    for (final entry in entries) {
-      await _write(prefs, entry);
+  static Future<T> _enqueue<T>(
+    FutureOr<T> Function(SharedPreferences prefs) action,
+  ) {
+    final operation = (_queue ?? Future<void>.value()).then(
+      (_) async => action(await SharedPreferences.getInstance()),
+    );
+    late final Future<void> tail;
+    void releaseIfIdle() {
+      if (identical(_queue, tail)) _queue = null;
     }
-    // 落盘完成后再通知，保证监听方读到的是新数据。
-    changes.value++;
+
+    tail = operation.then<void>(
+      (_) => releaseIfIdle(),
+      onError: (Object error, StackTrace stack) => releaseIfIdle(),
+    );
+    _queue = tail;
+    return operation;
+  }
+
+  static void _logWarning(Object error, StackTrace stack, String operation) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        error,
+        stackTrace: stack,
+        source: 'reading_history.$operation',
+      ),
+    );
   }
 
   static Future<void> pauseForRestore() async {
@@ -178,37 +203,37 @@ class ReadingHistory {
     bool fallbackToLegacy = true,
   }) async {
     await flush();
-    final prefs = await SharedPreferences.getInstance();
-    return _readFromPrefs(
-      prefs,
-      pathWord,
-      group: group,
-      fallbackToLegacy: fallbackToLegacy,
+    return _enqueue(
+      (prefs) => _readFromPrefs(
+        prefs,
+        pathWord,
+        group: group,
+        fallbackToLegacy: fallbackToLegacy,
+      ),
     );
   }
 
   /// 获取这部漫画最近更新过的本地阅读记录，跨分组查询。
   static Future<ReadingRecord?> latestForComic(String pathWord) async {
     await flush();
-    final prefs = await SharedPreferences.getInstance();
-    final legacyKey = _legacyKey(pathWord);
-    final groupPrefix = '${legacyKey}_group_';
-    final groupKeys =
-        prefs.getKeys().where((key) => key.startsWith(groupPrefix)).toList()
-          ..sort();
-    final keys = [legacyKey, ...groupKeys];
+    return _enqueue((prefs) {
+      final legacyKey = _legacyKey(pathWord);
+      final groupPrefix = '${legacyKey}_group_';
+      final groupKeys =
+          prefs.getKeys().where((key) => key.startsWith(groupPrefix)).toList()
+            ..sort();
+      final keys = [legacyKey, ...groupKeys];
 
-    ReadingRecord? latest;
-    for (final key in keys) {
-      final raw = prefs.getString(key);
-      if (raw == null) continue;
-      final record = _decode(raw);
-      if (record == null) continue;
-      if (latest == null || _isRecordNewer(record, latest)) {
-        latest = record;
+      ReadingRecord? latest;
+      for (final key in keys) {
+        final record = _readKey(prefs, key);
+        if (record == null || record.chapterUuid.isEmpty) continue;
+        if (latest == null || _isRecordNewer(record, latest)) {
+          latest = record;
+        }
       }
-    }
-    return latest;
+      return latest;
+    });
   }
 
   /// 获取全库最近更新的阅读记录,用于「继续阅读」入口。
@@ -216,31 +241,113 @@ class ReadingHistory {
   /// 返回 null 表示本地还没有任何阅读记录。同时带回 pathWord——
   /// 键名里的 pathWord 是唯一的漫画标识,记录本身不重复存一份。
   static Future<({String pathWord, ReadingRecord record})?>
-  latestRecord() async {
-    await flush();
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys().where((key) => key.startsWith(_prefix));
+  latestRecord() async => (await readRecent(limit: 1)).firstOrNull;
 
-    ({String pathWord, ReadingRecord record})? latest;
-    for (final key in keys) {
-      final raw = prefs.getString(key);
-      if (raw == null) continue;
-      final record = _decode(raw);
-      if (record == null || record.chapterUuid.isEmpty) continue;
-      if (latest == null || _isRecordNewer(record, latest.record)) {
-        latest = (pathWord: _pathWordOf(key), record: record);
+  /// 每部漫画仅返回最近分组，默认分组的旧键镜像不会重复展示。
+  static Future<List<({String pathWord, ReadingRecord record})>> readRecent({
+    int? limit,
+  }) async {
+    await flush();
+    return _enqueue((prefs) {
+      if (limit != null && limit <= 0) {
+        return <({String pathWord, ReadingRecord record})>[];
       }
-    }
-    return latest;
+      final keys =
+          prefs.getKeys().where((key) => key.startsWith(_prefix)).toList()
+            ..sort();
+      final byComic = <String, ReadingRecord>{};
+      for (final key in keys) {
+        final pathWord = _pathWordOf(key);
+        final record = _readKey(prefs, key);
+        if (pathWord.isEmpty || record == null || record.chapterUuid.isEmpty) {
+          continue;
+        }
+        final current = byComic[pathWord];
+        if (current == null || _isRecordNewer(record, current)) {
+          byComic[pathWord] = record;
+        }
+      }
+      final records =
+          [
+            for (final entry in byComic.entries)
+              (pathWord: entry.key, record: entry.value),
+          ]..sort((a, b) {
+            final aTime = a.record.updatedAt;
+            final bTime = b.record.updatedAt;
+            final byTime = aTime == null
+                ? bTime == null
+                      ? 0
+                      : 1
+                : bTime == null
+                ? -1
+                : bTime.compareTo(aTime);
+            return byTime != 0 ? byTime : a.pathWord.compareTo(b.pathWord);
+          });
+      return List<({String pathWord, ReadingRecord record})>.unmodifiable(
+        limit == null ? records : records.take(limit),
+      );
+    });
   }
+
+  /// 删除作品的全部分组与旧键；先前待写位置不能在删除后复活。
+  static Future<void> removeProgress(String pathWord) =>
+      _removeWhere((key) => _pathWordOf(key) == pathWord);
+
+  /// 仅清空漫画阅读记录，不影响小说、下载、书签或设置。
+  static Future<void> clear() => _removeWhere((_) => true);
+
+  static Future<void> _removeWhere(bool Function(String key) matches) {
+    // 同步排入现有待写进度，随后删除排在它们之后；删除失败时保留先前位置。
+    final writing = flush();
+    return _enqueue((prefs) async {
+      await writing;
+      final keys =
+          prefs
+              .getKeys()
+              .where((key) => key.startsWith(_prefix) && matches(key))
+              .toList()
+            ..sort();
+      for (final key in keys) {
+        final previous = prefs.get(key);
+        try {
+          if (!await prefs.remove(key)) {
+            throw StateError('reading_history removal failed');
+          }
+        } catch (error, stack) {
+          try {
+            await _restoreValue(prefs, key, previous);
+            await prefs.reload();
+          } catch (rollbackError, rollbackStack) {
+            _logWarning(rollbackError, rollbackStack, 'remove_rollback');
+          }
+          Error.throwWithStackTrace(error, stack);
+        }
+      }
+      changes.value++;
+    });
+  }
+
+  static Future<bool> _restoreValue(
+    SharedPreferences prefs,
+    String key,
+    Object? value,
+  ) => switch (value) {
+    String() => prefs.setString(key, value),
+    int() => prefs.setInt(key, value),
+    double() => prefs.setDouble(key, value),
+    bool() => prefs.setBool(key, value),
+    List<String>() => prefs.setStringList(key, value),
+    null => prefs.remove(key),
+    _ => throw const FormatException('Unsupported reading history preference'),
+  };
 
   /// 从 `reading_history_<pathWord>[_group_<g>]` 键名还原 pathWord。
   ///
-  /// 组键的 pathWord 部分不含 [_groupMarker](pathWord 是站点的 slug/ID);
-  /// 若真出现该子串,取最后一次出现的位置,保证往返一致。
+  /// 组键的 pathWord 部分不含 [_groupMarker](pathWord 是站点的 slug/ID)。
+  /// 只拆第一次标记，组名自身可以包含同一子串。
   static String _pathWordOf(String key) {
     final body = key.substring(_prefix.length);
-    final markerIndex = body.lastIndexOf(_groupMarker);
+    final markerIndex = body.indexOf(_groupMarker);
     return markerIndex < 0 ? body : body.substring(0, markerIndex);
   }
 
@@ -262,35 +369,58 @@ class ReadingHistory {
     bool fallbackToLegacy = true,
   }) {
     final normalizedGroup = _normalizeGroup(group);
-    final raw = normalizedGroup == null || normalizedGroup.isEmpty
-        ? prefs.getString(_legacyKey(pathWord))
-        : prefs.getString(_groupKey(pathWord, normalizedGroup)) ??
-              (fallbackToLegacy && normalizedGroup == defaultGroup
-                  ? prefs.getString(_legacyKey(pathWord))
-                  : null);
-    if (raw == null) return null;
-    return _decode(raw);
+    final key = normalizedGroup == null || normalizedGroup.isEmpty
+        ? _legacyKey(pathWord)
+        : _groupKey(pathWord, normalizedGroup);
+    if (prefs.containsKey(key)) return _readKey(prefs, key);
+    return fallbackToLegacy && normalizedGroup == defaultGroup
+        ? _readKey(prefs, _legacyKey(pathWord))
+        : null;
   }
 
-  static ReadingRecord? _decode(String raw) {
+  static ReadingRecord? _readKey(SharedPreferences prefs, String key) {
     try {
-      final map = jsonDecode(raw) as Map<String, dynamic>;
-      final chapterUuid = map['chapterUuid']?.toString() ?? '';
+      final raw = prefs.get(key);
+      if (raw == null) return null;
+      if (raw is! String) {
+        throw const FormatException('Reading history must be JSON text');
+      }
+      final markerIndex = key.indexOf(_groupMarker, _prefix.length);
+      final group = markerIndex < 0
+          ? null
+          : Uri.decodeComponent(
+              key.substring(markerIndex + _groupMarker.length),
+            );
+      return _decode(raw, group: group);
+    } catch (error, stack) {
+      _logWarning(error, stack, 'read');
+      return null;
+    }
+  }
+
+  static ReadingRecord? _decode(String raw, {String? group}) {
+    try {
+      final map = jsonDecode(raw);
+      if (map is! Map<String, dynamic>) {
+        throw const FormatException('Reading history must be an object');
+      }
+      final chapterUuid = jsonString(map, 'chapterUuid');
       final readChapterUuids = _readStringSet(map['readChapterUuids']).toSet()
         ..add(chapterUuid);
       readChapterUuids.remove('');
       return ReadingRecord(
         chapterUuid: chapterUuid,
-        chapterName: map['chapterName']?.toString() ?? '',
-        comicName: map['comicName']?.toString() ?? '',
+        chapterName: jsonString(map, 'chapterName'),
+        comicName: jsonString(map, 'comicName'),
         chapterListPage: _readInt(map['chapterListPage']),
         page: _readInt(map['page']) ?? 1,
         totalPage: _readInt(map['totalPage']) ?? 0,
         readChapterUuids: readChapterUuids,
-        group: map['group']?.toString(),
+        group: jsonString(map, 'group').nullIfEmpty() ?? group,
         updatedAt: _readDateTime(map['updatedAt'] ?? map['updated_at']),
       );
-    } catch (_) {
+    } catch (error, stack) {
+      _logWarning(error, stack, 'decode');
       return null;
     }
   }
@@ -318,7 +448,8 @@ class ReadingHistory {
     if (value is String) {
       try {
         return _readStringSet(jsonDecode(value));
-      } catch (_) {
+      } catch (error, stack) {
+        _logWarning(error, stack, 'read_chapters');
         return const <String>{};
       }
     }

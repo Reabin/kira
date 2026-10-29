@@ -4,8 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/novel_reader_settings.dart';
-import '../../theme/app_icon_sizes.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../widgets/novel_page_curl.dart';
@@ -26,30 +24,25 @@ class NovelReaderPageView extends StatefulWidget {
     required this.palette,
     required this.target,
     required this.jumpRevision,
-    required this.bookmarkRevision,
     required this.emptyChapterText,
     required this.contentPadding,
     required this.onPosition,
     required this.toolbarVisible,
     required this.onTap,
     this.onParagraphLongPress,
-    this.isBookmarkedParagraph,
-    this.onBookmarkMarkerTap,
     this.highlight,
+    this.highlightOpacity,
     this.onPageTurned,
     this.onBoundary,
   });
 
-  final NovelReaderDocument document;
+  final NovelTextDocument document;
   final NovelReaderSettings settings;
   final NovelReaderPalette palette;
 
   /// 目标锚点；[jumpRevision] 变化时按同一锚点重新定位。
   final NovelReaderAnchor target;
   final int jumpRevision;
-
-  /// 书签集合的版本号：变化时只从受影响段落重建分页。
-  final int bookmarkRevision;
   final String emptyChapterText;
   final EdgeInsets contentPadding;
   final ValueChanged<NovelReaderLocation> onPosition;
@@ -64,14 +57,11 @@ class NovelReaderPageView extends StatefulWidget {
   final void Function(NovelReaderParagraph paragraph, Offset position)?
   onParagraphLongPress;
 
-  /// 段落是否已有书签（决定是否渲染小书签标记并参与排版）。
-  final bool Function(NovelReaderParagraph paragraph)? isBookmarkedParagraph;
-
-  /// 点按段落上的小书签标记（取消该书签）。
-  final void Function(NovelReaderParagraph paragraph)? onBookmarkMarkerTap;
-
   /// 短暂高亮的书签段落。
   final NovelReaderAnchor? highlight;
+
+  /// 高亮的淡入淡出动画：画笔挂它逐帧重绘，高亮不触发整树 rebuild。
+  final Animation<double>? highlightOpacity;
 
   /// 用户翻页（非程序化）：隐藏工具栏、清除高亮。
   final VoidCallback? onPageTurned;
@@ -88,7 +78,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
   static const _turnDuration = Duration(milliseconds: 360);
   late final AnimationController _turnController;
   NovelReaderPaginator? _paginator;
-  Set<int> _markedItems = const {};
   int _currentPage = 0;
   bool _restoring = true;
   int _generation = 0;
@@ -167,6 +156,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       _restoreTarget(widget.target);
       return;
     }
+    if (oldWidget.settings.contentWidth != widget.settings.contentWidth) {
+      // 同帧重排，避免将旧分页片段先放进变窄后的正文区域而溢出。
+      _restart(_anchorNow());
+      return;
+    }
     if (oldWidget.settings.fontSize != widget.settings.fontSize ||
         oldWidget.settings.lineHeight != widget.settings.lineHeight ||
         oldWidget.settings.paragraphSpacing !=
@@ -190,9 +184,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
           widget.onPageTurned?.call();
         });
       }
-    }
-    if (oldWidget.bookmarkRevision != widget.bookmarkRevision) {
-      _handleBookmarkRevision();
     }
   }
 
@@ -222,7 +213,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       spec: _spec(_size!, _contentPadding ?? EdgeInsets.zero),
     );
     _paginator = paginator;
-    _markedItems = _snapshotMarked();
     _pumpPagination(generation, anchor);
   }
 
@@ -256,40 +246,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
     _buildTimer?.cancel();
     _restoring = true;
     _pumpPagination(generation, anchor);
-  }
-
-  void _handleBookmarkRevision() {
-    final paginator = _paginator;
-    if (paginator == null || _size == null) return;
-    final next = _snapshotMarked();
-    final changed = _markedDifferences(next);
-    if (changed.isEmpty) return;
-    _markedItems = next;
-    final generation = ++_generation;
-    _buildTimer?.cancel();
-    _restoring = true;
-    paginator.rebuildFrom(changed.reduce(math.min), invalidate: changed);
-    _pumpPagination(generation, _anchorNow());
-  }
-
-  Set<int> _snapshotMarked() {
-    final isMarked = widget.isBookmarkedParagraph;
-    if (isMarked == null) return const {};
-    final marked = <int>{};
-    for (var item = 0; item < widget.document.itemCount; item++) {
-      if (isMarked(widget.document.paragraphAt(item))) marked.add(item);
-    }
-    return marked;
-  }
-
-  /// 与上次快照相比书签状态发生变化的段落集合。
-  Set<int> _markedDifferences(Set<int> next) {
-    final previous = _markedItems;
-    final all = {...previous, ...next};
-    return {
-      for (final item in all)
-        if (previous.contains(item) != next.contains(item)) item,
-    };
   }
 
   void _scheduleBackgroundBuild(int generation) {
@@ -332,7 +288,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       );
 
   NovelPaginationSpec _spec(Size size, EdgeInsets contentPadding) {
-    final metrics = novelPageMetricsFor(size, contentPadding);
+    final metrics = novelPageMetricsFor(
+      size,
+      contentPadding,
+      maxContentWidth: widget.settings.contentWidth,
+    );
     return NovelPaginationSpec(
       textStyle: _bodyStyle(context),
       titleStyle: _titleStyle(context),
@@ -347,11 +307,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       paragraphSpacing: widget.settings.paragraphSpacing,
       titleSpacing: AppSpacing.xxl,
       emptyChapterText: widget.emptyChapterText,
-      markerSpacing: AppSpacing.sm,
-      markerSize: AppIconSize.md,
-      markerColor: widget.palette.foreground,
-      isMarked: (paragraph) =>
-          widget.isBookmarkedParagraph?.call(paragraph) ?? false,
     );
   }
 
@@ -693,7 +648,11 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
   Widget _buildPageSheet(BuildContext context, int index) {
     final size = _size!;
     final padding = widget.contentPadding;
-    final metrics = novelPageMetricsFor(size, padding);
+    final metrics = novelPageMetricsFor(
+      size,
+      padding,
+      maxContentWidth: widget.settings.contentWidth,
+    );
     return ColoredBox(
       color: widget.palette.background,
       child: Padding(
@@ -711,7 +670,6 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
   Widget _buildPage(BuildContext context, int index) {
     final paginator = _paginator!;
     final page = paginator.pages[index];
-    final foreground = widget.palette.foreground;
     final style = _bodyStyle(context);
     final children = <Widget>[];
     final slices = page.slices;
@@ -735,35 +693,8 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
       final start = slice.startOffset.clamp(0, display.length);
       final end = slice.endOffset.clamp(start, display.length);
       final isFinalSlice = end >= display.length;
-      final marked =
-          isFinalSlice &&
-          (widget.isBookmarkedParagraph?.call(paragraph) ?? false);
-      final span = buildNovelParagraphSpan(
-        text: display.substring(start, end),
-        marked: marked,
-        markerSpacing: AppSpacing.sm,
-        markerSize: AppIconSize.md,
-        markerColor: foreground,
-        markerChild: marked
-            ? GestureDetector(
-                key: ValueKey(
-                  'novel-page-marker-${entry.entryIndex}-'
-                  '${paragraph.paragraphIndex}',
-                ),
-                onTap: () => widget.onBookmarkMarkerTap?.call(paragraph),
-                child: Padding(
-                  padding: const EdgeInsets.only(left: AppSpacing.sm),
-                  child: Icon(
-                    Icons.bookmark,
-                    size: AppIconSize.md,
-                    color: foreground,
-                  ),
-                ),
-              )
-            : null,
-      );
-      Widget body = Text.rich(
-        span,
+      Widget body = Text(
+        display.substring(start, end),
         style: style,
         textScaler: _textScaler,
         textWidthBasis: TextWidthBasis.parent,
@@ -772,12 +703,15 @@ class NovelReaderPageViewState extends State<NovelReaderPageView>
           slice.startLine == 0 &&
           widget.highlight != null &&
           widget.highlight!.entryIndex == entry.entryIndex &&
-          widget.highlight!.paragraphIndex == paragraph.paragraphIndex;
+          widget.highlight!.paragraphIndex == paragraph.paragraphIndex &&
+          (widget.highlight!.volumeId.isEmpty ||
+              widget.highlight!.volumeId == paragraph.volumeId);
       if (highlighted) {
-        body = DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: foreground, width: 2),
-            borderRadius: AppRadius.smR,
+        body = CustomPaint(
+          painter: NovelHighlightPainter(
+            color: widget.palette.foreground,
+            fontSize: widget.settings.fontSize,
+            opacity: widget.highlightOpacity,
           ),
           child: body,
         );

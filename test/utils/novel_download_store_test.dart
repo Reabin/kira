@@ -164,6 +164,32 @@ void main() {
   );
 
   test(
+    'startup probes size only; corrupted bytes are caught when the volume is read',
+    () async {
+      await saveFixture(store, complete: true);
+      final snapshotFile = (await filesUnder(
+        root,
+      )).firstWhere((f) => p.basename(f.path).startsWith('snapshot_'));
+      // Same length, different content: only a digest check can notice, and
+      // startup must not pay for one.
+      final tampered = List<int>.of(await snapshotFile.readAsBytes());
+      tampered[0] = tampered[0] == 0x7b ? 0x5b : 0x7b;
+      await snapshotFile.writeAsBytes(tampered);
+      final restored = NovelDownloadStore.forTesting(rootDirectory: root);
+      await restored.init();
+      expect(
+        restored.getLocalNovelInfo('book')!.downloaded['v1']!.status,
+        NovelDownloadStatus.completed,
+      );
+      expect(await restored.readVolumeSnapshot('book', 'v1'), isNull);
+      expect(
+        restored.getLocalNovelInfo('book')!.downloaded['v1']!.status,
+        NovelDownloadStatus.needsRepair,
+      );
+    },
+  );
+
+  test(
     'bad root manifest is preserved and unknown directories are never removed',
     () async {
       final manifest = File(p.join(root.path, NovelDownloadStore.manifestName));
