@@ -70,8 +70,8 @@ jobs:
               orientations = info.get('UISupportedInterfaceOrientations~ipad', info.get('UISupportedInterfaceOrientations', []))
               assert len(set(orientations)) == 4, orientations
           PY
-          xcrun lipo -verify_arch arm64 build/ios/iphoneos/Runner.app/Runner
-          xcrun lipo -verify_arch arm64 build/ios/iphoneos/Runner.app/Frameworks/App.framework/App
+          xcrun lipo build/ios/iphoneos/Runner.app/Runner -verify_arch arm64
+          xcrun lipo build/ios/iphoneos/Runner.app/Frameworks/App.framework/App -verify_arch arm64
       - name: Package for local signing
         run: |
           set -euo pipefail
