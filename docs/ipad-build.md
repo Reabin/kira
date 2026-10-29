@@ -42,3 +42,5 @@ M5 不要求独立的一套阅读器代码。使用 iPad 真机 ARM64 构建，�
 图片仍使用章节接口提供的URL，不另行替换缩略图或压缩文件。普通阅读按屏幕像素限制内存解码尺寸；双击大图查看器不设置该解码尺寸限制。服务端图片本身是否经过压缩，客户端不能据此保证。
 
 自动回归覆盖倒序的大页请求、未知/过期总数回补、切换排序与在途请求、横屏左右阅读、奇数页、跨话、前插与裁剪、转屏与窄窗口、进度条第二页定位。实际M5设备的阅读体验仍需真机确认。
+
+标准macOS构建环境使用`macos-15-intel`（原环境排队过久时切换）。构建机CPU与应用目标架构不同，Xcode仍交叉编译iPad真机ARM64，并在打包后校验。参考[GitHub标准运行器](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)及[镜像Xcode清单](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)。
