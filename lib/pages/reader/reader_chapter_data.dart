@@ -102,7 +102,9 @@ extension _ReaderChapterData on _ReaderPageState {
       if (_isPageMode) {
         final oldController = _pageController;
         final initialIndex = _chainChapterStart(_chainIndex) + (startPage - 1);
-        _pageController = PageController(initialPage: initialIndex);
+        _pageController = PageController(
+          initialPage: _pageIndexForImage(initialIndex),
+        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
           oldController.dispose();
         });

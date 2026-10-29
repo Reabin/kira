@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind, VelocityTracker;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +46,7 @@ import 'chapter_comment_display.dart';
 import 'chapter_comments_sheet.dart';
 import 'reader/chain_scroll_layout.dart';
 import 'reader/reader_long_press_zoom.dart';
+import 'reader/reader_spread_layout.dart';
 
 part 'reader/reader_auto_scroll.dart';
 part 'reader/reader_bottom_bar.dart';
@@ -227,6 +229,8 @@ class _ReaderPageState extends State<ReaderPage> {
   // 需暂时禁用翻页手势（PageView 滑动/无动画翻页拖拽），否则翻页手势会因
   // slop 更小（18px < 36px）抢先接管拖动。
   bool _pageImageZoomed = false;
+  final Set<String> _zoomedPageImages = {};
+  int _pagesPerSpread = 1;
 
   // 连续阅读：按阅读顺序拼接的章节链。首项为用户进入时打开的章节。
   // _chainIndex 指向当前"所在章节"（用于导航栏显示与历史记录）。
@@ -352,6 +356,26 @@ class _ReaderPageState extends State<ReaderPage> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final columns = ReaderSpreadLayout.columnsFor(
+      MediaQuery.sizeOf(context),
+      isIOS: defaultTargetPlatform == TargetPlatform.iOS,
+    );
+    if (columns == _pagesPerSpread) return;
+    _pagesPerSpread = columns;
+    if (_isPageMode && _chain.isNotEmpty) {
+      final image = _chainChapterStart(_chainIndex) + _currentPage - 1;
+      final oldController = _pageController;
+      _pageController = PageController(initialPage: _pageIndexForImage(image));
+      _bumpScrollWidgetVersion();
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => oldController.dispose(),
+      );
+    }
+  }
+
+  @override
   void dispose() {
     // 进度保存是防抖的，离开阅读页必须立刻落盘，否则最后几页会丢。
     unawaited(ReadingHistory.flush());
@@ -423,7 +447,9 @@ class _ReaderPageState extends State<ReaderPage> {
     if (_isPageMode) {
       final oldController = _pageController;
       final initialIndex = _chainChapterStart(_chainIndex) + (page - 1);
-      _pageController = PageController(initialPage: initialIndex);
+      _pageController = PageController(
+        initialPage: _pageIndexForImage(initialIndex),
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         oldController.dispose();
       });
@@ -560,6 +586,9 @@ class _ReaderPageState extends State<ReaderPage> {
               _ReaderBottomBar(
                 showToolbar: _showToolbar,
                 currentPage: _currentPage,
+                currentPageLabel: _pagesPerSpread == 2 && _isPageMode
+                    ? '$_visibleFirstPage–$_visibleLastPage'
+                    : null,
                 totalPage: _detail!.contents.length,
                 hasPrev: _detail!.prev != null,
                 hasNext: _detail!.next != null,
@@ -577,7 +606,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     final globalIndex = _continuousReading
                         ? _chainChapterStart(_chainIndex) + (page - 1)
                         : page;
-                    _pageController.jumpToPage(globalIndex);
+                    _pageController.jumpToPage(_pageIndexForImage(globalIndex));
                   } else {
                     _jumpToScrollPage(
                       page,
@@ -588,6 +617,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 onDragStart: () => _isDraggingSlider = true,
                 onDragEnd: () {
                   _isDraggingSlider = false;
+                  _saveReadingHistory();
                   // 拖进度条期间不允许重建列表，松手后补做被推迟的链首裁剪。
                   _flushPendingChainPrune();
                 },

@@ -19,6 +19,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/bookmark_store.dart';
+import '../utils/chapter_page_order.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/kira_links.dart';
@@ -108,6 +109,10 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   bool _briefExpanded = false;
   final _readerSettings = ReaderSettings();
   bool get _reversed => _readerSettings.chapterReversed;
+  late bool _lastChapterReversed;
+  bool _pendingOrderReload = false;
+  ChapterPageOrder get _pageOrder =>
+      ChapterPageOrder(totalPages: _totalPages, reversed: _reversed);
   bool _isCollected = false;
   bool _selectionMode = false;
   Chapter? _nextBrowseChapter;
@@ -137,6 +142,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   @override
   void initState() {
     super.initState();
+    _lastChapterReversed = _reversed;
     _comic = widget.initialComic;
     _loadingComic = widget.initialComic == null;
     _officialLastBrowseId = widget.lastBrowseId;
@@ -235,7 +241,17 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   }
 
   void _handleReaderSettingsChanged() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    final orderChanged = _lastChapterReversed != _reversed;
+    _lastChapterReversed = _reversed;
+    setState(() {});
+    if (orderChanged) {
+      if (_loadingChapters) {
+        _pendingOrderReload = true;
+      } else {
+        unawaited(_loadChapterPage(_pageOrder.firstServerPage));
+      }
+    }
   }
 
   void _handleDownloadChanged() {
@@ -468,6 +484,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           _keepShowingCachedChapters = false;
         });
       }
+    } finally {
+      if (mounted && _pendingOrderReload) {
+        _pendingOrderReload = false;
+        unawaited(_loadChapterPage(_pageOrder.firstServerPage));
+      }
     }
   }
 
@@ -480,7 +501,12 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         comic?.groups?[targetGroup]?.count ??
         _comic?.groups?[targetGroup]?.count ??
         0;
-    final page = _resolveHistoryChapterPage(total);
+    final page = _reversed
+        ? ChapterPageOrder(
+            totalPages: (total / _pageSize).ceil(),
+            reversed: true,
+          ).firstServerPage
+        : _resolveHistoryChapterPage(total);
     await _loadChapterPage(
       page,
       group: targetGroup,
@@ -489,6 +515,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           page == _chapterPage &&
           _chapters.isNotEmpty,
     );
+    if (mounted && _reversed && _chapterPage != _pageOrder.firstServerPage) {
+      await _loadChapterPage(_pageOrder.firstServerPage, group: targetGroup);
+    }
   }
 
   int _resolveHistoryChapterPage(int total) {

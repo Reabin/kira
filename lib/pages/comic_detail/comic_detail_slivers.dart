@@ -227,7 +227,9 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: List.generate(_totalPages, (i) {
-                        final isSelected = i == _chapterPage;
+                        final serverPage = _pageOrder.serverPage(i);
+                        final isSelected =
+                            i == _pageOrder.displayedPage(_chapterPage);
                         final pageButtonShape = RoundedRectangleBorder(
                           borderRadius: AppRadius.mdR,
                         );
@@ -252,7 +254,7 @@ extension _ComicDetailSlivers on _ComicDetailPageState {
                                   child: Text('${i + 1}'),
                                 )
                               : FilledButton.tonal(
-                                  onPressed: () => _loadChapterPage(i),
+                                  onPressed: () => _loadChapterPage(serverPage),
                                   style: FilledButton.styleFrom(
                                     minimumSize: const Size(38, 38),
                                     maximumSize: const Size(38, 38),

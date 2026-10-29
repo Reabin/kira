@@ -4,6 +4,7 @@ part of '../reader_page.dart';
 class _ReaderBottomBar extends StatelessWidget {
   final bool showToolbar;
   final int currentPage;
+  final String? currentPageLabel;
   final int totalPage;
   final bool hasPrev;
   final bool hasNext;
@@ -27,6 +28,7 @@ class _ReaderBottomBar extends StatelessWidget {
   const _ReaderBottomBar({
     required this.showToolbar,
     required this.currentPage,
+    this.currentPageLabel,
     required this.totalPage,
     required this.hasPrev,
     required this.hasNext,
@@ -76,7 +78,7 @@ class _ReaderBottomBar extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '$currentPage',
+                          currentPageLabel ?? '$currentPage',
                           style: const TextStyle(
                             color: ReaderChrome.onSurfaceMuted,
                             fontSize: 12,

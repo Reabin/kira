@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,6 +69,7 @@ Future<void> _openReader(
   int direction = 0,
   bool continuousReading = true,
   bool pageMode = false,
+  int initialPage = 1,
 }) async {
   final user = UserManager();
   await user.setReaderMode(pageMode ? 1 : 0);
@@ -86,6 +88,7 @@ Future<void> _openReader(
                 group: 'default',
                 chapterUuid: chapterUuid,
                 chapterName: chapterUuid,
+                initialPage: initialPage,
               ),
             ),
           ),
@@ -226,6 +229,224 @@ void main() {
     ApiClient.setTestInstance(originalApi);
     teardownSecureCredentialStoreForTest();
   });
+
+  for (final direction in [0, 1]) {
+    testWidgets(
+      'iPad landscape spreads turn, keep direction, and preserve rotation anchor ($direction)',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1210, 834);
+        addTearDown(tester.view.reset);
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        try {
+          ApiClient.setTestInstance(
+            _ReaderApi(_ReaderMangaApi({'last': _chapter('last', pages: 5)})),
+          );
+          await _openReader(tester, direction: direction, pageMode: true);
+          Finder image(int index) =>
+              find.byKey(ValueKey('reader-image-last-$index')).hitTestable();
+          expect(image(0), findsOneWidget);
+          expect(image(1), findsOneWidget);
+          final first = tester.getCenter(image(0)).dx;
+          final second = tester.getCenter(image(1)).dx;
+          expect(direction == 1 ? first > second : first < second, isTrue);
+          await tester.tapAt(Offset(direction == 1 ? 100 : 1100, 400));
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(image(2), findsOneWidget);
+          expect(image(3), findsOneWidget);
+          expect(image(0), findsNothing);
+          tester.view.physicalSize = const Size(834, 1210);
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(image(2), findsOneWidget);
+          expect(image(3), findsNothing);
+          tester.view.physicalSize = const Size(1210, 834);
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(image(2), findsOneWidget);
+          expect(image(3), findsOneWidget);
+          await tester.tapAt(Offset(direction == 1 ? 100 : 1100, 400));
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          expect(image(4), findsOneWidget);
+          expect(image(3), findsNothing);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'iPad resume on second leaf survives rotation and narrow windows',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1210, 834);
+      addTearDown(tester.view.reset);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        ApiClient.setTestInstance(
+          _ReaderApi(_ReaderMangaApi({'last': _chapter('last', pages: 8)})),
+        );
+        await _openReader(tester, pageMode: true, initialPage: 4);
+        Finder image(int index) =>
+            find.byKey(ValueKey('reader-image-last-$index')).hitTestable();
+        expect(image(2), findsOneWidget);
+        expect(image(3), findsOneWidget);
+        tester.view.physicalSize = const Size(834, 1210);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(image(3), findsOneWidget);
+        expect(image(2), findsNothing);
+        tester.view.physicalSize = const Size(420, 700);
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(image(3), findsOneWidget);
+        await ReadingHistory.flush();
+        expect((await ReadingHistory.get('reader-scroll-test'))?.page, 4);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  testWidgets(
+    'iPad spreads do not combine chapters and can navigate back across the boundary',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1210, 834);
+      addTearDown(tester.view.reset);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        ApiClient.setTestInstance(
+          _ReaderApi(
+            _ReaderMangaApi({
+              'first': _chapter('first', next: 'last', pages: 3),
+              'last': _chapter('last', prev: 'first', pages: 3),
+            }),
+          ),
+        );
+        await _openReader(tester, chapterUuid: 'first', pageMode: true);
+        Finder image(String chapter, int index) =>
+            find.byKey(ValueKey('reader-image-$chapter-$index')).hitTestable();
+        Future<void> tap(Offset position) async {
+          await tester.tapAt(position);
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pumpAndSettle();
+        }
+
+        await tap(const Offset(1100, 400));
+        expect(image('first', 2), findsOneWidget);
+        expect(image('last', 0), findsNothing);
+        await tap(const Offset(1100, 400));
+        expect(image('last', 0), findsOneWidget);
+        expect(image('last', 1), findsOneWidget);
+        await tap(const Offset(100, 400));
+        expect(image('first', 2), findsOneWidget);
+        expect(image('last', 0), findsNothing);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  testWidgets(
+    'iPad backwards prepend and forward pruning retain the visible spread',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1210, 834);
+      addTearDown(tester.view.reset);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        ApiClient.setTestInstance(
+          _ReaderApi(
+            _ReaderMangaApi({
+              'a': _chapter('a', next: 'b', pages: 3),
+              'b': _chapter('b', prev: 'a', next: 'c', pages: 3),
+              'c': _chapter('c', prev: 'b', pages: 3),
+            }),
+          ),
+        );
+        await _openReader(tester, chapterUuid: 'b', pageMode: true);
+        Finder image(String chapter, int index) =>
+            find.byKey(ValueKey('reader-image-$chapter-$index')).hitTestable();
+        Future<void> tap(bool next) async {
+          await tester.tapAt(Offset(next ? 1100 : 100, 400));
+          await tester.pump(const Duration(milliseconds: 350));
+          await tester.pumpAndSettle();
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pumpAndSettle();
+        }
+
+        await tap(false);
+        expect(image('a', 2), findsOneWidget);
+        await tap(true);
+        expect(image('b', 0), findsOneWidget);
+        expect(image('b', 1), findsOneWidget);
+        await tap(true);
+        expect(image('b', 2), findsOneWidget);
+        await tap(true);
+        expect(image('c', 0), findsOneWidget);
+        expect(image('c', 1), findsOneWidget);
+        await tap(false);
+        expect(image('b', 2), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  testWidgets(
+    'iPad slider retains the requested second leaf when switching to portrait',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1210, 834);
+      addTearDown(tester.view.reset);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        ApiClient.setTestInstance(
+          _ReaderApi(_ReaderMangaApi({'last': _chapter('last', pages: 8)})),
+        );
+        await _openReader(tester, pageMode: true);
+        final slider = tester.widget<Slider>(find.byType(Slider).first);
+        slider.onChangeStart!(8);
+        slider.onChanged!(8);
+        await tester.pumpAndSettle();
+        slider.onChangeEnd!(8);
+        await tester.pumpAndSettle();
+        tester.view.physicalSize = const Size(834, 1210);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('reader-image-last-7')).hitTestable(),
+          findsOneWidget,
+        );
+        await ReadingHistory.flush();
+        expect((await ReadingHistory.get('reader-scroll-test'))?.page, 8);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
 
   for (final direction in [0, 1]) {
     for (final continuousReading in [false, true]) {

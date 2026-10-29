@@ -4,6 +4,7 @@ extension _ReaderScrollMode on _ReaderPageState {
   /// 列表/翻页控件结构变化时递增版本号；重建后缩放状态一并复位。
   void _bumpScrollWidgetVersion() {
     _scrollWidgetVersion++;
+    _zoomedPageImages.clear();
     _pageImageZoomed = false;
     // 滚动模式的 PinchZoomable 不随版本号重建（控制器保持共享外置），
     // 缩放状态不会随列表重建自动复位，这里显式复位（连同惯性滑行）。
@@ -13,9 +14,15 @@ extension _ReaderScrollMode on _ReaderPageState {
     _scrollInProgress = false;
   }
 
-  void _handlePageZoomChanged(bool zoomed) {
-    if (zoomed == _pageImageZoomed) return;
-    _setState(() => _pageImageZoomed = zoomed);
+  void _handlePageZoomChanged(bool zoomed, String image) {
+    if (zoomed) {
+      _zoomedPageImages.add(image);
+    } else {
+      _zoomedPageImages.remove(image);
+    }
+    final anyZoomed = _zoomedPageImages.isNotEmpty;
+    if (anyZoomed == _pageImageZoomed) return;
+    _setState(() => _pageImageZoomed = anyZoomed);
   }
 
   // ── 滚动模式 ──

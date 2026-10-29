@@ -141,7 +141,9 @@ extension _ReaderChain on _ReaderPageState {
     if (_isPageMode) {
       final initialIndex = _chainChapterStart(_chainIndex) + (page - 1);
       final oldController = _pageController;
-      _pageController = PageController(initialPage: initialIndex);
+      _pageController = PageController(
+        initialPage: _pageIndexForImage(initialIndex),
+      );
       _bumpScrollWidgetVersion();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         oldController.dispose();
@@ -340,7 +342,9 @@ extension _ReaderChain on _ReaderPageState {
         );
         final initialIndex = _chainChapterStart(_chainIndex) + (page - 1);
         final oldController = _pageController;
-        _pageController = PageController(initialPage: initialIndex);
+        _pageController = PageController(
+          initialPage: _pageIndexForImage(initialIndex),
+        );
         _bumpScrollWidgetVersion();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           oldController.dispose();

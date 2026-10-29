@@ -279,7 +279,8 @@ extension _ReaderImagePipeline on _ReaderPageState {
       // 整视图缩放负责。双击进查看器的手势在更外层，不受缩放影响。
       image = PinchZoomable(
         active: zoomActive,
-        onZoomChanged: _handlePageZoomChanged,
+        onZoomChanged: (zoomed) =>
+            _handlePageZoomChanged(zoomed, '${chapter.uuid}:$localIndex'),
         child: image,
       );
     }
