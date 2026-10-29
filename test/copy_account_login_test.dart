@@ -249,6 +249,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // Dio transformations can finish after a fixed delay on a busy CI host.
+  // Let real asynchronous work progress until the login spinner disappears,
+  // then settle animations in the widget test's simulated clock.
+  Future<void> settleLogin(WidgetTester tester) async {
+    for (var i = 0; i < 500; i++) {
+      await tester.pump(const Duration(milliseconds: 20));
+      if (find.byType(CircularProgressIndicator).evaluate().isEmpty) break;
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+    }
+    await tester.pumpAndSettle();
+  }
+
   Future<void> submitHotPassword(
     WidgetTester tester, {
     String password = 'hot-password',
@@ -265,7 +279,7 @@ void main() {
       }
       await Future<void>.delayed(const Duration(milliseconds: 30));
     });
-    await tester.pumpAndSettle();
+    await settleLogin(tester);
   }
 
   // COPY's password API remains for legacy auto-login, but is no longer
@@ -290,7 +304,7 @@ void main() {
       await tester.tap(button);
       await Future<void>.delayed(const Duration(milliseconds: 30));
     });
-    await tester.pumpAndSettle();
+    await settleLogin(tester);
   }
 
   test(

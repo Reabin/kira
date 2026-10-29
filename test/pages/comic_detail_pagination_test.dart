@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/api/api_client.dart';
 import 'package:kira/api/manga/manga_api.dart';
@@ -14,6 +16,28 @@ import 'package:kira/utils/bookmark_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
+
+// Pagination does not exercise image downloads or native cache databases.
+class _PlaceholderImageCache extends Fake
+    implements BaseCacheManager, ImageCacheManager {
+  @override
+  Stream<FileResponse> getFileStream(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+  }) => const Stream.empty();
+
+  @override
+  Stream<FileResponse> getImageFile(
+    String url, {
+    String? key,
+    Map<String, String>? headers,
+    bool withProgress = false,
+    int? maxHeight,
+    int? maxWidth,
+  }) => const Stream.empty();
+}
 
 class _Api extends Fake implements ApiClient {
   _Api(this.manga);
@@ -80,6 +104,7 @@ void main() {
   late Directory folder;
   const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
   setUpAll(() async {
+    CachedNetworkImageProvider.defaultCacheManager = _PlaceholderImageCache();
     folder = await Directory.systemTemp.createTemp('kira-catalogue-tests-');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(pathProvider, (_) async => folder.path);
