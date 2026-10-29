@@ -1,0 +1,32 @@
+# iPad Pro 11 英寸（M5）构建
+
+本次版本为 1.7.3+557，提供 iPad 专用 IPA。继续使用相同应用标识和个人签名安装方式，覆盖安装保留应用数据。
+
+## 与 iPhone 构建的区别
+
+M5 不要求独立的一套阅读器代码。使用 iPad 真机 ARM64 构建，并将最终包的 `UIDeviceFamily` 限定为 `[2]`。这表示支持 iPad 家族，不是只允许运行在 M5 上，也不宣称有专用芯片优化。
+
+源码保留 iPhone/iPad 通用工程配置。Actions 手动选择 `ipad` 或 `iphone` 后，仅在该次构建中将所有 Runner 配置的 `TARGETED_DEVICE_FAMILY` 设为 `2` 或 `1`。本次只触发 `ipad`，不生成 iPhone 包；以后按用户指定的设备编译。
+
+## 按官方文档核对
+
+| 项目 | 本次处理 |
+| --- | --- |
+| 设备与架构 | 编译后检查 `UIDeviceFamily=[2]`、`DTPlatformName=iphoneos`，主程序和 Flutter App 框架均含 ARM64 |
+| 屏幕方向 | 保留 iPad 竖屏、倒置竖屏、横屏左右四方向 |
+| 窗口缩放 | 不设置 `UIRequiresFullScreen=true`；保留现有 UIKit scene 生命周期，单场景支持窗口大小变化，不新增多实例窗口 |
+| 弹层 | 修复已打开设置弹窗仍使用旧窗口高度的问题；转屏和缩小窗口后按当前高度重新计算上限 |
+| 布局检查 | 用 834×1210、1210×834、420×650 的逻辑窗口测试弹窗转屏与缩放、内容可滚动和无溢出；设备全屏物理像素与窗口逻辑尺寸分别处理 |
+| 分享 | 保留现有 `sharePositionOrigin` 锚点，避免 iPad 分享弹窗缺少来源位置 |
+| 间接输入 | 保留 `UIApplicationSupportsIndirectInputEvents` 配置；此次没有新增键盘快捷键或手写识别功能 |
+
+参考：[苹果 iPad Pro M5 屏幕规格](https://www.apple.com/ipad/compare/?modelList=ipad-pro-11-m5%2Cipad-8th-gen)、[Xcode 设备架构说明](https://help.apple.com/xcode/mac/current/en.lproj/dev34b59f90c.html)、[支持的屏幕方向](https://developer.apple.com/documentation/uikit/uiviewcontroller/supportedinterfaceorientations)、[iPad 窗口缩放与全屏兼容模式](https://developer.apple.com/documentation/bundleresources/information-property-list/uirequiresfullscreen)。
+
+## 下载与安装
+
+1. 打开仓库 Actions 的 **Build Apple IPA**，选择 `ios-port` 分支。
+2. 手动运行时选择 `device_family=ipad`。
+3. 成功后下载 `kira-ipad-unsigned`，解压取得 `kira-ipad-unsigned.ipa`。
+4. 通过原来的 AltStore/Apple 账号在 iPad 上签名安装。该安装包不用于 iPhone。
+
+编译、架构及窗口尺寸测试不等于 M5 真机验收。请在实际设备检查全屏横竖切换、窗口缩放、阅读缩放与进度、设置弹层、分享弹窗，以及键盘/触控板连接时的常规操作。iPad 的多应用窗口布局也应实际检查。

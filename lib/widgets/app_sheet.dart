@@ -127,22 +127,29 @@ Future<T?> showAppSheet<T>(
   assert(
     maxHeightFactor == null || (maxHeightFactor > 0 && maxHeightFactor <= 1),
   );
-  final size = MediaQuery.sizeOf(context);
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
-    constraints: BoxConstraints(
-      maxWidth: size.width,
-      maxHeight: maxHeightFactor == null
-          ? double.infinity
-          : size.height * maxHeightFactor,
-    ),
+    // Explicit constraints preserve full-window width on large displays.
+    constraints: const BoxConstraints(),
     backgroundColor: Colors.transparent,
-    builder: (_) => AppSheet(
-      heightFactor: heightFactor,
-      showHandle: showHandle,
-      padding: padding,
-      child: child,
-    ),
+    builder: (sheetContext) {
+      // Read the route's current window size, including while already open.
+      final size = MediaQuery.sizeOf(sheetContext);
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: size.width,
+          maxHeight: maxHeightFactor == null
+              ? double.infinity
+              : size.height * maxHeightFactor,
+        ),
+        child: AppSheet(
+          heightFactor: heightFactor,
+          showHandle: showHandle,
+          padding: padding,
+          child: child,
+        ),
+      );
+    },
   );
 }

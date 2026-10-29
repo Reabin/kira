@@ -4,22 +4,24 @@
 
 # kira · iOS 自用分支
 
-基于 [caolib/kira](https://github.com/caolib/kira) 的 Flutter 漫画与轻小说客户端。本 Fork 在安卓代码基础上适配 iPhone，并增加最近更新地区筛选、iOS 返回手势。
+基于 [caolib/kira](https://github.com/caolib/kira) 的 Flutter 漫画与轻小说客户端。本 Fork 在安卓代码基础上适配 iPhone / iPad，并增加最近更新地区筛选、iOS 返回手势。
 
-**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.3+556**，最低支持 **iOS 14**。
+**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.3+557**，最低支持 **iOS 14**。
 
-## 安装到自己的 iPhone
+## 安装到自己的 iPhone / iPad
 
 只有 Windows 电脑也可以使用 GitHub Actions 构建 IPA，再通过 AltServer / AltStore 签名安装。
 
-1. 打开 [Build iOS IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)，选择一次成功的 `ios-port` 构建。
-2. 在构建页面的 **Artifacts** 下载 `kira-ios-unsigned`，解压取得 `kira-ios-unsigned.ipa`。
+1. 打开 [Build Apple IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)，选择一次成功的 `ios-port` 构建。
+2. 在构建页面的 **Artifacts** 下载对应设备产物：`kira-ipad-unsigned` 或 `kira-iphone-unsigned`，解压取得 IPA。
 3. 使用自己的 Apple 账号，通过 AltStore 签名并安装。
 4. 更新时使用相同账号覆盖安装，建议保留原应用，避免卸载导致本地数据丢失。
 
-IPA 未签名，不能直接点击安装；GitHub 下载构建产物需要登录。产物保留 14 天，过期后可在上述工作流选择 **Run workflow → ios-port** 重新构建。签名的有效期及刷新要求取决于使用的 Apple 账号和安装方式。
+IPA 未签名，不能直接点击安装；GitHub 下载构建产物需要登录。产物保留 14 天，过期后可在上述工作流选择 **Run workflow → ios-port**，明确选择 `ipad` 或 `iphone` 重新构建。提交代码不再自动触发安装包构建。签名的有效期及刷新要求取决于使用的 Apple 账号和安装方式。
 
 [查看最新构建](https://github.com/Reabin/kira/actions/workflows/build-ios.yml) · [详细安装与构建说明](docs/ios-build.md)
+
+本次提供 **iPad 版本**，按 iPad Pro 11 英寸（M5）检查架构、横竖屏和窗口缩放；安装包仅声明支持 iPad，不包含 iPhone 设备支持。详见 [iPad 构建说明](docs/ipad-build.md)。
 
 ## 本分支功能
 

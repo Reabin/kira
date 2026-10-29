@@ -1,15 +1,17 @@
 # iOS 安装、构建与验证
 
-本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前版本为 **1.7.3+556**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
+本次构建仅供 iPad 安装，iPad Pro 11 英寸（M5）说明见 [iPad 构建与适配](ipad-build.md)。
+
+本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前版本为 **1.7.3+557**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
 
 ## Windows 用户：取得安装包
 
-1. 登录 GitHub，打开 [Build iOS IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)。
+1. 登录 GitHub，打开 [Build Apple IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)。
 2. 选择 `ios-port` 分支的成功构建。
-3. 下载 **Artifacts → kira-ios-unsigned**，解压得到 `kira-ios-unsigned.ipa`。
+3. 下载 **Artifacts → kira-ipad-unsigned** 或 **kira-iphone-unsigned**，解压取得对应 IPA。
 4. 通过 Windows 上的 AltServer 和 iPhone 上的 AltStore，使用自己的 Apple 账号签名安装。
 
-构建产物保留 14 天。如果已过期，选择 **Run workflow**，分支选 `ios-port` 后运行。工作流完成后重新下载。
+构建产物保留 14 天。如果已过期，选择 **Run workflow**，分支选 `ios-port` 并明确选择设备 `ipad` 或 `iphone` 后运行。工作流完成后重新下载。
 
 IPA 未签名，无法直接点击安装。签名有效期和刷新方式按安装工具及 Apple 账号要求处理。更新时建议使用原账号覆盖安装；更改 Bundle ID 或签名账号可能使应用安装为另一份。卸载可能丢失本地设置、阅读进度和下载文件。
 
@@ -19,14 +21,14 @@ IPA 未签名，无法直接点击安装。签名有效期和刷新方式按安�
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 触发 | 推送到 `ios-port` 或手动运行 |
+| 触发 | 手动运行并选择 `ipad` / `iphone`；提交代码不自动构建 |
 | 构建环境 | macOS 15、Xcode 26.3 |
 | Flutter | 3.44.2 |
 | 原生依赖 | CocoaPods，关闭 Swift Package Manager |
 | Dart 依赖 | `flutter pub get --enforce-lockfile` |
 | 检查 | 静态分析、相关回归测试、iOS 元数据检查 |
 | 编译 | 真机 Release，`--no-codesign` |
-| 输出 | `kira-ios-unsigned` 构建产物，保留 14 天 |
+| 输出 | `kira-ipad-unsigned` 或 `kira-iphone-unsigned`，保留 14 天 |
 
 此流程无需把 Apple 账号或签名证书交给 GitHub，也不会发布到 App Store。构建失败时查看失败步骤的日志；成功打包不等于通过全部真机验收。
 
