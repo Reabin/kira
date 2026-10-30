@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../providers/novel_providers.dart';
@@ -15,11 +16,12 @@ import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/screen_layout.dart';
-import '../utils/search_history.dart';
 import '../widgets/back_to_top_button.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/filter_chip_row.dart';
 import '../widgets/load_more_footer.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_hero_tags.dart';
 import '../widgets/novel_paged_controller.dart';
 import '../widgets/novel_widgets.dart';
@@ -60,22 +62,20 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   final _scrollController = ScrollController();
-  final _history = SearchHistory();
   late final NovelPagedController<NovelBook> _books;
   late final NovelPagedController<NovelBook> _results;
 
   List<NovelTag> _themes = [];
-  List<String> _historyKeywords = [];
   String _theme = '';
   _NovelOrdering _ordering = _NovelOrdering.popular;
   String? _query;
   bool _themesLoading = true;
   bool _themesFailed = false;
+  Object? _themesError;
   bool _tagListExpanded = false;
   bool _hasSearchText = false;
   bool _canScrollUp = false;
   int _themesEpoch = 0;
-  int _historyEpoch = 0;
 
   /// 仅分支首次激活的默认首屏读缓存仓库；消费一次后所有加载直连 API。
   bool _initialListLoad = true;
@@ -128,7 +128,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
   @override
   void onBranchFirstActivated() {
     unawaited(_loadThemes(useCache: true));
-    unawaited(_loadHistory());
     unawaited(_restoreBodyState());
     unawaited(_books.refresh());
   }
@@ -175,29 +174,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
         .getBooks(theme: _theme, ordering: _ordering.value, offset: offset);
   }
 
-  Future<void> _loadHistory() => _updateHistory(_history.load());
-
-  Future<void> _updateHistory(Future<List<String>> operation) async {
-    final epoch = ++_historyEpoch;
-    final entries = await operation;
-    if (!mounted || epoch != _historyEpoch) return;
-    setState(() => _historyKeywords = entries);
-  }
-
-  void _removeHistory(String keyword) {
-    setState(() {
-      _historyKeywords = _historyKeywords
-          .where((entry) => entry != keyword)
-          .toList();
-    });
-    unawaited(_updateHistory(_history.remove(keyword)));
-  }
-
-  void _clearHistory() {
-    setState(() => _historyKeywords = []);
-    unawaited(_updateHistory(_history.clear()));
-  }
-
   /// [useCache] 仅在分支首次激活时为 true：TTL 内直接读缓存不发请求。
   /// 下拉刷新等后续操作直连 API。
   Future<void> _loadThemes({bool useCache = false}) async {
@@ -221,7 +197,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
         ),
       );
       if (mounted && epoch == _themesEpoch) {
-        setState(() => _themesFailed = true);
+        setState(() {
+          _themesFailed = true;
+          _themesError = e;
+        });
       }
     } finally {
       if (mounted && epoch == _themesEpoch) {
@@ -285,7 +264,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
     _results.clear();
     _searchController.clear();
     setState(() => _query = null);
-    unawaited(_loadHistory());
   }
 
   Future<void> _selectTheme(String theme) async {
@@ -323,11 +301,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
       await _results.refresh(keepItems: true);
       return;
     }
-    await Future.wait([
-      _books.refresh(keepItems: true),
-      _loadThemes(),
-      _loadHistory(),
-    ]);
+    await Future.wait([_books.refresh(keepItems: true), _loadThemes()]);
   }
 
   Future<void> _loadMore({bool retry = false}) async {
@@ -348,10 +322,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
       context.pushNamed(
         AppRoutes.novelDetail,
         pathParameters: {'pathWord': book.pathWord},
-        extra: NovelDetailExtra(
-          initialBook: book,
-          heroTagBase: heroTagBase,
-        ),
+        extra: NovelDetailExtra(initialBook: book, heroTagBase: heroTagBase),
       );
 
   List<FilterChipOption> _themeOptions(AppLocalizations l10n) => [
@@ -393,7 +364,10 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
           ],
           if (_themesFailed)
             InlineRetryNotice(
-              message: l10n.novelThemesFailed,
+              message: novelErrorMessage(
+                _themesError,
+                fallback: l10n.novelThemesFailed,
+              ),
               onRetry: () => unawaited(_loadThemes()),
             ),
           FilterChipRow(
@@ -423,7 +397,7 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
               trailing: filterRowButton(
                 onPressed: _toggleTagList,
                 icon: Icons.expand_more,
-                label: l10n.novelTagsExpandAll,
+                label: l10n.tagsExpandAll,
               ),
             ),
           ],
@@ -452,49 +426,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  Widget _buildHistory(AppLocalizations l10n, double hp) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              icon: Icons.history_rounded,
-              title: l10n.searchHistoryTitle,
-              trailing: TextButton.icon(
-                onPressed: _clearHistory,
-                icon: const Icon(Icons.delete_sweep_outlined),
-                label: Text(l10n.searchHistoryClear),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final keyword in _historyKeywords)
-                  InputChip(
-                    label: Text(
-                      keyword,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () {
-                      _searchController.text = keyword;
-                      unawaited(_doSearch(keyword));
-                    },
-                    onDeleted: () => _removeHistory(keyword),
-                    deleteButtonTooltipMessage: l10n.searchHistoryDelete,
-                  ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -551,8 +482,6 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                     controller: _scrollController,
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
-                      if (_idle && _historyKeywords.isNotEmpty)
-                        _buildHistory(l10n, hp),
                       // 浏览态保留筛选区，搜索态整块换成结果。
                       if (_idle)
                         SliverToBoxAdapter(child: _buildFilters(l10n, hp)),
@@ -569,9 +498,12 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                         )
                       else if (_visibleFailed)
                         SliverErrorRetryView(
-                          message: _idle
-                              ? l10n.novelLoadFailed
-                              : l10n.novelSearchFailed,
+                          message: novelErrorMessage(
+                            _idle ? _books.error : _results.error,
+                            fallback: _idle
+                                ? l10n.novelLoadFailed
+                                : l10n.novelSearchFailed,
+                          ),
                           onRetry: _idle
                               ? () => unawaited(_books.refresh())
                               : () => unawaited(_results.refresh()),
@@ -619,9 +551,12 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             child: Padding(
                               padding: EdgeInsets.symmetric(horizontal: hp),
                               child: InlineRetryNotice(
-                                message: _idle
-                                    ? l10n.novelLoadFailed
-                                    : l10n.novelSearchFailed,
+                                message: novelErrorMessage(
+                                  _visible.refreshError,
+                                  fallback: _idle
+                                      ? l10n.novelLoadFailed
+                                      : l10n.novelSearchFailed,
+                                ),
                                 onRetry: () => unawaited(
                                   _visible.refresh(keepItems: true),
                                 ),
@@ -656,23 +591,23 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                               context,
                               screenWidth - hp * 2,
                             ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final book = _visible.items[index];
-                                final heroTagBase = NovelHeroTags.base(
-                                  scope: 'novel-search',
-                                  pathWord: book.pathWord,
-                                  index: index,
-                                );
-                                return NovelBookCard(
-                                  book: book,
-                                  heroTagBase: heroTagBase,
-                                  onTap: () =>
-                                      unawaited(_openBook(book, heroTagBase)),
-                                );
-                              },
-                              childCount: _visible.items.length,
-                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final book = _visible.items[index];
+                              final heroTagBase = NovelHeroTags.base(
+                                scope: 'novel-search',
+                                pathWord: book.pathWord,
+                                index: index,
+                              );
+                              return NovelBookCard(
+                                book: book,
+                                heroTagBase: heroTagBase,
+                                onTap: () =>
+                                    unawaited(_openBook(book, heroTagBase)),
+                              );
+                            }, childCount: _visible.items.length),
                           ),
                         ),
                       ],
@@ -685,13 +620,18 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
                             loading: _visible.loading,
                             onPressed: () => _loadMore(retry: true),
                             label: _visible.error == null
-                                ? l10n.novelLoadMore
+                                ? l10n.loadMore
                                 : l10n.novelLoadMoreFailed,
+                            detail: _visible.error == null
+                                ? null
+                                : novelErrorMessage(_visible.error),
                             horizontalPadding: hp,
                           ),
                         ),
-                      // 底部留白：给右下角回到顶部按钮让位。
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                      // 底部留白：让开悬浮底栏，并给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(
+                        child: BranchBottomSlack(extra: 72),
+                      ),
                     ],
                   ),
                 ),
@@ -702,11 +642,9 @@ class _NovelSearchTabState extends ConsumerState<NovelSearchTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.lg + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/comic.dart' hide Theme;
@@ -35,6 +34,7 @@ import '../pages/novel_reader_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/ranking_page.dart';
 import '../pages/reader_page.dart';
+import '../pages/recent_updates_page.dart';
 import '../pages/recommend_page.dart';
 import '../pages/search_page.dart';
 import '../pages/stats_page.dart';
@@ -42,6 +42,7 @@ import '../pages/webview_login_page.dart';
 import '../utils/kira_links.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/novel_hero_tags.dart';
+import 'detail_page.dart';
 import 'dismiss_keyboard_observer.dart';
 import 'main_shell.dart';
 
@@ -66,6 +67,7 @@ final class AppRoutes {
   static const novelHistory = 'novel_history';
   static const recommend = 'recommend';
   static const ranking = 'ranking';
+  static const recentUpdates = 'recentUpdates';
   static const copyMangaList = 'copy_manga_list';
   static const copyTopics = 'copy_topics';
   static const copyTopicDetail = 'copy_topic_detail';
@@ -89,6 +91,8 @@ final class AppRoutes {
   static const disclaimer = 'disclaimer';
   static const appLog = 'app_log';
   static const license = 'license';
+  static const packageLicense = 'package_license';
+  static const fontLicense = 'font_license';
   static const cacheManagement = 'cache_management';
   static const stats = 'stats';
 }
@@ -268,7 +272,8 @@ GoRouter createAppRouter() {
         pageBuilder: (context, state) {
           final pathWord = state.pathParameters['pathWord']!;
           final extra = state.extra as ComicDetailExtra?;
-          return CustomTransitionPage(
+          return buildDetailPage(
+            context: context,
             key: state.pageKey,
             transitionDuration: ComicHeroTags.transitionDuration,
             reverseTransitionDuration: ComicHeroTags.reverseTransitionDuration,
@@ -279,13 +284,6 @@ GoRouter createAppRouter() {
               lastBrowseId: extra?.lastBrowseId,
               lastBrowseName: extra?.lastBrowseName,
             ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (animation.status == AnimationStatus.reverse) {
-                    return Opacity(opacity: 0, child: child);
-                  }
-                  return child;
-                },
           );
         },
       ),
@@ -324,7 +322,8 @@ GoRouter createAppRouter() {
         name: AppRoutes.novelDetail,
         pageBuilder: (context, state) {
           final extra = state.extra as NovelDetailExtra?;
-          return CustomTransitionPage(
+          return buildDetailPage(
+            context: context,
             key: state.pageKey,
             transitionDuration: NovelHeroTags.transitionDuration,
             reverseTransitionDuration: NovelHeroTags.reverseTransitionDuration,
@@ -333,13 +332,6 @@ GoRouter createAppRouter() {
               initialBook: extra?.initialBook,
               heroTagBase: extra?.heroTagBase,
             ),
-            transitionsBuilder:
-                (context, animation, secondaryAnimation, child) {
-                  if (animation.status == AnimationStatus.reverse) {
-                    return Opacity(opacity: 0, child: child);
-                  }
-                  return child;
-                },
           );
         },
       ),
@@ -387,6 +379,13 @@ GoRouter createAppRouter() {
         path: '/recommend',
         name: AppRoutes.recommend,
         builder: (_, _) => const RecommendPage(),
+      ),
+      GoRoute(
+        path: '/recent-updates',
+        name: AppRoutes.recentUpdates,
+        builder: (_, state) => RecentUpdatesPage(
+          isCopy: state.uri.queryParameters['source'] == 'copy',
+        ),
       ),
       GoRoute(
         path: '/ranking',
@@ -457,9 +456,7 @@ GoRouter createAppRouter() {
         path: '/login/webview',
         name: AppRoutes.webviewLogin,
         builder: (_, state) => WebViewLoginPage(
-          autoFill: state.extra is ({String username, String password})
-              ? state.extra as ({String username, String password})
-              : null,
+          autoFill: state.extra as ({String username, String password}),
         ),
       ),
       GoRoute(
@@ -541,6 +538,21 @@ GoRouter createAppRouter() {
         path: '/license',
         name: AppRoutes.license,
         builder: (_, _) => const ProjectLicensePage(),
+        routes: [
+          GoRoute(
+            path: ':packageName',
+            name: AppRoutes.packageLicense,
+            builder: (_, state) => PackageLicensePage(
+              packageName: state.pathParameters['packageName']!,
+            ),
+          ),
+          GoRoute(
+            path: 'font/:fontId',
+            name: AppRoutes.fontLicense,
+            builder: (_, state) =>
+                FontLicensePage(fontId: state.pathParameters['fontId']!),
+          ),
+        ],
       ),
       GoRoute(
         path: '/cache-management',

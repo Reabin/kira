@@ -1,6 +1,6 @@
 name: Build & Release
 
-# 推送正式版 v* tag 触发（scripts/release.ps1 完成推送后自动接手；beta tag 由 build-ci.yml 处理），
+# 推送正式版 v* tag 触发（发版流程见 docs/release.md；beta tag 由 build-ci.yml 处理），
 # 也支持手动 dispatch：
 # 1. 三个 ABI 的 APK 并行构建（arm / arm64 / x86_64，flutter build apk 不支持 32 位 x86），
 #    复用 scripts/build_apk.ps1
@@ -89,18 +89,13 @@ jobs:
             -keypass "$ANDROID_KEY_PASSWORD" \
             > /dev/null
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: "3.44.2"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build APK
         shell: pwsh
+        env:
+          COPY_AUTH_KEY: ${{ secrets.COPY_AUTH_KEY }}
         run: scripts/build_apk.ps1 -TargetPlatform ${{ matrix.target-platform }} -Abi ${{ matrix.abi }}
 
       - name: Upload APK artifacts
@@ -116,15 +111,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: "3.44.2"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Setup Inno Setup
         shell: pwsh
@@ -148,6 +136,8 @@ jobs:
 
       - name: Build installer
         shell: pwsh
+        env:
+          COPY_AUTH_KEY: ${{ secrets.COPY_AUTH_KEY }}
         run: scripts/build_windows.ps1
 
       - name: Upload installer artifact

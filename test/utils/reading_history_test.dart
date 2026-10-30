@@ -179,32 +179,35 @@ void main() {
     );
   });
 
-  test('latestRecord returns the most recently read comic across all', () async {
-    await ReadingHistory.save(
-      pathWord: 'comic-i',
-      group: ReadingHistory.defaultGroup,
-      comicName: '漫画I',
-      chapterUuid: 'i-1',
-      chapterName: '第1话',
-      page: 2,
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    await ReadingHistory.save(
-      pathWord: 'comic-j',
-      group: 'tankobon',
-      comicName: '漫画J',
-      chapterUuid: 'j-1',
-      chapterName: '第1卷',
-      page: 5,
-    );
+  test(
+    'latestRecord returns the most recently read comic across all',
+    () async {
+      await ReadingHistory.save(
+        pathWord: 'comic-i',
+        group: ReadingHistory.defaultGroup,
+        comicName: '漫画I',
+        chapterUuid: 'i-1',
+        chapterName: '第1话',
+        page: 2,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await ReadingHistory.save(
+        pathWord: 'comic-j',
+        group: 'tankobon',
+        comicName: '漫画J',
+        chapterUuid: 'j-1',
+        chapterName: '第1卷',
+        page: 5,
+      );
 
-    final latest = await ReadingHistory.latestRecord();
+      final latest = await ReadingHistory.latestRecord();
 
-    expect(latest?.pathWord, 'comic-j');
-    expect(latest?.record.chapterUuid, 'j-1');
-    expect(latest?.record.comicName, '漫画J');
-    expect(latest?.record.group, 'tankobon');
-  });
+      expect(latest?.pathWord, 'comic-j');
+      expect(latest?.record.chapterUuid, 'j-1');
+      expect(latest?.record.comicName, '漫画J');
+      expect(latest?.record.group, 'tankobon');
+    },
+  );
 
   test('latestRecord returns null when there are no records', () async {
     expect(await ReadingHistory.latestRecord(), isNull);

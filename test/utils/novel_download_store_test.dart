@@ -164,6 +164,32 @@ void main() {
   );
 
   test(
+    'startup probes size only; corrupted bytes are caught when the volume is read',
+    () async {
+      await saveFixture(store, complete: true);
+      final snapshotFile = (await filesUnder(
+        root,
+      )).firstWhere((f) => p.basename(f.path).startsWith('snapshot_'));
+      // Same length, different content: only a digest check can notice, and
+      // startup must not pay for one.
+      final tampered = List<int>.of(await snapshotFile.readAsBytes());
+      tampered[0] = tampered[0] == 0x7b ? 0x5b : 0x7b;
+      await snapshotFile.writeAsBytes(tampered);
+      final restored = NovelDownloadStore.forTesting(rootDirectory: root);
+      await restored.init();
+      expect(
+        restored.getLocalNovelInfo('book')!.downloaded['v1']!.status,
+        NovelDownloadStatus.completed,
+      );
+      expect(await restored.readVolumeSnapshot('book', 'v1'), isNull);
+      expect(
+        restored.getLocalNovelInfo('book')!.downloaded['v1']!.status,
+        NovelDownloadStatus.needsRepair,
+      );
+    },
+  );
+
+  test(
     'bad root manifest is preserved and unknown directories are never removed',
     () async {
       final manifest = File(p.join(root.path, NovelDownloadStore.manifestName));
@@ -324,31 +350,44 @@ void main() {
     },
   );
 
-  test('manifest write failure cannot leave an in-memory completed snapshot', () async {
-    var fail = true;
-    final failing = NovelDownloadStore.forTesting(rootDirectory: root, beforeWrite: (path) async {
-      if (fail && path == p.join(root.path, NovelDownloadStore.manifestName)) {
-        throw const FileSystemException('disk full');
-      }
-    });
-    await failing.init();
-    await expectLater(saveFixture(failing), throwsA(isA<FileSystemException>()));
-    expect(await failing.readVolumeSnapshot('book', 'v1'), isNull);
-    fail = false;
-    await saveFixture(failing, complete: true);
-    final restored = NovelDownloadStore.forTesting(rootDirectory: root);
-    await restored.init();
-    expect(restored.downloadedVolumes('book'), {'v1'});
-  });
+  test(
+    'manifest write failure cannot leave an in-memory completed snapshot',
+    () async {
+      var fail = true;
+      final failing = NovelDownloadStore.forTesting(
+        rootDirectory: root,
+        beforeWrite: (path) async {
+          if (fail &&
+              path == p.join(root.path, NovelDownloadStore.manifestName)) {
+            throw const FileSystemException('disk full');
+          }
+        },
+      );
+      await failing.init();
+      await expectLater(
+        saveFixture(failing),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await failing.readVolumeSnapshot('book', 'v1'), isNull);
+      fail = false;
+      await saveFixture(failing, complete: true);
+      final restored = NovelDownloadStore.forTesting(rootDirectory: root);
+      await restored.init();
+      expect(restored.downloadedVolumes('book'), {'v1'});
+    },
+  );
 
-  test('migration can return to the default root without orphan empty directories', () async {
-    await saveFixture(store, complete: true);
-    await store.migrateTo(p.join(parent.path, 'other'));
-    expect(await root.list().isEmpty, isTrue);
-    await store.migrateTo(root.path);
-    expect(store.downloadedVolumes('book'), {'v1'});
-    expect(await store.readVolumeSnapshot('book', 'v1'), isNotNull);
-  });
+  test(
+    'migration can return to the default root without orphan empty directories',
+    () async {
+      await saveFixture(store, complete: true);
+      await store.migrateTo(p.join(parent.path, 'other'));
+      expect(await root.list().isEmpty, isTrue);
+      await store.migrateTo(root.path);
+      expect(store.downloadedVolumes('book'), {'v1'});
+      expect(await store.readVolumeSnapshot('book', 'v1'), isNotNull);
+    },
+  );
 
   test('concurrent init awaits full manifest validation', () async {
     await saveFixture(store, complete: true);

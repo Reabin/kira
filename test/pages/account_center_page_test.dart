@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -160,7 +161,10 @@ void main() {
     expect(secureCalls, isEmpty, reason: 'Credentials must only use prefs');
   });
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    TextScaler textScaler = TextScaler.noScaling,
+  }) async {
     final router = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, _) => const AccountCenterPage()),
@@ -183,6 +187,10 @@ void main() {
         routerConfig: router,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+          child: child!,
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -352,7 +360,7 @@ void main() {
     await tester.tap(copyIcons.last);
     await tester.pumpAndSettle();
     expect(clipboard, 'second-pass');
-    expect(find.text('已复制到剪贴板'), findsOneWidget);
+    expect(find.text('已复制'), findsOneWidget);
   });
 
   testWidgets('refresh inactive HOT changes only its stored profile', (
@@ -481,6 +489,54 @@ void main() {
     },
   );
 
+  for (final layout in [
+    (width: 320.0, scale: 1.0),
+    (width: 320.0, scale: 2.0),
+    (width: 369.0, scale: 1.0),
+    (width: 369.0, scale: 1.5),
+    (width: 800.0, scale: 1.0),
+    (width: 800.0, scale: 2.0),
+  ]) {
+    testWidgets('long account names preserve titles and keep menus on screen '
+        'at ${layout.width}dp/${layout.scale}x', (tester) async {
+      await tester.binding.setSurfaceSize(Size(layout.width, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final account = _copyA.copyWith(
+        username: 'account_with_a_very_long_name_123456789',
+      );
+      await user.authenticateAndLogin(
+        source: 'copy',
+        authenticate: () async => account.toJson(),
+      );
+      await pump(tester, textScaler: TextScaler.linear(layout.scale));
+
+      for (final title in ['漫画账号', '轻小说账号']) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(title).first,
+        );
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: title.length),
+        );
+        expect(boxes.map((box) => box.top).toSet(), hasLength(1));
+      }
+      for (final key in ['comic-account-select', 'novel-account-select']) {
+        final pill = find.byKey(ValueKey(key));
+        await tester.tap(pill);
+        await tester.pumpAndSettle();
+        final menuItem = find.ancestor(
+          of: find.text(account.username).last,
+          matching: find.byType(InkWell),
+        );
+        final rect = tester.getRect(menuItem);
+        expect(rect.left, greaterThanOrEqualTo(8));
+        expect(rect.right, lessThanOrEqualTo(layout.width - 8));
+        await tester.tapAt(const Offset(1, 1));
+        await tester.pumpAndSettle();
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('top dropdowns select domains independently without a sheet', (
     tester,
   ) async {
@@ -522,18 +578,33 @@ void main() {
         source: 'copy',
         authenticate: () async => {'token': 'unknown-b'},
       );
-      final b = user.copyAccount.session!;
+      // 登录不接管已选中的轻小说账号：第二个账号只入库。
+      final b = user.copyAccount.accounts.firstWhere(
+        (account) => account.token == 'unknown-b',
+      );
+      expect(user.copyAccount.activeId, a.id);
       String label(CopyAccountSession account) =>
           '已登录（未获取资料） · ${account.id!.substring(account.id!.length - 6)}';
       await pump(tester);
       expect(find.byKey(ValueKey('copy-${a.id}')), findsOneWidget);
       expect(find.byKey(ValueKey('copy-${b.id}')), findsOneWidget);
-      expect(find.text(label(a)), findsOneWidget);
+      // 标签同时出现在「已保存账号」列表行与当前选中账号的下拉胶囊里，
+      // 所以按出现次数断言而不是 findsOneWidget。
+      expect(find.text(label(a)), findsWidgets);
+      expect(find.text(label(b)), findsWidgets);
       expect(find.text('unknown-a'), findsNothing);
       expect(find.text('unknown-b'), findsNothing);
+      // 漫画下拉把拷贝账号当主账号用，只切漫画，不动轻小说选择。
       await tester.tap(find.byKey(const ValueKey('comic-account-select')));
       await tester.pumpAndSettle();
       await tester.tap(find.text(label(a)).last);
+      await tester.pumpAndSettle();
+      expect(user.token, a.token);
+      expect(user.copyToken, a.token);
+      // 轻小说下拉才切换轻小说账号。
+      await tester.tap(find.byKey(const ValueKey('novel-account-select')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label(b)).last);
       await tester.pumpAndSettle();
       expect(user.token, a.token);
       expect(user.copyToken, b.token);
@@ -557,6 +628,61 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final primaryCopy in [false, true]) {
+    testWidgets(
+      'remove confirmation follows a merged COPY handle: primary=$primaryCopy',
+      (tester) async {
+        await tester.runAsync(() async {
+          await user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => _copyA.toJson(),
+            fillOnlyIfEmpty: !primaryCopy,
+          );
+          await user.authenticateAndLogin(
+            source: 'copy',
+            authenticate: () async => {'token': 'temporary-copy-token'},
+          );
+        });
+        final temporary = user.copyAccount.accounts.singleWhere(
+          (item) => !item.hasIdentity,
+        );
+        await pump(tester);
+        await action(tester, 'copy-${temporary.id}', '退出登录');
+        expect(find.byType(AlertDialog), findsOneWidget);
+        api.respondCopy = (_) async => {
+          'username': _copyA.username,
+          'user_id': _copyA.userId,
+          'nickname': _copyA.nickname,
+        };
+        expect(
+          await tester.runAsync(
+            () => user.refreshCopyCredential(temporary, api: api),
+          ),
+          isTrue,
+        );
+        await tester.pumpAndSettle();
+        final canonicalId = user.copyAccount.resolveAccountId(temporary.id);
+        expect(canonicalId, isNotNull);
+        expect(canonicalId, isNot(temporary.id));
+        expect(user.copyAccount.accounts, hasLength(1));
+        await tester.tap(find.text('确认'));
+        await tester.pumpAndSettle();
+        expect(user.copyAccount.accounts, isEmpty);
+        expect(user.copyAccount.resolveAccountId(temporary.id), isNull);
+        expect(
+          user.savedCredentials.where((item) => item.source == 'copy'),
+          isEmpty,
+        );
+        expect(user.token, primaryCopy ? isNull : 'hot-token');
+        expect(
+          user.savedCredentials.any((item) => item.sameAccount(_second)),
+          isTrue,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('logout removes only the clicked saved HOT', (tester) async {
     await user.copyAccount.saveSession(_copyA);

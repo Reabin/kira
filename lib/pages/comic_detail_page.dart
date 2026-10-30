@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
@@ -11,29 +10,36 @@ import '../l10n/app_localizations.dart';
 import '../models/chapter.dart';
 import '../models/comic.dart' as comic_model;
 import '../models/comic.dart' hide Theme;
+import '../models/reader_settings.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
+import '../utils/bookmark_store.dart';
+import '../utils/chapter_page_order.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/kira_links.dart';
+import '../utils/network_error.dart';
 import '../utils/novel_download_manager.dart';
 import '../utils/reading_history.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/comic_info_chips.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
 import 'comic_comments_sheet.dart';
+import 'comic_detail/reading_actions.dart';
 
 part 'comic_detail/comic_detail_actions.dart';
 part 'comic_detail/comic_detail_build.dart';
 part 'comic_detail/comic_detail_chapter_card.dart';
 part 'comic_detail/comic_detail_last_browse.dart';
+part 'comic_detail/comic_detail_reading_actions.dart';
 part 'comic_detail/comic_detail_slivers.dart';
 
 class ComicDetailPage extends StatefulWidget {
@@ -94,6 +100,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   String _selectedGroup = 'default';
   bool _loadingComic = true;
   bool _refreshingComic = false;
+  String? _comicError;
   bool _loadingChapters = false;
   bool _keepShowingCachedChapters = false;
   int _chapterTotal = 0;
@@ -102,8 +109,20 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   // In-session chapter page cache; destroyed with State.
   final Map<String, ({List<Chapter> list, int total})> _chapterPageCache = {};
   bool _briefExpanded = false;
-  bool _reversed = false;
+  final _readerSettings = ReaderSettings();
+  bool get _reversed => _readerSettings.chapterReversed;
+  late bool _lastChapterReversed;
+  bool _pendingOrderReload = false;
+  ChapterPageOrder get _pageOrder =>
+      ChapterPageOrder(totalPages: _totalPages, reversed: _reversed);
   bool _isCollected = false;
+
+  /// 服务端收藏态是否仍在加载。与轻小说详情一致：未确认前按钮禁用，
+  /// 不能拿缓存里的旧值直接就当权威状态去翻转。
+  bool _collectStateLoading = true;
+
+  /// 收藏请求是否在飞：防止连点发出多个切换请求。
+  bool _collecting = false;
   bool _selectionMode = false;
   Chapter? _nextBrowseChapter;
   int? _nextBrowseChapterListPage;
@@ -124,23 +143,91 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   /// [setState]，统一经由这个转发方法。
   void _setState(VoidCallback fn) => setState(fn);
 
+  final _readingActionsKey = GlobalKey();
+  double _readingActionsHeight = 0;
+
+  final _bookmarkStore = BookmarkStore();
+
+  /// 这部漫画是否已出现在书签页（只有分组也算）。
+  bool _bookmarkGrouped = false;
+
   @override
   void initState() {
     super.initState();
+    _lastChapterReversed = _reversed;
     _comic = widget.initialComic;
     _loadingComic = widget.initialComic == null;
     _officialLastBrowseId = widget.lastBrowseId;
     _officialLastBrowseName = widget.lastBrowseName;
     _lastBrowseId = widget.lastBrowseId;
     _lastBrowseName = widget.lastBrowseName;
+    _readerSettings.addListener(_handleReaderSettingsChanged);
     _downloads.addListener(_handleDownloadChanged);
+    _bookmarkStore.addListener(_handleBookmarkChanged);
+    unawaited(_loadBookmarkGroup());
     unawaited(_initializePage());
   }
 
   @override
   void dispose() {
+    _readerSettings.removeListener(_handleReaderSettingsChanged);
+    _bookmarkStore.removeListener(_handleBookmarkChanged);
     _downloads.removeListener(_handleDownloadChanged);
     super.dispose();
+  }
+
+  Future<void> _loadBookmarkGroup() async {
+    await _bookmarkStore.ensureLoaded();
+    _handleBookmarkChanged();
+  }
+
+  void _handleBookmarkChanged() {
+    if (!mounted) return;
+    setState(() => _bookmarkGrouped = _bookmarkStore.hasGroup(widget.pathWord));
+  }
+
+  /// 右上角书签按钮：把这部漫画加进书签页。只登记分组、不写具体书签，
+  /// 所以在书签页里表现为「只有组头、没有条目」。
+  ///
+  /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
+  Future<void> _toggleBookmarkGroup() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_bookmarkStore.hasGroup(widget.pathWord)) {
+      final count = _bookmarkStore.bookmarks
+          .where((bookmark) => bookmark.pathWord == widget.pathWord)
+          .length;
+      if (count > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.bookmarkRemove),
+            content: Text(l10n.bookmarkRemoveGroupContent(count)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancelButton),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      await _bookmarkStore.removeGroup(widget.pathWord);
+      if (!mounted) return;
+      showToast(context, l10n.bookmarkRemoved);
+      return;
+    }
+    await _bookmarkStore.addGroup(
+      pathWord: widget.pathWord,
+      comicName: _comic?.name ?? '',
+      cover: _comic?.cover ?? '',
+    );
+    if (!mounted) return;
+    showToast(context, l10n.bookmarkAdded);
   }
 
   Future<void> _initializePage() async {
@@ -162,6 +249,20 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           source: 'comic_detail.initialize_downloads',
         ),
       );
+    }
+  }
+
+  void _handleReaderSettingsChanged() {
+    if (!mounted) return;
+    final orderChanged = _lastChapterReversed != _reversed;
+    _lastChapterReversed = _reversed;
+    setState(() {});
+    if (orderChanged) {
+      if (_loadingChapters) {
+        _pendingOrderReload = true;
+      } else {
+        unawaited(_loadChapterPage(_pageOrder.firstServerPage));
+      }
     }
   }
 
@@ -267,6 +368,7 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       // 收藏态在下方照常拉新。
       final data = await _repo.load();
       if (!mounted) return;
+      if (_comicError != null) setState(() => _comicError = null);
       final comic = data.comic;
       final selectedGroup = _resolveSelectedGroup(
         comic,
@@ -298,12 +400,16 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         setState(() {
           _loadingComic = false;
           _refreshingComic = false;
+          // 加载中途失败时 _loadCollectState 可能压根没跑到，别把按钮锁死。
+          _collectStateLoading = false;
+          _comicError = NetworkError.message(e);
         });
       }
     }
   }
 
   Future<void> _loadCollectState() async {
+    if (mounted) setState(() => _collectStateLoading = true);
     try {
       final query = await _api.manga.getComicQuery(widget.pathWord);
       if (!mounted) return;
@@ -317,6 +423,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           source: 'comic_detail.load_collect_state',
         ),
       );
+    } finally {
+      // 失败也要放开：按钮不能被永久禁用。
+      if (mounted) setState(() => _collectStateLoading = false);
     }
   }
 
@@ -393,6 +502,11 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           _keepShowingCachedChapters = false;
         });
       }
+    } finally {
+      if (mounted && _pendingOrderReload) {
+        _pendingOrderReload = false;
+        unawaited(_loadChapterPage(_pageOrder.firstServerPage));
+      }
     }
   }
 
@@ -405,7 +519,12 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
         comic?.groups?[targetGroup]?.count ??
         _comic?.groups?[targetGroup]?.count ??
         0;
-    final page = _resolveHistoryChapterPage(total);
+    final page = _reversed
+        ? ChapterPageOrder(
+            totalPages: (total / _pageSize).ceil(),
+            reversed: true,
+          ).firstServerPage
+        : _resolveHistoryChapterPage(total);
     await _loadChapterPage(
       page,
       group: targetGroup,
@@ -414,6 +533,9 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
           page == _chapterPage &&
           _chapters.isNotEmpty,
     );
+    if (mounted && _reversed && _chapterPage != _pageOrder.firstServerPage) {
+      await _loadChapterPage(_pageOrder.firstServerPage, group: targetGroup);
+    }
   }
 
   int _resolveHistoryChapterPage(int total) {
@@ -453,11 +575,24 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    _measureReadingActions();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_comic?.name ?? ''),
         actions: [
+          IconButton(
+            key: const ValueKey('comic_detail_bookmark'),
+            icon: Icon(
+              _bookmarkGrouped
+                  ? Icons.bookmark_added
+                  : Icons.bookmark_add_outlined,
+            ),
+            tooltip: _bookmarkGrouped
+                ? AppLocalizations.of(context)!.bookmarkRemove
+                : AppLocalizations.of(context)!.bookmarkAdd,
+            onPressed: _toggleBookmarkGroup,
+          ),
           IconButton(
             icon: const Icon(Icons.share),
             tooltip: AppLocalizations.of(context)!.comicDetailShare,
@@ -468,110 +603,17 @@ class _ComicDetailPageState extends State<ComicDetailPage> {
       body: _loadingComic
           ? const Center(child: ExpressiveLoadingIndicator())
           : _comic == null
-          ? ErrorRetryView(icon: Icons.error_outline, onRetry: _loadComic)
+          ? ErrorRetryView(
+              icon: Icons.error_outline,
+              message: _comicError,
+              onRetry: _loadComic,
+            )
           : Stack(
               children: [
                 _buildBody(cs, tt),
                 if (_canShowLastBrowseAction ||
                     _downloads.downloadedChapterIds(widget.pathWord).isNotEmpty)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (_downloads
-                            .downloadedChapterIds(widget.pathWord)
-                            .isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: FloatingActionButton(
-                              heroTag: 'comic_download_center',
-                              tooltip: AppLocalizations.of(
-                                context,
-                              )!.downloadCenterTitle,
-                              onPressed: () => context
-                                  .pushNamed(AppRoutes.downloadCenter)
-                                  .then((_) => _handleDownloadChanged()),
-                              child: const Icon(
-                                Icons.download_for_offline,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        if (_nextBrowseChapter != null ||
-                            _canShowLastBrowseAction)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_nextBrowseChapter != null)
-                                FloatingActionButton.extended(
-                                  heroTag: 'next_chapter',
-                                  onPressed: () => context
-                                      .pushNamed(
-                                        AppRoutes.reader,
-                                        pathParameters: {
-                                          'pathWord': widget.pathWord,
-                                          'chapterUuid':
-                                              _nextBrowseChapter!.uuid,
-                                        },
-                                        extra: ReaderExtra(
-                                          comicName: _comic?.name,
-                                          group: _selectedGroup,
-                                          chapterName: _nextBrowseChapter!.name,
-                                          chapterListPage:
-                                              _nextBrowseChapterListPage ??
-                                              _chapterPage,
-                                        ),
-                                      )
-                                      .then((_) => _loadLocalHistory()),
-                                  icon: const Icon(Icons.skip_next, size: 20),
-                                  label: Text(
-                                    _truncateNextChapterName(
-                                      _nextBrowseChapter!.name,
-                                    ),
-                                    style: AppTypography.fabLabel(
-                                      Theme.of(context).textTheme,
-                                    ),
-                                  ),
-                                ),
-                              if (_nextBrowseChapter != null &&
-                                  _canShowLastBrowseAction)
-                                const SizedBox(width: 12),
-                              if (_canShowLastBrowseAction)
-                                FloatingActionButton.extended(
-                                  heroTag: 'continue_reading',
-                                  onPressed: () => context
-                                      .pushNamed(
-                                        AppRoutes.reader,
-                                        pathParameters: {
-                                          'pathWord': widget.pathWord,
-                                          'chapterUuid': _lastBrowseId!,
-                                        },
-                                        extra: ReaderExtra(
-                                          comicName: _comic?.name,
-                                          group: _selectedGroup,
-                                          chapterName: _lastBrowseName ?? '',
-                                          chapterListPage:
-                                              _lastBrowseReaderChapterListPage,
-                                          initialPage: _lastBrowsePage,
-                                        ),
-                                      )
-                                      .then((_) => _loadLocalHistory()),
-                                  icon: const Icon(Icons.play_arrow, size: 20),
-                                  label: Text(
-                                    _continueReadingLabel(),
-                                    style: AppTypography.fabLabel(
-                                      Theme.of(context).textTheme,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
+                  _buildReadingActions(),
               ],
             ),
     );

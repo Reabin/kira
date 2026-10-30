@@ -13,12 +13,14 @@ import '../l10n/app_localizations.dart';
 import '../models/secure_credential_store.dart';
 import '../models/user_manager.dart';
 import '../repositories/novel_repository.dart';
+import '../theme/app_icon_sizes.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_status_colors.dart';
 import '../utils/app_logger.dart';
 import '../utils/app_storage.dart';
 import '../utils/font_manager.dart';
 import '../utils/reading_history.dart';
-import '../utils/search_history.dart';
 import '../utils/settings_reload.dart';
 import '../utils/toast.dart';
 
@@ -102,7 +104,7 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
 
     try {
       // 先落盘再统计，避免刚产生的记录缺席或在删除后被延迟写回。
-      await Future.wait([ReadingHistory.flush(), SearchHistory.flush()]);
+      await ReadingHistory.flush();
       final prefs = await AppStorage.sharedPreferences();
       final entries =
           prefs
@@ -211,9 +213,6 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
     if (confirmed != true) return;
 
     try {
-      if (entry.category == _CacheCategory.searchHistory) {
-        await SearchHistory.flush();
-      }
       await _deletePreferenceKeys([entry.key]);
       if (entry.category == _CacheCategory.account) {
         ApiClient().user.clearAuthState();
@@ -388,6 +387,38 @@ class _CacheManagementPageState extends State<CacheManagementPage> {
                   child: Text(
                     l10n.cacheDataCacheSection,
                     style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppStatusColors.warning(
+                        cs,
+                      ).withValues(alpha: 0.12),
+                      borderRadius: AppRadius.mdR,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_outlined,
+                          size: AppIconSize.lg,
+                          color: AppStatusColors.warning(cs),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Text(
+                            l10n.cacheDataCacheWarning,
+                            style: tt.bodySmall?.copyWith(
+                              color: AppStatusColors.warning(cs),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 if (_sections.isEmpty)

@@ -358,7 +358,6 @@ class _CommentSettingsPanelState extends State<CommentSettingsPanel> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(l10n.commentSettingsAutoLoadAllTitle),
-                subtitle: Text(l10n.commentSettingsAutoLoadAllDesc),
                 value: _commentAutoLoadAll,
                 onChanged: (value) {
                   setState(() => _commentAutoLoadAll = value);

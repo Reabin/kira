@@ -21,6 +21,7 @@ import 'repositories/novel_bookshelf_repository.dart';
 import 'routing/app_router.dart';
 import 'theme/app_radius.dart';
 import 'theme/app_typography.dart';
+import 'theme/reader_chrome.dart';
 import 'utils/app_logger.dart';
 import 'utils/app_storage.dart';
 import 'utils/display_mode_preference.dart';
@@ -32,6 +33,8 @@ import 'utils/network_proxy.dart';
 import 'utils/novel_download_manager.dart';
 import 'utils/settings_backup.dart';
 import 'widgets/backup_recovery_app.dart';
+import 'widgets/orientation_reflow.dart';
+import 'widgets/startup_failure_app.dart';
 
 bool get isDesktop =>
     !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
@@ -83,95 +86,33 @@ void main() {
         );
         await recovered.future;
       }
-      await AppLogger.instance.init();
 
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        unawaited(AppLogger.instance.recordFlutterError(details));
-      };
-
-      PlatformDispatcher.instance.onError = (error, stack) {
+      try {
+        await _bootstrap();
+      } catch (error, stack) {
+        // 最后一道兜底：runApp 之前任何未预期异常都不允许留下白屏。
+        debugPrint('[startup] fatal: $error');
         unawaited(
           AppLogger.instance.recordError(
             error,
             stackTrace: stack,
-            source: 'platform_dispatcher',
+            source: 'startup.fatal',
           ),
         );
-        return true;
-      };
-
-      await UserManager().init();
-      await NetworkProxy.init();
-      // 恢复漫画与轻小说持久化下载队列并自动续传。
-      final comicDownloads = DownloadManager();
-      await comicDownloads.init();
-      try {
-        // 旧版本书架缓存曾把 COPY token 放入固定 cache key，启动时只删除
-        // 旧 envelope；新的按 scope/排序分区由仓库按需加载。
-        await NovelBookshelfRepository.migrateLegacyCache();
-      } catch (error, stack) {
-        unawaited(
-          AppLogger.instance.recordWarning(
-            error,
-            stackTrace: stack,
-            source: 'novel_bookshelf.migrate_cache',
+        runApp(
+          StartupFailureApp(
+            error: error,
+            onRetry: () async {
+              await _bootstrap();
+              runApp(const ProviderScope(child: KiraApp()));
+            },
           ),
         );
       }
-      final novelDownloads = NovelDownloadManager();
-      await novelDownloads.init();
-      // 两种下载共用一个前台服务，避免各自启停互相覆盖通知状态。
-      final downloadListenable = Listenable.merge([
-        comicDownloads,
-        novelDownloads,
-      ]);
-      DownloadForegroundController(
-        listenable: downloadListenable,
-        activity: () =>
-            DownloadForegroundController.comicActivity(comicDownloads.tasks) +
-            novelDownloads.activity,
-        title: (l10n) => l10n.downloadForegroundGenericTitle,
-        channelName: (l10n) => l10n.downloadForegroundGenericChannel,
-      ).attach();
-      // 启动时若 COPY 高级设置过时（>1天），后台自动更新；失败静默。
-      CopySettingsAutoUpdater.maybeUpdateOnStartup();
-      unawaited(_clearExpiredCacheInBackground());
-      if (isDesktop) {
-        final font = UserManager().desktopFontFamily;
-        if (font.isNotEmpty) {
-          try {
-            await SystemFonts().loadFont(font);
-          } catch (e, stack) {
-            unawaited(
-              AppLogger.instance.recordError(
-                e,
-                stackTrace: stack,
-                source: 'desktop_font',
-              ),
-            );
-          }
-        }
-      }
-      final appFont = UserManager().theme.appFontFamily;
-      if (appFont.isNotEmpty) {
-        unawaited(FontManager().ensureFontReady(appFont));
-      }
-      unawaited(
-        SystemChrome.setEnabledSystemUIMode(
-          SystemUiMode.manual,
-          overlays: SystemUiOverlay.values,
-        ),
-      );
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          systemStatusBarContrastEnforced: false,
-        ),
-      );
-      runApp(const ProviderScope(child: KiraApp()));
     },
     (error, stack) {
+      // release 下 AppLogger 默认关闭，debugPrint 是 logcat 里唯一可见的线索
+      debugPrint('[zone] uncaught: $error');
       unawaited(
         AppLogger.instance.recordError(
           error,
@@ -181,6 +122,118 @@ void main() {
       );
     },
   );
+}
+
+/// 可恢复的启动步骤：单步失败只记录，不中断启动。
+///
+/// 插件/平台通道故障（例如 SharedPreferences 不可用）曾让 `main()` 在
+/// runApp 之前直接终止，表现为「开屏页之后永久白屏」且没有任何可见线索。
+/// 降级继续启动至少能进入界面，并把错误写进 logcat。
+Future<void> _startupStep(String name, Future<void> Function() action) async {
+  try {
+    await action();
+  } catch (error, stack) {
+    debugPrint('[startup] $name failed: $error');
+    unawaited(
+      AppLogger.instance.recordError(
+        error,
+        stackTrace: stack,
+        source: 'startup.$name',
+      ),
+    );
+  }
+}
+
+Future<void> _bootstrap() async {
+  await AppLogger.instance.init();
+
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    unawaited(AppLogger.instance.recordFlutterError(details));
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    unawaited(
+      AppLogger.instance.recordError(
+        error,
+        stackTrace: stack,
+        source: 'platform_dispatcher',
+      ),
+    );
+    return true;
+  };
+
+  await _startupStep('user_manager', () => UserManager().init());
+  await _startupStep('network_proxy', NetworkProxy.init);
+  // 恢复漫画与轻小说持久化下载队列并自动续传。
+  final comicDownloads = DownloadManager();
+  await _startupStep('comic_downloads', comicDownloads.init);
+  try {
+    // 旧版本书架缓存曾把 COPY token 放入固定 cache key，启动时只删除
+    // 旧 envelope；新的按 scope/排序分区由仓库按需加载。
+    await NovelBookshelfRepository.migrateLegacyCache();
+  } catch (error, stack) {
+    unawaited(
+      AppLogger.instance.recordWarning(
+        error,
+        stackTrace: stack,
+        source: 'novel_bookshelf.migrate_cache',
+      ),
+    );
+  }
+  final novelDownloads = NovelDownloadManager();
+  // 离线库可能包含大量小说文件：恢复队列、探测清单与自动续传都不该挡在
+  // 首帧之前，否则开屏白屏时长随用户下载量线性增长。首帧渲染完再跑。
+  unawaited(_startupStep('novel_downloads', novelDownloads.init));
+  // 两种下载共用一个前台服务，避免各自启停互相覆盖通知状态。
+  final downloadListenable = Listenable.merge([comicDownloads, novelDownloads]);
+  await _startupStep(
+    'download_foreground',
+    () async => DownloadForegroundController(
+      listenable: downloadListenable,
+      activity: () =>
+          DownloadForegroundController.comicActivity(comicDownloads.tasks) +
+          novelDownloads.activity,
+      title: (l10n) => l10n.downloadForegroundGenericTitle,
+      channelName: (l10n) => l10n.downloadForegroundGenericChannel,
+    ).attach(),
+  );
+  // 启动时若 COPY 高级设置过时（>1天），后台自动更新；失败静默。
+  CopySettingsAutoUpdater.maybeUpdateOnStartup();
+  unawaited(_clearExpiredCacheInBackground());
+  if (isDesktop) {
+    final font = UserManager().desktopFontFamily;
+    if (font.isNotEmpty) {
+      try {
+        await SystemFonts().loadFont(font);
+      } catch (e, stack) {
+        unawaited(
+          AppLogger.instance.recordError(
+            e,
+            stackTrace: stack,
+            source: 'desktop_font',
+          ),
+        );
+      }
+    }
+  }
+  final appFont = UserManager().theme.appFontFamily;
+  if (appFont.isNotEmpty) {
+    unawaited(FontManager().ensureFontReady(appFont));
+  }
+  unawaited(
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: SystemUiOverlay.values,
+    ),
+  );
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemStatusBarContrastEnforced: false,
+    ),
+  );
+  runApp(const ProviderScope(child: KiraApp()));
 }
 
 /// 允许鼠标拖拽触发滚动和下拉刷新（桌面端适配）
@@ -521,8 +574,22 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
           mediaQuery.textScaler,
           fontSizeFactor,
         ),
+        // 应用内开关与系统「减少动画」取并集：任一侧开启都跳过动效。
+        disableAnimations:
+            mediaQuery.disableAnimations || _user.theme.reduceMotion,
       ),
-      child: child ?? const SizedBox.shrink(),
+      child: OrientationReflow(
+        // Home uses per-item motion, so an old grid must not ghost over it.
+        captureSnapshot: () =>
+            _router.routeInformationProvider.value.uri.path != '/',
+        snapshotBackground:
+            _router.routeInformationProvider.value.uri.path.startsWith(
+              '/reader/',
+            )
+            ? ReaderChrome.surface
+            : null,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 

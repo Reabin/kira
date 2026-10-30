@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/l10n/app_localizations.dart';
+import 'package:kira/models/theme_settings.dart';
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/appearance_page.dart';
 import 'package:kira/utils/font_manager.dart';
@@ -104,6 +105,28 @@ Future<void> _showPage(WidgetTester tester) async {
   await tester.runAsync(() => FontManager().listDownloadedFonts());
 }
 
+Future<Finder> _showTextScaleSlider(WidgetTester tester) async {
+  await tester.pumpWidget(
+    wrapWithApp(const AppearancePage(), wrapInScaffold: false),
+  );
+  await tester.pumpAndSettle();
+  await tester.scrollUntilVisible(
+    find.text('全局文字缩放'),
+    250,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+  await tester.runAsync(() => FontManager().listDownloadedFonts());
+  final card = find.ancestor(
+    of: find.text('全局文字缩放'),
+    matching: find.byType(Card),
+  );
+  final slider = find.descendant(of: card, matching: find.byType(Slider));
+  await tester.ensureVisible(slider);
+  await tester.pumpAndSettle();
+  return slider;
+}
+
 Future<void> _openMenu(WidgetTester tester) async {
   await tester.tap(_select);
   await tester.pumpAndSettle();
@@ -126,6 +149,9 @@ void main() {
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
+    // 换过 mock 存储后必须丢掉旧的 SharedPreferences 实例，
+    // 否则子 store 的写入会落进上一个用例的内存表。
+    ThemeSettings().resetPrefsCache();
     await UserManager().init();
     directory = await Directory.systemTemp.createTemp(
       'kira_refresh_rate_test_',
@@ -147,6 +173,68 @@ void main() {
     PathProviderPlatform.instance = oldPaths;
     directory.deleteSync(recursive: true);
   });
+
+  testWidgets('全局文字缩放以百分比显示，保留原范围与步长', (tester) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      final sliderFinder = await _showTextScaleSlider(tester);
+      final slider = tester.widget<Slider>(sliderFinder);
+
+      expect(slider.label, '100%');
+      expect(slider.value, ThemeSettings.defaultAppFontSize);
+      expect(slider.min, 8);
+      expect(slider.max, 26);
+      expect(slider.divisions, 18);
+      expect(find.semantics.byValue('100%'), findsOneWidget);
+      expect(find.text('应用字体大小'), findsNothing);
+      final traditional = await AppLocalizations.delegate.load(
+        const Locale.fromSubtags(languageCode: 'zh', scriptCode: 'Hant'),
+      );
+      expect(traditional.appearanceTextScale, '全域文字縮放');
+      await tester.pumpWidget(const SizedBox.shrink());
+    } finally {
+      semantics.dispose();
+    }
+  });
+
+  testWidgets('全局文字缩放预览百分比，松手后仍写入兼容偏好', (tester) async {
+    final sliderFinder = await _showTextScaleSlider(tester);
+    tester.widget<Slider>(sliderFinder).onChanged!(21);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Slider>(sliderFinder).label, '150%');
+    expect(UserManager().theme.defaultFontSize, 14);
+    tester.widget<Slider>(sliderFinder).onChangeEnd!(21);
+    await tester.pumpAndSettle();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getDouble('default_font_size'), 21);
+    expect(UserManager().theme.defaultFontSize, 21);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await ThemeSettings().initFromPrefs(prefs, persistMigrations: false);
+    final reopened = await _showTextScaleSlider(tester);
+    expect(tester.widget<Slider>(reopened).label, '150%');
+    expect(tester.widget<Slider>(reopened).value, 21);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  for (final (storedValue, expectedLabel) in [(8.0, '57%'), (26.0, '186%')]) {
+    testWidgets('原字号 $storedValue 保持原缩放并显示为 $expectedLabel', (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('default_font_size', storedValue);
+      await ThemeSettings().initFromPrefs(prefs, persistMigrations: false);
+      final sliderFinder = await _showTextScaleSlider(tester);
+      final slider = tester.widget<Slider>(sliderFinder);
+
+      expect(slider.value, storedValue);
+      expect(slider.label, expectedLabel);
+      expect(slider.semanticFormatterCallback!(storedValue), expectedLabel);
+      expect(prefs.getDouble('default_font_size'), storedValue);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
 
   testWidgets('auto capsule reads 60/120Hz and keeps the open menu current', (
     tester,
@@ -419,4 +507,238 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  for (final initialMode in [
+    BottomNavLabelMode.selectedOnly,
+    BottomNavLabelMode.hidden,
+  ]) {
+    testWidgets('悬浮底栏选择始终显示时提示降级：${initialMode.name}', (tester) async {
+      final user = UserManager();
+      await user.theme.setFloatingNavEnabled(true);
+      await user.setBottomNavLabelMode(initialMode);
+      await _showPage(tester);
+      final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+      await tester.scrollUntilVisible(
+        tile,
+        -400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      final select = find.descendant(
+        of: tile,
+        matching: find.byType(SelectTile<BottomNavLabelMode>),
+      );
+      await tester.tap(select);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('始终显示文字').last);
+      await tester.pumpAndSettle();
+
+      final l10n = AppLocalizations.of(tester.element(tile))!;
+      expect(
+        find.text(l10n.appearanceFloatingNavLabelModeHint),
+        findsOneWidget,
+      );
+      expect(user.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+      expect(user.theme.floatingNavEnabled, isTrue);
+      expect(
+        find.descendant(of: tile, matching: find.text('选中时显示')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets('非悬浮底栏允许始终显示文字且不提示降级', (tester) async {
+    final user = UserManager();
+    await user.theme.setFloatingNavEnabled(false);
+    await _showPage(tester);
+    final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+    await tester.scrollUntilVisible(
+      tile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    final select = find.descendant(
+      of: tile,
+      matching: find.byType(SelectTile<BottomNavLabelMode>),
+    );
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('始终显示文字').last);
+    await tester.pumpAndSettle();
+
+    final l10n = AppLocalizations.of(tester.element(tile))!;
+    expect(find.text(l10n.appearanceFloatingNavLabelModeHint), findsNothing);
+    expect(user.bottomNavLabelMode, BottomNavLabelMode.always);
+    expect(
+      find.descendant(of: tile, matching: find.text('始终显示文字')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('非悬浮始终显示文字后开启悬浮，下拉即时降为选中时显示', (tester) async {
+    final user = UserManager();
+    await user.theme.setFloatingNavEnabled(false);
+    await user.setBottomNavLabelMode(BottomNavLabelMode.always);
+    await _showPage(tester);
+    final floatingTile = find.widgetWithText(SwitchListTile, '悬浮导航栏');
+    await tester.scrollUntilVisible(
+      floatingTile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(floatingTile).value, isFalse);
+
+    await tester.tap(floatingTile);
+    await tester.pumpAndSettle();
+
+    expect(user.theme.floatingNavEnabled, isTrue);
+    expect(user.bottomNavLabelMode, BottomNavLabelMode.selectedOnly);
+    final labelTile = find.widgetWithText(ListTile, '底部导航栏文字');
+    expect(
+      find.descendant(of: labelTile, matching: find.text('选中时显示')),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<SelectTile<BottomNavLabelMode>>(
+            find.descendant(
+              of: labelTile,
+              matching: find.byType(SelectTile<BottomNavLabelMode>),
+            ),
+          )
+          .value,
+      BottomNavLabelMode.selectedOnly,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('底部导航栏文字改为下拉列表，选中即生效且不再弹底部选择层', (tester) async {
+    await _showPage(tester);
+    final tile = find.widgetWithText(ListTile, '底部导航栏文字');
+    await tester.scrollUntilVisible(
+      tile,
+      -400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+
+    final select = find.descendant(
+      of: tile,
+      matching: find.byType(SelectTile<BottomNavLabelMode>),
+    );
+    expect(select, findsOneWidget);
+    expect(tester.widget<ListTile>(tile).onTap, isNull);
+    expect(
+      find.descendant(of: tile, matching: find.text('选中时显示')),
+      findsOneWidget,
+    );
+
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+    await tester.tap(find.text('不显示文字').last);
+    await tester.pumpAndSettle();
+
+    expect(UserManager().bottomNavLabelMode, BottomNavLabelMode.hidden);
+    expect(
+      find.descendant(of: tile, matching: find.text('不显示文字')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+    'phone puts theme, font and motion before navigation without extra copy',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        wrapWithApp(const AppearancePage(), wrapInScaffold: false),
+      );
+      await tester.pumpAndSettle();
+      final theme = find.widgetWithText(ListTile, '主题模式');
+      final font = find.text('全局文字缩放');
+      final motion = find.widgetWithText(SwitchListTile, '减少动画');
+      final nav = find.widgetWithText(ListTile, '底部导航栏文字');
+      final scrollable = find.byType(Scrollable).first;
+      double? previousOffset;
+      for (final target in [theme, font, motion, nav]) {
+        await tester.scrollUntilVisible(target, 250, scrollable: scrollable);
+        await tester.pumpAndSettle();
+        final offset = tester
+            .state<ScrollableState>(scrollable)
+            .position
+            .pixels;
+        if (previousOffset != null) {
+          expect(offset, greaterThanOrEqualTo(previousOffset));
+        }
+        previousOffset = offset;
+      }
+      expect(find.text('关闭后只能点击底部导航按钮切换页面'), findsNothing);
+      expect(find.text('暗色模式下降低各个界面的卡片封面亮度'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets('子 store 修改主题模式和变体会即时更新外观页', (tester) async {
+    await _showPage(tester);
+    final user = UserManager();
+    await user.theme.setThemeMode(ThemeMode.dark);
+    await user.theme.setThemeVariant(DynamicSchemeVariant.vibrant);
+    await tester.pumpAndSettle();
+
+    expect(user.themeMode, ThemeMode.dark);
+    expect(user.themeVariant, DynamicSchemeVariant.vibrant);
+    expect(
+      tester
+          .widget<SelectTile<ThemeMode>>(find.byType(SelectTile<ThemeMode>))
+          .value,
+      ThemeMode.dark,
+    );
+    final selected = tester
+        .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+        .where((chip) => chip.selected);
+    expect(selected, hasLength(1));
+    final label = selected.single.label;
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(AppearancePage)),
+    )!;
+    expect(
+      label,
+      isA<Text>().having((text) => text.data, 'text', l10n.themeVariantVibrant),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('减少动画开关落盘并即时更新页面', (tester) async {
+    await _showPage(tester);
+    final tile = find.widgetWithText(SwitchListTile, '减少动画');
+    await tester.ensureVisible(tile);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+
+    expect(UserManager().theme.reduceMotion, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    // 重新载入仍是开启状态，说明写进了同一份偏好。
+    final prefs = await SharedPreferences.getInstance();
+    await UserManager().theme.initFromPrefs(prefs);
+    expect(UserManager().theme.reduceMotion, isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

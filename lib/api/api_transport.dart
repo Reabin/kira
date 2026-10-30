@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -6,11 +5,15 @@ import 'package:dio/dio.dart';
 
 import '../models/user_manager.dart';
 import '../utils/app_dio.dart';
-import '../utils/app_logger.dart';
 import '../utils/data_cache.dart';
 
 const defaultCopyApiHost = 'api.copy202601.com';
 const defaultCopyAppVersion = '3.0.9';
+
+/// 默认 COPY versionCode，与 [defaultCopyAppVersion] 配套（3.0.9 ↔ 83）。
+/// 服务端对 version 与 versioncode 做交叉校验，升级 app version 时两者都要
+/// 跟着改；高级设置里可手动覆盖。
+const defaultCopyVersionCode = '83';
 
 /// 默认拷贝登录域名（高级设置中可切换）。
 const defaultCopyLoginHost = 'copy4000.com';
@@ -37,15 +40,8 @@ class ApiTransport {
   int _hostIndex = 0;
   // 手动管理 cookie: host → {name: value}
   final Map<String, Map<String, String>> _cookies = {};
-  // 防止并发 401 触发多次自动登录
-  Completer<bool>? _autoLoginCompleter;
 
   final Map<String, double> _hostWeights = {};
-
-  /// Login callbacks used by the 401 auto-login interceptor.
-  /// Set by ApiClient after constructing the transport and user API.
-  Future<Map<String, dynamic>> Function(String, String)? loginHandler;
-  Future<Map<String, dynamic>> Function(String, String)? copyLoginHandler;
 
   ApiTransport({
     required this.dio,
@@ -106,71 +102,10 @@ class ApiTransport {
           // 业务错误码（如 210 账号密码错误）视为请求失败
           return rejectIfBusinessError(response, handler);
         },
-        onError: (error, handler) async {
-          if (error.response?.statusCode == 401 &&
-              user.autoLogin &&
-              error.requestOptions.headers['Authorization'] ==
-                  'Token ${user.token}') {
-            final username = user.savedUsername;
-            final password = user.savedPassword;
-            if (username != null &&
-                username.isNotEmpty &&
-                password != null &&
-                password.isNotEmpty) {
-              try {
-                // 防止并发 401 同时触发多次登录
-                if (_autoLoginCompleter != null) {
-                  final success = await _autoLoginCompleter!.future;
-                  if (!success) return handler.next(error);
-                } else {
-                  _autoLoginCompleter = Completer<bool>();
-                  try {
-                    final source = user.loginSource;
-                    final success = await user.authenticateAndLogin(
-                      source: source,
-                      syncCopyAccount: false,
-                      authenticate: () => source == 'copy'
-                          ? copyLoginHandler!(username, password)
-                          : loginHandler!(username, password),
-                    );
-                    _autoLoginCompleter!.complete(success);
-                    if (!success) {
-                      _autoLoginCompleter = null;
-                      return handler.next(error);
-                    }
-                  } catch (e, stack) {
-                    // 自动重登失败不能静默：用户只会看到原始 401，
-                    // 无从判断是令牌过期还是重登本身出了问题。
-                    unawaited(
-                      AppLogger.instance.recordWarning(
-                        e,
-                        stackTrace: stack,
-                        source: 'api_transport.auto_login',
-                      ),
-                    );
-                    _autoLoginCompleter!.complete(false);
-                    _autoLoginCompleter = null;
-                    return handler.next(error);
-                  }
-                  _autoLoginCompleter = null;
-                }
-                // 用新 token 重试原请求
-                final opts = error.requestOptions;
-                opts.headers['Authorization'] = 'Token ${user.token}';
-                final resp = await dio.fetch(opts);
-                return handler.resolve(resp);
-              } catch (e, stack) {
-                unawaited(
-                  AppLogger.instance.recordWarning(
-                    e,
-                    stackTrace: stack,
-                    source: 'api_transport.auto_login_retry',
-                  ),
-                );
-                return handler.next(error);
-              }
-            }
-          }
+        onError: (error, handler) {
+          // 令牌过期不再自动重登：重登依赖本地保存的账号密码，密码一旦轮换
+          // 或服务端风控就会静默失败，用户看到的是「一直登录不上又不说原因」。
+          // 统一交给调用方弹「登录已过期」，让用户重新登录一次。
           handler.next(error);
         },
       ),
@@ -202,6 +137,8 @@ class ApiTransport {
             : data['message']?.toString() ??
                   (results is Map ? results['detail']?.toString() : null) ??
                   'Request failed (code: $code)';
+        // callFollowingErrorInterceptor: 让后续错误拦截器（统一网络日志）
+        // 也能看到这次业务失败，否则 200 + 业务错误码的请求完全不留痕。
         return handler.reject(
           DioException(
             requestOptions: response.requestOptions,
@@ -210,6 +147,7 @@ class ApiTransport {
             error: message,
             type: DioExceptionType.badResponse,
           ),
+          true,
         );
       }
     }

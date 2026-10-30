@@ -68,6 +68,7 @@ extension _NetworkActions on _NetworkPageState {
   }
 
   Future<void> _testLatency() async {
+    if (_testingLatency) return;
     final api = ApiClient();
     final pendingResults = <int, Map<String, int?>>{};
     final pendingHosts = <String>{};
@@ -152,12 +153,23 @@ extension _NetworkActions on _NetworkPageState {
         _latencyResults = latencyResults;
         _pendingLatencyHosts = {};
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       _setState(() {
         _testingLatency = false;
         _pendingLatencyHosts = {};
       });
+      _showToast(
+        AppLocalizations.of(
+          context,
+        )!.networkSpeedTestFailedDetail(NetworkError.message(e)),
+        isError: true,
+      );
+    } finally {
+      if (mounted && _retestAfterResume) {
+        _retestAfterResume = false;
+        unawaited(_testLatency());
+      }
     }
   }
 
@@ -169,7 +181,7 @@ extension _NetworkActions on _NetworkPageState {
     final l10n = AppLocalizations.of(context)!;
     _showToast(
       proxy == null
-          ? l10n.networkNoSystemProxyDetected
+          ? NetworkProxy.systemProxyDescription(l10n)
           : l10n.networkSystemProxyDetected(proxy.label),
     );
   }
@@ -303,13 +315,18 @@ extension _NetworkActions on _NetworkPageState {
     final version = UserManager.normalizeCopyAppVersion(
       _copyAppVersionController.text,
     );
+    final versionCode = UserManager.normalizeCopyVersionCode(
+      _copyVersionCodeController.text,
+    );
     final hostChanged = host != _user.copyApiHost;
 
     _copyApiHostController.text = host;
     _copyAppVersionController.text = version;
+    _copyVersionCodeController.text = versionCode;
 
     await _user.setCopyApiHost(host);
     await _user.setCopyAppVersion(version);
+    await _user.setCopyVersionCode(versionCode);
     if (!mounted) return;
 
     if (hostChanged) {
@@ -325,9 +342,11 @@ extension _NetworkActions on _NetworkPageState {
     final hostChanged = _user.copyApiHost != defaultCopyApiHost;
     _copyApiHostController.text = defaultCopyApiHost;
     _copyAppVersionController.text = defaultCopyAppVersion;
+    _copyVersionCodeController.text = defaultCopyVersionCode;
 
     await _user.setCopyApiHost(defaultCopyApiHost);
     await _user.setCopyAppVersion(defaultCopyAppVersion);
+    await _user.setCopyVersionCode(defaultCopyVersionCode);
     if (!mounted) return;
 
     if (hostChanged) {

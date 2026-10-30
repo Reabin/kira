@@ -21,28 +21,27 @@ class _SearchTabState extends State<_SearchTab>
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode();
   final _scrollController = ScrollController();
-  final _history = SearchHistory();
-  final _user = UserManager();
 
   List<String> _keywords = [];
-  List<String> _historyKeywords = [];
   List<Comic> _comics = [];
   bool _keywordsLoading = true;
   bool _keywordsFailed = false;
+  Object? _keywordsError;
   bool _searching = false;
   bool _searchFailed = false;
+  Object? _searchError;
   bool _loadingMore = false;
   bool _loadMoreFailed = false;
+  Object? _loadMoreError;
   bool _hasMore = false;
   bool _hasSearchText = false;
   bool _hotSearchExpanded = true;
   bool _canScrollUp = false;
   int _offset = 0;
   int _total = 0;
-  // 结果、元数据和本地历史各用自己的代次，互不丢弃对方的完成通知。
+  // 结果、元数据各用自己的代次，互不丢弃对方的完成通知。
   int _resultsEpoch = 0;
   int _keywordsEpoch = 0;
-  int _historyEpoch = 0;
   int _collapseEpoch = 0;
   Future<void> _collapseWrites = Future<void>.value();
   String? _searchQuery;
@@ -65,22 +64,17 @@ class _SearchTabState extends State<_SearchTab>
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchTextChanged);
-    // 缓存管理/重置会重新初始化 UserManager 并通知；切换标签也会通知。
-    // 历史不是全局单例，在这里重读即可同步保活页面，无需 settings_reload。
-    _user.addListener(_onUserChanged);
     deferInitialLoadToBranchActivation();
   }
 
   @override
   void onBranchFirstActivated() {
     unawaited(_loadKeywords());
-    unawaited(_loadHistory());
     unawaited(_restoreCollapseState());
   }
 
   @override
   void dispose() {
-    _user.removeListener(_onUserChanged);
     _searchController.removeListener(_onSearchTextChanged);
     _searchController.dispose();
     _searchFocus.dispose();
@@ -92,31 +86,6 @@ class _SearchTabState extends State<_SearchTab>
     final hasText = _searchController.text.isNotEmpty;
     if (!mounted || hasText == _hasSearchText) return;
     setState(() => _hasSearchText = hasText);
-  }
-
-  void _onUserChanged() => unawaited(_loadHistory());
-
-  Future<void> _loadHistory() => _updateHistory(_history.load());
-
-  Future<void> _updateHistory(Future<List<String>> operation) async {
-    final epoch = ++_historyEpoch;
-    final entries = await operation;
-    if (!mounted || epoch != _historyEpoch) return;
-    setState(() => _historyKeywords = entries);
-  }
-
-  void _removeHistory(String keyword) {
-    setState(() {
-      _historyKeywords = _historyKeywords
-          .where((entry) => entry != keyword)
-          .toList();
-    });
-    unawaited(_updateHistory(_history.remove(keyword)));
-  }
-
-  void _clearHistory() {
-    setState(() => _historyKeywords = []);
-    unawaited(_updateHistory(_history.clear()));
   }
 
   /// 热搜经 HOT 仓库读取；TTL 内读缓存，下拉或错误重试强制刷新。
@@ -135,7 +104,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!mounted || epoch != _keywordsEpoch) return;
       _recordWarning(error, stack, 'load_keywords');
-      setState(() => _keywordsFailed = true);
+      setState(() {
+        _keywordsFailed = true;
+        _keywordsError = error;
+      });
     } finally {
       if (mounted && epoch == _keywordsEpoch) {
         setState(() => _keywordsLoading = false);
@@ -185,6 +157,7 @@ class _SearchTabState extends State<_SearchTab>
       _searchFailed = false;
       _loadingMore = false;
       _loadMoreFailed = false;
+      _loadMoreError = null;
       _hasMore = false;
       _searchQuery = keyword;
       _comics = [];
@@ -206,7 +179,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!_isCurrentResult(epoch)) return;
       _recordWarning(error, stack, 'search');
-      setState(() => _searchFailed = true);
+      setState(() {
+        _searchFailed = true;
+        _searchError = error;
+      });
     } finally {
       if (_isCurrentResult(epoch)) {
         setState(() => _searching = false);
@@ -229,6 +205,7 @@ class _SearchTabState extends State<_SearchTab>
     setState(() {
       _loadingMore = true;
       _loadMoreFailed = false;
+      _loadMoreError = null;
     });
     try {
       final result = await widget.api.manga.searchComics(query, offset: offset);
@@ -243,7 +220,10 @@ class _SearchTabState extends State<_SearchTab>
     } catch (error, stack) {
       if (!_isCurrentResult(epoch)) return;
       _recordWarning(error, stack, 'load_more');
-      setState(() => _loadMoreFailed = true);
+      setState(() {
+        _loadMoreFailed = true;
+        _loadMoreError = error;
+      });
     } finally {
       if (_isCurrentResult(epoch)) {
         setState(() => _loadingMore = false);
@@ -263,11 +243,11 @@ class _SearchTabState extends State<_SearchTab>
       _searchFailed = false;
       _loadingMore = false;
       _loadMoreFailed = false;
+      _loadMoreError = null;
       _hasMore = false;
       _canScrollUp = false;
     });
     _resetScroll();
-    unawaited(_loadHistory());
   }
 
   void _onKeywordTap(String keyword) {
@@ -280,7 +260,7 @@ class _SearchTabState extends State<_SearchTab>
     if (query != null) {
       await _doSearch(query);
     } else {
-      await Future.wait([_loadKeywords(forceRefresh: true), _loadHistory()]);
+      await _loadKeywords(forceRefresh: true);
     }
   }
 
@@ -305,46 +285,6 @@ class _SearchTabState extends State<_SearchTab>
         error,
         stackTrace: stack,
         source: 'search_tab.$action',
-      ),
-    );
-  }
-
-  Widget _buildHistory(AppLocalizations l10n, double hp) {
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(hp, AppSpacing.sm, hp, AppSpacing.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SectionHeader(
-              icon: Icons.history_rounded,
-              title: l10n.searchHistoryTitle,
-              trailing: TextButton.icon(
-                onPressed: _clearHistory,
-                icon: const Icon(Icons.delete_sweep_outlined),
-                label: Text(l10n.searchHistoryClear),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Wrap(
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.sm,
-              children: [
-                for (final keyword in _historyKeywords)
-                  InputChip(
-                    label: Text(
-                      keyword,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    onPressed: () => _onKeywordTap(keyword),
-                    onDeleted: () => _removeHistory(keyword),
-                    deleteButtonTooltipMessage: l10n.searchHistoryDelete,
-                  ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -451,8 +391,6 @@ class _SearchTabState extends State<_SearchTab>
                           cardExtent: cardExtent,
                         ),
                       if (_idle) ...[
-                        if (_historyKeywords.isNotEmpty)
-                          _buildHistory(l10n, hp),
                         if (_keywordsLoading && _keywords.isEmpty)
                           const SliverToBoxAdapter(
                             child: Padding(
@@ -466,12 +404,17 @@ class _SearchTabState extends State<_SearchTab>
                           _buildHotKeywords(l10n, cs, hp),
                         if (_keywordsFailed)
                           SliverErrorRetryView(
+                            message: _keywordsError == null
+                                ? null
+                                : NetworkError.message(_keywordsError!),
                             onRetry: () => _loadKeywords(forceRefresh: true),
                           ),
                       ],
                       if (!_idle && !_searching && _searchFailed)
                         SliverErrorRetryView(
-                          message: l10n.searchRequestFailed,
+                          message: _searchError == null
+                              ? l10n.searchRequestFailed
+                              : NetworkError.message(_searchError!),
                           onRetry: () => _doSearch(_searchQuery!),
                         ),
                       if (!_idle &&
@@ -545,12 +488,22 @@ class _SearchTabState extends State<_SearchTab>
                               child: Column(
                                 children: [
                                   Text(
-                                    l10n.searchLoadMoreFailed,
+                                    l10n.loadMoreFailed,
                                     style: tt.bodyMedium?.copyWith(
                                       color: cs.error,
                                     ),
                                     textAlign: TextAlign.center,
                                   ),
+                                  if (_loadMoreError != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      NetworkError.describe(_loadMoreError!),
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.error,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ],
                                   const SizedBox(height: AppSpacing.sm),
                                   OutlinedButton.icon(
                                     onPressed: () => _loadMore(retry: true),
@@ -571,8 +524,10 @@ class _SearchTabState extends State<_SearchTab>
                             ),
                           ),
                       ],
-                      // 底部留白：给右下角回到顶部按钮让位。
-                      const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                      // 底部留白：让开悬浮底栏，并给右下角回到顶部按钮让位。
+                      const SliverToBoxAdapter(
+                        child: BranchBottomSlack(extra: 72),
+                      ),
                     ],
                   ),
                 ),
@@ -583,11 +538,9 @@ class _SearchTabState extends State<_SearchTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.lg,
-            bottom: AppSpacing.lg,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.lg + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

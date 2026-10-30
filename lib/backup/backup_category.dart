@@ -57,6 +57,8 @@ abstract final class BackupSchema {
     'copy_auto_update',
     'download_chapter_comments',
     'image_viewer_auto_rotate_landscape',
+    'nav_browse_history_local',
+    'nav_floating_enabled',
     'nav_swipe_enabled',
     'reader_auto_scroll_enabled',
     'reader_auto_scroll_resume',
@@ -76,6 +78,17 @@ abstract final class BackupSchema {
     'reader_status_overlay_page',
     'reader_status_overlay_time',
     'reader_volume_key',
+    'reader_realistic_page_turn',
+    'comic_chapter_reversed',
+    'novel_status_overlay',
+    'novel_status_overlay_battery',
+    'novel_status_overlay_chapter',
+    'novel_status_overlay_fps',
+    'novel_status_overlay_network',
+    'novel_status_overlay_page',
+    'novel_status_overlay_seeded',
+    'novel_status_overlay_follow_theme',
+    'novel_status_overlay_time',
     'remote_notice_enabled',
     'use_dynamic_color',
     'use_update_mirror',
@@ -103,6 +116,7 @@ abstract final class BackupSchema {
     'reader_reading_stats_chart_style',
     'reader_scroll_direction',
     'reader_status_overlay_position',
+    'novel_status_overlay_position',
     'theme_mode',
     'zhipu_auto_summary_min',
   };
@@ -120,6 +134,7 @@ abstract final class BackupSchema {
     'reader_image_gap',
     'reader_long_press_zoom_pan_sensitivity',
     'reader_status_overlay_opacity',
+    'novel_status_overlay_opacity',
   };
 
   static const _stringKeys = {
@@ -129,6 +144,7 @@ abstract final class BackupSchema {
     'bottom_nav_label_mode',
     'copy_api_host',
     'copy_app_version',
+    'copy_version_code',
     'copy_home_section_collapsed',
     'copy_login_host',
     'desktop_font_family',
@@ -142,6 +158,10 @@ abstract final class BackupSchema {
     'saved_credentials',
     'saved_password',
     'saved_username',
+    'reader_status_overlay_foreground',
+    'reader_status_overlay_background',
+    'novel_status_overlay_foreground',
+    'novel_status_overlay_background',
     'theme_color',
     'theme_variant',
     'update_channel',
@@ -170,6 +190,8 @@ abstract final class BackupSchema {
     'nav_order',
     'reader_reading_stats_section_order',
     'reader_status_overlay_order',
+    'novel_status_overlay_order',
+    'update_mirror_custom_prefixes',
     'zhipu_custom_models',
   };
 
@@ -179,7 +201,10 @@ abstract final class BackupSchema {
       return BackupCategory.readingHistory;
     }
     if (key == 'reading_stats_v1') return BackupCategory.readingStatistics;
-    if (key == 'comic_bookmarks_v1' || key == 'novel_bookmarks_v1') {
+    if (key == 'comic_bookmarks_v1' ||
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return BackupCategory.bookmarks;
     }
     if (accountKeys.contains(key)) return BackupCategory.account;
@@ -197,7 +222,9 @@ abstract final class BackupSchema {
         key.startsWith('novel_reading_history_') ||
         key == 'reading_stats_v1' ||
         key == 'comic_bookmarks_v1' ||
-        key == 'novel_bookmarks_v1') {
+        key == 'novel_bookmarks_v1' ||
+        key == 'comic_bookmark_groups_v1' ||
+        key == 'novel_bookmark_groups_v1') {
       return 'string';
     }
     // In particular: backup_*, cache_*, AI conversations/summaries, download

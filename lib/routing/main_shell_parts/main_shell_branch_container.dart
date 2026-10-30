@@ -1,17 +1,17 @@
 part of '../main_shell.dart';
 
-/// Dual-page linked slide between shell branches (no intermediate-page sweep).
+/// Cross-fade between shell branches (no intermediate-page sweep).
 ///
 /// Hidden tabs stay mounted offstage so branch state is preserved, and get
 /// pre-warmed (painted once) shortly after startup so the first swipe onto
 /// them doesn't hitch on first-time paint/raster cost.
 ///
-/// Branch container: two slide models sharing one AnimationController.
+/// Branch container: two opacity models sharing one AnimationController.
 ///
-/// - 点按导航：双页联动直滑（旧行为），目标与当前页互为进出，不扫过中间页。
-/// - 拖动跟手：连续滚动位置 [_AnimatedBranchContainerState._scrollPos]
-///   （单位：页宽），页 i 平移量 = 可见序(i) − _scrollPos；松手收尾向相邻页
-///   补间到位后由父级 goBranch 确认。
+/// - 点按导航：目标页在旧页之上从 0 淡入到 1，不扫过中间页。
+/// - 拖动跟手：连续位置 [_AnimatedBranchContainerState._scrollPos]
+///   （单位：页宽）决定淡化进度；旧页保持不透明垫底，相邻页按进度压在其上
+///   淡入淡出，松手收尾向相邻页补间到位后由父级 goBranch 确认。
 class _AnimatedBranchContainer extends StatefulWidget {
   const _AnimatedBranchContainer({
     super.key,
@@ -63,11 +63,10 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
   /// didUpdateWidget 收到同分支变化时只认领逻辑页，不重放动画。
   int? _pendingBranch;
 
-  /// 双页直滑（点按导航）的出场页与方向；[._outgoingIndex] 为 null 即无此动画。
+  /// 双页淡化（点按导航）的出场页；[._outgoingIndex] 为 null 即无此动画。
   int? _outgoingIndex;
-  double _direction = 1;
 
-  /// 当前补间的几何模型：true=双页直滑（点按），false=连续位置（拖动收尾），
+  /// 当前补间的进度模型：true=双页淡化（点按），false=连续位置（拖动收尾），
   /// null=无补间进行中。
   bool? _dualTween;
 
@@ -110,7 +109,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
   void _onTick() {
     final tween = _tween;
     if (tween == null) return;
-    // 双页直滑的进度由 build 直接读 tween，不占用 _scrollPos（那是
+    // 双页淡化的进度由 build 直接读 tween，不占用 _scrollPos（那是
     // 连续位置模型的状态；误写会让动画结束时页面停在错误的页位上）。
     if (_dualTween == true) return;
     setState(() => _scrollPos = tween.value);
@@ -161,11 +160,10 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     if (_dragging) _abortDrag();
     _pendingBranch = null;
 
-    // 点按导航：恢复旧行为——目标页与当前页双页联动直滑，不扫过中间页。
+    // 点按导航：目标页压在旧页之上淡入，不扫过中间页。
     setState(() {
       _logicalBranch = widget.currentIndex;
       _outgoingIndex = oldWidget.currentIndex;
-      _direction = newPos >= _visiblePos(oldWidget.currentIndex) ? 1 : -1;
       if (_reduceMotion) {
         _tween = null;
         _dualTween = null;
@@ -192,6 +190,31 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
       ? _logicalBranch
       : widget.currentIndex;
 
+  /// 当前接收交互的分支序号；MainShell 据此过滤隐藏分支（预热/保活）的滚动通知。
+  int get activeBranchIndex => _uiBranch;
+
+  /// 正在淡入（或被淡出）的前端页：压在当前页之上、按进度改变不透明度。
+  ///
+  /// 当前页始终不透明垫底，前端页单独半透明，两页叠加才是正确的交叉淡化；
+  /// 若两页都设半透明，中间会透出 Scaffold 背景。
+  int? get _frontBranch {
+    if (_dualTween == true) {
+      if (_tween == null || _outgoingIndex == null) return null;
+      return _uiBranch;
+    }
+    final delta = _scrollPos - _visiblePos(_uiBranch);
+    if (delta.abs() < 0.0005) return null;
+    final neighbor = _visiblePos(_uiBranch).round() + (delta > 0 ? 1 : -1);
+    if (neighbor < 0 || neighbor >= _orderedKeys.length) return null;
+    return _branchAtVisiblePos(neighbor);
+  }
+
+  double get _frontOpacity {
+    if (_dualTween == true) return _tween?.value ?? 0;
+    final delta = (_scrollPos - _visiblePos(_uiBranch)).abs();
+    return delta.clamp(0.0, 1.0);
+  }
+
   double _visiblePos(int branchIndex) {
     final navKey = _navKeyToBranchIndex.entries
         .where((entry) => entry.value == branchIndex)
@@ -213,7 +236,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     _controller.forward(from: 0);
   }
 
-  /// 启动「双页直滑」补间：0→1 进度驱动 _outgoingIndex 两页互滑（点按导航）。
+  /// 启动「双页淡化」补间：0→1 进度驱动目标页淡入、出场页垫底（点按导航）。
   void _startDualTween() {
     _warmBranch = null;
     _dualTween = true;
@@ -244,7 +267,7 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
 
   void dragBegin(DragStartDetails details) {
     if (_dragging) return;
-    // 打断进行中的收尾/切换动画。点按的双页直滑没有连续位置语义，
+    // 打断进行中的收尾/切换动画。点按的双页淡化没有连续位置语义，
     // 直接终止跳到终态（动画仅 ~300ms，中途被打断感知不到）。
     _controller.stop();
     _tween = null;
@@ -440,6 +463,13 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
             ..remove(warm)
             ..insert(0, warm);
         }
+        // 前端页压在最上层：下层页保持不透明，交叉淡化才不会透出背景。
+        final front = _frontBranch;
+        if (front != null && front != warm) {
+          order
+            ..remove(front)
+            ..add(front);
+        }
         return Stack(
           fit: StackFit.expand,
           children: [for (final index in order) _buildBranch(index)],
@@ -452,37 +482,26 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
     final isLogical = index == _uiBranch;
     final isOutgoing = index == _outgoingIndex;
     final isWarming = index == _warmBranch;
+    final isFront = index == _frontBranch && !isWarming;
 
     // 所有分支共用同一套 widget 结构，只在属性值上区分状态：
     // Offstage > TickerMode > ExcludeFocus > IgnorePointer >
-    // FractionalTranslation > RepaintBoundary。
-    // 结构若随「是否参与滑动」分叉，Flutter 调和会把整棵分支子树销毁重建
+    // Opacity > RepaintBoundary。
+    // 结构若随「是否参与过渡」分叉，Flutter 调和会把整棵分支子树销毁重建
     // （只靠分支 Navigator 的 GlobalKey 补挂回来保状态），切页那一帧就得
-    // 付出整页重排 + 重绘，首次显示还要叠加首次光栅化，表现成滑动卡顿。
-    var offstage = false;
-    var dx = 0.0;
-
-    if (_dualTween == true && _tween != null && !isLogical && !isOutgoing) {
-      // 点按直滑时，无关分支保持隐藏。
-      offstage = true;
-      dx = _visiblePos(index) - _scrollPos;
-    } else if (_dualTween == true && _tween != null) {
-      // 双页直滑（点按导航）：目标页自 ±1 滑到 0，出场页自 0 滑到 ∓1。
-      final t = _tween!.value;
-      dx = isLogical ? (1 - t) * _direction : -t * _direction;
-    } else {
-      // 连续位置模型（拖动 / 收尾补间 / 静止）：页 i 平移量 = 可见序(i) − _scrollPos。
-      // 静止时相邻页 |dx| 恰为 1，靠 offstage 挡住不画；预热页强制画在原位。
-      dx = isWarming ? 0.0 : _visiblePos(index) - _scrollPos;
-      offstage = !isWarming && dx.abs() >= 1;
-    }
+    // 付出整页重排 + 重绘，首次显示还要叠加首次光栅化，表现成切页卡顿。
+    //
+    // 当前页、出场页、前端页和预热页参与绘制，其余用 offstage 挡住；
+    // 前端页单独按进度改不透明度，当前页恒定不透明垫底。
+    final visible = isLogical || isOutgoing || isFront || isWarming;
+    final opacity = isFront ? _frontOpacity : 1.0;
 
     return BranchActivationScope(
       key: ValueKey(index),
       branchIndex: index,
       settledBranch: _settledActiveBranch,
       child: Offstage(
-        offstage: offstage,
+        offstage: !visible,
         child: TickerMode(
           enabled: isLogical,
           // 出场页和预热页即使正在绘制，也不能恢复隐藏输入框的焦点。
@@ -490,8 +509,8 @@ class _AnimatedBranchContainerState extends State<_AnimatedBranchContainer>
             excluding: !isLogical,
             child: IgnorePointer(
               ignoring: !isLogical,
-              child: FractionalTranslation(
-                translation: Offset(dx, 0),
+              child: Opacity(
+                opacity: opacity,
                 child: RepaintBoundary(child: widget.children[index]),
               ),
             ),

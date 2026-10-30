@@ -106,9 +106,15 @@ extension _UpdateCardBuilders on _UpdateCardState {
     // Progress view when this asset is the active install.
     if (isThisAsset && s.isBusy) {
       final downloading = s.status == InstallStatus.downloading;
+      final fallback = InAppInstaller.instance.mirrorFallbackCount.value;
+      // 下载中且已切换过备用源时，明确告知用户当前不是选中的源在下载，
+      // 避免「进度条突然回到 0」看起来像卡住/重来。
+      final fallbackSuffix = downloading && fallback > 0
+          ? '  ·  ${l10n.updateDownloadFallback(fallback)}'
+          : '';
       final label = downloading
           ? (InAppInstaller.instance.progressLabel().isNotEmpty
-                ? '${InAppInstaller.instance.progressLabel()}  ·  ${l10n.updateDownloading(s.total > 0 ? (s.received * 100 / s.total).round().clamp(0, 100) : 0)}'
+                ? '${InAppInstaller.instance.progressLabel()}  ·  ${l10n.updateDownloading(s.total > 0 ? (s.received * 100 / s.total).round().clamp(0, 100) : 0)}$fallbackSuffix'
                 : l10n.updateDownloadPreparing)
           : (s.status == InstallStatus.preparing
                 ? l10n.updateDownloadPreparing

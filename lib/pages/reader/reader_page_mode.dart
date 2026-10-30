@@ -1,11 +1,28 @@
 part of '../reader_page.dart';
 
 extension _ReaderPageMode on _ReaderPageState {
+  bool get _pageTurnAnimationsDisabled =>
+      _user.readerInstantPageTurn || prefersReducedMotion(context);
+
+  ReaderSpreadLayout get _spreadLayout => ReaderSpreadLayout(
+    _chain.map((chapter) => chapter.contents.length).toList(),
+    pagesPerSpread: _pagesPerSpread,
+  );
+  int _pageIndexForImage(int globalImage) =>
+      _spreadLayout.spreadForImage(globalImage.clamp(0, _chainImageCount));
+  int get _visibleFirstPage =>
+      ((_currentPage - 1) ~/ _pagesPerSpread) * _pagesPerSpread + 1;
+  int get _visibleLastPage => (_visibleFirstPage + _pagesPerSpread - 1).clamp(
+    1,
+    _detail?.contents.length ?? 1,
+  );
+
   void _prevPage() {
     if (_detail == null) return;
-    if (_currentPage > 1 || _chainIndex > 0) {
+    final previousPage = _visibleFirstPage - _pagesPerSpread;
+    if (previousPage >= 1 || _chainIndex > 0) {
       // 连续阅读：已到当前章首页但前面还有拼接的章节 -> 回到上一章末页
-      if (_currentPage == 1 && _chainIndex > 0 && _continuousReading) {
+      if (previousPage < 1 && _chainIndex > 0 && _continuousReading) {
         final prevChapter = _chain[_chainIndex - 1];
         final prevChapterStart = _chainChapterStart(_chainIndex - 1);
         final targetGlobal = prevChapterStart + prevChapter.contents.length - 1;
@@ -16,7 +33,7 @@ extension _ReaderPageMode on _ReaderPageState {
         _saveReadingHistory();
         return;
       }
-      _goToPage(_currentPage - 1);
+      _goToPage(previousPage);
     } else if (_detail!.prev != null && !_continuousReading) {
       _goChapter(_detail!.prev);
     } else if (_detail!.prev != null && _continuousReading) {
@@ -61,11 +78,11 @@ extension _ReaderPageMode on _ReaderPageState {
   /// 翻页模式辅助：按设置跳转到全局页索引（无动画/带动画），无 client 时静默跳过。
   void _jumpPageControllerTo(int globalIndex) {
     if (!_isPageMode || !_pageController.hasClients) return;
-    if (_user.readerInstantPageTurn) {
-      _pageController.jumpToPage(globalIndex);
+    if (_pageTurnAnimationsDisabled) {
+      _pageController.jumpToPage(_pageIndexForImage(globalIndex));
     } else {
       _pageController.animateToPage(
-        globalIndex,
+        _pageIndexForImage(globalIndex),
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
@@ -75,8 +92,8 @@ extension _ReaderPageMode on _ReaderPageState {
   void _nextPage() {
     if (_detail == null) return;
     final imageCount = _detail!.contents.length;
-    if (_currentPage < imageCount) {
-      _goToPage(_currentPage + 1);
+    if (_visibleLastPage < imageCount) {
+      _goToPage(_visibleLastPage + 1);
       return;
     }
     // 已到当前章末页
@@ -120,10 +137,10 @@ extension _ReaderPageMode on _ReaderPageState {
         );
         return;
       }
-      // 已经是最后一话：跳转到末尾空白页（触发返回目录）
+      // 最后一话：跳转到末尾空白页（触发返回目录）
       if (_isPageMode && _pageController.hasClients) {
-        final blankPageIndex = _chainImageCount;
-        if (_user.readerInstantPageTurn) {
+        final blankPageIndex = _spreadLayout.spreadCount;
+        if (_pageTurnAnimationsDisabled) {
           _pageController.jumpToPage(blankPageIndex);
         } else {
           _pageController.animateToPage(
@@ -143,12 +160,12 @@ extension _ReaderPageMode on _ReaderPageState {
     final globalIndex = _continuousReading
         ? _chainChapterStart(_chainIndex) + (page - 1)
         : page;
-    if (_user.readerInstantPageTurn) {
-      _pageController.jumpToPage(globalIndex);
+    if (_pageTurnAnimationsDisabled) {
+      _pageController.jumpToPage(_pageIndexForImage(globalIndex));
       return;
     }
     _pageController.animateToPage(
-      globalIndex,
+      _pageIndexForImage(globalIndex),
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
@@ -225,7 +242,7 @@ extension _ReaderPageMode on _ReaderPageState {
   }
 
   Widget _buildPageMode() {
-    final instantTurn = _user.readerInstantPageTurn;
+    final instantTurn = _pageTurnAnimationsDisabled;
     // 当前页被捏合放大时锁定翻页手势：单指拖动交给图片平移，收拢回
     // 1x 后由 _handlePageZoomChanged 触发重建恢复。
     final turnGesturesLocked = _pageImageZoomed;
@@ -233,10 +250,72 @@ extension _ReaderPageMode on _ReaderPageState {
         instantTurn && !_isVerticalPageMode && !turnGesturesLocked;
     final verticalDrag =
         instantTurn && _isVerticalPageMode && !turnGesturesLocked;
-    final totalChapters = _chainImageCount;
+    final layout = _spreadLayout;
+    final viewVersion = _scrollWidgetVersion;
+    final totalChapters = layout.spreadCount;
     // 最后一话无下一话时，末尾追加一个空白页用于返回目录
     final hasEndBlank = _chain.last.next == null;
     final itemCount = totalChapters + (hasEndBlank ? 1 : 0);
+    Widget buildPage(BuildContext context, int i) {
+      // 末尾空白页
+      if (hasEndBlank && i == totalChapters) {
+        return const SizedBox.expand();
+      }
+      final images = layout.imagesForSpread(i);
+      final (ci, li) = _resolveChainImage(images.first);
+      final chapter = _chain[ci];
+      final lastLocal = images.last - _chainChapterStart(ci);
+      final isChapterLastPage = lastLocal == chapter.contents.length - 1;
+      final currentImage = _chainChapterStart(_chainIndex) + _currentPage - 1;
+      final zoomActive =
+          currentImage >= images.first && currentImage <= images.last;
+      Widget pageImage(int globalImage) {
+        final (_, local) = _resolveChainImage(globalImage);
+        return Center(
+          child: _buildReaderImageGesture(
+            chapter,
+            local,
+            retryKey: globalImage,
+            zoomActive: zoomActive,
+          ),
+        );
+      }
+
+      final child = _pagesPerSpread == 1
+          ? pageImage(images.first)
+          : Row(
+              key: ValueKey('reader-spread-${chapter.uuid}-$li'),
+              textDirection: _user.readerScrollDirection == 1
+                  ? TextDirection.rtl
+                  : TextDirection.ltr,
+              children: [
+                Expanded(child: pageImage(images.first)),
+                Expanded(
+                  child: images.last > images.first
+                      ? pageImage(images.last)
+                      : const SizedBox.expand(),
+                ),
+              ],
+            );
+      if (isChapterLastPage) {
+        return Column(
+          children: [
+            Expanded(child: child),
+            _PageModeEndActions(
+              hasNext: chapter.next != null,
+              commentCount: _commentCountFor(chapter),
+              onCatalog: _exitToCatalog,
+              onComments: () => _showChapterComments(chapter: chapter),
+              onNextChapter: chapter.next != null
+                  ? () => _goChapter(chapter.next)
+                  : null,
+            ),
+          ],
+        );
+      }
+      return child;
+    }
+
     final pageView = NotificationListener<ScrollNotification>(
       onNotification: (n) {
         _recordFlingBrakeScroll(n);
@@ -277,6 +356,7 @@ extension _ReaderPageMode on _ReaderPageState {
               : null,
           itemCount: itemCount,
           onPageChanged: (index) {
+            if (viewVersion != _scrollWidgetVersion) return;
             // 末尾空白页：返回目录
             if (hasEndBlank && index == totalChapters) {
               if (!_autoAdvancingChapter) {
@@ -285,11 +365,21 @@ extension _ReaderPageMode on _ReaderPageState {
               }
               return;
             }
-            final (ci, li) = _resolveChainImage(index);
+            final range = layout.imagesForSpread(index);
+            final requestedImage =
+                _chainChapterStart(_chainIndex) + _currentPage - 1;
+            final globalImage =
+                _isDraggingSlider &&
+                    requestedImage >= range.first &&
+                    requestedImage <= range.last
+                ? requestedImage
+                : range.first;
+            final (ci, li) = _resolveChainImage(globalImage);
             final chapterChanged = _syncActiveChapterFromGlobal(ci);
             _setState(() {
               _currentPage = li + 1;
               // 跳页（滑块等）后当前页未放大，恢复翻页手势。
+              _zoomedPageImages.clear();
               _pageImageZoomed = false;
               if (!_isDraggingSlider) {
                 _showToolbar = false;
@@ -302,7 +392,8 @@ extension _ReaderPageMode on _ReaderPageState {
             _preloadChainImages(ci, li);
             // 接近链尾且有下一话：预加载下一话到链中，翻页时即可无缝衔接
             if (ci == _chain.length - 1 &&
-                li >= _chain.last.contents.length - 2 &&
+                layout.imagesForSpread(index).last - _chainChapterStart(ci) >=
+                    _chain.last.contents.length - 2 &&
                 _chain.last.next != null &&
                 !_loadingNextChainChapter) {
               _appendNextChapterToChain();
@@ -314,51 +405,26 @@ extension _ReaderPageMode on _ReaderPageState {
             // 真实页面，拖动即可回翻（否则 PageView 无前页，拖动无响应）。
             _maybePrependPrevForPageMode();
           },
-          itemBuilder: (_, i) {
-            // 末尾空白页
-            if (hasEndBlank && i == totalChapters) {
-              return const SizedBox.expand();
-            }
-            final (ci, li) = _resolveChainImage(i);
-            final chapter = _chain[ci];
-            // 每章末页均显示底部操作（目录/评论/下一章），便于随时切换。
-            final isChapterLastPage = li == chapter.contents.length - 1;
-            // 只有当前页允许保持放大状态；切走的页自动复位缩放，
-            // 避免滑回时页面仍处于放大却无法平移的不一致状态。
-            final zoomActive =
-                i == _chainChapterStart(_chainIndex) + (_currentPage - 1);
-            final child = Center(
-              child: _buildReaderImageGesture(
-                chapter,
-                li,
-                retryKey: i,
-                zoomActive: zoomActive,
-              ),
-            );
-            if (isChapterLastPage) {
-              return Column(
-                children: [
-                  Expanded(child: child),
-                  _PageModeEndActions(
-                    hasNext: chapter.next != null,
-                    commentCount: _commentCountFor(chapter),
-                    onCatalog: _exitToCatalog,
-                    onComments: () => _showChapterComments(chapter: chapter),
-                    onNextChapter: chapter.next != null
-                        ? () => _goChapter(chapter.next)
-                        : null,
-                  ),
-                ],
-              );
-            }
-            return child;
-          },
+          itemBuilder: buildPage,
         ),
       ),
     );
     return Listener(
       onPointerDown: (_) => _flingBrakeGuard.onPointerDown(DateTime.now()),
-      child: pageView,
+      child: ReaderBookPager(
+        key: ValueKey('reader-book-pager-$viewVersion'),
+        controller: _pageController,
+        itemCount: itemCount,
+        pageBuilder: buildPage,
+        doublePage: _pagesPerSpread == 2,
+        reverse: _user.readerScrollDirection == 1,
+        axis: _isVerticalPageMode ? Axis.vertical : Axis.horizontal,
+        enabled:
+            _user.reader.realisticPageTurn &&
+            !instantTurn &&
+            !turnGesturesLocked,
+        child: pageView,
+      ),
     );
   }
 }

@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../../api/novel/novel_api.dart' show novelErrorMessage;
 import '../../l10n/app_localizations.dart';
 import '../../models/novel.dart';
 import '../../theme/app_spacing.dart';
@@ -132,13 +134,14 @@ class _IllustrationImage extends StatefulWidget {
 
 class _IllustrationImageState extends State<_IllustrationImage> {
   late Future<Uint8List?> _image = _load();
+  Object? _loadError;
 
   // Keep unloaded rows non-zero until decoding finishes, so a lazy list does
   // not request every illustration while their intrinsic sizes are unknown.
   static const _placeholder = AspectRatio(
     aspectRatio: 1,
     child: Center(
-      child: CircularProgressIndicator(color: ReaderChrome.onSurface),
+      child: ExpressiveLoadingIndicator(color: ReaderChrome.onSurface),
     ),
   );
 
@@ -150,9 +153,10 @@ class _IllustrationImageState extends State<_IllustrationImage> {
       }
       return Uint8List.fromList(await widget.loadBytes(url));
     } catch (error, stack) {
+      _loadError = error;
       unawaited(
         AppLogger.instance.recordWarning(
-          'Illustration load failed (${error.runtimeType})',
+          error,
           stackTrace: stack,
           source: 'novel_reader.illustration',
         ),
@@ -165,7 +169,10 @@ class _IllustrationImageState extends State<_IllustrationImage> {
     padding: const EdgeInsets.all(AppSpacing.lg),
     child: ErrorRetryView(
       icon: Icons.broken_image_outlined,
-      message: AppLocalizations.of(context)!.novelReaderImageFailed,
+      message: _loadError == null
+          ? AppLocalizations.of(context)!.novelReaderImageFailed
+          : '${AppLocalizations.of(context)!.novelReaderImageFailed}：'
+                '${novelErrorMessage(_loadError)}',
       onRetry: () {
         setState(() {
           _image = _load();

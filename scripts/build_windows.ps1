@@ -1,4 +1,4 @@
-. "$PSScriptRoot\common.ps1"
+﻿. "$PSScriptRoot\common.ps1"
 
 Write-Host "`n=== Kira Windows 安装包构建脚本 ===" -ForegroundColor Green
 
@@ -36,9 +36,14 @@ try {
     # 应用图标由 flutter_launcher_icons 维护 (改图标后请执行: dart run flutter_launcher_icons)
     $icoPath = 'windows\runner\resources\app_icon.ico'
     Write-Host "`n正在构建 Windows release..." -ForegroundColor Yellow
-    & flutter build windows `
-        --release `
-       
+    $copyAuthKeyDefine = Get-CopyAuthKeyDefine
+    if (-not $copyAuthKeyDefine) {
+        Write-Host "未设置 COPY_AUTH_KEY，接口登录入口将不出现在应用中" -ForegroundColor DarkYellow
+    }
+    $buildArgs = @('build', 'windows', '--release')
+    if ($copyAuthKeyDefine) { $buildArgs += $copyAuthKeyDefine }
+    & flutter @buildArgs
+
     if ($LASTEXITCODE -ne 0) {
         throw "flutter build windows 失败 (exit code: $LASTEXITCODE)"
     }

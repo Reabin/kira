@@ -7,13 +7,12 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../models/novel_reader_settings.dart';
-import '../../theme/app_icon_sizes.dart';
-import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/novel_reader_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/fling_brake_tap_guard.dart';
 import 'novel_reader_document.dart';
+import 'novel_reader_paginator.dart' show novelPageMetricsFor;
 
 /// Owns layout restoration, so neither initial layout nor a font/viewport change
 /// can emit a spurious paragraph zero to the persistence layer.
@@ -27,15 +26,18 @@ class NovelReaderViewport extends StatefulWidget {
     required this.jumpRevision,
     required this.onPosition,
     required this.onTap,
-    this.onParagraphTap,
-    this.isBookmarkedParagraph,
-    this.onBookmarkMarkerTap,
+    this.onParagraphLongPress,
     this.highlight,
+    this.highlightOpacity,
     this.onScroll,
     this.contentPadding = EdgeInsets.zero,
+    this.contentRevision = 0,
+    this.seam,
+    this.onApproachEnd,
+    this.onReachSeam,
   });
 
-  final NovelReaderDocument document;
+  final NovelTextDocument document;
   final NovelReaderSettings settings;
   final NovelReaderPalette palette;
   final NovelReaderAnchor target;
@@ -43,21 +45,17 @@ class NovelReaderViewport extends StatefulWidget {
   final ValueChanged<NovelReaderLocation> onPosition;
   final VoidCallback onTap;
 
-  /// 点按段落（立即回调，无双击识别延迟；外层 surface 继续负责页边空白）。
-  /// 工具栏切换由本组件 onTap 完成，阅读页自行用两次回调的时间差
-  /// 识别双击并弹出上下文菜单；回携带落点全局坐标供菜单定位。
+  /// 长按段落弹出上下文菜单（与翻页模式同一手势）；回携带落点全局坐标
+  /// 供菜单定位。点按仍然只切换工具栏（由外层 surface 统一处理）。
   final void Function(NovelReaderParagraph paragraph, Offset position)?
-  onParagraphTap;
-
-  /// 段落是否已有书签（决定是否渲染小书签标记）。
-  final bool Function(NovelReaderParagraph paragraph)? isBookmarkedParagraph;
-
-  /// 点按段落上的小书签标记（取消该书签）。
-  final void Function(NovelReaderParagraph paragraph)? onBookmarkMarkerTap;
+  onParagraphLongPress;
 
   /// 短暂高亮的书签段落（书签指向处进入/打书签成功时闪光提示）。
   /// 由阅读页持有定时清除，viewport 只按参数渲染，不改变布局。
   final NovelReaderAnchor? highlight;
+
+  /// 高亮的淡入淡出动画：画笔挂它逐帧重绘，高亮不触发整树 rebuild。
+  final Animation<double>? highlightOpacity;
 
   final VoidCallback? onScroll;
 
@@ -65,6 +63,19 @@ class NovelReaderViewport extends StatefulWidget {
   /// 到屏幕顶/底），这份 inset 作为列表内容的固定 padding，保证首段不被
   /// 状态栏遮挡、滚动途中不触发 viewport 尺寸变化。
   final EdgeInsets contentPadding;
+
+  /// 正文在原位追加了新卷（item 数变多但已有内容位置不变）。与文档身份
+  /// 变化区分开：追加不重定位滚动，空行显隐/换卷才重定位。
+  final int contentRevision;
+
+  /// 卷末接缝处的内容：下一卷加载中 / 加载失败 / 未下载。无下一卷时为 null。
+  final Widget? seam;
+
+  /// 接近卷末（约两屏）时触发下一卷预取。
+  final VoidCallback? onApproachEnd;
+
+  /// 卷末最后一行距视口底部超过 10% 屏高时触发追加下一卷。
+  final VoidCallback? onReachSeam;
 
   @override
   State<NovelReaderViewport> createState() => NovelReaderViewportState();
@@ -74,6 +85,7 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   final _scroll = ItemScrollController();
   final _offset = ScrollOffsetController();
   final _positions = ItemPositionsListener.create();
+  final _lastParagraphBodyKey = GlobalKey();
   late NovelReaderAnchor _desired;
   NovelReaderLocation? _lastLocation;
   Size? _size;
@@ -89,8 +101,13 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   /// 猛滑后点一下只是给惯性刹车，这种点击不切换工具栏（与漫画阅读器一致）。
   final _flingBrakeGuard = FlingBrakeTapGuard();
 
-  /// 最近一次段落点按落点的全局坐标（onTapUp 先于 onTap 到达）。
-  Offset _paragraphTapPosition = Offset.zero;
+  /// 卷末预取/追加的节流：同一次滑动只触发一次，直到回调方装载新内容。
+  bool _approachNotified = false;
+  bool _seamNotified = false;
+
+  /// 本轮是否真的由读者向下滑过。打开一卷时若内容很短，末段本来就在
+  /// 触发阈值内；没有这道闸门会在开卷瞬间一路追加，把整本书都读进来。
+  bool _scrolledForward = false;
 
   /// Null during any restoration: callers may flush their last valid snapshot,
   /// but must not replace it with a transient layout position.
@@ -130,7 +147,9 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         }
       }
       // 可见项里没有正文时按目录顺序向外找（先向前）。
-      center = fallback ?? _nearestTextItemAway(center.index, center.itemLeadingEdge);
+      center =
+          fallback ??
+          _nearestTextItemAway(center.index, center.itemLeadingEdge);
       if (center == null) return null;
     }
     final extent = center.itemTrailingEdge - center.itemLeadingEdge;
@@ -143,10 +162,7 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         alignment: center.itemLeadingEdge,
       ),
       itemIndex: center.index,
-      progress: ((center.index + fraction) / widget.document.itemCount).clamp(
-        0.0,
-        1.0,
-      ),
+      progress: widget.document.progressAt(center.index, fraction),
     );
   }
 
@@ -201,12 +217,25 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   @override
   void didUpdateWidget(NovelReaderViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.jumpRevision != widget.jumpRevision) {
+    if (oldWidget.contentRevision != widget.contentRevision) {
+      // 连续阅读在原位追加了下一卷：已有内容位置不变，只解锁接缝节流，
+      // 让读者能继续下滑到新的卷末。不重定位滚动，否则视口会跳。
+      _rearmSeam();
+      // 回收旧卷会改变 item 下标，此时 jumpRevision 同步递增，走下面的
+      // 重定位分支；单纯追加则到此为止。
+      if (oldWidget.jumpRevision == widget.jumpRevision) return;
+    }
+    if (!identical(oldWidget.document, widget.document)) {
+      // 文档重建（空行显隐切换）：列表项数与内容都变了，按目标锚点重新
+      // 挂载定位；不能沿用旧 offset，恢复流程与字体变化同一套。
+      _scheduleRestore(widget.target);
+    } else if (oldWidget.jumpRevision != widget.jumpRevision) {
       _scheduleRestore(widget.target);
     } else if (oldWidget.settings.fontSize != widget.settings.fontSize ||
         oldWidget.settings.lineHeight != widget.settings.lineHeight ||
         oldWidget.settings.paragraphSpacing !=
-            widget.settings.paragraphSpacing) {
+            widget.settings.paragraphSpacing ||
+        oldWidget.settings.contentWidth != widget.settings.contentWidth) {
       _scheduleRestore(
         _restoring ? _desired : _lastLocation?.anchor ?? _desired,
       );
@@ -216,6 +245,8 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
   void _scheduleRestore(NovelReaderAnchor anchor) {
     _desired = anchor;
     _restoring = true;
+    // 换卷/跳转后重新要求一次真实的向下滑动，卷末判定才恢复生效。
+    _rearmSeam();
     final generation = ++_restoration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_restore(generation));
@@ -293,16 +324,54 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
           first.index == widget.document.itemCount - 1 &&
               first.itemTrailingEdge <= 1.001
           ? 1
-          : ((first.index + fraction) / widget.document.itemCount).clamp(0, 1),
+          : widget.document.progressAt(first.index, fraction),
     );
   }
 
   void _onPositions() {
     if (!mounted || _restoring) return;
+    _checkVolumeSeam();
     final location = _readPosition();
     if (location == null) return;
     _lastLocation = location;
     widget.onPosition(location);
+  }
+
+  /// 卷末接缝判定：末段接近两屏时预取，正文实际下沿距底部超过 10% 屏高时追加。
+  /// 末段有至少一屏的占位留白，不能用它的 item 边界代替正文末行。
+  void _checkVolumeSeam() {
+    if (!_scrolledForward) return;
+    if (widget.onApproachEnd == null && widget.onReachSeam == null) return;
+    final lastIndex = widget.document.itemCount - 1;
+    if (lastIndex < 0) return;
+    ItemPosition? last;
+    for (final item in _positions.itemPositions.value) {
+      if (item.index == lastIndex) last = item;
+    }
+    if (last == null) return;
+    if (!_approachNotified && last.itemLeadingEdge <= 2) {
+      _approachNotified = true;
+      widget.onApproachEnd?.call();
+    }
+    if (_seamNotified) return;
+    final body = _lastParagraphBodyKey.currentContext?.findRenderObject();
+    final viewport = context.findRenderObject();
+    if (body is! RenderBox || viewport is! RenderBox || !body.hasSize) return;
+    final bottom = body
+        .localToGlobal(Offset(0, body.size.height), ancestor: viewport)
+        .dy;
+    if (bottom < viewport.size.height * 0.9) {
+      _seamNotified = true;
+      widget.onReachSeam?.call();
+    }
+  }
+
+  /// 追加新卷后重新解锁接缝：只有读者继续向下滑才会再次触发，
+  /// 避免一帧内连跳多卷。
+  void _rearmSeam() {
+    _approachNotified = false;
+    _seamNotified = false;
+    _scrolledForward = false;
   }
 
   @override
@@ -326,6 +395,14 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
         isDrag: notification.dragDetails != null,
         at: DateTime.now(),
       );
+      // 只有读者真正向下滑过，卷末接缝判定才生效（见 _scrolledForward）。
+      if ((notification.scrollDelta ?? 0) > 0) _scrolledForward = true;
+    }
+    // 正文恰好一屏（或末段被撑满一屏）时无法产生滚动位移，向下越界也算
+    // 读者在继续下滑：此时接缝判定已经成立，直接补一次。
+    if (notification is OverscrollNotification && notification.overscroll > 0) {
+      _scrolledForward = true;
+      _checkVolumeSeam();
     }
     // A user session opens at any ScrollStart (drag or the ballistic phase
     // after finger release) or an explicit direction change, but only an
@@ -382,21 +459,17 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
                       ? _desired.alignment.clamp(0.0, 0.99)
                       : 0,
                   addAutomaticKeepAlives: false,
-                  // 横向：安全区 inset 之上再做 720dp 限宽居中；纵向直接
-                  // 用快照 inset（首段避开状态栏、末段避开导航栏）。
+                  // 横向与分页共用限宽；纵向用快照 inset 避开系统栏。
                   padding: () {
-                    final contentWidth = math.max(
-                      0,
-                      size.width - widget.contentPadding.horizontal,
-                    );
-                    final side = math.max(
-                      AppSpacing.xxl,
-                      (contentWidth - 720) / 2,
+                    final metrics = novelPageMetricsFor(
+                      size,
+                      widget.contentPadding,
+                      maxContentWidth: widget.settings.contentWidth,
                     );
                     return EdgeInsets.fromLTRB(
-                      widget.contentPadding.left + side,
+                      widget.contentPadding.left + metrics.horizontalPadding,
                       widget.contentPadding.top,
-                      widget.contentPadding.right + side,
+                      widget.contentPadding.right + metrics.horizontalPadding,
                       widget.contentPadding.bottom,
                     );
                   }(),
@@ -424,69 +497,52 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
     final highlighted =
         widget.highlight != null &&
         widget.highlight!.entryIndex == entry.entryIndex &&
-        widget.highlight!.paragraphIndex == paragraph.paragraphIndex;
+        widget.highlight!.paragraphIndex == paragraph.paragraphIndex &&
+        (widget.highlight!.volumeId.isEmpty ||
+            widget.highlight!.volumeId ==
+                widget.document.volumeIdForItem(index));
     final bodyText = entry.paragraphs.isEmpty
         ? l10n.novelReaderEmptyChapter
         : (paragraph.text.isEmpty ? ' ' : paragraph.text);
-    // 已加书签的段落在段末显示一个小书签标记（正文同色，弱化存在感）；
-    // 点按标记直接取消书签。
-    final marked = widget.isBookmarkedParagraph?.call(paragraph) ?? false;
-    Widget body = marked
-        ? Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(text: bodyText),
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: GestureDetector(
-                    key: ValueKey(
-                      'novel-paragraph-marker-${entry.entryIndex}-'
-                      '${paragraph.paragraphIndex}',
-                    ),
-                    onTap: () => widget.onBookmarkMarkerTap?.call(paragraph),
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: AppSpacing.sm),
-                      child: Icon(
-                        Icons.bookmark,
-                        size: AppIconSize.md,
-                        color: widget.palette.foreground,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            style: style,
-          )
-        : Text(bodyText, style: style);
-    // 边框式高亮：描边用正文同色，画在文本块外圈，不遮盖文字；
-    // DecoratedBox 不参与布局，高亮出现/消失时正文一个像素都不动，
-    // 锚点与进度不受闪光影响。
+    Widget body = Text(bodyText, style: style);
+    // 高亮样式由演示切换器实时决定；DecoratedBox 不参与布局，高亮
+    // 出现/消失时正文一个像素都不动，锚点与进度不受闪光影响。
+    // 高亮卡片画在段落矩形之外的留白里（不参与布局），出现/消失正文
+    // 零位移；透明度由页面持有的动画驱动，逐帧重绘不重建子树。
     if (highlighted) {
-      body = DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border.all(color: widget.palette.foreground, width: 2),
-          borderRadius: AppRadius.smR,
+      body = CustomPaint(
+        painter: NovelHighlightPainter(
+          color: widget.palette.foreground,
+          fontSize: widget.settings.fontSize,
+          opacity: widget.highlightOpacity,
         ),
         child: body,
       );
     }
-    if (widget.onParagraphTap != null) {
+    if (widget.onParagraphLongPress != null) {
       body = GestureDetector(
-        onTapUp: (details) => _paragraphTapPosition = details.globalPosition,
-        onTap: () {
-          if (_flingBrakeGuard.consumeTap()) return;
-          widget.onTap();
-          widget.onParagraphTap!(paragraph, _paragraphTapPosition);
-        },
+        behavior: HitTestBehavior.translucent,
+        onLongPressStart: (details) =>
+            widget.onParagraphLongPress!(paragraph, details.globalPosition),
         child: body,
       );
+    }
+    if (index == widget.document.itemCount - 1) {
+      body = KeyedSubtree(key: _lastParagraphBodyKey, child: body);
     }
     final child = Padding(
       key: ValueKey(
         'novel-paragraph-${entry.entryIndex}-${paragraph.paragraphIndex}',
       ),
-      padding: EdgeInsets.only(bottom: widget.settings.paragraphSpacing),
+      // 长末段也留出足够的卷末滚动空间，让正文下沿能越过底部 10% 阈值。
+      padding: EdgeInsets.only(
+        bottom:
+            widget.settings.paragraphSpacing +
+            (index == widget.document.itemCount - 1 &&
+                    widget.onReachSeam != null
+                ? (_size?.height ?? 0) * 0.1 + AppSpacing.xs
+                : 0),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -506,10 +562,16 @@ class NovelReaderViewportState extends State<NovelReaderViewport> {
     // Leave room to put even a short final paragraph at the top. Without it,
     // the list clamps a jump near EOF backwards into the preceding chapter or
     // illustration, and the next saved anchor would silently be wrong.
+    // 卷末接缝提示紧贴最后一段之后，不额外占 item 下标。
     return index == widget.document.itemCount - 1
         ? ConstrainedBox(
             constraints: BoxConstraints(minHeight: _size?.height ?? 0),
-            child: child,
+            child: widget.seam == null
+                ? child
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [child, widget.seam!],
+                  ),
           )
         : child;
   }

@@ -1,12 +1,13 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'prefs_store.dart';
+import 'reader_status_prefs.dart';
 
 /// Reader-specific settings, extracted from UserManager.
 ///
 /// Each field change notifies only the listeners of *this* store,
 /// not the entire app — enabling fine-grained rebuilds.
-class ReaderSettings extends PrefsStore {
+class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
   static final ReaderSettings _instance = ReaderSettings._();
   factory ReaderSettings() => _instance;
   ReaderSettings._();
@@ -14,10 +15,12 @@ class ReaderSettings extends PrefsStore {
   // ── Preference keys ────────────────────────────────────────────────
 
   static const _keyMode = 'reader_mode';
+  static const _keyChapterReversed = 'comic_chapter_reversed';
   static const _keyScrollDirection = 'reader_scroll_direction';
   static const _keyImageGap = 'reader_image_gap';
   static const _keyVolumeKey = 'reader_volume_key';
   static const _keyInstantPageTurn = 'reader_instant_page_turn';
+  static const _keyRealisticPageTurn = 'reader_realistic_page_turn';
   static const _keyLongPressZoomEnabled = 'reader_long_press_zoom_enabled';
   static const _keyLongPressZoomPanSensitivity =
       'reader_long_press_zoom_pan_sensitivity';
@@ -44,6 +47,8 @@ class ReaderSettings extends PrefsStore {
   static const _keyStatusOverlayOrder = 'reader_status_overlay_order';
   static const _keyStatusOverlayPosition = 'reader_status_overlay_position';
   static const _keyStatusOverlayOpacity = 'reader_status_overlay_opacity';
+  static const _keyStatusOverlayForeground = 'reader_status_overlay_foreground';
+  static const _keyStatusOverlayBackground = 'reader_status_overlay_background';
   static const _keyReadingStatsEnabled = 'reader_reading_stats_enabled';
   static const _keyReadingStatsChartStyle = 'reader_reading_stats_chart_style';
   static const _keyReadingStatsShowOverview =
@@ -73,10 +78,12 @@ class ReaderSettings extends PrefsStore {
   // ── Fields ─────────────────────────────────────────────────────────
 
   int _mode = 0;
+  bool _chapterReversed = false;
   int _scrollDirection = 2;
   double _imageGap = 0.0;
   bool _volumeKey = true;
   bool _instantPageTurn = false;
+  bool _realisticPageTurn = true;
   bool _longPressZoomEnabled = true;
   double _longPressZoomPanSensitivity = 2.0;
   bool _pageRTL = false;
@@ -103,6 +110,10 @@ class ReaderSettings extends PrefsStore {
   int _statusOverlayPosition = 2;
   // 0.0(透明)~1.0(全黑)，默认即原 Color(0xB3000000) 的 alpha≈0.7
   double _statusOverlayOpacity = 0.7;
+
+  /// null=默认配色（白字黑底）；手动指定后以 ARGB 覆盖。
+  int? _statusOverlayForeground;
+  int? _statusOverlayBackground;
   bool _readingStatsEnabled = false;
 
   /// 阅读活跃度图表样式：0=热力图（默认），1=条形图。
@@ -122,8 +133,13 @@ class ReaderSettings extends PrefsStore {
   int get mode => _mode;
   int get scrollDirection => _scrollDirection;
   double get imageGap => _imageGap;
+
+  /// Shared chapter display order across comic detail pages.
+  bool get chapterReversed => _chapterReversed;
+
   bool get volumeKey => _volumeKey;
   bool get instantPageTurn => _instantPageTurn;
+  bool get realisticPageTurn => _realisticPageTurn;
   bool get longPressZoomEnabled => _longPressZoomEnabled;
   double get longPressZoomPanSensitivity => _longPressZoomPanSensitivity;
   bool get pageRTL => _pageRTL;
@@ -139,15 +155,38 @@ class ReaderSettings extends PrefsStore {
   int get viewerLandscapeRotation => _viewerLandscapeRotation;
   int get imageLoadTimeout => _imageLoadTimeout;
   int get imageRetryCount => _imageRetryCount;
+  @override
   bool get statusOverlay => _statusOverlay;
+  @override
   bool get statusOverlayTime => _statusOverlayTime;
+  @override
   bool get statusOverlayBattery => _statusOverlayBattery;
+  @override
   bool get statusOverlayNetwork => _statusOverlayNetwork;
+  @override
   bool get statusOverlayPage => _statusOverlayPage;
+  @override
   bool get statusOverlayFps => _statusOverlayFps;
+  @override
   int get statusOverlayPosition => _statusOverlayPosition;
+  @override
   double get statusOverlayOpacity => _statusOverlayOpacity;
+  @override
+  int? get statusOverlayForeground => _statusOverlayForeground;
+  @override
+  int? get statusOverlayBackground => _statusOverlayBackground;
   bool get readingStatsEnabled => _readingStatsEnabled;
+
+  /// 漫画侧无章节名段位。
+  @override
+  bool get statusOverlayChapter => false;
+
+  /// 漫画侧固定黑白配色，不提供「跟随主题」。
+  @override
+  bool get statusOverlayFollowTheme => false;
+
+  @override
+  bool get supportsStatusOverlayFollowTheme => false;
 
   /// 阅读活跃度图表样式：0=热力图（默认），1=条形图。
   int get readingStatsChartStyle => _readingStatsChartStyle;
@@ -161,16 +200,24 @@ class ReaderSettings extends PrefsStore {
       List.unmodifiable(_readingStatsSectionOrder);
 
   /// 状态显示段位顺序（未知 id 会被剔除，缺失的段位按默认顺序补到末尾）。
+  @override
   List<String> get statusOverlayOrder => List.unmodifiable(_statusOverlayOrder);
+
+  /// 漫画侧段位集合与默认顺序（不含轻小说专属的 `chapter`）。
+  @override
+  List<String> get statusOverlaySegmentIds => defaultStatusOverlayOrder;
 
   // ── Init (called from UserManager.init) ────────────────────────────
 
   Future<void> initFromPrefs(SharedPreferences prefs) async {
+    syncPrefs(prefs);
     _mode = prefs.getInt(_keyMode) ?? 0;
     _scrollDirection = prefs.getInt(_keyScrollDirection) ?? 2;
     _imageGap = prefs.getDouble(_keyImageGap) ?? 0.0;
     _volumeKey = prefs.getBool(_keyVolumeKey) ?? true;
+    _chapterReversed = prefs.getBool(_keyChapterReversed) ?? false;
     _instantPageTurn = prefs.getBool(_keyInstantPageTurn) ?? false;
+    _realisticPageTurn = prefs.getBool(_keyRealisticPageTurn) ?? true;
     _longPressZoomEnabled = prefs.getBool(_keyLongPressZoomEnabled) ?? true;
     _longPressZoomPanSensitivity =
         (prefs.getDouble(_keyLongPressZoomPanSensitivity) ?? 2.0).clamp(
@@ -207,6 +254,8 @@ class ReaderSettings extends PrefsStore {
         .clamp(0, 5);
     _statusOverlayOpacity = (prefs.getDouble(_keyStatusOverlayOpacity) ?? 0.7)
         .clamp(0.0, 1.0);
+    _statusOverlayForeground = prefs.getInt(_keyStatusOverlayForeground);
+    _statusOverlayBackground = prefs.getInt(_keyStatusOverlayBackground);
     final savedOrder = prefs.getStringList(_keyStatusOverlayOrder) ?? const [];
     _statusOverlayOrder = _sanitizeStatusOverlayOrder(savedOrder);
     _readingStatsEnabled = prefs.getBool(_keyReadingStatsEnabled) ?? false;
@@ -240,9 +289,19 @@ class ReaderSettings extends PrefsStore {
     await setDouble(_keyImageGap, value);
   }
 
+  Future<void> setChapterReversed(bool value) async {
+    _chapterReversed = value;
+    await setBool(_keyChapterReversed, value);
+  }
+
   Future<void> setVolumeKey(bool value) async {
     _volumeKey = value;
     await setBool(_keyVolumeKey, value);
+  }
+
+  Future<void> setRealisticPageTurn(bool value) async {
+    _realisticPageTurn = value;
+    await setBool(_keyRealisticPageTurn, value);
   }
 
   Future<void> setInstantPageTurn(bool value) async {
@@ -331,36 +390,43 @@ class ReaderSettings extends PrefsStore {
     await setInt(_keyImageRetryCount, value);
   }
 
+  @override
   Future<void> setStatusOverlay(bool value) async {
     _statusOverlay = value;
     await setBool(_keyStatusOverlay, value);
   }
 
+  @override
   Future<void> setStatusOverlayTime(bool value) async {
     _statusOverlayTime = value;
     await setBool(_keyStatusOverlayTime, value);
   }
 
+  @override
   Future<void> setStatusOverlayBattery(bool value) async {
     _statusOverlayBattery = value;
     await setBool(_keyStatusOverlayBattery, value);
   }
 
+  @override
   Future<void> setStatusOverlayNetwork(bool value) async {
     _statusOverlayNetwork = value;
     await setBool(_keyStatusOverlayNetwork, value);
   }
 
+  @override
   Future<void> setStatusOverlayPage(bool value) async {
     _statusOverlayPage = value;
     await setBool(_keyStatusOverlayPage, value);
   }
 
+  @override
   Future<void> setStatusOverlayFps(bool value) async {
     _statusOverlayFps = value;
     await setBool(_keyStatusOverlayFps, value);
   }
 
+  @override
   Future<void> setStatusOverlayOrder(List<String> value) async {
     final sanitized = _sanitizeStatusOverlayOrder(value);
     if (_listEquals(_statusOverlayOrder, sanitized)) return;
@@ -368,17 +434,49 @@ class ReaderSettings extends PrefsStore {
     await setStringList(_keyStatusOverlayOrder, sanitized);
   }
 
+  @override
   Future<void> setStatusOverlayPosition(int value) async {
     final clamped = value.clamp(0, 5);
     _statusOverlayPosition = clamped;
     await setInt(_keyStatusOverlayPosition, clamped);
   }
 
+  @override
   Future<void> setStatusOverlayOpacity(double value) async {
     final clamped = value.clamp(0.0, 1.0);
     _statusOverlayOpacity = clamped;
     await setDouble(_keyStatusOverlayOpacity, clamped);
   }
+
+  @override
+  Future<void> setStatusOverlayForeground(int? value) async {
+    if (_statusOverlayForeground == value) return;
+    _statusOverlayForeground = value;
+    if (value == null) {
+      await remove(_keyStatusOverlayForeground);
+    } else {
+      await setInt(_keyStatusOverlayForeground, value);
+    }
+  }
+
+  @override
+  Future<void> setStatusOverlayBackground(int? value) async {
+    if (_statusOverlayBackground == value) return;
+    _statusOverlayBackground = value;
+    if (value == null) {
+      await remove(_keyStatusOverlayBackground);
+    } else {
+      await setInt(_keyStatusOverlayBackground, value);
+    }
+  }
+
+  /// 漫画侧无章节名段位，恒为关闭。
+  @override
+  Future<void> setStatusOverlayChapter(bool value) async {}
+
+  /// 漫画侧不支持跟随主题，为空实现。
+  @override
+  Future<void> setStatusOverlayFollowTheme(bool value) async {}
 
   Future<void> setReadingStatsEnabled(bool value) async {
     _readingStatsEnabled = value;
@@ -414,18 +512,8 @@ class ReaderSettings extends PrefsStore {
 }
 
 /// 保留输入顺序、剔除未知 id、去重，并把缺失的段位按默认顺序补到末尾。
-List<String> _sanitizeStatusOverlayOrder(List<String> input) {
-  final seen = <String>{};
-  final sanitized = [
-    for (final id in input)
-      if (ReaderSettings.defaultStatusOverlayOrder.contains(id) && seen.add(id))
-        id,
-    ...ReaderSettings.defaultStatusOverlayOrder.where(
-      (id) => !seen.contains(id),
-    ),
-  ];
-  return sanitized;
-}
+List<String> _sanitizeStatusOverlayOrder(List<String> input) =>
+    sanitizeReaderStatusOrder(input, ReaderSettings.defaultStatusOverlayOrder);
 
 bool _listEquals(List<String> a, List<String> b) {
   if (a.length != b.length) return false;

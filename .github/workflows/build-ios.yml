@@ -1,0 +1,88 @@
+name: Build Apple IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_family:
+        description: 'Apple device to build for'
+        required: true
+        default: ipad
+        type: choice
+        options:
+          - ipad
+          - iphone
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      APP_DEVICE: ${{ inputs.device_family }}
+      PUB_HOSTED_URL: https://pub.dev
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: true
+      - name: Use CocoaPods for existing native plugins
+        run: flutter config --no-enable-swift-package-manager
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - name: Reader and sharing regression tests
+        run: flutter test test/utils/kira_links_test.dart test/widgets/reader_status_settings_test.dart test/widgets/app_sheet_test.dart test/models/reader_settings_test.dart test/pages/comic_detail_chapter_card_test.dart test/pages/comic_detail_pagination_test.dart test/utils/chapter_page_order_test.dart test/pages/reader/reader_spread_layout_test.dart test/pages/reader/reader_book_pager_test.dart test/widgets/orientation_reflow_test.dart test/widgets/layout_reflow_test.dart test/widgets/novel_page_curl_test.dart test/pages/home_page_test.dart test/pages/reader/reader_scroll_navigation_test.dart test/pages/reader/reader_settings_panel_test.dart test/pages/reader/reader_status_overlay_inset_test.dart test/pages/novel_reader_content_width_test.dart test/pages/novel_reader_viewport_test.dart test/pages/novel_focus_mask_test.dart test/utils/settings_backup_test.dart test/models/user_manager_test.dart test/routing/detail_page_test.dart test/routing/main_shell_focus_test.dart test/repositories/recent_updates_repository_test.dart test/widgets/recent_region_filter_test.dart test/widgets/recent_updates_page_test.dart test/utils/network_proxy_test.dart test/api/network_probe_test.dart test/pages/novel_reader_settings_sheet_test.dart test/pages/novel_reader_page_paged_test.dart test/pages/novel_reader_page_turn_test.dart test/novel_api_test.dart test/api/chapter_comment_paging_test.dart test/copy_account_login_test.dart test/copy_account_dedup_test.dart test/copy_account_prefs_dedup_test.dart test/copy_account_identity_edges_test.dart test/models/user_manager_account_transaction_test.dart test/pages/network_page_test.dart test/routing/main_shell_floating_nav_test.dart
+      - name: Validate iOS metadata
+        run: plutil -lint ios/Runner/Info.plist ios/Flutter/AppFrameworkInfo.plist
+      - name: Select requested Apple device family
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          device = os.environ['APP_DEVICE']
+          family = {'ipad': '2', 'iphone': '1'}[device]
+          project = pathlib.Path('ios/Runner.xcodeproj/project.pbxproj')
+          source, count = re.subn(r'TARGETED_DEVICE_FAMILY = "?[^;]+;',
+              f'TARGETED_DEVICE_FAMILY = "{family}";', project.read_text())
+          assert count >= 3, 'Expected all Runner build configurations'
+          project.write_text(source)
+          PY
+      - name: Build unsigned device app
+        run: flutter build ios --release --no-codesign
+      - name: Verify packaged Apple device support
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          device = os.environ['APP_DEVICE']
+          with open('build/ios/iphoneos/Runner.app/Info.plist', 'rb') as f:
+              info = plistlib.load(f)
+          assert info['UIDeviceFamily'] == [{'ipad': 2, 'iphone': 1}[device]], info['UIDeviceFamily']
+          assert info['DTPlatformName'] == 'iphoneos'
+          assert not info.get('UIRequiresFullScreen', False)
+          if device == 'ipad':
+              orientations = info.get('UISupportedInterfaceOrientations~ipad', info.get('UISupportedInterfaceOrientations', []))
+              assert len(set(orientations)) == 4, orientations
+          PY
+          xcrun lipo build/ios/iphoneos/Runner.app/Runner -verify_arch arm64
+          xcrun lipo build/ios/iphoneos/Runner.app/Frameworks/App.framework/App -verify_arch arm64
+      - name: Package for local signing
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          mkdir -p build/ios/sideload/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/sideload/Payload/
+          cd build/ios/sideload
+          zip -qry kira-${{ env.APP_DEVICE }}-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v6
+        with:
+          name: kira-${{ env.APP_DEVICE }}-unsigned
+          path: build/ios/sideload/kira-${{ env.APP_DEVICE }}-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

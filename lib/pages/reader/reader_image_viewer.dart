@@ -189,8 +189,8 @@ class _ReaderImageViewerState extends State<_ReaderImageViewer> {
   Future<void> _saveImage() async {
     final l10n = AppLocalizations.of(context)!;
     try {
-      final hasAccess = await Gal.hasAccess();
-      if (!hasAccess && !await Gal.requestAccess()) {
+      final hasAccess = await Gal.hasAccess(toAlbum: true);
+      if (!hasAccess && !await Gal.requestAccess(toAlbum: true)) {
         if (mounted) {
           showToast(
             context,
@@ -235,14 +235,20 @@ class _ReaderImageViewerState extends State<_ReaderImageViewer> {
       if (mounted) showToast(context, l10n.readerImageSaved);
     } catch (error, stackTrace) {
       unawaited(
-        AppLogger().recordWarning(
+        AppLogger.instance.recordWarning(
           '保存图片失败: $error',
           stackTrace: stackTrace,
           source: 'reader_image_viewer',
         ),
       );
       if (mounted) {
-        showToast(context, l10n.readerSaveImageFailed, isError: true);
+        showToast(
+          context,
+          l10n.readerSaveImageFailedDetail(
+            NetworkError.message(error),
+          ),
+          isError: true,
+        );
       }
     }
   }

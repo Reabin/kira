@@ -1,10 +1,17 @@
 part of '../home_page.dart';
 
 class _MangaHorizontalList extends StatelessWidget {
+  final bool showUpdateTime;
+  final String scope;
   final List<Comic> items;
   final void Function(Comic, String) onTap;
 
-  const _MangaHorizontalList({required this.items, required this.onTap});
+  const _MangaHorizontalList({
+    required this.items,
+    required this.onTap,
+    this.scope = 'home-recommend',
+    this.showUpdateTime = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,11 +35,12 @@ class _MangaHorizontalList extends StatelessWidget {
             itemBuilder: (_, i) {
               final comic = items[i];
               final heroTagBase = ComicHeroTags.base(
-                scope: 'home-recommend',
+                scope: scope,
                 pathWord: comic.pathWord,
                 index: i,
               );
               return _MangaCard(
+                showUpdateTime: showUpdateTime,
                 comic: comic,
                 width: cardWidth,
                 heroTagBase: heroTagBase,
@@ -47,12 +55,14 @@ class _MangaHorizontalList extends StatelessWidget {
 }
 
 class _MangaCard extends StatelessWidget {
+  final bool showUpdateTime;
   final Comic comic;
   final double width;
   final String? heroTagBase;
   final VoidCallback onTap;
 
   const _MangaCard({
+    this.showUpdateTime = false,
     required this.comic,
     required this.width,
     this.heroTagBase,
@@ -65,69 +75,79 @@ class _MangaCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        margin: const EdgeInsets.only(right: _mangaHomeCardSpacing),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _hero(
-                ComicHeroTags.cover,
-                ComicCardSurface(
-                  child: CoverBrightnessFilter(
-                    child: CachedNetworkImage(
-                      imageUrl: comic.cover,
-                      fit: BoxFit.cover,
-                      width: width,
-                      height: double.infinity,
-                      fadeInDuration: Duration.zero,
-                      fadeOutDuration: Duration.zero,
-                      placeholder: (_, _) => const CoverPlaceholder(),
-                      errorWidget: (_, _, _) => const CoverPlaceholder.error(),
+    return ReflowMotion(
+      id: 'home:card:${heroTagBase ?? comic.pathWord}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: width,
+          margin: const EdgeInsets.only(right: _mangaHomeCardSpacing),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _hero(
+                  ComicHeroTags.cover,
+                  ComicCardSurface(
+                    child: CoverBrightnessFilter(
+                      child: CoverImage(
+                        url: comic.cover,
+                        width: width,
+                        height: double.infinity,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              comic.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodySmall,
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Icon(Icons.local_fire_department, size: 12, color: cs.primary),
-                const SizedBox(width: 2),
+              const SizedBox(height: 6),
+              Text(
+                comic.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: tt.bodySmall,
+              ),
+              const SizedBox(height: 2),
+              if (showUpdateTime && comic.datetimeUpdated != null)
                 Text(
-                  ComicCard.formatPopular(comic.popular, l10n),
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
-                ),
-                if (comic.authors.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  Expanded(
-                    child: Text(
-                      comic.authors.map((a) => a.name).join(' / '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                )
+              else
+                Row(
+                  children: [
+                    Icon(
+                      Icons.local_fire_department,
+                      size: 12,
+                      color: cs.primary,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      ComicCard.formatPopular(comic.popular, l10n),
                       style: tt.labelSmall?.copyWith(
                         color: cs.onSurfaceVariant,
                         fontSize: 12,
                       ),
                     ),
-                  ),
-                ],
-              ],
-            ),
-          ],
+                    if (comic.authors.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          comic.authors.map((a) => a.name).join(' / '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tt.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -136,7 +156,7 @@ class _MangaCard extends StatelessWidget {
   Widget _hero(String Function(String base) tagOf, Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,
@@ -172,7 +192,11 @@ class _SectionTitle extends StatelessWidget {
     return SliverToBoxAdapter(
       child: Padding(
         padding: EdgeInsets.fromLTRB(hp, 0, hp - 8, 6),
-        child: SectionHeader(title: title, icon: icon, onMore: onMore),
+        child: ReflowMotion(
+          id: 'home:heading:$title',
+          resize: false,
+          child: SectionHeader(title: title, icon: icon, onMore: onMore),
+        ),
       ),
     );
   }
@@ -217,60 +241,58 @@ class ComicCard extends StatelessWidget {
       style: tt.bodySmall,
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _hero(
-              ComicHeroTags.cover,
-              ComicCardSurface(
-                child: CoverBrightnessFilter(
-                  child: CachedNetworkImage(
-                    imageUrl: comic.cover,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    fadeInDuration: Duration.zero,
-                    fadeOutDuration: Duration.zero,
-                    placeholder: (_, _) => const CoverPlaceholder(),
-                    errorWidget: (_, _, _) => const CoverPlaceholder.error(),
+    return ReflowMotion(
+      id: 'home:card:${heroTagBase ?? comic.pathWord}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _hero(
+                ComicHeroTags.cover,
+                ComicCardSurface(
+                  child: CoverBrightnessFilter(
+                    child: CoverImage(
+                      url: comic.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          title,
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Icon(Icons.local_fire_department, size: 12, color: cs.primary),
-              const SizedBox(width: 2),
-              Flexible(
-                child: Text(
-                  formatPopular(comic.popular, l10n),
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
+            const SizedBox(height: 6),
+            title,
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(Icons.local_fire_department, size: 12, color: cs.primary),
+                const SizedBox(width: 2),
+                Flexible(
+                  child: Text(
+                    formatPopular(comic.popular, l10n),
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ),
-              if (comic.datetimeUpdated != null) ...[
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
+                if (comic.datetimeUpdated != null) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -278,7 +300,7 @@ class ComicCard extends StatelessWidget {
   Widget _hero(String Function(String base) tagOf, Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,

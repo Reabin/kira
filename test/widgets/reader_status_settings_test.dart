@@ -5,7 +5,12 @@ import 'package:kira/models/reader_settings.dart';
 import 'package:kira/widgets/reader_status_settings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 void main() {
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
+
   testWidgets(
     'dragging the first status segment to the end persists its final index',
     (tester) async {
@@ -25,6 +30,10 @@ void main() {
             ),
           ),
         ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('reader-status-details-toggle')),
       );
       await tester.pumpAndSettle();
       final handles = find.byType(ReorderableDragStartListener);
@@ -62,4 +71,45 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('details collapse independently of the overlay preference', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'reader_status_overlay': true});
+    final prefs = await SharedPreferences.getInstance();
+    final reader = ReaderSettings()..resetPrefsCache();
+    await reader.initFromPrefs(prefs);
+    var changes = 0;
+    await tester.pumpWidget(
+      wrapWithApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: SingleChildScrollView(
+              child: ReaderStatusSettingsSection(onChanged: () => changes++),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final toggle = find.byKey(const ValueKey('reader-status-details-toggle'));
+    final slider = find.byType(Slider);
+    expect(slider.hitTestable(), findsNothing);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(slider.hitTestable(), findsOneWidget);
+    await tester.tap(toggle);
+    await tester.pump();
+    expect(slider.hitTestable(), findsNothing);
+    expect(reader.statusOverlay, isTrue);
+    expect(changes, 0);
+    await tester.tap(
+      find.byKey(const ValueKey('reader-status-overlay-switch')),
+    );
+    await tester.pump();
+    expect(reader.statusOverlay, isFalse);
+    expect(toggle, findsNothing);
+    expect(changes, 1);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -46,18 +46,23 @@ jobs:
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: "3.44.0"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build APK (arm64-v8a)
-        run: flutter build apk --release --target-platform android-arm64
+        shell: bash
+        run: |
+          set -eo pipefail
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }} 2>&1 | tee /tmp/flutter_build.log
+
+          # 重复类 = 插件 Dart/native 版本不一致,这种包装机即白屏
+          if grep -E "is defined multiple times|Duplicate class" /tmp/flutter_build.log; then
+            echo "::error::构建日志出现重复类,APK 自洽性检查失败"
+            exit 1
+          fi
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
       - name: Rename APK
         shell: bash
@@ -79,18 +84,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build Windows
         shell: pwsh
-        run: flutter build windows --release
+        run: flutter build windows --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package Windows ZIP
         shell: pwsh
@@ -199,17 +198,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build macOS
-        run: flutter build macos --release
+        run: flutter build macos --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package macOS ZIP
         shell: bash
@@ -242,17 +235,11 @@ jobs:
             libgtk-3-dev liblzma-dev libstdc++-12-dev \
             mpv libmpv-dev
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build Linux
-        run: flutter build linux --release
+        run: flutter build linux --release --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }}
 
       - name: Package Linux tar.gz
         shell: bash

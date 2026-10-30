@@ -12,12 +12,16 @@ import '../api/hitokoto_api.dart';
 import '../l10n/app_localizations.dart';
 import '../models/user_manager.dart';
 import '../routing/app_router.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_status_colors.dart';
 import '../utils/app_update.dart';
+import '../utils/device_environment.dart';
 import '../utils/screen_layout.dart';
 import '../utils/toast.dart';
 import '../widgets/github_markdown.dart';
+import '../widgets/select_tile.dart';
 import '../widgets/setting_action_tile.dart';
 import '../widgets/setting_tile_group.dart';
 import '../widgets/text_controller_scope.dart';
@@ -235,12 +239,14 @@ class _UpdateCardState extends State<_UpdateCard> {
     _useMirror = UserManager().useUpdateMirror;
     AppUpdateService.state.addListener(_onStateChanged);
     InAppInstaller.instance.state.addListener(_onInstallStateChanged);
+    InAppInstaller.instance.mirrorFallbackCount.addListener(_onStateChanged);
   }
 
   @override
   void dispose() {
     AppUpdateService.state.removeListener(_onStateChanged);
     InAppInstaller.instance.state.removeListener(_onInstallStateChanged);
+    InAppInstaller.instance.mirrorFallbackCount.removeListener(_onStateChanged);
     super.dispose();
   }
 

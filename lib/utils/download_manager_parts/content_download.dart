@@ -33,13 +33,14 @@ extension DownloadManagerContentDownloadPart on DownloadManager {
     }
   }
 
-  /// 下载章节评论：默认仅取第一页（避免整章评论下载量过大、耗时过长）。
+  /// 下载章节评论：默认取前 [chapterCommentInitialPages] 页
+  /// （避免整章评论下载量过大、耗时过长）。
   Future<({List<ChapterComment> list, int total})> _downloadComments(
     String chapterUuid,
   ) async {
     final loader = _chapterCommentsLoader;
     if (loader != null) return loader(chapterUuid);
-    final data = await _api.manga.getChapterComments(chapterUuid, limit: 100);
+    final data = await _api.manga.getChapterCommentsPages(chapterUuid);
     return (list: data.list, total: data.total);
   }
 

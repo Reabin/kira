@@ -12,12 +12,42 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({
       'user_token': 'token',
       'saved_username': 'alice',
       'saved_password': 'secret',
       'auto_login': true,
     });
+  });
+
+  tearDown(teardownSecureCredentialStoreForTest);
+
+  testWidgets('Banner 开关与子 store 双向同步并即时刷新', (tester) async {
+    final user = UserManager();
+    await user.init();
+    await tester.pumpWidget(
+      wrapWithApp(const GeneralPage(), wrapInScaffold: false),
+    );
+    await tester.pumpAndSettle();
+    final tile = find.widgetWithText(SwitchListTile, '显示Banner');
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+
+    await tester.tap(tile);
+    await tester.pumpAndSettle();
+    expect(user.bannerVisible, isFalse);
+    expect(user.theme.bannerVisible, isFalse);
+    expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool('banner_visible'), isFalse);
+
+    await user.theme.setBannerVisible(true);
+    await tester.pumpAndSettle();
+    expect(user.bannerVisible, isTrue);
+    expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+    expect(prefs.getBool('banner_visible'), isTrue);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('reset app requires exact confirmation text', (tester) async {
@@ -84,5 +114,32 @@ void main() {
     );
     expect(find.byType(SettingActionTile), findsNothing);
     expect(find.textContaining('备份'), findsWidgets);
+  });
+
+  testWidgets('wide screen puts backup and reset in the right column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await UserManager().init();
+
+    await tester.pumpWidget(
+      wrapWithApp(const GeneralPage(), wrapInScaffold: false),
+    );
+    await tester.pumpAndSettle();
+
+    final settings = tester.getTopLeft(find.text('显示Banner'));
+    final backup = tester.getTopLeft(find.text('备份与同步'));
+    final reset = tester.getTopLeft(find.text('重置应用'));
+
+    // 左列设置组,右列备份在上、重置在下。
+    expect(backup.dx, greaterThan(settings.dx));
+    expect(reset.dx, backup.dx);
+    expect(reset.dy, greaterThan(backup.dy));
   });
 }

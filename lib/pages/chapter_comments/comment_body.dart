@@ -15,16 +15,33 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
     return '$shown/$_total';
   }
 
+  /// 列表底部的「加载更多」入口，已全部加载或总数未知时返回 null。
+  ///
+  /// 服务端每页只给 10 条，宽屏下一屏就能铺满且列表不可滚动，近底自动加载
+  /// 永远等不到触发，这个按钮是那种场景下的兜底（与书架页一致）。
+  Widget? _buildLoadMoreFooter(AppLocalizations l10n) {
+    // 翻页失败时也要留入口：既显示真实原因，也能手动重试。
+    if (_error != null && _comments.isNotEmpty) {
+      return LoadMoreFooter(
+        loading: false,
+        onPressed: () => _loadComments(loadMore: true),
+        label: l10n.loadMoreFailed,
+        detail: _error,
+      );
+    }
+    if (_allCommentsLoaded || _total <= 0) return null;
+    return LoadMoreFooter(
+      loading: _loadingMore,
+      onPressed: () => _loadComments(loadMore: true),
+      label: l10n.loadMoreProgress(_comments.length, _total),
+    );
+  }
+
   Widget _buildBody(BuildContext context, ColorScheme cs, TextTheme tt) {
     final l10n = AppLocalizations.of(context)!;
     if (_loading && _comments.isEmpty) {
       return ListView.separated(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          _ChapterCommentsSheetState._commentListBottomPadding,
-        ),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
         physics: const NeverScrollableScrollPhysics(),
         itemCount: 8,
         separatorBuilder: (context, index) => const SizedBox(height: 10),
@@ -89,30 +106,24 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
     final entries = _groupedEntries;
     final hasSummary = _hasSummaryPanel;
     final summaryOffset = hasSummary ? 1 : 0;
+    final footer = _buildLoadMoreFooter(l10n);
 
     if (!_useCompactLayout) {
       return NotificationListener<ScrollNotification>(
         onNotification: handleScrollNotification,
         child: ListView.separated(
           controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            12,
-            16,
-            _ChapterCommentsSheetState._commentListBottomPadding,
-          ),
-          itemCount: summaryOffset + entries.length + (_loadingMore ? 1 : 0),
+          physics: CommentScrollBehavior.alwaysDraggablePhysics,
+          padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
+          itemCount: summaryOffset + entries.length + (footer != null ? 1 : 0),
           separatorBuilder: (_, index) => const SizedBox(height: 10),
           itemBuilder: (_, index) {
             if (hasSummary && index == 0) {
               return _buildSummaryPanel(cs, tt);
             }
             final dataIndex = index - summaryOffset;
-            if (dataIndex == entries.length && _loadingMore) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Center(child: ExpressiveLoadingIndicator()),
-              );
+            if (footer != null && dataIndex == entries.length) {
+              return footer;
             }
 
             final entry = entries[dataIndex];
@@ -147,13 +158,9 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
           onNotification: handleScrollNotification,
           child: ListView.separated(
             controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(
-              16,
-              12,
-              16,
-              _ChapterCommentsSheetState._commentListBottomPadding,
-            ),
-            itemCount: summaryOffset + rows.length + (_loadingMore ? 1 : 0),
+            physics: CommentScrollBehavior.alwaysDraggablePhysics,
+            padding: EdgeInsets.fromLTRB(16, 12, 16, _commentListBottomPadding),
+            itemCount: summaryOffset + rows.length + (footer != null ? 1 : 0),
             separatorBuilder: (_, index) =>
                 const SizedBox(height: AppSpacing.sm),
             itemBuilder: (_, index) {
@@ -161,11 +168,8 @@ extension _ChapterCommentBody on _ChapterCommentsSheetState {
                 return _buildSummaryPanel(cs, tt);
               }
               final dataIndex = index - summaryOffset;
-              if (dataIndex == rows.length && _loadingMore) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: ExpressiveLoadingIndicator()),
-                );
+              if (footer != null && dataIndex == rows.length) {
+                return footer;
               }
 
               final row = rows[dataIndex];

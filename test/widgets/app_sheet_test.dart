@@ -2,33 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/widgets/app_sheet.dart';
 
+import '../test_helpers.dart';
+
 Future<void> _openSheet(
   WidgetTester tester, {
   required Widget child,
   double? heightFactor,
   double? maxHeightFactor,
   EdgeInsets padding = EdgeInsets.zero,
+  Size size = const Size(400, 800),
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(400, 800);
+  tester.view.physicalSize = size;
+  tester.view.padding = FakeViewPadding(
+    top: padding.top,
+    bottom: padding.bottom,
+    left: padding.left,
+    right: padding.right,
+  );
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    MaterialApp(
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(padding: padding),
-        child: child!,
-      ),
-      home: Scaffold(
-        body: Builder(
-          builder: (context) => TextButton(
-            onPressed: () => showAppSheet<void>(
-              context,
-              heightFactor: heightFactor,
-              maxHeightFactor: maxHeightFactor,
-              child: child,
-            ),
-            child: const Text('打开'),
+    wrapWithApp(
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showAppSheet<void>(
+            context,
+            heightFactor: heightFactor,
+            maxHeightFactor: maxHeightFactor,
+            child: child,
           ),
+          child: const Text('打开'),
         ),
       ),
     ),
@@ -38,6 +41,44 @@ Future<void> _openSheet(
 }
 
 void main() {
+  setUp(setupSecureCredentialStoreForTest);
+  tearDown(teardownSecureCredentialStoreForTest);
+
+  testWidgets('open iPad sheet follows rotation and window resizing', (
+    tester,
+  ) async {
+    await _openSheet(
+      tester,
+      size: const Size(834, 1210),
+      maxHeightFactor: 0.7,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            for (var index = 0; index < 40; index++)
+              SizedBox(height: 64, child: Text('设置 $index')),
+          ],
+        ),
+      ),
+    );
+    for (final size in [
+      const Size(834, 1210),
+      const Size(1210, 834),
+      const Size(420, 650),
+      const Size(834, 1210),
+    ]) {
+      tester.view.physicalSize = size;
+      await tester.pumpAndSettle();
+      final rect = tester.getRect(find.byType(AppSheet));
+      expect(rect.height, closeTo(size.height * 0.7, 0.01));
+      expect(rect.bottom, closeTo(size.height, 0.01));
+      expect(rect.width, lessThanOrEqualTo(size.width));
+      expect(tester.takeException(), isNull);
+    }
+    await tester.ensureVisible(find.text('设置 39'));
+    await tester.pumpAndSettle();
+    expect(find.text('设置 39').hitTestable(), findsOneWidget);
+  });
+
   testWidgets('最大高度包含把手和底部安全区，长内容可以滚动', (tester) async {
     await _openSheet(
       tester,
@@ -91,5 +132,42 @@ void main() {
       ),
     );
     expect(tester.getSize(sheet).height, closeTo(680, 0.01));
+  });
+
+  testWidgets('reduced motion opens and closes a sheet without a transition', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrapWithApp(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showAppSheet<void>(
+                  context,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('关闭'),
+                  ),
+                ),
+                child: const Text('打开'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开'));
+    await tester.pump();
+    await tester.pump();
+    final route = ModalRoute.of(tester.element(find.text('关闭')))!;
+    expect(route.animation!.value, 1);
+    expect(route.animation!.isAnimating, isFalse);
+    await tester.tap(find.text('关闭'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('关闭'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

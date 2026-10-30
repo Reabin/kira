@@ -41,6 +41,7 @@ class CommentSettings extends PrefsStore {
   // ── Init ───────────────────────────────────────────────────────────
 
   Future<void> initFromPrefs(SharedPreferences prefs) async {
+    syncPrefs(prefs);
     _compactLayout = prefs.getBool(_keyCompactLayout) ?? true;
     _showAvatar = prefs.getBool(_keyShowAvatar) ?? true;
     _showUserName = prefs.getBool(_keyShowUserName) ?? true;

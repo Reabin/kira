@@ -30,9 +30,11 @@ class NovelReadingStore {
   Future<NovelReadingProgress?> readProgress(String pathWord) =>
       _enqueue((prefs) => _read(prefs, '$prefix$pathWord'));
 
-  Future<List<NovelReadingProgress>> readRecent({int limit = 30}) =>
+  Future<List<NovelReadingProgress>> readRecent({int? limit = 30}) =>
       _enqueue((prefs) {
-        if (limit <= 0) return const <NovelReadingProgress>[];
+        if (limit != null && limit <= 0) {
+          return const <NovelReadingProgress>[];
+        }
         final records = <NovelReadingProgress>[];
         for (final key in prefs.getKeys()) {
           if (!key.startsWith(prefix)) continue;
@@ -43,7 +45,9 @@ class NovelReadingStore {
           final byTime = b.updatedAt.compareTo(a.updatedAt);
           return byTime != 0 ? byTime : a.pathWord.compareTo(b.pathWord);
         });
-        return List<NovelReadingProgress>.unmodifiable(records.take(limit));
+        return List<NovelReadingProgress>.unmodifiable(
+          limit == null ? records : records.take(limit),
+        );
       });
 
   /// 完成的 Future 表示已经写入；同书较旧的事件不会覆盖较新的位置。

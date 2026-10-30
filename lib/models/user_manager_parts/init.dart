@@ -28,74 +28,14 @@ extension UserManagerInitPart on UserManager {
       );
     }
     if (revision != _accountRevision) return;
-    _themeMode = ThemeMode.values[prefs.getInt(UserManager._keyThemeMode) ?? 0];
-    final savedThemeColor = prefs.getString(UserManager._keyThemeColor);
-    _themeColor = savedThemeColor == customThemeOptionId
-        ? customThemeOptionId
-        : resolveAppThemeOption(savedThemeColor).id;
-    _themeVariant = resolveAppThemeVariantOption(
-      prefs.getString(UserManager._keyThemeVariant),
-    ).variant;
-    _customThemeColorValue =
-        prefs.getInt(UserManager._keyCustomThemeColor) ??
-        defaultCustomThemeColor.toARGB32();
-    _darkModeCoverBrightness = UserManager._normalizeDarkModeCoverBrightness(
-      prefs.getDouble(UserManager._keyDarkModeCoverBrightness) ??
-          UserManager.defaultDarkModeCoverBrightness,
-    );
-    _bottomNavLabelMode = UserManager._loadBottomNavLabelMode(prefs);
     _desktopFontFamily =
         prefs.getString(UserManager._keyDesktopFontFamily) ?? '';
-    _displayModeRefreshRate = UserManager._normalizeDisplayModeRefreshRate(
-      prefs.getInt(UserManager._keyDisplayModeRefreshRate),
-    );
     _bookshelfOrdering =
         prefs.getString(UserManager._keyBookshelfOrdering) ??
         ApiOrdering.datetimeUpdated;
-    _readerScrollDirection =
-        prefs.getInt(UserManager._keyReaderScrollDirection) ?? 2;
-    _readerImageGap = prefs.getDouble(UserManager._keyReaderImageGap) ?? 0.0;
-    _readerVolumeKey = prefs.getBool(UserManager._keyReaderVolumeKey) ?? true;
-    _readerInstantPageTurn =
-        prefs.getBool(UserManager._keyReaderInstantPageTurn) ?? false;
-    _readerPageRTL = prefs.getBool(UserManager._keyReaderPageRTL) ?? false;
-    _readerPageVertical =
-        prefs.getBool(UserManager._keyReaderPageVertical) ?? false;
-    _readerDimming = prefs.getDouble(UserManager._keyReaderDimming) ?? 0.3;
-    _readerAutoScrollEnabled =
-        prefs.getBool(UserManager._keyReaderAutoScrollEnabled) ?? false;
-    _readerAutoScrollPause =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollPause) ?? 3.0).clamp(
-          0.5,
-          8.0,
-        );
-    _readerAutoScrollResume =
-        prefs.getBool(UserManager._keyReaderAutoScrollResume) ?? false;
-    _readerAutoScrollResumeDelay =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollResumeDelay) ?? 2.0)
-            .clamp(1.0, 5.0);
-    _readerAutoScrollDistance =
-        (prefs.getDouble(UserManager._keyReaderAutoScrollDistance) ?? 0.8)
-            .clamp(0.2, 1.0);
-    _readerContinuousReading =
-        prefs.getBool(UserManager._keyReaderContinuousReading) ?? true;
     _readerHorizontalImageScale =
         (prefs.getDouble(UserManager._keyReaderHorizontalImageScale) ?? 1.0)
             .clamp(0.7, 1.0);
-    _imageViewerAutoRotateLandscape =
-        prefs.getBool(UserManager._keyImageViewerAutoRotateLandscape) ?? false;
-    final savedImageViewerLandscapeRotation =
-        prefs.getInt(UserManager._keyImageViewerLandscapeRotation) ?? 1;
-    _imageViewerLandscapeRotation = savedImageViewerLandscapeRotation < 0
-        ? -1
-        : 1;
-    _imageLoadTimeout = prefs.getInt(UserManager._keyImageLoadTimeout) ?? 15;
-    _imageRetryCount = prefs.getInt(UserManager._keyImageRetryCount) ?? 1;
-    _commentCompactLayout =
-        prefs.getBool(UserManager._keyCommentCompactLayout) ?? true;
-    _commentPreload = prefs.getBool(UserManager._keyCommentPreload) ?? true;
-    _commentAutoLoadAll =
-        prefs.getBool(UserManager._keyCommentAutoLoadAll) ?? false;
     _autoCheckUpdate = prefs.getBool(UserManager._keyAutoCheckUpdate) ?? true;
     _skippedUpdateVersion = prefs.getString(
       UserManager._keySkippedUpdateVersion,
@@ -107,7 +47,42 @@ extension UserManagerInitPart on UserManager {
         ? 'beta'
         : 'stable';
     _useUpdateMirror = prefs.getBool(UserManager._keyUseUpdateMirror) ?? true;
-    _autoLogin = prefs.getBool(UserManager._keyAutoLogin) ?? false;
+    {
+      // 自定义镜像源：规范化后去重（与内置重复的一律丢弃），非法值会被
+      // normalize 折成默认地址，同样落在内置项里而被过滤掉。
+      final raw =
+          prefs.getStringList(UserManager._keyUpdateMirrorCustomPrefixes) ??
+          const <String>[];
+      final custom = <String>[];
+      for (final value in raw) {
+        final prefix = UserManager.normalizeUpdateMirrorPrefix(value);
+        if (custom.contains(prefix) ||
+            UserManager.updateMirrorPrefixOptions.contains(prefix)) {
+          continue;
+        }
+        custom.add(prefix);
+      }
+      // 旧版本把自定义镜像只写在 update_mirror_prefix 里，没有列表：并入
+      // 后它才可见、可删除、可继续参与兜底，而不是一切换预设就消失。
+      if (!UserManager.updateMirrorPrefixOptions.contains(
+            _updateMirrorPrefix,
+          ) &&
+          !custom.contains(_updateMirrorPrefix)) {
+        custom.add(_updateMirrorPrefix);
+      }
+      _customUpdateMirrorPrefixes = custom;
+      // 规范化或并入改变了内容才回写，避免每次启动都写一次 prefs。
+      var unchanged = custom.length == raw.length;
+      for (var i = 0; unchanged && i < custom.length; i++) {
+        unchanged = custom[i] == raw[i];
+      }
+      if (persistMigrations && !unchanged) {
+        await prefs.setStringList(
+          UserManager._keyUpdateMirrorCustomPrefixes,
+          custom,
+        );
+      }
+    }
     _disclaimerAccepted =
         prefs.getBool(UserManager._keyDisclaimerAccepted) ?? false;
     _loginSource = prefs.getString(UserManager._keyLoginSource) ?? 'hotmanga';
@@ -134,25 +109,9 @@ extension UserManagerInitPart on UserManager {
             username: _username ?? '',
           );
     }
-    final activeCredential = currentCredential;
-    if (activeCredential != null) {
-      final known = _savedCredentials.where(
-        (item) => item.sameAccount(activeCredential),
-      );
-      _savedCredentials = [
-        activeCredential.copyWith(
-          password: known.isEmpty ? '' : known.first.password,
-        ),
-        ..._savedCredentials.where(
-          (item) => !item.sameAccount(activeCredential),
-        ),
-      ];
-    }
-    _apiRoute = prefs.getInt(UserManager._keyApiRoute) ?? 0;
     _remoteNoticeEnabled =
         prefs.getBool(UserManager._keyRemoteNoticeEnabled) ?? true;
     _locale = prefs.getString(UserManager._keyLocale) ?? '';
-    _bannerVisible = prefs.getBool(UserManager._keyBannerVisible) ?? true;
     _mangaHomeSource =
         prefs.getString(UserManager._keyMangaHomeSource) ?? 'hot';
     _discoverSource = prefs.getString(UserManager._keyDiscoverSource) ?? 'hot';
@@ -192,6 +151,9 @@ extension UserManagerInitPart on UserManager {
     _copyAppVersion = UserManager.normalizeCopyAppVersion(
       prefs.getString(UserManager._keyCopyAppVersion),
     );
+    _copyVersionCode = UserManager.normalizeCopyVersionCode(
+      prefs.getString(UserManager._keyCopyVersionCode),
+    );
     _copyAutoUpdate = prefs.getBool(UserManager._keyCopyAutoUpdate) ?? true;
     _copySettingsUpdatedAt = prefs.getInt(
       UserManager._keyCopySettingsUpdatedAt,
@@ -207,47 +169,36 @@ extension UserManagerInitPart on UserManager {
         prefs.getStringList(UserManager._keyCommentBlockwords) ?? [];
     _commentBlockGroupSpam =
         prefs.getBool(UserManager._keyCommentBlockGroupSpam) ?? false;
-    _logoIndex = (prefs.getInt(UserManager._keyLogoIndex) ?? 1).clamp(
-      0,
-      UserManager.appLogoPaths.length - 1,
-    );
-    if (Platform.isAndroid || Platform.isIOS) {
-      try {
-        final platformIndex = await AppIconSwitcher.getAppIconIndex();
-        _logoIndex = platformIndex.clamp(
-          0,
-          UserManager.appLogoPaths.length - 1,
-        );
-      } catch (e, stack) {
-        unawaited(
-          AppLogger.instance.recordWarning(
-            e,
-            stackTrace: stack,
-            source: 'user_manager.get_app_icon',
-          ),
-        );
-      }
-    }
     // Initialize domain-specific sub-stores with the same prefs instance.
     await reader.initFromPrefs(prefs);
+    // 小说状态组件 store 依赖漫画侧已就绪（首启继承其现值）。
+    await novelStatus.initFromPrefs(
+      prefs,
+      persistMigrations: persistMigrations,
+    );
     await comment.initFromPrefs(prefs);
     await theme.initFromPrefs(prefs, persistMigrations: persistMigrations);
     await network.initFromPrefs(prefs, persistMigrations: persistMigrations);
     // loginSource is loaded late above; never infer COPY from token presence.
     if (revision != _accountRevision) return;
-    await copyAccount.init(
-      legacySession: _loginSource == 'copy' && isLoggedIn
-          ? CopyAccountSession(
-              token: _token!,
-              userId: _userId ?? '',
-              username: _username ?? '',
-              nickname: _nickname ?? '',
-              avatar: _avatar ?? '',
-              accountId: _accountId,
-            )
-          : null,
-      persistMigrations: persistMigrations,
-    );
+    _beginCopyAccountSuppression();
+    try {
+      await readAccountStorage(
+        () => _initCopyAccounts(
+          persistMigrations: persistMigrations,
+          revision: revision,
+        ),
+      );
+    } catch (_) {
+      unawaited(
+        AppLogger.instance.recordWarning(
+          const CopyAccountStorageException(),
+          source: 'user_manager.init_accounts',
+        ),
+      );
+    } finally {
+      _endCopyAccountSuppression();
+    }
     if (revision != _accountRevision) return;
 
     // Forward sub-store notifications so legacy listeners on UserManager
@@ -255,15 +206,17 @@ extension UserManagerInitPart on UserManager {
     // (导入备份 / 清除数据后重载),而 ChangeNotifier.addListener 会重复登记
     // 同一闭包,故先移除再添加,避免通知被放大。
     reader.removeListener(_onSubStoreChanged);
+    novelStatus.removeListener(_onSubStoreChanged);
     comment.removeListener(_onSubStoreChanged);
     theme.removeListener(_onSubStoreChanged);
     network.removeListener(_onSubStoreChanged);
-    copyAccount.removeListener(_onSubStoreChanged);
+    copyAccount.removeListener(_onCopyAccountChanged);
     reader.addListener(_onSubStoreChanged);
+    novelStatus.addListener(_onSubStoreChanged);
     comment.addListener(_onSubStoreChanged);
     theme.addListener(_onSubStoreChanged);
     network.addListener(_onSubStoreChanged);
-    copyAccount.addListener(_onSubStoreChanged);
+    copyAccount.addListener(_onCopyAccountChanged);
 
     _notifyListeners();
   }

@@ -42,8 +42,11 @@ class _DiscoverTabState extends State<_DiscoverTab>
   bool _metadataLoading = false;
   bool _tagsFailed = false;
   bool _copyFiltersFailed = false;
+  Object? _metadataError;
   bool _listFailed = false;
+  Object? _listError;
   bool _loadMoreFailed = false;
+  Object? _loadMoreError;
   bool _hasMore = false;
   int _offset = 0;
   int _total = 0;
@@ -192,6 +195,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
       _metadataLoading = true;
       _tagsFailed = false;
       _copyFiltersFailed = false;
+      _metadataError = null;
     });
     try {
       await Future.wait<void>([
@@ -244,7 +248,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           );
         }
       }
-      setState(() => _tagsFailed = true);
+      setState(() {
+        _tagsFailed = true;
+        _metadataError = e;
+      });
     }
   }
 
@@ -284,7 +291,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           );
         }
       }
-      setState(() => _copyFiltersFailed = true);
+      setState(() {
+        _copyFiltersFailed = true;
+        _metadataError = e;
+      });
     }
   }
 
@@ -358,6 +368,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
       _loadingMore = false;
       _listFailed = false;
       _loadMoreFailed = false;
+      _loadMoreError = null;
     });
     try {
       final result = await _fetchFirstPage(
@@ -384,7 +395,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           source: 'discover_tab.load_comics',
         ),
       );
-      setState(() => _listFailed = true);
+      setState(() {
+        _listFailed = true;
+        _listError = e;
+      });
     } finally {
       if (_isCurrentList(epoch, source)) {
         setState(() => _searching = false);
@@ -410,6 +424,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
     setState(() {
       _loadingMore = true;
       _loadMoreFailed = false;
+      _loadMoreError = null;
     });
     try {
       final result = await _fetchComicPage(
@@ -436,7 +451,10 @@ class _DiscoverTabState extends State<_DiscoverTab>
           source: 'discover_tab.load_more',
         ),
       );
-      setState(() => _loadMoreFailed = true);
+      setState(() {
+        _loadMoreFailed = true;
+        _loadMoreError = e;
+      });
     } finally {
       if (_isCurrentList(epoch, source)) {
         setState(() => _loadingMore = false);
@@ -537,6 +555,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
           if (_metadataFailed)
             InlineRetryNotice(
               message: l10n.discoverFiltersFailed,
+              detail: NetworkError.describe(_metadataError),
               onRetry: () => unawaited(_loadMetadata(forceRefresh: true)),
             ),
           if (_isCopySource && _copyFilters.tops.isNotEmpty) ...[
@@ -641,7 +660,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
                   ),
                 if (!_searching && _listFailed && !_hasResults)
                   SliverErrorRetryView(
-                    message: l10n.discoverRequestFailed,
+                    message: _listError == null
+                        ? l10n.discoverRequestFailed
+                        : NetworkError.message(_listError!),
                     onRetry: () => unawaited(_loadComics()),
                   ),
                 if (!_searching && !_listFailed && !_hasResults)
@@ -690,7 +711,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
                       child: InlineRetryNotice(
-                        message: l10n.discoverRequestFailed,
+                        message: _listError == null
+                            ? l10n.discoverRequestFailed
+                            : NetworkError.message(_listError!),
                         onRetry: () =>
                             unawaited(_loadComics(keepResults: true)),
                       ),
@@ -701,7 +724,8 @@ class _DiscoverTabState extends State<_DiscoverTab>
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: hp),
                       child: InlineRetryNotice(
-                        message: l10n.searchLoadMoreFailed,
+                        message: l10n.loadMoreFailed,
+                        detail: NetworkError.describe(_loadMoreError),
                         onRetry: () => unawaited(_loadMore(retry: true)),
                       ),
                     ),
@@ -715,7 +739,7 @@ class _DiscoverTabState extends State<_DiscoverTab>
                       horizontalPadding: hp,
                     ),
                   ),
-                const SliverToBoxAdapter(child: SizedBox(height: 72)),
+                const SliverToBoxAdapter(child: BranchBottomSlack(extra: 72)),
               ],
             ),
           ),
@@ -723,11 +747,9 @@ class _DiscoverTabState extends State<_DiscoverTab>
         if (_canScrollUp)
           Positioned(
             right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
+            // 叠加悬浮导航栏高度，底栏隐藏时按钮落到屏幕底部。
+            bottom: AppSpacing.md + NavBarInset.of(context),
+            child: BackToTopButton(onPressed: _scrollToTop),
           ),
       ],
     );

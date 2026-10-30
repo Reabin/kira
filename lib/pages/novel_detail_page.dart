@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
 
+import '../api/novel/novel_api.dart' show novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/novel.dart';
 import '../models/novel_download.dart';
@@ -23,8 +23,10 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/download_manager.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/app_sheet.dart';
 import '../widgets/comic_info_chips.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/cover_placeholder.dart';
 import '../widgets/download_settings_sheet.dart';
 import '../widgets/error_retry_view.dart';
@@ -38,6 +40,11 @@ import 'comic_detail_page.dart'
         comicDetailUsesTwoPane,
         comicDetailInfoPaneWidth;
 import 'novel_filter_page.dart';
+
+part 'novel_detail_page_parts/read_button.dart';
+part 'novel_detail_page_parts/view.dart';
+part 'novel_detail_page_parts/slivers.dart';
+part 'novel_detail_page_parts/body.dart';
 
 class NovelDetailPage extends ConsumerStatefulWidget {
   const NovelDetailPage({
@@ -63,6 +70,10 @@ class NovelDetailPage extends ConsumerStatefulWidget {
 class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   late final UserManager _user = ref.read(userManagerProvider);
   late final _downloads = ref.read(novelDownloadManagerProvider);
+  late final _bookmarkStore = ref.read(novelBookmarkStoreProvider);
+
+  /// 这部轻小说是否已出现在书签页（只有分组也算）。
+  bool _bookmarkGrouped = false;
   NovelDetail? _detail;
   NovelQuery? _query;
   NovelReadingProgress? _progress;
@@ -72,14 +83,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
   bool _enqueuingDownloads = false;
   bool _detailLoading = true;
   bool _detailFailed = false;
+  Object? _detailError;
   bool _refreshingDetail = false;
   bool _volumesLoading = true;
   bool _volumesFailed = false;
+  Object? _volumesError;
   bool _refreshingVolumes = false;
   bool _queryLoading = true;
   bool _queryFailed = false;
+  Object? _queryError;
   bool _progressLoading = true;
   bool _progressFailed = false;
+  Object? _progressError;
   bool? _collected;
   bool _collecting = false;
   bool _opening = false;
@@ -104,7 +119,64 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _token = _user.copyToken;
     _user.addListener(_onAccountChanged);
     _downloads.addListener(_onDownloadsChanged);
+    _bookmarkStore.addListener(_onBookmarksChanged);
+    unawaited(_loadBookmarkGroup());
     unawaited(_initializePage());
+  }
+
+  Future<void> _loadBookmarkGroup() async {
+    await _bookmarkStore.ensureLoaded();
+    _onBookmarksChanged();
+  }
+
+  void _onBookmarksChanged() {
+    if (!mounted) return;
+    setState(() => _bookmarkGrouped = _bookmarkStore.hasGroup(widget.pathWord));
+  }
+
+  /// 右上角书签按钮：把这部轻小说加进书签页。只登记分组、不写具体书签，
+  /// 所以在书签页里表现为「只有组头、没有条目」。
+  ///
+  /// 取消书签等于删掉整个书签组，组内还有书签时先弹窗确认。
+  Future<void> _toggleBookmarkGroup() async {
+    final l10n = AppLocalizations.of(context)!;
+    if (_bookmarkStore.hasGroup(widget.pathWord)) {
+      final count = _bookmarkStore.bookmarks
+          .where((bookmark) => bookmark.pathWord == widget.pathWord)
+          .length;
+      if (count > 0) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(l10n.bookmarkRemove),
+            content: Text(l10n.bookmarkRemoveGroupContent(count)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(l10n.cancelButton),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(l10n.deleteButton),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !mounted) return;
+      }
+      await _bookmarkStore.removeGroup(widget.pathWord);
+      if (!mounted) return;
+      showToast(context, l10n.bookmarkRemoved);
+      return;
+    }
+    final book = _detail?.book;
+    await _bookmarkStore.addGroup(
+      pathWord: widget.pathWord,
+      name: book?.name ?? '',
+      cover: book?.cover ?? '',
+    );
+    if (!mounted) return;
+    showToast(context, l10n.bookmarkAdded);
   }
 
   @override
@@ -117,6 +189,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     _progress = null;
     _volumes = [];
     _selectedDownloadVolumes.clear();
+    _onBookmarksChanged();
     _downloadSelectionMode = false;
     _collected = null;
     _collecting = false;
@@ -125,6 +198,7 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   @override
   void dispose() {
+    _bookmarkStore.removeListener(_onBookmarksChanged);
     _user.removeListener(_onAccountChanged);
     _downloads.removeListener(_onDownloadsChanged);
     super.dispose();
@@ -154,10 +228,12 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
 
   /// 对齐漫画详情页：先读持久化缓存秒显界面，再后台拉新覆盖。
   /// 详情接口有 6h TTL 门控，卷目录每次都发；拉新期间显示刷新指示。
+  /// 本地阅读进度是 SharedPreferences 即时可读的，不等网络接口：
+  /// 与缓存/接口并行加载，本地有记录时继续阅读按钮立刻出现。
   Future<void> _initializePage() async {
+    unawaited(_loadProgress());
     await _loadFromCache();
     await _loadQuery();
-    await _loadProgress();
     unawaited(_loadDetail());
     unawaited(_loadVolumes());
   }
@@ -222,7 +298,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'load');
       if (mounted && generation == _detailGeneration) {
-        setState(() => _detailFailed = true);
+        setState(() {
+          _detailFailed = true;
+          _detailError = e;
+        });
       }
     } finally {
       if (mounted && generation == _detailGeneration) {
@@ -259,7 +338,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'volumes');
       if (mounted && generation == _volumeGeneration) {
-        setState(() => _volumesFailed = true);
+        setState(() {
+          _volumesFailed = true;
+          _volumesError = e;
+        });
       }
     } finally {
       if (mounted && generation == _volumeGeneration) {
@@ -292,7 +374,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'query');
       if (mounted && generation == _queryGeneration) {
-        setState(() => _queryFailed = true);
+        setState(() {
+          _queryFailed = true;
+          _queryError = e;
+        });
       }
     } finally {
       if (mounted && generation == _queryGeneration) {
@@ -316,7 +401,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (e, stack) {
       _log(e, stack, 'progress');
       if (mounted && generation == _progressGeneration) {
-        setState(() => _progressFailed = true);
+        setState(() {
+          _progressFailed = true;
+          _progressError = e;
+        });
       }
     } finally {
       if (mounted && generation == _progressGeneration) {
@@ -354,9 +442,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       _log(e, stack, 'collect');
       if (mounted && account == _accountGeneration) {
         setState(() => _collecting = false);
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.novelCollectFailed,
+          l10n.novelCollectFailedDetail(novelErrorMessage(e)),
           isError: true,
         );
       }
@@ -433,72 +522,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     return capped.toStringAsFixed(2);
   }
 
-  Widget _buildReadButton() {
-    final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final continuing = _hasLocalResume || _remoteVolumeId != null;
-    // 按用户要求：按钮不显示「继续阅读/开始阅读」与章节名，
-    // 单行显示卷名和百分比（不带「本卷」前缀）；图标与漫画详情页续读按钮一致。
-    final volumeName = continuing
-        ? (_resumeVolumeName ?? '')
-        : _volumes.firstOrNull?.name ?? '';
-    final percent = continuing ? _resumePercent : null;
-    final progressLabel = percent == null ? null : '$percent%';
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Extended FAB 的内部 Row 不约束 label，必须单独限制其宽度。
-        final labelWidth =
-            (constraints.maxWidth -
-                    AppSpacing.lg * 2 -
-                    AppIconSize.lg -
-                    AppSpacing.sm)
-                .clamp(0.0, double.infinity);
-        return Align(
-          alignment: Alignment.centerRight,
-          child: Theme(
-            data: theme.copyWith(
-              floatingActionButtonTheme: theme.floatingActionButtonTheme
-                  .copyWith(
-                    // 保持常规 FAB 最小高度，允许大字号下按内容增高。
-                    extendedSizeConstraints: const BoxConstraints(
-                      minHeight: 56,
-                    ),
-                  ),
-            ),
-            child: FloatingActionButton.extended(
-              heroTag: 'novel_continue_reading',
-              onPressed: _canRead ? () => _read() : null,
-              tooltip: [
-                continuing ? l10n.novelContinueReading : l10n.novelStartReading,
-                if (volumeName.isNotEmpty) volumeName,
-                ?progressLabel,
-              ].join(' · '),
-              extendedPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.lg,
-              ),
-              extendedIconLabelSpacing: AppSpacing.sm,
-              icon: const Icon(Icons.play_arrow, size: AppIconSize.lg),
-              label: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: labelWidth),
-                // 单行：卷名 · 百分比，超长省略，不再折成两行。
-                child: Text(
-                  [
-                    if (volumeName.isNotEmpty) volumeName,
-                    ?progressLabel,
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.fabLabel(theme.textTheme),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _read({NovelVolume? volume}) async {
     if (_opening) return;
     final local = volume == null && _hasLocalResume ? _progress : null;
@@ -544,6 +567,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
       _downloadSelectionMode = false;
       _selectedDownloadVolumes.clear();
     });
+  }
+
+  void _toggleBriefExpanded() {
+    setState(() => _briefExpanded = !_briefExpanded);
   }
 
   void _toggleDownloadSelectionMode() {
@@ -611,9 +638,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     } catch (error, stack) {
       _log(error, stack, 'download');
       if (mounted && widget.pathWord == pathWord) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.novelDownloadEnqueueFailed(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -645,125 +673,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
     );
   }
 
-  /// 封面：与漫画详情页同款圆角裁剪、亮度过滤与占位图。
-  /// 来源卡片传了 heroTagBase 时包裹 Hero，飞行期间占位保持卡片槽位。
-  Widget _buildCover(NovelBook book) {
-    final child = ClipRRect(
-      borderRadius: AppRadius.mdR,
-      child: SizedBox(
-        width: 120,
-        height: 160,
-        child: CoverBrightnessFilter(
-          child: book.cover.isEmpty
-              ? const CoverPlaceholder()
-              : CachedNetworkImage(
-                  imageUrl: book.cover,
-                  width: 120,
-                  height: 160,
-                  fit: BoxFit.cover,
-                  fadeInDuration: Duration.zero,
-                  fadeOutDuration: Duration.zero,
-                  placeholder: (_, _) => const CoverPlaceholder(),
-                  errorWidget: (_, _, _) => const CoverPlaceholder.error(),
-                ),
-        ),
-      ),
-    );
-    final base = widget.heroTagBase;
-    if (base == null) return child;
-    return Hero(
-      tag: NovelHeroTags.cover(base),
-      createRectTween: NovelHeroTags.createRectTween,
-      placeholderBuilder: (_, heroSize, _) =>
-          SizedBox(width: heroSize.width, height: heroSize.height),
-      child: child,
-    );
-  }
-
-  /// 标题下的元信息行：小图标 + 灰色小字，与漫画详情页的热度/更新时间行同款。
-  Widget _buildMetaRow(IconData icon, String label, TextTheme tt, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: AppSpacing.xs),
-        Text(label, style: tt.labelSmall?.copyWith(color: color)),
-      ],
-    );
-  }
-
-  String _statusLabel(NovelBook book) {
-    final l10n = AppLocalizations.of(context)!;
-    if (book.statusDisplay.isNotEmpty) return book.statusDisplay;
-    if (book.status == 0) return l10n.novelSerializing;
-    if (book.status == 1) return l10n.novelCompleted;
-    return '';
-  }
-
-  /// 与漫画详情页完全同款文案：只有「收藏 / 已收藏」两态，不再造新词。
-  /// 未登录或状态未知时显示「收藏」，点下去由 [_toggleCollect] 引导登录。
-  String _collectLabel() {
-    final l10n = AppLocalizations.of(context)!;
-    return _collected == true ? l10n.alreadyCollectedLabel : l10n.collectButton;
-  }
-
-  /// 动作行按漫画详情页顺序：下载、评论、收藏。
-  Widget _buildDetailActions(NovelBook book) {
-    final l10n = AppLocalizations.of(context)!;
-    final buttonStyle = FilledButton.styleFrom(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-    );
-
-    return Row(
-      children: [
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed:
-                _enqueuingDownloads ||
-                    (!_downloadSelectionMode &&
-                        !_volumes.any(_isVolumeSelectable))
-                ? null
-                : _toggleDownloadSelectionMode,
-            icon: Icon(
-              _downloadSelectionMode ? Icons.close : Icons.download_outlined,
-              size: 18,
-            ),
-            label: Text(
-              _downloadSelectionMode
-                  ? l10n.cancelButton
-                  : l10n.downloadActionButton,
-            ),
-            style: buttonStyle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed: book.uuid.isEmpty ? null : _showComments,
-            icon: const Icon(Icons.forum_outlined, size: 18),
-            label: Text(l10n.chapterCommentsComment),
-            style: buttonStyle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: FilledButton.tonalIcon(
-            onPressed: _collecting || _queryLoading || book.uuid.isEmpty
-                ? null
-                : _toggleCollect,
-            icon: Icon(
-              _collected == true ? Icons.bookmark : Icons.bookmark_border,
-              size: 18,
-            ),
-            label: Text(_collectLabel()),
-            style: buttonStyle,
-          ),
-        ),
-      ],
-    );
-  }
-
   void _openTag(NovelTag tag, NovelFilterKind kind) {
     final pathWord = tag.pathWord.trim();
     if (pathWord.isEmpty) return;
@@ -773,412 +682,6 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
         pathParameters: {'kind': kind.name, 'pathWord': pathWord},
         queryParameters: {'name': tag.name},
       ),
-    );
-  }
-
-  List<Widget> _buildInfoSlivers(ColorScheme cs, TextTheme tt, NovelBook book) {
-    final l10n = AppLocalizations.of(context)!;
-    final authors = book.authors
-        .where((author) => author.name.trim().isNotEmpty)
-        .toList();
-    final statusLabel = _statusLabel(book);
-
-    return [
-      // ── 轻小说信息卡片 ──
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCover(book),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      book.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: tt.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    if (authors.isNotEmpty ||
-                        statusLabel.isNotEmpty ||
-                        book.regionDisplay.isNotEmpty ||
-                        book.themes.isNotEmpty)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final author in authors)
-                            InfoChip(
-                              icon: Icons.person_outline,
-                              label: author.name,
-                              color: cs.primaryContainer,
-                              textColor: cs.onPrimaryContainer,
-                              onTap: author.pathWord.trim().isEmpty
-                                  ? null
-                                  : () => _openTag(
-                                      author,
-                                      NovelFilterKind.author,
-                                    ),
-                            ),
-                          if (statusLabel.isNotEmpty)
-                            InfoChip(
-                              icon: Icons.timelapse,
-                              label: statusLabel,
-                              color: cs.primaryContainer,
-                              textColor: cs.onPrimaryContainer,
-                            ),
-                          if (book.regionDisplay.isNotEmpty)
-                            InfoChip(
-                              icon: Icons.public,
-                              label: book.regionDisplay,
-                              color: cs.secondaryContainer,
-                              textColor: cs.onSecondaryContainer,
-                            ),
-                          for (final theme in book.themes)
-                            InfoChip(
-                              icon: Icons.label_outline,
-                              label: theme.name,
-                              color: cs.tertiaryContainer,
-                              textColor: cs.onTertiaryContainer,
-                              onTap: theme.pathWord.trim().isEmpty
-                                  ? null
-                                  : () =>
-                                        _openTag(theme, NovelFilterKind.theme),
-                            ),
-                        ],
-                      ),
-                    if (book.popular > 0) ...[
-                      const SizedBox(height: 10),
-                      _buildMetaRow(
-                        Icons.local_fire_department,
-                        formatPopularCount(context, book.popular),
-                        tt,
-                        cs.primary,
-                      ),
-                    ],
-                    if (book.datetimeUpdated.isNotEmpty) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      _buildMetaRow(
-                        Icons.update,
-                        TimeFormat.relativeOf(book.datetimeUpdated, l10n),
-                        tt,
-                        cs.onSurfaceVariant,
-                      ),
-                    ],
-                    if (book.lastChapterName case final name?) ...[
-                      const SizedBox(height: AppSpacing.xs),
-                      _buildMetaRow(
-                        Icons.menu_book_outlined,
-                        name,
-                        tt,
-                        cs.onSurfaceVariant,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      // ── 简介 ──（竖屏默认折叠 3 行，点击展开；宽屏左栏空间充裕，默认展开）
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Builder(
-            builder: (context) {
-              final expanded =
-                  _briefExpanded ||
-                  comicDetailUsesTwoPane(MediaQuery.sizeOf(context));
-              final brief = book.brief.isEmpty ? l10n.novelNoBrief : book.brief;
-              return GestureDetector(
-                onTap: () => setState(() => _briefExpanded = !_briefExpanded),
-                child: Text(
-                  brief,
-                  maxLines: expanded ? null : 3,
-                  overflow: expanded ? null : TextOverflow.ellipsis,
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-      SliverToBoxAdapter(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: _buildDetailActions(book),
-        ),
-      ),
-      if (_detailFailed)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => _loadDetail(refresh: true),
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelLoadFailed),
-              ),
-            ),
-          ),
-        ),
-      if (_queryFailed)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _loadQuery,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelQueryFailed),
-              ),
-            ),
-          ),
-        ),
-      if (_progressFailed)
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _loadProgress,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.novelHistoryFailed),
-              ),
-            ),
-          ),
-        ),
-    ];
-  }
-
-  List<Widget> _buildVolumeSlivers() {
-    final l10n = AppLocalizations.of(context)!;
-    return [
-      // 后台拉新时的刷新指示（漫画详情页同款小转圈）。
-      if (_refreshingDetail || _refreshingVolumes)
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.sm,
-              AppSpacing.lg,
-              0,
-            ),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: SizedBox.square(
-                dimension: 22,
-                child: ExpressiveLoadingIndicator(),
-              ),
-            ),
-          ),
-        ),
-      if (_volumesLoading && _volumes.isEmpty)
-        const SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.all(32),
-            child: Center(child: ExpressiveLoadingIndicator()),
-          ),
-        )
-      else if (_volumesFailed && _volumes.isEmpty)
-        SliverToBoxAdapter(
-          child: ErrorRetryView(
-            message: l10n.novelVolumesFailed,
-            onRetry: () => _loadVolumes(refresh: true),
-          ),
-        )
-      else if (_volumes.isEmpty)
-        SliverToBoxAdapter(child: NovelEmptyView(message: l10n.novelNoVolumes))
-      else ...[
-        if (_downloadSelectionMode)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                0,
-              ),
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: AppSpacing.xs,
-                runSpacing: AppSpacing.xs,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                    ),
-                    child: Text(
-                      l10n.selectedCount(_selectedDownloadVolumes.length, '卷'),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed:
-                        _enqueuingDownloads ||
-                            !_volumes.any(_isVolumeSelectable)
-                        ? null
-                        : _selectAllDownloadableVolumes,
-                    child: Text(l10n.selectAll),
-                  ),
-                  IconButton(
-                    tooltip: l10n.cancelButton,
-                    onPressed: _enqueuingDownloads
-                        ? null
-                        : _exitDownloadSelectionMode,
-                    icon: const Icon(Icons.close),
-                  ),
-                  FilledButton.tonalIcon(
-                    onPressed:
-                        _enqueuingDownloads || _selectedDownloadVolumes.isEmpty
-                        ? null
-                        : _downloadSelectedVolumes,
-                    icon: const Icon(Icons.download_outlined, size: 18),
-                    label: Text(l10n.downloadActionButton),
-                  ),
-                  OutlinedButton(
-                    onPressed: _showDownloadSettings,
-                    child: Text(l10n.downloadSettingsTitle),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        // 与漫画详情的章节区同款卡片网格：同样的卡片组件、同样的列宽与间距。
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.lg,
-            AppSpacing.md,
-            AppSpacing.lg,
-            0,
-          ),
-          sliver: SliverGrid(
-            delegate: SliverChildBuilderDelegate((_, index) {
-              final volume = _volumes[index];
-              final selected =
-                  volume.id ==
-                  (_hasLocalResume ? _progress?.volumeId : _remoteVolumeId);
-              final task = _downloads.taskFor(widget.pathWord, volume.id);
-              final downloaded = _downloads.isVolumeDownloaded(
-                widget.pathWord,
-                volume.id,
-              );
-              final queued = _downloads.isVolumeQueued(
-                widget.pathWord,
-                volume.id,
-              );
-              final downloading =
-                  !downloaded &&
-                  task?.status == NovelDownloadStatus.downloading &&
-                  task!.total > 0;
-              return ChapterCard(
-                name: volume.name,
-                subtitle: downloading
-                    ? '${task.completed}/${task.total}'
-                    : null,
-                isSelected: _selectedDownloadVolumes.contains(volume.id),
-                isLastRead: selected,
-                isRead: _readVolumeIds.contains(volume.id),
-                isDownloaded: downloaded,
-                progressRatio: downloading ? task.progress : null,
-                onTap:
-                    _opening ||
-                        _enqueuingDownloads ||
-                        (_downloadSelectionMode && (downloaded || queued))
-                    ? null
-                    : _downloadSelectionMode
-                    ? () => _toggleDownloadSelection(volume)
-                    : () => _read(volume: volume),
-                onLongPress:
-                    _opening || _enqueuingDownloads || downloaded || queued
-                    ? null
-                    : () => _toggleDownloadSelection(volume),
-              );
-            }, childCount: _volumes.length),
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 150,
-              mainAxisExtent: chapterTileExtent(
-                MediaQuery.textScalerOf(context).scale(1),
-              ),
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-            ),
-          ),
-        ),
-      ],
-      SliverPadding(
-        // 为随文字缩放增高的续读按钮留出滚动空间，避免遮住最后一行卷册。
-        padding: EdgeInsets.only(
-          bottom:
-              96 *
-                  MediaQuery.textScalerOf(
-                    context,
-                  ).scale(1).clamp(1.0, double.infinity) +
-              (_hasDownloads ? 56 + AppSpacing.md : 0),
-        ),
-      ),
-    ];
-  }
-
-  /// 横屏（宽 > 高且 ≥640）时左右分栏：左侧轻小说信息 + 简介 + 操作按钮，
-  /// 右侧分卷目录，与漫画详情页同款断点与栏宽。
-  Widget _buildBody(NovelBook book) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final size = MediaQuery.sizeOf(context);
-    final infoSlivers = _buildInfoSlivers(cs, tt, book);
-    final volumeSlivers = _buildVolumeSlivers();
-
-    if (!comicDetailUsesTwoPane(size)) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [...infoSlivers, ...volumeSlivers],
-        ),
-      );
-    }
-
-    final leftWidth = comicDetailInfoPaneWidth(size);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          width: leftWidth,
-          child: RefreshIndicator(
-            onRefresh: _refresh,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                ...infoSlivers,
-                const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
-              ],
-            ),
-          ),
-        ),
-        VerticalDivider(
-          width: 1,
-          thickness: 1,
-          color: cs.outlineVariant.withValues(alpha: 0.6),
-        ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _refresh,
-            child: CustomScrollView(slivers: volumeSlivers),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1196,6 +699,18 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            key: const ValueKey('novel_detail_bookmark'),
+            icon: Icon(
+              _bookmarkGrouped
+                  ? Icons.bookmark_added
+                  : Icons.bookmark_add_outlined,
+            ),
+            tooltip: _bookmarkGrouped ? l10n.bookmarkRemove : l10n.bookmarkAdd,
+            onPressed: _toggleBookmarkGroup,
+          ),
+        ],
       ),
       // 继续阅读固定在右下角，与漫画详情页的续读入口同款、同位置。
       body: Stack(
@@ -1204,7 +719,10 @@ class _NovelDetailPageState extends ConsumerState<NovelDetailPage> {
             (_detailLoading
                 ? const Center(child: ExpressiveLoadingIndicator())
                 : ErrorRetryView(
-                    message: l10n.novelLoadFailed,
+                    message: novelErrorMessage(
+                      _detailError,
+                      fallback: l10n.novelLoadFailed,
+                    ),
                     onRetry: () => _loadDetail(refresh: true),
                   ))
           else

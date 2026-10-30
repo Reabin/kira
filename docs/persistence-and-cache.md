@@ -136,7 +136,7 @@ Future<T> load() async {
 `AiSettings`（`lib/api/ai_api.dart`）独立，键名混用 `zhipu_` / `ai_` 前缀；API key 与连接配置仍以明文存在 prefs，未纳入 `SecureCredentialStore`，备份归入需显式选择的敏感「AI 连接」分类。
 
 ### 键名前缀族（缓存管理页 `_looksLikeSettingKey` 用以区分设置 vs 缓存）
-`theme_` `custom_theme_` `dark_mode_` `bottom_nav_` `nav_` `last_nav_` `desktop_font_` `bookshelf_` `reader_` `image_` `comment_` `auto_check_` `skipped_update_` `disclaimer_` `api_route` `anime_feature_` `banner_` `anime_home_` `anime_skip_` `anime_playback_progress_` `download_` `danmaku_` `local_bookshelf_`（见 `cache_management_page.dart:702`）。
+`theme_` `custom_theme_` `dark_mode_` `bottom_nav_` `nav_` `last_nav_` `desktop_font_` `bookshelf_` `reader_` `image_` `comment_` `auto_check_` `skipped_update_` `update_mirror_` `use_update_mirror` `disclaimer_` `api_route` `anime_feature_` `banner_` `anime_home_` `anime_skip_` `anime_playback_progress_` `download_` `danmaku_` `local_bookshelf_`（见 `cache_management_page.dart` 的 `_looksLikeSettingKey`）。
 
 新增用户偏好 key 时，归入上述某一前缀族，否则可能被缓存清理误判或备份遗漏。
 
@@ -255,11 +255,12 @@ Future<void> deleteAll();
 - `novel_reading_history_<pathWord>`：本地卷、原始章节索引、段落位置；不使用漫画历史前缀，备份归入阅读历史。
 - `novel_bookmarks_v1`：用户手动添加的轻小说书签，全量 JSON 列表（上限 500）；独立于 `novel_reading_history_`，不随缓存或阅读历史清理。按书、卷、原始章节索引和段落索引去重，精确保存段落 alignment；不保存正文地址/会话。通过 `NovelBookmarkStore` 串行读写，备份归入书签；恢复时暂停写入并由 `reloadRuntimeSettings()` 重载内存。
 - `reader_novel_settings_v1`：字号（10–48）、行距/段距、预设/自定义 ARGB 背景与文字色、`showStatusBar` 和常亮偏好；新增设置仍保存在同一 JSON 键，备份归入设置。
+- `novel_status_overlay*`（`lib/models/novel_reader_status_settings.dart`）：轻小说阅读器状态组件的独立配置（开关/时间/网络/电量/章节名/页码/帧率段位、顺序、六位摆放、不透明度、前景/背景色）。与漫画侧 `reader_status_overlay*` 互不影响；首次初始化（无任何 `novel_status_overlay*` 键）时一次性继承漫画现值并由哨兵键 `novel_status_overlay_seeded` 固化。经 `UserManager.init` 加载与 `reloadRuntimeSettings()` 重载，备份归入设置。
 - 阅读历史和阅读设置每次读取当前 prefs，无一次性数据快照，恢复备份后无需注册额外单例重载。
 - `cache_novel_*`：按主机/账号指纹区分的元数据缓存，明确 TTL。
 - 应用支持目录 `novel_text_cache_v1`：整卷正文和对应目录的文件快照；缓存管理可单独清理，保留阅读历史。
-- 应用文档目录 `novel_downloads`（可改到自定义目录，键 `download_novel_save_directory`）：**永久下载**，与上面的可清理正文缓存是两套存储。带版本清单 `manifest_v1.json`，每卷保存同一版本的原始 TXT + 目录快照、书籍/卷元数据与插图 URL 映射。清单与快照校验通过才显示为已完成；缺失或摘要不符标为「待修复」。删除只作用于被索引、被校验过的文件。
-- `download_novel_queue_state_v1`：小说未完成下载队列（版本、暂停标记、任务列表）。完整成功后只删除任务记录，本地文件保留；启动时依据文件校验清理遗留完成记录，损坏转待修复，失败/暂停/部分完成任务保留。只持久化稳定来源标识（`CopyAccountSession.id`，游客为 `guest`）与主机，**不保存 token**；账号或线路变化后未完成任务暂停。`download_novel_concurrency` 控制并发（1–4）。
+- 应用文档目录 `novel_downloads`（可改到自定义目录，键 `download_novel_save_directory`）：**永久下载**，与上面的可清理正文缓存是两套存储。带版本清单 `manifest_v1.json`，每卷保存同一版本的原始 TXT + 目录快照、书籍/卷元数据与插图 URL 映射。**启动只做轻量探测**：读两级清单 JSON，对每个被索引文件做「存在且长度相符」检查（不读正文、不算摘要、不解析文本），据此区分「已完成 / 部分完成 / 待修复」；缺失或长度不符立即标为「待修复」。摘要与正文合法性在真正读取该卷时（`readVolumeSnapshot`/`readImageBytes`）惰性校验，不符则降级。这样启动耗时不随离线库体积增长。删除只作用于被索引、被探测过的文件。
+- `download_novel_queue_state_v1`：小说未完成下载队列（版本、暂停标记、任务列表）。完整成功后只删除任务记录，本地文件保留；启动时依据探测结果清理遗留完成记录，缺失/损坏转待修复，失败/暂停/部分完成任务保留。只持久化稳定来源标识（`CopyAccountSession.id`，游客为 `guest`）与主机，**不保存 token**；账号或线路变化后未完成任务暂停。`download_novel_concurrency` 控制并发（1–4）。管理器初始化与续传在首帧之后后台进行，不阻塞 `runApp`。
 - 清理边界：清正文缓存不动已下载内容；清下载不动阅读进度/历史/书签。退出账号不删除本机已下载内容。
 - `secure_mirror_copy_account_v1`：`SecureCredentialStore` 在私有 prefs 中保存的独立拷贝会话及迁移/退出标记，兼容读取旧裸键 `copy_account_v1`。不导出到普通设置或账号分类备份；退出附加账号不得清除其他凭据键。通过认证但尚无资料的账号使用随机 `local:` 标识；`account_id` 固定后不随资料补全或 Token 更新变化。主账号的同一标识以 `user_account_id` 保存，归入敏感账号备份分类；它不是 Token 或 Token 指纹。
 - 详细阅读/鉴权/下载边界见 [轻小说](novel.md)。

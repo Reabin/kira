@@ -416,12 +416,11 @@ class _StatsPageState extends State<StatsPage> {
   // ── 已开启态 ──────────────────────────────────────────────────────
 
   Widget _buildEnabledBody() {
-    final l10n = AppLocalizations.of(context)!;
     if (_loading && _snapshot == null) {
       return _buildLoadingBody();
     }
     if (_error != null && _snapshot == null) {
-      return ErrorRetryView(message: l10n.loadingFailed, onRetry: _load);
+      return ErrorRetryView(message: _error, onRetry: _load);
     }
     final snap = _snapshot;
     // 无数据时不显示空态，直接按 0 渲染（热力图、tag 列表自然为空）。

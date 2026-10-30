@@ -144,22 +144,22 @@ Future<void> _pumpShell(WidgetTester tester, {double textScale = 1}) async {
   await tester.pumpAndSettle();
 }
 
-/// 找到包住指定分支页面的 RepaintBoundary（父级是分支的 FractionalTranslation）。
+/// 找到包住指定分支页面的 RepaintBoundary（父级是分支的 Opacity）。
 /// 手动向上遍历祖先，绕开 find.ancestor 对 Offstage 子树的默认过滤。
-RenderRepaintBoundary _branchBoundary(WidgetTester tester, String marker) {
+RenderRepaintBoundary? _branchBoundary(WidgetTester tester, String marker) {
   RenderRepaintBoundary? boundary;
   tester.element(find.text(marker, skipOffstage: false)).visitAncestorElements((
     element,
   ) {
     final renderObject = element.renderObject;
     if (renderObject is RenderRepaintBoundary &&
-        renderObject.parent is RenderFractionalTranslation) {
+        renderObject.parent is RenderOpacity) {
       boundary = renderObject;
       return false;
     }
     return true;
   });
-  return boundary!;
+  return boundary;
 }
 
 /// 把预热链路的时间推完（启动 1.2s 后逐帧预热各隐藏分支）。
@@ -197,23 +197,25 @@ void main() {
     await _pumpShell(tester);
 
     // 结构稳定：隐藏分支也保持同一套包装结构（Offstage>TickerMode>ExcludeFocus>
-    // IgnorePointer>FractionalTranslation>RepaintBoundary），5 个分支各有一份。页面内容里
-    // 也有零散的 FractionalTranslation，这里只认「直接包 RepaintBoundary」的
-    // 分支级包装。
-    final translations = find.byWidgetPredicate(
-      (widget) =>
-          widget is FractionalTranslation && widget.child is RepaintBoundary,
-      skipOffstage: false,
-    );
-    expect(tester.widgetList(translations).length, 5);
+    // IgnorePointer>Opacity>RepaintBoundary），5 个分支各有一份。
+    const branchMarkers = [
+      'page-comic',
+      'page-search',
+      'page-bookshelf',
+      'page-profile',
+      'page-novel',
+    ];
+    for (final marker in branchMarkers) {
+      expect(_branchBoundary(tester, marker), isNotNull, reason: marker);
+    }
 
     // 预热后：不可见的相邻分支应已被绘制（无待重绘标记），首次滑入不再付
     // 首次光栅化的开销。未登录时书架分支仍然可见（本地小说进度也挂在那里），
     // 所以它同样会被预热。
     await _pumpThroughWarmUp(tester);
-    expect(_branchBoundary(tester, 'page-search').debugNeedsPaint, isFalse);
-    expect(_branchBoundary(tester, 'page-profile').debugNeedsPaint, isFalse);
-    expect(_branchBoundary(tester, 'page-bookshelf').debugNeedsPaint, isFalse);
+    expect(_branchBoundary(tester, 'page-search')!.debugNeedsPaint, isFalse);
+    expect(_branchBoundary(tester, 'page-profile')!.debugNeedsPaint, isFalse);
+    expect(_branchBoundary(tester, 'page-bookshelf')!.debugNeedsPaint, isFalse);
 
     // 未登录也必须有书架入口：小说阅读记录等本地内容在那里。
     // 默认 800x600 视口宽>高，主导航走左侧 NavigationRail。
@@ -264,6 +266,8 @@ void main() {
     expect(find.text('count:1'), findsOneWidget);
 
     // 滑动结束后结构依旧稳定。
-    expect(tester.widgetList(translations).length, 5);
+    for (final marker in branchMarkers) {
+      expect(_branchBoundary(tester, marker), isNotNull, reason: marker);
+    }
   });
 }

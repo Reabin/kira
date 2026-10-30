@@ -9,7 +9,6 @@ import 'package:kira/models/novel.dart';
 import 'package:kira/pages/novel_search_tab.dart';
 import 'package:kira/providers/novel_providers.dart';
 import 'package:kira/utils/app_storage.dart';
-import 'package:kira/utils/search_history.dart';
 import 'package:kira/widgets/filter_chip_row.dart';
 import 'package:kira/widgets/load_more_footer.dart';
 import 'package:kira/widgets/shimmer_skeleton.dart';
@@ -127,7 +126,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => SharedPreferences.setMockInitialValues({}));
   setUp(() async {
-    await SearchHistory.flush();
     await (await AppStorage.sharedPreferences()).clear();
   });
 
@@ -157,7 +155,7 @@ void main() {
       final l10n = AppLocalizations.of(
         tester.element(find.byType(NovelSearchTab)),
       )!;
-      await tester.tap(find.text(l10n.novelLoadMore));
+      await tester.tap(find.text(l10n.loadMore));
       await tester.pumpAndSettle();
       expect(find.text(_book.name), findsOneWidget);
       expect(find.text(l10n.novelLoadMoreFailed), findsOneWidget);
@@ -178,27 +176,35 @@ void main() {
       );
       expect(tester.takeException(), isNull);
     });
-  }
 
-  testWidgets('历史只在未搜索时显示，点历史搜索及清空均保留浏览结果', (tester) async {
-    await AppStorage.preferences.setStringList(SearchHistory.storageKey, [
-      '历史词',
-    ]);
-    final api = _Api();
-    await _pump(tester, api);
-    await tester.pumpAndSettle();
-    expect(find.widgetWithText(InputChip, '历史词'), findsOneWidget);
-    await tester.tap(find.widgetWithText(InputChip, '历史词'));
-    await tester.pumpAndSettle();
-    expect(find.text(_hit.name), findsOneWidget);
-    expect(find.byType(InputChip), findsNothing);
-    expect(api.searchRequests, [('历史词', 0)]);
-    await tester.tap(find.byIcon(Icons.clear));
-    await tester.pumpAndSettle();
-    expect(find.text(_book.name), findsOneWidget);
-    expect(find.widgetWithText(InputChip, '历史词'), findsOneWidget);
-    expect(api.bookRequests, hasLength(1));
-  });
+    testWidgets('${searching ? '搜索' : '浏览'}分页失败显示上游原因而不是只有通用标签', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(500, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final api = _Api();
+      Future<NovelPage<NovelBook>> load(int offset) async {
+        if (offset == 0) return _page([_book, _book], total: 3);
+        throw const NovelApiException('小说请求失败：HTTP 503');
+      }
+
+      api.books = (_, _, offset) => load(offset);
+      api.search = (_, offset) => load(offset);
+      await _pump(tester, api);
+      await tester.pumpAndSettle();
+      if (searching) await _search(tester, '关键词');
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(NovelSearchTab)),
+      )!;
+      await tester.tap(find.text(l10n.loadMore));
+      await tester.pumpAndSettle();
+
+      // 用户/开发者必须能在界面上看到失败原因，否则截图无从排查。
+      expect(find.text('小说请求失败：HTTP 503'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   for (final size in [const Size(320, 800), const Size(1000, 800)]) {
     testWidgets('宽度${size.width}大字号骨架与真实小说网格一致', (tester) async {

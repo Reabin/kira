@@ -47,29 +47,58 @@ extension _ProfileCards on _ProfilePageState {
     final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final record = entry.record;
-    // 副标题：漫画名 · 章节名 · 第 N 页；任一段缺失就跳过,避免空段。
+    // 副标题左侧：漫画名 · 章节名；任一段缺失就跳过,避免空段。
     final parts = <String>[
       if (entry.comicName.isNotEmpty) entry.comicName,
       record.chapterName.trim().isNotEmpty
           ? record.chapterName.trim()
           : l10n.continueReadingChapterFallback,
-      l10n.continueReadingPageLabel(record.page),
     ].where((s) => s.trim().isNotEmpty).toList();
     return ListTile(
-      leading: const _SettingIcon(icon: Icons.auto_stories_rounded),
+      leading: const _SettingIcon(icon: Icons.menu_book_rounded),
       title: Text(l10n.continueReadingComic),
-      subtitle: parts.isEmpty
-          ? null
-          : Text(
-              parts.join(' · '),
-              style: AppTypography.meta(
-                tt,
-              )?.copyWith(color: cs.onSurfaceVariant),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      subtitle: _continueSubtitle(
+        name: parts.join(' · '),
+        // 与书签页的继续阅读按钮同款：当前页/总页数；老记录没记总页数时
+        // 退回「第 N 页」，总比整段进度消失好。
+        progress: record.totalPage > 1
+            ? '${record.page}/${record.totalPage}'
+            : l10n.continueReadingPageLabel(record.page),
+        tt: tt,
+        cs: cs,
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _continueReading(entry),
+    );
+  }
+
+  /// 副标题：可收缩的名称 + 固定不退让的进度。
+  ///
+  /// 不能再用「单段 Text + 省略号」：章节名很长时省略号会把进度一起吃掉。
+  /// 名称走 [Flexible]（短名不被拉伸），进度不参与收缩，永远留在行尾。
+  Widget _continueSubtitle({
+    required String name,
+    required String progress,
+    required TextTheme tt,
+    required ColorScheme cs,
+  }) {
+    final style = AppTypography.meta(tt)?.copyWith(color: cs.onSurfaceVariant);
+    final trimmedName = name.trim();
+    return Row(
+      children: [
+        if (trimmedName.isNotEmpty) ...[
+          Flexible(
+            child: Text(
+              trimmedName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+        ],
+        Text(progress, maxLines: 1, style: style),
+      ],
     );
   }
 
@@ -81,28 +110,33 @@ extension _ProfileCards on _ProfilePageState {
     final l10n = AppLocalizations.of(context)!;
     final tt = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-    // 副标题：书名 · 卷名 · 章节名；任一段缺失就跳过,避免空段。
+    // 副标题左侧：书名 · 卷名；任一段缺失就跳过,避免空段。
     final parts = <String>[
       progress.name.isEmpty ? progress.pathWord : progress.name,
       progress.volumeName.trim(),
-      progress.chapterName.trim(),
     ].where((s) => s.trim().isNotEmpty).toList();
     return ListTile(
-      leading: const _SettingIcon(icon: Icons.menu_book_rounded),
+      leading: const _SettingIcon(icon: Icons.auto_stories_rounded),
       title: Text(l10n.continueReadingNovel),
-      subtitle: parts.isEmpty
-          ? null
-          : Text(
-              parts.join(' · '),
-              style: AppTypography.meta(
-                tt,
-              )?.copyWith(color: cs.onSurfaceVariant),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+      subtitle: _continueSubtitle(
+        name: parts.join(' · '),
+        // 与书签页同口径：卷内进度百分比。
+        progress: '${_novelPercent(progress.progress)}%',
+        tt: tt,
+        cs: cs,
+      ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _continueNovelReading(progress),
     );
+  }
+
+  /// 卷内进度百分比（整数）。未读到卷末不四舍五入成 100%：99.9% 显示 99%。
+  int _novelPercent(double progress) {
+    if (progress >= 1) return 100;
+    final percent = progress * 100;
+    if (percent <= 0) return 0;
+    final floored = percent.floor();
+    return floored > 99 ? 99 : floored;
   }
 
   /// 直入小说阅读器:进度本身已经包含卷与段落定位,无需先请求详情。
@@ -174,22 +208,22 @@ extension _ProfileCards on _ProfilePageState {
         ),
         ?_buildContinueReadingTile(),
         ?_buildContinueNovelTile(),
+      ],
+    );
+  }
+
+  /// 第三块设置卡片：阅读统计 / AI 配置 / 通知中心 / 关于。
+  Widget _buildAboutCard() {
+    final l10n = AppLocalizations.of(context)!;
+    final cs = Theme.of(context).colorScheme;
+    return SettingTileGroup(
+      children: [
         ListTile(
           leading: const _SettingIcon(icon: Icons.bar_chart_rounded),
           title: Text(l10n.statsTitle),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.pushNamed(AppRoutes.stats),
         ),
-      ],
-    );
-  }
-
-  /// 第三块设置卡片：AI 配置 / 通知中心 / 关于。
-  Widget _buildAboutCard() {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    return SettingTileGroup(
-      children: [
         ListTile(
           leading: const _SettingIcon(icon: Icons.smart_toy_outlined),
           title: Text(l10n.aiConfigTitle),

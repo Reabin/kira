@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/app_localizations.dart';
+import 'log_sanitizer.dart';
 
 typedef AppLogDirectoryProvider = Future<Directory> Function();
 
@@ -127,6 +128,18 @@ class AppLogEntry {
   }
 }
 
+/// 日志目录初始化失败：读取/清空会显式失败，而不是假报「没有日志」。
+///
+/// 只暴露失败类型，不携带可能含路径或凭据的原始消息。
+class AppLoggerUnavailableException implements Exception {
+  const AppLoggerUnavailableException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'AppLoggerUnavailableException(${cause.runtimeType})';
+}
+
 class AppLogger {
   AppLogger({
     AppLogDirectoryProvider? directoryProvider,
@@ -144,23 +157,9 @@ class AppLogger {
   static const _keyMinimumLevel = 'app_logging_minimum_level';
   static const defaultLoggingEnabled = false;
   static const defaultMinimumLevel = AppLogLevel.warning;
-  static const _maxMessageLength = 4000;
-  static const _maxStackTraceLength = 12000;
-  static const _maxContextValueLength = 2000;
-  static const _redacted = '[REDACTED]';
 
-  static final _sensitiveKeyPattern = RegExp(
-    r'^(authorization|token|access_token|refresh_token|password|passwd|cookie|set-cookie)$',
-    caseSensitive: false,
-  );
-  static final _authorizationBearerPattern = RegExp(
-    r'''\b(authorization\b\s*[:=]\s*)bearer\s+[^"',;\s}&]+''',
-    caseSensitive: false,
-  );
-  static final _sensitiveValuePattern = RegExp(
-    r'''\b(authorization|token|access_token|refresh_token|password|passwd|cookie|set-cookie)\b(\s*[:=]\s*)["']?([^"',;\s}&]+)["']?''',
-    caseSensitive: false,
-  );
+  /// 单次导出最多带出的条目数，防止极端情况下把整块内存读爆。
+  static const _maxExportEntries = 20000;
 
   final AppLogDirectoryProvider _directoryProvider;
   final int maxFileSizeBytes;
@@ -168,7 +167,11 @@ class AppLogger {
 
   Directory? _directory;
   Future<void>? _initFuture;
-  Future<void> _writeQueue = Future<void>.value();
+  Object? _initError;
+
+  /// 写入、读取、清空共用的串行队列：文件操作彼此不交错。
+  Future<void> _queue = Future<void>.value();
+
   bool _disabled = false;
   bool _loggingEnabled = defaultLoggingEnabled;
   AppLogLevel _minimumLevel = defaultMinimumLevel;
@@ -176,12 +179,29 @@ class AppLogger {
   bool get loggingEnabled => _loggingEnabled;
   AppLogLevel get minimumLevel => _minimumLevel;
 
+  /// 目录不可用（初始化失败）时非空；供页面决定是否给出重试入口。
+  bool get isUnavailable => _initError != null;
+
   Future<void> init() {
-    if (_disabled) return Future<void>.value();
     return _initFuture ??= _init().catchError((Object error, StackTrace stack) {
       _disabled = true;
-      debugPrint('AppLogger init failed: $error');
+      _initError = error;
+      debugPrint(
+        'AppLogger init failed: '
+        '${LogSanitizer.text('$error', maxLength: 200)}',
+      );
     });
+  }
+
+  /// 初始化失败后的显式重试入口（日志页「重试」按钮）。
+  ///
+  /// 不在每条后台记录里反复重试：那只会把失败成本摊到业务路径上。
+  Future<void> retryInit() {
+    if (_initError == null) return init();
+    _initError = null;
+    _disabled = false;
+    _initFuture = null;
+    return init();
   }
 
   /// 重新读取日志设置(导入备份 / 清除数据后调用)。
@@ -273,33 +293,35 @@ class AppLogger {
     String source = 'app',
     Map<String, Object?>? context,
   }) {
-    _writeQueue = _writeQueue
-        .then((_) async {
-          await _ensureReady();
-          if (!_shouldRecord(level)) return;
-          final entry = AppLogEntry(
-            timestamp: DateTime.now().toUtc(),
-            level: level,
-            source: _truncate(_redact(source), _maxContextValueLength),
-            message: _truncate(
-              _redact(_safeToString(message)),
-              _maxMessageLength,
+    // 在调用点就固定事件内容：入队后调用方可能继续修改传入的对象，记录的
+    // 应该是「当时发生了什么」，而不是「出队时它变成了什么」。
+    final entry = AppLogEntry(
+      timestamp: DateTime.now().toUtc(),
+      level: level,
+      source: LogSanitizer.text(
+        source,
+        maxLength: LogSanitizer.maxContextValueLength,
+      ),
+      message: LogSanitizer.text(_safeToString(message)),
+      stackTrace: stackTrace == null
+          ? null
+          : LogSanitizer.text(
+              stackTrace.toString(),
+              maxLength: LogSanitizer.maxStackTraceLength,
             ),
-            stackTrace: stackTrace == null
-                ? null
-                : _truncate(
-                    _redact(stackTrace.toString()),
-                    _maxStackTraceLength,
-                  ),
-            context: _sanitizeContext(context),
-          );
-          await _writeEntry(entry);
-        })
-        .catchError((Object writeError, StackTrace stack) {
-          debugPrint('AppLogger write failed: $writeError');
-        });
+      context: LogSanitizer.context(context),
+    );
 
-    return _writeQueue;
+    return _enqueue(() async {
+      await _ensureReady();
+      if (!_shouldRecord(level)) return;
+      await _writeEntry(entry);
+    }).catchError((Object writeError, StackTrace stack) {
+      debugPrint(
+        'AppLogger write failed: '
+        '${LogSanitizer.text('$writeError', maxLength: 200)}',
+      );
+    });
   }
 
   Future<void> setLoggingEnabled(bool enabled) async {
@@ -308,7 +330,10 @@ class AppLogger {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyLoggingEnabled, enabled);
     } catch (error) {
-      debugPrint('AppLogger save logging enabled failed: $error');
+      debugPrint(
+        'AppLogger save logging enabled failed: '
+        '${LogSanitizer.text('$error', maxLength: 200)}',
+      );
     }
   }
 
@@ -318,58 +343,51 @@ class AppLogger {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_keyMinimumLevel, level.name);
     } catch (error) {
-      debugPrint('AppLogger save minimum level failed: $error');
+      debugPrint(
+        'AppLogger save minimum level failed: '
+        '${LogSanitizer.text('$error', maxLength: 200)}',
+      );
     }
   }
 
-  Future<List<AppLogEntry>> readEntries({int limit = 200}) async {
-    await _ensureReady();
-    await _writeQueue;
-
-    final directory = _directory;
-    if (_disabled || directory == null || !await directory.exists()) {
-      return const [];
-    }
-
-    final entries = <AppLogEntry>[];
-    for (final file in _logFiles(directory)) {
-      if (!await file.exists()) continue;
-      final lines = await file.readAsLines();
-      for (final line in lines.reversed) {
-        final trimmed = line.trim();
-        if (trimmed.isEmpty) continue;
-        try {
-          final json = jsonDecode(trimmed);
-          if (json is Map<String, dynamic>) {
-            entries.add(AppLogEntry.fromJson(json));
-            if (entries.length >= limit) return entries;
-          }
-        } catch (_) {
-          continue;
-        }
-      }
-    }
-
-    return entries;
+  /// 读取最近 [limit] 条（null 表示不限），最新的在前。
+  ///
+  /// 历史记录在构建条目之前统一净化，因此展示与复制共享同一套规则。
+  /// 目录不可用或文件读取失败会抛错，由调用方呈现错误态。
+  Future<List<AppLogEntry>> readEntries({int? limit = 200}) {
+    return _enqueue(() => _readEntries(limit));
   }
 
-  Future<String> exportText({int limit = 200}) async {
-    final entries = await readEntries(limit: limit);
+  /// 导出为纯文本；默认带出全部日志（导出文件用），而不是只看得到的 200 条。
+  Future<String> exportText({int? limit}) async {
+    final entries = await readEntries(limit: limit ?? _maxExportEntries);
     return entries.map((entry) => entry.toPlainText()).join('\n\n---\n\n');
   }
 
-  Future<void> clear() async {
-    await _ensureReady();
-    await _writeQueue;
+  Future<void> clear() {
+    return _enqueue(() async {
+      await _ensureReady();
+      _throwIfUnavailable();
 
-    final directory = _directory;
-    if (_disabled || directory == null || !await directory.exists()) return;
+      final directory = _directory;
+      if (directory == null || !await directory.exists()) return;
 
-    await Future.wait(
-      _logFiles(
-        directory,
-      ).where((file) => file.existsSync()).map((file) => file.delete()),
-    );
+      await Future.wait(
+        _logFiles(
+          directory,
+        ).where((file) => file.existsSync()).map((file) => file.delete()),
+      );
+    });
+  }
+
+  /// 串行执行一次文件操作，返回给调用方的 Future 保留该操作自身的失败。
+  ///
+  /// 队列尾部单独吸收错误，避免一次失败卡死后续所有读写；调用方拿到的
+  /// Future 仍然会抛出，读取/清空的失败因此可观察。
+  Future<T> _enqueue<T>(Future<T> Function() action) {
+    final result = _queue.then((_) => action());
+    _queue = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
   }
 
   Future<void> _init() async {
@@ -381,14 +399,14 @@ class AppLogger {
     _directory = directory;
   }
 
-  Future<void> _ensureReady() async {
-    if (_disabled) return;
-    await init();
+  Future<void> _ensureReady() => init();
+
+  void _throwIfUnavailable() {
+    final error = _initError;
+    if (error != null) throw AppLoggerUnavailableException(error);
   }
 
   Future<void> _writeEntry(AppLogEntry entry) async {
-    await _ensureReady();
-
     final directory = _directory;
     if (_disabled || directory == null) return;
     if (!await directory.exists()) {
@@ -403,6 +421,57 @@ class AppLogger {
     ).writeAsString('$line\n', mode: FileMode.append, flush: true);
   }
 
+  Future<List<AppLogEntry>> _readEntries(int? limit) async {
+    await _ensureReady();
+    _throwIfUnavailable();
+
+    final directory = _directory;
+    if (directory == null || !await directory.exists()) {
+      return const [];
+    }
+
+    final entries = <AppLogEntry>[];
+    for (final file in _logFiles(directory)) {
+      if (!await file.exists()) continue;
+      final lines = await file.readAsLines();
+      for (final line in lines.reversed) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty) continue;
+        try {
+          final json = jsonDecode(trimmed);
+          if (json is Map<String, dynamic>) {
+            entries.add(_sanitizeEntry(AppLogEntry.fromJson(json)));
+            if (limit != null && entries.length >= limit) return entries;
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    }
+
+    return entries;
+  }
+
+  /// 旧版本可能留下了未脱敏的记录：读回来时再洗一遍，历史文件本身不改写。
+  static AppLogEntry _sanitizeEntry(AppLogEntry entry) {
+    return AppLogEntry(
+      timestamp: entry.timestamp,
+      level: entry.level,
+      source: LogSanitizer.text(
+        entry.source,
+        maxLength: LogSanitizer.maxContextValueLength,
+      ),
+      message: LogSanitizer.text(entry.message),
+      stackTrace: entry.stackTrace == null
+          ? null
+          : LogSanitizer.text(
+              entry.stackTrace!,
+              maxLength: LogSanitizer.maxStackTraceLength,
+            ),
+      context: LogSanitizer.context(entry.context),
+    );
+  }
+
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -413,7 +482,10 @@ class AppLogger {
         fallback: defaultMinimumLevel,
       );
     } catch (error) {
-      debugPrint('AppLogger load settings failed: $error');
+      debugPrint(
+        'AppLogger load settings failed: '
+        '${LogSanitizer.text('$error', maxLength: 200)}',
+      );
     }
   }
 
@@ -482,23 +554,6 @@ class AppLogger {
     return Directory('${baseDirectory.path}${Platform.pathSeparator}logs');
   }
 
-  static Map<String, String> _sanitizeContext(Map<String, Object?>? context) {
-    if (context == null || context.isEmpty) return const {};
-
-    final sanitized = <String, String>{};
-    for (final entry in context.entries) {
-      final key = _truncate(_redact(entry.key), _maxContextValueLength);
-      final rawValue = entry.value?.toString() ?? '';
-      final value = _sensitiveKeyPattern.hasMatch(entry.key)
-          ? _redacted
-          : _truncate(_redact(rawValue), _maxContextValueLength);
-      if (key.isNotEmpty && value.isNotEmpty) {
-        sanitized[key] = value;
-      }
-    }
-    return sanitized;
-  }
-
   static String _collectFlutterInformation(FlutterErrorDetails details) {
     final collector = details.informationCollector;
     if (collector == null) return '';
@@ -521,20 +576,5 @@ class AppLogger {
     } catch (_) {
       return value.runtimeType.toString();
     }
-  }
-
-  static String _redact(String value) {
-    return value
-        .replaceAllMapped(_authorizationBearerPattern, (match) {
-          return '${match.group(1)}$_redacted';
-        })
-        .replaceAllMapped(_sensitiveValuePattern, (match) {
-          return '${match.group(1)}${match.group(2)}$_redacted';
-        });
-  }
-
-  static String _truncate(String value, int maxLength) {
-    if (value.length <= maxLength) return value;
-    return '${value.substring(0, maxLength)}...';
   }
 }
