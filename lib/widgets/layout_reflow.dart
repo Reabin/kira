@@ -147,6 +147,11 @@ class _MotionRenderWidget extends SingleChildRenderObjectWidget {
 }
 
 class _MotionBox extends RenderProxyBox {
+  // Entrance opacity and motion can add layers even for a plain-text child.
+  // Ancestor clips must therefore use composited clipping throughout reflow.
+  @override
+  bool get alwaysNeedsCompositing => true;
+
   _MotionBox(this.config);
   _MotionRenderWidget config;
   int observedGeneration = -1;
