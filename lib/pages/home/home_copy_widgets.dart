@@ -57,50 +57,56 @@ class _CopyCollapsibleSectionState extends State<_CopyCollapsibleSection> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Material(
-            color: _expanded ? Colors.transparent : cs.surfaceBright,
-            borderRadius: AppRadius.mdR,
-            clipBehavior: Clip.antiAlias,
-            child: Semantics(
-              expanded: _expanded,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                child: SectionHeader(
-                  title: widget.title,
-                  icon: widget.icon,
-                  onTap: _toggleExpanded,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.onMore != null)
-                        TextButton(
-                          onPressed: widget.onMore,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(l10n.moreButton),
-                              const Icon(
-                                Icons.chevron_right,
-                                size: AppIconSize.md,
-                              ),
-                            ],
+          ReflowMotion(
+            id: 'home:copy-header:${widget.storageKey}',
+            resize: false,
+            child: Material(
+              color: _expanded ? Colors.transparent : cs.surfaceBright,
+              borderRadius: AppRadius.mdR,
+              clipBehavior: Clip.antiAlias,
+              child: Semantics(
+                expanded: _expanded,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
+                  child: SectionHeader(
+                    title: widget.title,
+                    icon: widget.icon,
+                    onTap: _toggleExpanded,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.onMore != null)
+                          TextButton(
+                            onPressed: widget.onMore,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(l10n.moreButton),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  size: AppIconSize.md,
+                                ),
+                              ],
+                            ),
+                          ),
+                        AnimatedRotation(
+                          key: ValueKey(reducedMotion),
+                          turns: _expanded ? 0.5 : 0,
+                          duration: adaptiveDuration(
+                            context,
+                            const Duration(milliseconds: 180),
+                          ),
+                          curve: Curves.easeOut,
+                          child: Icon(
+                            Icons.expand_more,
+                            size: AppIconSize.xl,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
-                      AnimatedRotation(
-                        key: ValueKey(reducedMotion),
-                        turns: _expanded ? 0.5 : 0,
-                        duration: adaptiveDuration(
-                          context,
-                          const Duration(milliseconds: 180),
-                        ),
-                        curve: Curves.easeOut,
-                        child: Icon(
-                          Icons.expand_more,
-                          size: AppIconSize.xl,
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

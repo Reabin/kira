@@ -112,12 +112,101 @@ class NovelPageCurl extends StatelessWidget {
   }
 }
 
+/// Two-page sheet: the front is the current right leaf, and its opaque back
+/// is the next left leaf. The same curved fold crosses the gutter continuously.
+class SpreadPageCurl extends StatelessWidget {
+  const SpreadPageCurl({
+    super.key,
+    required this.progress,
+    required this.reverse,
+    required this.paperColor,
+    required this.before,
+    required this.after,
+  });
+  final double progress;
+  final bool reverse;
+  final Color paperColor;
+  final Widget Function() before;
+  final Widget Function() after;
+
+  Widget _normal(Widget page) =>
+      reverse ? Transform.flip(flipX: true, child: page) : page;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget spread = LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final leaf = Rect.fromLTWH(
+          size.width / 2,
+          0,
+          size.width / 2,
+          size.height,
+        );
+        final geometry = _CurlGeometry(
+          size,
+          progress.clamp(0, 1),
+          0.9,
+          leafRect: leaf,
+          keepBackAtEnd: true,
+        );
+        return ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: paperColor, child: _normal(after())),
+              ClipRect(clipper: _LeftLeafClipper(), child: _normal(before())),
+              ClipPath(
+                clipper: _CurlClipper(geometry.frontPath),
+                child: RepaintBoundary(child: _normal(before())),
+              ),
+              CustomPaint(painter: _CurlShadowPainter(geometry)),
+              ClipPath(
+                clipper: _CurlClipper(geometry.backPath),
+                child: Transform(
+                  transform: geometry.reflection,
+                  transformHitTests: false,
+                  child: RepaintBoundary(
+                    child: Transform.flip(flipX: true, child: _normal(after())),
+                  ),
+                ),
+              ),
+              CustomPaint(
+                painter: _CurlSurfacePainter(
+                  geometry,
+                  Colors.white,
+                  Colors.white,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (reverse) spread = Transform.flip(flipX: true, child: spread);
+    return spread;
+  }
+}
+
+class _LeftLeafClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) => Rect.fromLTWH(0, 0, size.width / 2, size.height);
+  @override
+  bool shouldReclip(_LeftLeafClipper oldClipper) => false;
+}
+
 /// 纸角沿连续轨迹移动，折线是原纸角与移动纸角的垂直平分线。
 /// 折线附近按半圆柱投影，远离卷边的纸背仅反射，不整体缩放纸张。
 class _CurlGeometry {
-  _CurlGeometry(Size size, double curl, double originY) {
-    final rect = Offset.zero & size;
-    if (size.isEmpty || curl == 0 || curl == 1) {
+  _CurlGeometry(
+    Size size,
+    double curl,
+    double originY, {
+    Rect? leafRect,
+    bool keepBackAtEnd = false,
+  }) {
+    final rect = leafRect ?? (Offset.zero & size);
+    if (size.isEmpty || curl == 0 || (curl == 1 && !keepBackAtEnd)) {
       frontPath = curl == 0 ? (Path()..addRect(rect)) : Path();
       return;
     }
@@ -127,16 +216,16 @@ class _CurlGeometry {
     final fromBottom = origin >= 0.5;
     final corner = fromBottom ? rect.bottomRight : rect.topRight;
     final lift =
-        math.min(size.height * 0.16, size.width * 0.2) *
+        math.min(rect.height * 0.16, rect.width * 0.2) *
         (origin - 0.5).abs() *
         2 *
         strength;
     final touch =
-        corner - Offset(size.width * 2 * curl, fromBottom ? lift : -lift);
+        corner - Offset(rect.width * 2 * curl, fromBottom ? lift : -lift);
     final displacement = corner - touch;
     normal = displacement / displacement.distance;
     radius = math.min(
-      size.shortestSide * 0.075 * strength,
+      rect.shortestSide * 0.075 * strength,
       displacement.distance * 0.16,
     );
     final halfArc = math.pi * radius / 2;

@@ -32,6 +32,7 @@ import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
 import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
+import '../widgets/layout_reflow.dart';
 import '../widgets/recent_region_filter.dart';
 import '../widgets/section_header.dart';
 
@@ -441,18 +442,22 @@ class _HomePageState extends ConsumerState<HomePage>
   /// 右下角切换 hot / copy 首页数据源的悬浮按钮，图标旁显示当前数据源
   Widget _buildSourceFab() {
     final isCopy = _isCopySource;
-    return FloatingActionButton.extended(
-      heroTag: 'home-source-switch',
-      tooltip: isCopy
-          ? AppLocalizations.of(context)!.switchToHotHome
-          : AppLocalizations.of(context)!.switchToCopyHome,
-      onPressed: () => _user.setMangaHomeSource(isCopy ? 'hot' : 'copy'),
-      icon: const Icon(Icons.swap_horiz, size: 20),
-      label: Text(
-        isCopy
-            ? AppLocalizations.of(context)!.homeSourceCopy
-            : AppLocalizations.of(context)!.homeSourceHot,
-        style: AppTypography.fabLabel(Theme.of(context).textTheme),
+    return ReflowMotion(
+      id: 'home-source-button',
+      resize: false,
+      child: FloatingActionButton.extended(
+        heroTag: 'home-source-switch',
+        tooltip: isCopy
+            ? AppLocalizations.of(context)!.switchToHotHome
+            : AppLocalizations.of(context)!.switchToCopyHome,
+        onPressed: () => _user.setMangaHomeSource(isCopy ? 'hot' : 'copy'),
+        icon: const Icon(Icons.swap_horiz, size: 20),
+        label: Text(
+          isCopy
+              ? AppLocalizations.of(context)!.homeSourceCopy
+              : AppLocalizations.of(context)!.homeSourceHot,
+          style: AppTypography.fabLabel(Theme.of(context).textTheme),
+        ),
       ),
     );
   }

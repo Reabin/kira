@@ -6,7 +6,7 @@
 
 基于 [caolib/kira](https://github.com/caolib/kira) 的 Flutter 漫画与轻小说客户端。本 Fork 在安卓代码基础上适配 iPhone / iPad，并增加最近更新地区筛选、iOS 返回手势。
 
-**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.4+595**，最低支持 **iOS 14**。
+**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前应用版本为 **1.7.4+596**，最低支持 **iOS 14**。
 
 ## 安装到自己的 iPhone / iPad
 
@@ -32,6 +32,7 @@ IPA 未签名，不能直接点击安装；GitHub 下载构建产物需要登录
 | 多选关注地区 | 可组合选择日漫、韩漫、美漫；默认日漫，至少保留一项，三项全选显示全部 |
 | 章节排序记忆 | 正序／倒序同时作用于章节和大页；倒序先显示最新章节所在大页，重启及清缓存保留 |
 | iPad 横屏双页 | 漫画翻页模式下，横屏且窗口足够宽时显示相邻两页；窄窗口或竖屏自动恢复单页 |
+| 转屏与布局动画 | 新旧画面渐变衔接；首页封面、标题及底部导航沿轨迹重排，仿真翻页保留开关 |
 | 保存筛选配置 | 重启和清理缓存后保留选择；首页与“更多”列表共用配置 |
 | iOS 返回手势 | 漫画及小说详情页支持从左侧边缘滑动返回 |
 | 代理与测速 | 返回网络设置页后刷新网络配置并重测，不因缺少系统 HTTP 代理地址判定 VPN 未启用 |

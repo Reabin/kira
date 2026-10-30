@@ -311,9 +311,18 @@ extension _ReaderImagePipeline on _ReaderPageState {
         ? BoxFit.fitHeight
         : (useFullViewport ? BoxFit.contain : BoxFit.fitWidth);
     final screenSize = MediaQuery.sizeOf(context);
+    // Match the full portrait page's pixel width on this display. Never
+    // downgrade to a landscape half-page or change the key during rotation.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final displayPortraitPixels = View.of(context).display.size.shortestSide;
+    final portraitPixels = displayPortraitPixels > 0
+        ? displayPortraitPixels
+        : screenSize.shortestSide * dpr;
     final memCacheWidth = _isHorizontalScrollMode
-        ? (screenSize.height * MediaQuery.devicePixelRatioOf(context)).round()
-        : (screenSize.width * MediaQuery.devicePixelRatioOf(context)).round();
+        ? (screenSize.height * dpr).round()
+        : (_isPageMode && defaultTargetPlatform == TargetPlatform.iOS
+              ? portraitPixels.round()
+              : (screenSize.width * dpr).round());
 
     // 竖向滚动模式下，占位符使用预估高度以防页面跳动；翻页模式占满
     // viewport 不需要估算。横向滚动模式高度虽由外层 SizedBox 约束，

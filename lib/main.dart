@@ -21,6 +21,7 @@ import 'repositories/novel_bookshelf_repository.dart';
 import 'routing/app_router.dart';
 import 'theme/app_radius.dart';
 import 'theme/app_typography.dart';
+import 'theme/reader_chrome.dart';
 import 'utils/app_logger.dart';
 import 'utils/app_storage.dart';
 import 'utils/display_mode_preference.dart';
@@ -577,7 +578,18 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
         disableAnimations:
             mediaQuery.disableAnimations || _user.theme.reduceMotion,
       ),
-      child: OrientationReflow(child: child ?? const SizedBox.shrink()),
+      child: OrientationReflow(
+        // Home uses per-item motion, so an old grid must not ghost over it.
+        captureSnapshot: () =>
+            _router.routeInformationProvider.value.uri.path != '/',
+        snapshotBackground:
+            _router.routeInformationProvider.value.uri.path.startsWith(
+              '/reader/',
+            )
+            ? ReaderChrome.surface
+            : null,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 

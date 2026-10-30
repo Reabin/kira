@@ -2,7 +2,7 @@
 
 本次构建仅供 iPad 安装，iPad Pro 11 英寸（M5）说明见 [iPad 构建与适配](ipad-build.md)。
 
-本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前版本为 **1.7.4+595**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
+本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前版本为 **1.7.4+596**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
 
 ## Windows 用户：取得安装包
 

@@ -75,76 +75,79 @@ class _MangaCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: width,
-        margin: const EdgeInsets.only(right: _mangaHomeCardSpacing),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _hero(
-                ComicHeroTags.cover,
-                ComicCardSurface(
-                  child: CoverBrightnessFilter(
-                    child: CoverImage(
-                      url: comic.cover,
-                      width: width,
-                      height: double.infinity,
+    return ReflowMotion(
+      id: 'home:card:${heroTagBase ?? comic.pathWord}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: width,
+          margin: const EdgeInsets.only(right: _mangaHomeCardSpacing),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _hero(
+                  ComicHeroTags.cover,
+                  ComicCardSurface(
+                    child: CoverBrightnessFilter(
+                      child: CoverImage(
+                        url: comic.cover,
+                        width: width,
+                        height: double.infinity,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              comic.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodySmall,
-            ),
-            const SizedBox(height: 2),
-            if (showUpdateTime && comic.datetimeUpdated != null)
+              const SizedBox(height: 6),
               Text(
-                TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                comic.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-              )
-            else
-              Row(
-                children: [
-                  Icon(
-                    Icons.local_fire_department,
-                    size: 12,
-                    color: cs.primary,
-                  ),
-                  const SizedBox(width: 2),
-                  Text(
-                    ComicCard.formatPopular(comic.popular, l10n),
-                    style: tt.labelSmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 12,
+                style: tt.bodySmall,
+              ),
+              const SizedBox(height: 2),
+              if (showUpdateTime && comic.datetimeUpdated != null)
+                Text(
+                  TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                )
+              else
+                Row(
+                  children: [
+                    Icon(
+                      Icons.local_fire_department,
+                      size: 12,
+                      color: cs.primary,
                     ),
-                  ),
-                  if (comic.authors.isNotEmpty) ...[
-                    const SizedBox(width: AppSpacing.xs),
-                    Expanded(
-                      child: Text(
-                        comic.authors.map((a) => a.name).join(' / '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tt.labelSmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
+                    const SizedBox(width: 2),
+                    Text(
+                      ComicCard.formatPopular(comic.popular, l10n),
+                      style: tt.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant,
+                        fontSize: 12,
                       ),
                     ),
+                    if (comic.authors.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Expanded(
+                        child: Text(
+                          comic.authors.map((a) => a.name).join(' / '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tt.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-          ],
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -189,7 +192,11 @@ class _SectionTitle extends StatelessWidget {
     return SliverToBoxAdapter(
       child: Padding(
         padding: EdgeInsets.fromLTRB(hp, 0, hp - 8, 6),
-        child: SectionHeader(title: title, icon: icon, onMore: onMore),
+        child: ReflowMotion(
+          id: 'home:heading:$title',
+          resize: false,
+          child: SectionHeader(title: title, icon: icon, onMore: onMore),
+        ),
       ),
     );
   }
@@ -234,55 +241,58 @@ class ComicCard extends StatelessWidget {
       style: tt.bodySmall,
     );
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _hero(
-              ComicHeroTags.cover,
-              ComicCardSurface(
-                child: CoverBrightnessFilter(
-                  child: CoverImage(
-                    url: comic.cover,
-                    width: double.infinity,
-                    height: double.infinity,
+    return ReflowMotion(
+      id: 'home:card:${heroTagBase ?? comic.pathWord}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _hero(
+                ComicHeroTags.cover,
+                ComicCardSurface(
+                  child: CoverBrightnessFilter(
+                    child: CoverImage(
+                      url: comic.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 6),
-          title,
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Icon(Icons.local_fire_department, size: 12, color: cs.primary),
-              const SizedBox(width: 2),
-              Flexible(
-                child: Text(
-                  formatPopular(comic.popular, l10n),
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
+            const SizedBox(height: 6),
+            title,
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Icon(Icons.local_fire_department, size: 12, color: cs.primary),
+                const SizedBox(width: 2),
+                Flexible(
+                  child: Text(
+                    formatPopular(comic.popular, l10n),
+                    overflow: TextOverflow.ellipsis,
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
-              ),
-              if (comic.datetimeUpdated != null) ...[
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
-                  style: tt.labelSmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                    fontSize: 12,
+                if (comic.datetimeUpdated != null) ...[
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    TimeFormat.relativeOf(comic.datetimeUpdated!, l10n),
+                    style: tt.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kira/api/api_client.dart';
+import 'package:kira/api/manga/manga_api.dart';
 import 'package:kira/models/comic.dart' hide Theme;
 import 'package:kira/models/user_manager.dart';
 import 'package:kira/pages/home_page.dart';
@@ -12,6 +14,22 @@ import 'package:kira/widgets/section_header.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../test_helpers.dart';
+
+class _Api extends Fake implements ApiClient {
+  @override
+  final MangaApi manga = _Manga();
+}
+
+class _Manga extends Fake implements MangaApi {
+  @override
+  Future<({List<Comic> list, int total})> getCopyComicList({
+    String ordering = '',
+    int limit = 21,
+    int offset = 0,
+    String? theme,
+    String? top,
+  }) async => (list: <Comic>[], total: 0);
+}
 
 class _HomeRepository extends MangaHomeRepository {
   final data = CopyMangaHomeData(
@@ -28,8 +46,11 @@ class _HomeRepository extends MangaHomeRepository {
 }
 
 void main() {
+  late ApiClient original;
   setUp(() async {
     setupSecureCredentialStoreForTest();
+    original = ApiClient();
+    ApiClient.setTestInstance(_Api());
     SharedPreferences.setMockInitialValues({
       'manga_home_source': 'copy',
       'banner_visible': false,
@@ -37,7 +58,10 @@ void main() {
     await UserManager().init();
   });
 
-  tearDown(teardownSecureCredentialStoreForTest);
+  tearDown(() {
+    ApiClient.setTestInstance(original);
+    teardownSecureCredentialStoreForTest();
+  });
 
   Future<void> mount(WidgetTester tester, {double textScale = 1}) async {
     tester.view.physicalSize = const Size(375, 800);
@@ -70,12 +94,12 @@ void main() {
     'copy section is unframed and collapses without changing titles',
     (tester) async {
       await mount(tester);
-      expect(find.byType(SectionHeader), findsOneWidget);
+      expect(find.widgetWithText(SectionHeader, '推荐'), findsOneWidget);
       final label = tester.widget<Text>(find.text('测试作品'));
       expect(label.maxLines, 1);
       final section = find
           .ancestor(
-            of: find.byType(SectionHeader),
+            of: find.widgetWithText(SectionHeader, '推荐'),
             matching: find.byType(Material),
           )
           .first;
@@ -132,7 +156,12 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
-    await tester.tap(find.text('更多'));
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(SectionHeader, '推荐'),
+        matching: find.text('更多'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('list:recommendations'), findsOneWidget);
     expect(UserManager().isCopyHomeSectionCollapsed('copy-rec'), isFalse);

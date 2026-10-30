@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../theme/reader_chrome.dart';
@@ -121,101 +119,11 @@ class ReaderBookTransition extends StatelessWidget {
     return curl;
   }
 
-  Widget _spread() => LayoutBuilder(
-    builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final height = constraints.maxHeight;
-      final half = width / 2;
-      Widget leaf(Widget spread, {required bool right}) => SizedBox(
-        width: half,
-        height: height,
-        child: ClipRect(
-          child: OverflowBox(
-            alignment: right ? Alignment.centerRight : Alignment.centerLeft,
-            minWidth: width,
-            maxWidth: width,
-            minHeight: height,
-            maxHeight: height,
-            child: RepaintBoundary(child: spread),
-          ),
-        ),
-      );
-      // In LTR the right sheet turns onto the left; RTL mirrors the geometry
-      // while retaining the image orientation on both sides of the sheet.
-      final startsRight = !reverse;
-      final secondHalf = progress >= 0.5;
-      final angle = (startsRight ? -1 : 1) * math.pi * progress;
-      final front = leaf(before(), right: startsRight);
-      final back = leaf(after(), right: !startsRight);
-      return ClipRect(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Row(
-              children: startsRight
-                  ? [leaf(before(), right: false), leaf(after(), right: true)]
-                  : [leaf(after(), right: false), leaf(before(), right: true)],
-            ),
-            Positioned(
-              left: half - 1,
-              top: 0,
-              bottom: 0,
-              width: 2,
-              child: const ColoredBox(color: Colors.black26),
-            ),
-            Positioned(
-              left: startsRight ? half : 0,
-              top: 0,
-              width: half,
-              height: height,
-              child: Transform(
-                key: const ValueKey('reader-book-leaf'),
-                alignment: startsRight
-                    ? Alignment.centerLeft
-                    : Alignment.centerRight,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, 0.0005)
-                  ..rotateY(angle),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: 0.25 * math.sin(math.pi * progress),
-                        ),
-                        blurRadius: 20,
-                        spreadRadius: 3,
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ColoredBox(
-                        color: ReaderChrome.surface,
-                        child: secondHalf
-                            ? Transform(
-                                alignment: Alignment.center,
-                                transform: Matrix4.rotationY(math.pi),
-                                child: back,
-                              )
-                            : front,
-                      ),
-                      IgnorePointer(
-                        child: ColoredBox(
-                          color: Colors.black.withValues(
-                            alpha: 0.18 * math.sin(math.pi * progress),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
+  Widget _spread() => SpreadPageCurl(
+    progress: progress,
+    reverse: reverse,
+    paperColor: ReaderChrome.surface,
+    before: before,
+    after: after,
   );
 }

@@ -307,6 +307,8 @@ void main() {
     'iPad resume on second leaf survives rotation and narrow windows',
     (tester) async {
       tester.view.devicePixelRatio = 1;
+      tester.view.display.size = const Size(2420, 1668);
+      addTearDown(tester.view.display.resetSize);
       tester.view.physicalSize = const Size(1210, 834);
       addTearDown(tester.view.reset);
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
@@ -319,10 +321,25 @@ void main() {
             find.byKey(ValueKey('reader-image-last-$index')).hitTestable();
         expect(image(2), findsOneWidget);
         expect(image(3), findsOneWidget);
+        ImageProvider provider() => tester
+            .widget<Image>(
+              find.descendant(
+                of: find.byKey(const ValueKey('reader-image-last-3')),
+                matching: find.byType(Image),
+              ),
+            )
+            .image;
+        final portraitProvider = provider();
+        expect(
+          portraitProvider,
+          isA<ResizeImage>().having((p) => p.width, 'portrait pixels', 1668),
+        );
+
         tester.view.physicalSize = const Size(834, 1210);
         await tester.pump(const Duration(milliseconds: 350));
         await tester.pumpAndSettle();
         expect(image(3), findsOneWidget);
+        expect(provider(), portraitProvider);
         expect(image(2), findsNothing);
         tester.view.physicalSize = const Size(420, 700);
         await tester.pump(const Duration(milliseconds: 350));

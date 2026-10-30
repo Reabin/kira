@@ -17,6 +17,7 @@ import '../utils/dialog_width.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/settings_rebuild_guard.dart';
 import '../utils/toast.dart';
+import '../widgets/layout_reflow.dart';
 import '../widgets/nav_bar_inset.dart';
 import 'branch_activation.dart';
 
@@ -460,8 +461,11 @@ class _MainShellState extends State<MainShell>
         ),
       ),
     );
-    if (!floating) return bar;
-    return _FloatingBarShell(cs: cs, child: bar);
+    return ReflowMotion(
+      id: 'main-navigation',
+      resize: false,
+      child: floating ? _FloatingBarShell(cs: cs, child: bar) : bar,
+    );
   }
 
   NavigationDestination _buildClassicDestination({
@@ -546,8 +550,11 @@ class _MainShellState extends State<MainShell>
         ),
       ),
     );
-    if (!floating) return bar;
-    return _FloatingBarShell(cs: cs, child: bar);
+    return ReflowMotion(
+      id: 'main-navigation',
+      resize: false,
+      child: floating ? _FloatingBarShell(cs: cs, child: bar) : bar,
+    );
   }
 
   GButton _buildGButton({

@@ -96,6 +96,60 @@ void main() {
   setUp(setupSecureCredentialStoreForTest);
   tearDown(teardownSecureCredentialStoreForTest);
 
+  testWidgets(
+    'spread fold crosses the gutter with the next leaf on its opaque back',
+    (tester) async {
+      const size = Size(640, 480);
+      Future<List<Path>> at(double progress) async {
+        await tester.pumpWidget(
+          wrapWithApp(
+            SizedBox(
+              width: size.width,
+              height: size.height,
+              child: SpreadPageCurl(
+                progress: progress,
+                reverse: false,
+                paperColor: Colors.black,
+                before: () => const Center(child: Text('current spread')),
+                after: () => const Center(child: Text('next spread')),
+              ),
+            ),
+          ),
+        );
+        return tester
+            .widgetList<ClipPath>(
+              find.descendant(
+                of: find.byType(SpreadPageCurl),
+                matching: find.byType(ClipPath),
+              ),
+            )
+            .map((widget) => widget.clipper!.getClip(size))
+            .toList();
+      }
+
+      final start = await at(0);
+      expect(start.first.contains(const Offset(480, 240)), isTrue);
+      final early = await at(0.25);
+      expect(early.last.getBounds().left, greaterThan(320));
+      final late = await at(0.75);
+      expect(late.last.getBounds().left, lessThan(320));
+      final end = await at(1);
+      expect(end.first.getBounds().isEmpty, isTrue);
+      expect(end.last.getBounds().left, closeTo(0, 0.001));
+      expect(end.last.getBounds().right, closeTo(320, 0.001));
+      expect(end.last.contains(const Offset(160, 240)), isTrue);
+      expect(find.text('next spread'), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byType(SpreadPageCurl),
+          matching: find.byType(Opacity),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('forward curl starts on the current page and ends on the next', (
     tester,
   ) async {
