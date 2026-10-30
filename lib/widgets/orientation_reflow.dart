@@ -85,7 +85,7 @@ class _OrientationReflowState extends State<OrientationReflow>
     final object = boundaryKey.currentContext?.findRenderObject();
     if (object is! RenderRepaintBoundary ||
         !object.hasSize ||
-        object.debugNeedsPaint ||
+        (kDebugMode && object.debugNeedsPaint) ||
         _hasPlatformView(object)) {
       return;
     }
