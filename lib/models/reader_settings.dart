@@ -20,6 +20,7 @@ class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
   static const _keyImageGap = 'reader_image_gap';
   static const _keyVolumeKey = 'reader_volume_key';
   static const _keyInstantPageTurn = 'reader_instant_page_turn';
+  static const _keyRealisticPageTurn = 'reader_realistic_page_turn';
   static const _keyLongPressZoomEnabled = 'reader_long_press_zoom_enabled';
   static const _keyLongPressZoomPanSensitivity =
       'reader_long_press_zoom_pan_sensitivity';
@@ -82,6 +83,7 @@ class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
   double _imageGap = 0.0;
   bool _volumeKey = true;
   bool _instantPageTurn = false;
+  bool _realisticPageTurn = true;
   bool _longPressZoomEnabled = true;
   double _longPressZoomPanSensitivity = 2.0;
   bool _pageRTL = false;
@@ -137,6 +139,7 @@ class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
 
   bool get volumeKey => _volumeKey;
   bool get instantPageTurn => _instantPageTurn;
+  bool get realisticPageTurn => _realisticPageTurn;
   bool get longPressZoomEnabled => _longPressZoomEnabled;
   double get longPressZoomPanSensitivity => _longPressZoomPanSensitivity;
   bool get pageRTL => _pageRTL;
@@ -214,6 +217,7 @@ class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
     _volumeKey = prefs.getBool(_keyVolumeKey) ?? true;
     _chapterReversed = prefs.getBool(_keyChapterReversed) ?? false;
     _instantPageTurn = prefs.getBool(_keyInstantPageTurn) ?? false;
+    _realisticPageTurn = prefs.getBool(_keyRealisticPageTurn) ?? true;
     _longPressZoomEnabled = prefs.getBool(_keyLongPressZoomEnabled) ?? true;
     _longPressZoomPanSensitivity =
         (prefs.getDouble(_keyLongPressZoomPanSensitivity) ?? 2.0).clamp(
@@ -293,6 +297,11 @@ class ReaderSettings extends PrefsStore implements ReaderStatusPrefs {
   Future<void> setVolumeKey(bool value) async {
     _volumeKey = value;
     await setBool(_keyVolumeKey, value);
+  }
+
+  Future<void> setRealisticPageTurn(bool value) async {
+    _realisticPageTurn = value;
+    await setBool(_keyRealisticPageTurn, value);
   }
 
   Future<void> setInstantPageTurn(bool value) async {

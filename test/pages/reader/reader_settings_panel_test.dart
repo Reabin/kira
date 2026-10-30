@@ -234,6 +234,29 @@ void main() {
     expect(_imageLoadingFold().hitTestable(), findsOneWidget);
   });
 
+  testWidgets(
+    'comic realistic page-turn switch persists independently of instant mode',
+    (tester) async {
+      await _pumpReader(tester);
+      await _openSettings(tester);
+      await tester.tap(find.text('翻页'));
+      await tester.pumpAndSettle();
+      final toggle = find.byKey(const ValueKey('reader-realistic-page-turn'));
+      await _ensureVisible(tester, toggle);
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(UserManager().reader.realisticPageTurn, isFalse);
+      expect(
+        (await SharedPreferences.getInstance()).getBool(
+          'reader_realistic_page_turn',
+        ),
+        isFalse,
+      );
+      expect(UserManager().readerInstantPageTurn, isFalse);
+    },
+  );
+
   testWidgets('工具栏设置入口打开真实阅读设置面板', (tester) async {
     await _pumpReader(tester);
     await _openSettings(tester);

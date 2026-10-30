@@ -367,6 +367,17 @@ class _ReaderSettingsPanelState extends State<_ReaderSettingsPanel> {
                 ),
               ],
               if (isPageMode) ...[
+                SwitchListTile.adaptive(
+                  key: const ValueKey('reader-realistic-page-turn'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.novelReaderRealisticPageTurn),
+                  value: _user.reader.realisticPageTurn,
+                  onChanged: (value) {
+                    _user.reader.setRealisticPageTurn(value);
+                    setState(() {});
+                    widget.onChanged();
+                  },
+                ),
                 if (Platform.isAndroid)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

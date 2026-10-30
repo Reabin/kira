@@ -78,6 +78,7 @@ abstract final class BackupSchema {
     'reader_status_overlay_page',
     'reader_status_overlay_time',
     'reader_volume_key',
+    'reader_realistic_page_turn',
     'comic_chapter_reversed',
     'novel_status_overlay',
     'novel_status_overlay_battery',

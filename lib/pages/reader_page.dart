@@ -47,6 +47,7 @@ import '../widgets/reader_status_settings.dart';
 import 'chapter_comment_display.dart';
 import 'chapter_comments_sheet.dart';
 import 'reader/chain_scroll_layout.dart';
+import 'reader/reader_book_pager.dart';
 import 'reader/reader_long_press_zoom.dart';
 import 'reader/reader_spread_layout.dart';
 

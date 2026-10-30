@@ -15,6 +15,23 @@ void main() {
     await settings.initFromPrefs(await SharedPreferences.getInstance());
   });
 
+  test(
+    'realistic page turn defaults on and survives preference reload',
+    () async {
+      expect(settings.realisticPageTurn, isTrue);
+      await settings.setRealisticPageTurn(false);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.realisticPageTurn, isFalse);
+      expect(
+        (await SharedPreferences.getInstance()).getBool(
+          'reader_realistic_page_turn',
+        ),
+        isFalse,
+      );
+    },
+  );
+
   // ── Default values ────────────────────────────────────────────────────
 
   group('default values', () {

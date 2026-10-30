@@ -32,6 +32,7 @@ import 'utils/network_proxy.dart';
 import 'utils/novel_download_manager.dart';
 import 'utils/settings_backup.dart';
 import 'widgets/backup_recovery_app.dart';
+import 'widgets/orientation_reflow.dart';
 import 'widgets/startup_failure_app.dart';
 
 bool get isDesktop =>
@@ -576,7 +577,7 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
         disableAnimations:
             mediaQuery.disableAnimations || _user.theme.reduceMotion,
       ),
-      child: child ?? const SizedBox.shrink(),
+      child: OrientationReflow(child: child ?? const SizedBox.shrink()),
     );
   }
 
