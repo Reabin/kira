@@ -12,6 +12,8 @@ abstract interface class ProgressTransport {
 }
 
 class ICloudProgressFolder implements ProgressTransport {
+  ICloudProgressFolder({required this.identity});
+  final String identity;
   static const channel = MethodChannel('io.github.reabin.kira/progress_folder');
 
   static Future<Map<String, dynamic>> status() async {
@@ -24,13 +26,16 @@ class ICloudProgressFolder implements ProgressTransport {
 
   @override
   Future<Map<String, String>> readDevices() async {
-    final result = await channel.invokeMapMethod<String, String>('read');
+    final result = await channel.invokeMapMethod<String, String>('read', {
+      'identity': identity,
+    });
     return result ?? {};
   }
 
   @override
   Future<void> writeDevice(String device, String document) async {
     await channel.invokeMethod<void>('write', {
+      'identity': identity,
       'device': device,
       'document': document,
     });

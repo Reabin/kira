@@ -182,7 +182,7 @@ class _ProgressSyncPageState extends ConsumerState<ProgressSyncPage> {
                     : l10n.progressSyncBackupHint,
               ),
               const SizedBox(height: AppSpacing.lg),
-              if (_service.busy) const LinearProgressIndicator(),
+              if (_service.busy || _loading) const LinearProgressIndicator(),
               if (last != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),

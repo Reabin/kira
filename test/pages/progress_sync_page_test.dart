@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,6 +78,67 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, contains('choose'));
       expect(find.textContaining('已选择。'), findsOneWidget);
+      expect(service.settings.enabled, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'slow folder authorization shows progress and a timeout remains retryable',
+    (tester) async {
+      final selected = Completer<bool>();
+      var attempts = 0;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(ICloudProgressFolder.channel, (call) async {
+            if (call.method == 'status') return {'configured': false};
+            if (call.method == 'choose') {
+              attempts++;
+              if (attempts == 1) return selected.future;
+              return true;
+            }
+            return null;
+          });
+      await tester.pumpWidget(page());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('选择同步文件夹'));
+      await tester.pump();
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      selected.completeError(
+        PlatformException(
+          code: 'progress_folder_timeout',
+          message: '文件夹授权处理超时，请确认 iCloud Drive 可用后重试',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('文件夹授权处理超时'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.textContaining('已选择。'), findsNothing);
+      await tester.tap(find.text('选择同步文件夹'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('已选择。'), findsOneWidget);
+      expect(attempts, 2);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'cancelled folder selection leaves settings usable',
+    (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            ICloudProgressFolder.channel,
+            (call) async =>
+                call.method == 'status' ? {'configured': false} : false,
+          );
+      await tester.pumpWidget(page());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('选择同步文件夹'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('已选择。'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(find.byType(SwitchListTile), findsOneWidget);
       expect(service.settings.enabled, isFalse);
       expect(tester.takeException(), isNull);
     },

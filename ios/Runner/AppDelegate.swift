@@ -45,10 +45,17 @@ import UniformTypeIdentifiers
 
 /// User-selected File Provider folder, not an app-owned iCloud container.
 /// Works through document-picker grants without CloudKit entitlements.
-private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate {
+private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate,
+  UIAdaptivePresentationControllerDelegate {
   private let defaults = UserDefaults.standard
   private let queue = DispatchQueue(label: "kira.progress-folder")
   private var pendingPicker: FlutterResult?
+  private var activePicker: UIDocumentPickerViewController?
+  private var selectionID: UUID?
+  private var validatingSelection = false
+  private var selectionTimeout: DispatchWorkItem?
+  private let validationQueue = DispatchQueue(label: "kira.progress-folder.validation",
+    qos: .userInitiated, attributes: .concurrent)
   private let bookmarkKey = "kira.progress-folder.bookmark.v1"
   private let identityKey = "kira.progress-folder.identity.v1"
   private let filePattern = "^kira-progress-[a-f0-9]{32}\\.json$"
@@ -69,10 +76,18 @@ private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate {
         ])
       case "choose": self.choose(result)
       case "read", "write":
+        guard let arguments = call.arguments as? [String: Any],
+              let identity = arguments["identity"] as? String,
+              self.defaults.string(forKey: self.identityKey) == identity,
+              let bookmark = self.defaults.data(forKey: self.bookmarkKey) else {
+          result(FlutterError(code: "progress_folder_changed",
+            message: "同步文件夹已变化，请重新同步", details: nil))
+          return
+        }
         // File Provider coordination can wait for downloads; never block UIKit.
         self.queue.async {
           do {
-            let url = try self.folder()
+            let url = try self.folder(bookmark: bookmark, identity: identity)
             guard url.startAccessingSecurityScopedResource() else {
               throw self.failure("同步文件夹授权已失效，请重新选择文件夹")
             }
@@ -108,10 +123,7 @@ private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate {
       userInfo: [NSLocalizedDescriptionKey: message])
   }
 
-  private func folder() throws -> URL {
-    guard let data = defaults.data(forKey: bookmarkKey) else {
-      throw failure("请先选择 iCloud Drive 同步文件夹")
-    }
+  private func folder(bookmark data: Data, identity: String) throws -> URL {
     var stale = false
     let url = try URL(resolvingBookmarkData: data, options: [],
       relativeTo: nil, bookmarkDataIsStale: &stale)
@@ -120,8 +132,13 @@ private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate {
         throw failure("同步文件夹授权已失效，请重新选择文件夹")
       }
       defer { url.stopAccessingSecurityScopedResource() }
-      defaults.set(try url.bookmarkData(options: .minimalBookmark,
-        includingResourceValuesForKeys: nil, relativeTo: nil), forKey: bookmarkKey)
+      let refreshed = try url.bookmarkData(options: .minimalBookmark,
+        includingResourceValuesForKeys: nil, relativeTo: nil)
+      DispatchQueue.main.async {
+        if self.defaults.string(forKey: self.identityKey) == identity {
+          self.defaults.set(refreshed, forKey: self.bookmarkKey)
+        }
+      }
     }
     return url
   }
@@ -139,40 +156,90 @@ private final class ProgressFolderBridge: NSObject, UIDocumentPickerDelegate {
     }
     while let presented = presenter.presentedViewController { presenter = presented }
     pendingPicker = result
+    selectionID = UUID()
     let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false)
+    activePicker = picker
     picker.delegate = self
     picker.allowsMultipleSelection = false
-    presenter.present(picker, animated: true)
+    picker.modalPresentationStyle = .fullScreen
+    presenter.present(picker, animated: true) {
+      picker.presentationController?.delegate = self
+    }
   }
 
+  @objc
   func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-    pendingPicker?(false)
-    pendingPicker = nil
+    guard controller === activePicker, !validatingSelection,
+          let id = selectionID else { return }
+    controller.dismiss(animated: true)
+    finishSelection(id, value: false)
   }
 
-  func documentPicker(_ controller: UIDocumentPickerViewController,
-    didPickDocumentsAt urls: [URL]) {
+  func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+    guard presentationController.presentedViewController === activePicker,
+          !validatingSelection, let id = selectionID else { return }
+    finishSelection(id, value: false)
+  }
+
+  private func finishSelection(_ id: UUID, value: Any?) {
+    // UIKit cancellation, provider completion and timeout may race. Reply once
+    // and never let an old validation replace a newer folder selection.
+    guard selectionID == id else { return }
+    selectionTimeout?.cancel()
+    selectionTimeout = nil
     let result = pendingPicker
     pendingPicker = nil
-    do {
-      guard let url = urls.first, url.startAccessingSecurityScopedResource() else {
-        throw failure("未取得同步文件夹的读写权限")
+    activePicker = nil
+    selectionID = nil
+    validatingSelection = false
+    result?(value)
+  }
+
+  @objc
+  func documentPicker(_ controller: UIDocumentPickerViewController,
+    didPickDocumentsAt urls: [URL]) {
+    guard controller === activePicker, !validatingSelection,
+          let id = selectionID else { return }
+    validatingSelection = true
+    // Close the picker before any File Provider work. resourceValues and
+    // bookmarkData may block even for a newly created, apparently local folder.
+    controller.dismiss(animated: true)
+    guard let url = urls.first else {
+      finishSelection(id, value: FlutterError(code: "progress_folder",
+        message: "系统未返回选中的文件夹，请重试", details: nil))
+      return
+    }
+    let timeout = DispatchWorkItem { [weak self] in
+      self?.finishSelection(id, value: FlutterError(code: "progress_folder_timeout",
+        message: "文件夹授权处理超时，请确认 iCloud Drive 可用后重试", details: nil))
+    }
+    selectionTimeout = timeout
+    DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: timeout)
+    validationQueue.async {
+      do {
+        guard url.startAccessingSecurityScopedResource() else {
+          throw self.failure("未取得同步文件夹的读写权限")
+        }
+        defer { url.stopAccessingSecurityScopedResource() }
+        let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isUbiquitousItemKey])
+        guard values.isDirectory == true else { throw self.failure("请选择文件夹") }
+        if values.isUbiquitousItem != true {
+          throw self.failure("请选择 iCloud Drive 中的文件夹，而不是本机文件夹")
+        }
+        let data = try url.bookmarkData(options: .minimalBookmark,
+          includingResourceValuesForKeys: nil, relativeTo: nil)
+        DispatchQueue.main.async {
+          guard self.selectionID == id else { return }
+          self.defaults.set(data, forKey: self.bookmarkKey)
+          self.defaults.set(UUID().uuidString, forKey: self.identityKey)
+          self.finishSelection(id, value: true)
+        }
+      } catch {
+        DispatchQueue.main.async {
+          self.finishSelection(id, value: FlutterError(code: "progress_folder",
+            message: error.localizedDescription, details: nil))
+        }
       }
-      defer { url.stopAccessingSecurityScopedResource() }
-      let values = try url.resourceValues(forKeys: [.isDirectoryKey, .isUbiquitousItemKey])
-      guard values.isDirectory == true else { throw failure("请选择文件夹") }
-      // The picker also exposes other providers. Require iCloud here so a local
-      // 'On My iPad' folder cannot be mistaken for cross-device synchronization.
-      guard values.isUbiquitousItem == true else {
-        throw failure("请选择 iCloud Drive 中的文件夹，而不是本机文件夹")
-      }
-      let data = try url.bookmarkData(options: .minimalBookmark,
-        includingResourceValuesForKeys: nil, relativeTo: nil)
-      defaults.set(data, forKey: bookmarkKey)
-      defaults.set(UUID().uuidString, forKey: identityKey)
-      result?(true)
-    } catch {
-      result?(FlutterError(code: "progress_folder", message: error.localizedDescription, details: nil))
     }
   }
 

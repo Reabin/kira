@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/backup/webdav_client.dart';
 import 'package:kira/backup/webdav_config.dart';
@@ -11,6 +12,28 @@ import '../backup/fake_webdav_adapter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'iCloud reads and writes bind to the selected folder identity',
+    () async {
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(ICloudProgressFolder.channel, (call) async {
+            calls.add(call);
+            return call.method == 'read' ? <String, String>{} : null;
+          });
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(ICloudProgressFolder.channel, null),
+      );
+      final folder = ICloudProgressFolder(identity: 'folder-a');
+      await folder.readDevices();
+      await folder.writeDevice('a' * 32, '{}');
+      expect(calls.map((call) => call.arguments['identity']), [
+        'folder-a',
+        'folder-a',
+      ]);
+    },
+  );
   test(
     'WebDAV replaces only its device file atomically in the separate directory',
     () async {

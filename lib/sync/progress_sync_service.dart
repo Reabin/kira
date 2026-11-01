@@ -138,7 +138,9 @@ class ProgressSyncService extends ChangeNotifier {
       }
       return (
         identity: 'icloud:${jsonString(status, 'identity')}:$installation',
-        transport: ICloudProgressFolder(),
+        transport: ICloudProgressFolder(
+          identity: jsonString(status, 'identity'),
+        ),
       );
     }
     final data = await BackupSettings().load();
