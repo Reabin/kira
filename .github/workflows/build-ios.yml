@@ -9,6 +9,7 @@ on:
         default: ipad
         type: choice
         options:
+          - universal
           - ipad
           - iphone
 
@@ -47,7 +48,7 @@ jobs:
           python3 - <<'PY'
           import os, pathlib, re
           device = os.environ['APP_DEVICE']
-          family = {'ipad': '2', 'iphone': '1'}[device]
+          family = {'ipad': '2', 'iphone': '1', 'universal': '1,2'}[device]
           project = pathlib.Path('ios/Runner.xcodeproj/project.pbxproj')
           source, count = re.subn(r'TARGETED_DEVICE_FAMILY = "?[^;]+;',
               f'TARGETED_DEVICE_FAMILY = "{family}";', project.read_text())
@@ -63,10 +64,11 @@ jobs:
           device = os.environ['APP_DEVICE']
           with open('build/ios/iphoneos/Runner.app/Info.plist', 'rb') as f:
               info = plistlib.load(f)
-          assert info['UIDeviceFamily'] == [{'ipad': 2, 'iphone': 1}[device]], info['UIDeviceFamily']
+          expected = {'ipad': [2], 'iphone': [1], 'universal': [1, 2]}[device]
+          assert sorted(info['UIDeviceFamily']) == expected, info['UIDeviceFamily']
           assert info['DTPlatformName'] == 'iphoneos'
           assert not info.get('UIRequiresFullScreen', False)
-          if device == 'ipad':
+          if device in ('ipad', 'universal'):
               orientations = info.get('UISupportedInterfaceOrientations~ipad', info.get('UISupportedInterfaceOrientations', []))
               assert len(set(orientations)) == 4, orientations
           PY

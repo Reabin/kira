@@ -1,14 +1,14 @@
 # iOS 安装、构建与验证
 
-本次构建仅供 iPad 安装，iPad Pro 11 英寸（M5）说明见 [iPad 构建与适配](ipad-build.md)。
+597 版选择 iPhone / iPad 通用构建，同一个 IPA 可安装到两种设备。iPad Pro 11 英寸（M5）布局说明见 [iPad 构建与适配](ipad-build.md)。
 
-本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前版本为 **1.7.4+596**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
+本指南对应 `Reabin/kira` 的 `ios-port` 分支，当前源码版本为 **1.7.4+597**，最低支持 **iOS 14**。应用 Bundle ID 为 `io.github.reabin.kira`。
 
 ## Windows 用户：取得安装包
 
 1. 登录 GitHub，打开 [Build Apple IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)。
 2. 选择 `ios-port` 分支的成功构建。
-3. 下载 **Artifacts → kira-ipad-unsigned** 或 **kira-iphone-unsigned**，解压取得对应 IPA。
+3. 下载 **Artifacts → kira-universal-unsigned**（通用）、**kira-ipad-unsigned** 或 **kira-iphone-unsigned**，解压取得对应 IPA。
 4. 通过 Windows 上的 AltServer 和 iPhone 上的 AltStore，使用自己的 Apple 账号签名安装。
 
 构建产物保留 14 天。如果已过期，选择 **Run workflow**，分支选 `ios-port` 并明确选择设备 `ipad` 或 `iphone` 后运行。工作流完成后重新下载。
@@ -21,7 +21,7 @@ IPA 未签名，无法直接点击安装。签名有效期和刷新方式按安�
 
 | 项目 | 当前配置 |
 | --- | --- |
-| 触发 | 手动运行并选择 `ipad` / `iphone`；提交代码不自动构建 |
+| 触发 | 手动运行并选择 `universal` / `ipad` / `iphone`；提交代码不自动构建 |
 | 构建环境 | macOS 15、Xcode 26.3 |
 | Flutter | 3.44.2 |
 | 原生依赖 | CocoaPods，关闭 Swift Package Manager |
