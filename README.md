@@ -13,7 +13,7 @@
 只有 Windows 电脑也可以使用 GitHub Actions 构建 IPA，再通过 AltServer / AltStore 签名安装。
 
 1. 打开 [Build Apple IPA](https://github.com/Reabin/kira/actions/workflows/build-ios.yml)，选择一次成功的 `ios-port` 构建。
-2. 在构建页面的 **Artifacts** 下载对应设备产物：`kira-ipad-unsigned` 或 `kira-iphone-unsigned`，解压取得 IPA。
+2. 在构建页面的 **Artifacts** 下载 `kira-universal-unsigned`（iPhone/iPad 通用），或对应设备的 `kira-ipad-unsigned` / `kira-iphone-unsigned`，解压取得 IPA。
 3. 使用自己的 Apple 账号，通过 AltStore 签名并安装。
 4. 更新时使用相同账号覆盖安装，建议保留原应用，避免卸载导致本地数据丢失。
 
@@ -37,14 +37,16 @@ IPA 未签名，不能直接点击安装；GitHub 下载构建产物需要登录
 | iOS 返回手势 | 漫画及小说详情页支持从左侧边缘滑动返回 |
 | 代理与测速 | 返回网络设置页后刷新网络配置并重测，不因缺少系统 HTTP 代理地址判定 VPN 未启用 |
 | iOS 系统功能 | 相册保存、分享、`kira://` 链接和备用图标 |
-| 阅读进度同步（待打包） | 设置 → 通用 → 阅读进度同步，可选择 iCloud Drive 文件夹或 WebDAV，支持离线重试与冲突选择 |
+| 阅读进度同步 | 设置 → 通用 → 阅读进度同步，可选择 iCloud Drive 文件夹或 WebDAV，支持离线重试与冲突选择 |
 
 
 最近更新按当前首页数据源的更新时间倒序展示。列表缓存 5 分钟，首页可先显示有效快照再后台刷新；需要最新结果时可下拉刷新。首次筛选地区可能额外查询漫画详情，加载会比直接列表请求慢。
 
 iOS 已移除音量键翻页插件和设置入口，音量键正常调节系统音量。
 
-阅读进度同步已加入源码，尚未包含在现有 1.7.4+596 安装包中。iCloud 文件夹授权与跨设备传送待后续真机验证；本次未触发构建。[使用方式与验证边界](docs/reading-progress-sync.md)。
+阅读进度同步从 597 版起加入，旧的 1.7.4+596 安装包不包含此功能。iCloud 文件夹授权与跨设备传送仍需真机验证。[使用方式与验证边界](docs/reading-progress-sync.md)。
+
+597 版通用包已完成 [云端构建](https://github.com/Reabin/kira/actions/runs/41336864899) 和下载核验：同时支持 iPhone / iPad，ARM64、四方向及 ZIP 完整性通过。
 
 ## 当前边界
 

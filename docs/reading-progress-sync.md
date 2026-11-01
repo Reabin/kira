@@ -1,6 +1,6 @@
 # 自动阅读进度同步（597 版构建，待真机验证）
 
-入口：设置 → 通用 → 阅读进度同步。默认关闭，可选择 **iCloud Drive** 或 **WebDAV**；同一时间使用一种方式。两台设备都需要安装包含此功能的版本、启用同步并选择同一云端位置。现有 1.7.4+596 安装包不包含本次新增功能，本次没有触发安装包构建。
+入口：设置 → 通用 → 阅读进度同步。默认关闭，可选择 **iCloud Drive** 或 **WebDAV**；同一时间使用一种方式。两台设备都需要安装包含此功能的 597 或更新版本、启用同步并选择同一云端位置。旧的 1.7.4+596 安装包不包含本次新增功能。
 
 ## iCloud Drive
 
@@ -16,7 +16,7 @@
 
 依据苹果的 [文件夹授权文档](https://developer.apple.com/documentation/uikit/providing-access-to-directories)，使用 `UIDocumentPickerViewController`、持久化最小授权书签、`startAccessingSecurityScopedResource` 和 `NSFileCoordinator`。文件协调运行于独立串行队列，不阻塞界面线程。不依赖付费开发者账号的 CloudKit 能力。
 
-**验证边界：**Windows 上已验证 Dart 同步、存储、界面和原生通道参数；Swift 桥接尚未通过 Xcode 构建，也没有在免费账号 AltStore 安装的 iPad 上验证授权持久化和真实云盘传送。后续按用户指定设备构建后，需做两台真机验收，不能将模拟云盘测试视为 iCloud 已可用。
+**验证边界：**Dart 同步、存储、界面和原生通道参数测试已通过；597 版 Swift 桥接已通过 Xcode 真机 Release 编译，通用安装包已下载核验。尚未在免费账号 AltStore 安装的设备上验证授权持久化和真实云盘传送，仍需两台真机验收，不能将模拟云盘测试视为 iCloud 跨设备传送已可用。
 
 ## WebDAV
 

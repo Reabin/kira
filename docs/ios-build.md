@@ -28,9 +28,11 @@ IPA 未签名，无法直接点击安装。签名有效期和刷新方式按安�
 | Dart 依赖 | `flutter pub get --enforce-lockfile` |
 | 检查 | 静态分析、相关回归测试、iOS 元数据检查 |
 | 编译 | 真机 Release，`--no-codesign` |
-| 输出 | `kira-ipad-unsigned` 或 `kira-iphone-unsigned`，保留 14 天 |
+| 输出 | `kira-universal-unsigned` / `kira-ipad-unsigned` / `kira-iphone-unsigned`，保留 14 天 |
 
 此流程无需把 Apple 账号或签名证书交给 GitHub，也不会发布到 App Store。构建失败时查看失败步骤的日志；成功打包不等于通过全部真机验收。
+
+597 版通用包已构建并下载核验：版本 1.7.4+597、`UIDeviceFamily=[1,2]`、ARM64、iPad 四方向、无全屏锁定及 ZIP 完整性通过。构建源码为 `89a9f599e438210c8ab2af71da972b45bad1aea8`，[构建记录](https://github.com/Reabin/kira/actions/runs/41336864899)。
 
 ## Mac 本地构建
 
