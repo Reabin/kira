@@ -2539,5 +2539,54 @@
   "networkIOSSystemHint": "VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。",
   "networkIOSDirectActive": "不使用应用层代理",
   "networkIOSDirectHint": "此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。",
-  "networkIOSLatencySuggestion": "连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点"
+  "networkIOSLatencySuggestion": "连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点",
+  "progressSyncTitle": "阅读进度同步",
+  "progressSyncAutomatic": "自动同步",
+  "progressSyncAutomaticHint": "打开应用、返回前台和阅读后自动交换进度；离线时保留待同步记录。",
+  "progressSyncICloud": "iCloud Drive",
+  "progressSyncChooseFolder": "选择同步文件夹",
+  "progressSyncFolderReady": "已选择。两台设备需要选择 iCloud Drive 中的同一个文件夹。",
+  "progressSyncFolderRequired": "请先在 iCloud Drive 中新建或选择一个专用文件夹。",
+  "progressSyncWebDavSettings": "配置 WebDAV",
+  "progressSyncWebDavHint": "使用备份页面保存的服务器与账号，进度同步独立运行。",
+  "progressSyncICloudHint": "首次在每台设备选择同一个专用文件夹。文件由 iCloud Drive 传送，可能延迟；“最近交换”不代表其他设备已经收到。阅读中不会强制跳转到其他设备的位置。",
+  "progressSyncBackupHint": "仅同步漫画和轻小说的阅读位置与已读标记，不传送账号、漫画图片或正文。完整备份和手动恢复保持独立。",
+  "progressSyncLastExchange": "最近交换：{time}",
+  "progressSyncNow": "立即同步",
+  "progressSyncConflicts": "需要选择的阅读进度",
+  "progressSyncConflictHint": "多台设备分别修改了同一本书。请选择要继续的位置，选择前不会互相覆盖。",
+  "progressSyncComicPosition": "{chapter} · 第 {page} 页",
+  "progressSyncNovelPosition": "{chapter} · 第 {paragraph} 段",
+  "progressSyncUsePosition": "使用此进度",
+  "progressSyncThisDevice": "当前设备的位置",
+  "progressSyncOtherDevice": "另一设备的位置",
+  "progressSyncReview": "查看",
+  "progressSyncConflictNotice": "有阅读进度冲突，请选择要保留的位置。",
+  "@progressSyncLastExchange": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "@progressSyncComicPosition": {
+    "placeholders": {
+      "chapter": {
+        "type": "String"
+      },
+      "page": {
+        "type": "String"
+      }
+    }
+  },
+  "@progressSyncNovelPosition": {
+    "placeholders": {
+      "chapter": {
+        "type": "String"
+      },
+      "paragraph": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -139,6 +139,12 @@ class _GeneralPageState extends State<GeneralPage> {
     final backupGroup = SettingTileGroup(
       children: [
         ListTile(
+          leading: const Icon(Icons.sync),
+          title: Text(l10n.progressSyncTitle),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.pushNamed(AppRoutes.progressSync),
+        ),
+        ListTile(
           leading: const Icon(Icons.backup_outlined),
           title: Text(l10n.backupTitle),
           trailing: const Icon(Icons.chevron_right),

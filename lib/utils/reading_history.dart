@@ -36,6 +36,47 @@ class ReadingHistory {
   /// 变更通知：每批记录落盘后递增。「继续阅读」这类展示页面监听它及时刷新，
   /// 否则页面常驻（底部导航分支 State 不重建）时会一直停留在旧记录。
   static final ValueNotifier<int> changes = ValueNotifier<int>(0);
+  static Future<void>? Function()? beforeRead;
+
+  static Future<Map<String, String>> syncSnapshot() async {
+    await flush();
+    return _enqueue((prefs) {
+      final result = <String, String>{};
+      final keys = prefs.getKeys().where((k) => k.startsWith(_prefix));
+      for (final key in keys) {
+        final canonical = key.contains(_groupMarker)
+            ? key
+            : '$key${_groupMarker}default';
+        final raw = prefs.get(canonical) ?? prefs.get(key);
+        if (raw is String) result[canonical] = raw;
+      }
+      return result;
+    });
+  }
+
+  /// Compare inside the same queue as page saves; a delayed network response
+  /// cannot overwrite a page the user just turned to.
+  static Future<bool> applySynced(
+    String key,
+    String? expected,
+    String data,
+  ) async {
+    await flush();
+    return _enqueue((prefs) async {
+      final legacy = key.endsWith('${_groupMarker}default')
+          ? key.substring(0, key.length - '${_groupMarker}default'.length)
+          : null;
+      final current =
+          prefs.get(key) ?? (legacy == null ? null : prefs.get(legacy));
+      if (_restoring || !key.startsWith(_prefix) || current != expected) {
+        return false;
+      }
+      await _setString(prefs, key, data);
+      if (legacy != null) await _setString(prefs, legacy, data);
+      changes.value++;
+      return true;
+    });
+  }
 
   static String _legacyKey(String pathWord) => '$_prefix$pathWord';
 
@@ -202,6 +243,10 @@ class ReadingHistory {
     String? group,
     bool fallbackToLegacy = true,
   }) async {
+    final waiting = beforeRead?.call();
+    if (waiting != null) {
+      await waiting;
+    }
     await flush();
     return _enqueue(
       (prefs) => _readFromPrefs(
@@ -215,6 +260,10 @@ class ReadingHistory {
 
   /// 获取这部漫画最近更新过的本地阅读记录，跨分组查询。
   static Future<ReadingRecord?> latestForComic(String pathWord) async {
+    final waiting = beforeRead?.call();
+    if (waiting != null) {
+      await waiting;
+    }
     await flush();
     return _enqueue((prefs) {
       final legacyKey = _legacyKey(pathWord);

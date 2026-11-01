@@ -317,6 +317,45 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
   // 每次 UserManager 通知（任意设置变化都会触发）都会重建 GoRouter，
   // 导致导航栈被重置到 initialLocation '/'（跳回首页）。
   late final GoRouter _router = createAppRouter();
+  bool _wasProgressReader = false;
+  int _progressConflictCount = 0;
+
+  void _onProgressSyncChanged() {
+    final service = ref.read(progressSyncServiceProvider);
+    final count = service.conflicts.length;
+    if (count > _progressConflictCount) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final context = _messengerKey.currentContext;
+        if (context == null || !context.mounted) return;
+        final l10n = AppLocalizations.of(context)!;
+        _messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text(l10n.progressSyncConflictNotice),
+            showCloseIcon: true,
+            action: SnackBarAction(
+              label: l10n.progressSyncReview,
+              onPressed: () => _router.pushNamed(AppRoutes.progressSync),
+            ),
+          ),
+        );
+      });
+    }
+    _progressConflictCount = count;
+  }
+
+  bool get _isProgressReader {
+    final path = _router.routeInformationProvider.value.uri.path;
+    return path.startsWith('/reader/') || path.startsWith('/novel-reader/');
+  }
+
+  void _onProgressRouteChanged() {
+    final reading = _isProgressReader;
+    if (_wasProgressReader && !reading) {
+      unawaited(ref.read(progressSyncServiceProvider).sync());
+    }
+    _wasProgressReader = reading;
+  }
 
   @override
   void initState() {
@@ -325,6 +364,12 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // 定时备份只在应用运行期间生效：启动后复查一次是否已到期。
     ref.read(backupSchedulerProvider).start();
+    final progressSync = ref.read(progressSyncServiceProvider);
+    progressSync.canApplyRemote = () => mounted && !_isProgressReader;
+    progressSync.start();
+    progressSync.addListener(_onProgressSyncChanged);
+    _wasProgressReader = _isProgressReader;
+    _router.routeInformationProvider.addListener(_onProgressRouteChanged);
     unawaited(
       DisplayModePreference.applyRefreshRate(_user.displayModeRefreshRate),
     );
@@ -398,6 +443,10 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    ref
+        .read(progressSyncServiceProvider)
+        .removeListener(_onProgressSyncChanged);
+    _router.routeInformationProvider.removeListener(_onProgressRouteChanged);
     _user.removeListener(_onChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -405,6 +454,12 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed ||
+        state == AppLifecycleState.paused) {
+      ref
+          .read(progressSyncServiceProvider)
+          .setForeground(state == AppLifecycleState.resumed);
+    }
     if (state == AppLifecycleState.resumed) {
       unawaited(_checkSharedLinkClipboard());
     }

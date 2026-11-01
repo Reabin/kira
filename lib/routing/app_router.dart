@@ -32,6 +32,7 @@ import '../pages/novel_history_page.dart';
 import '../pages/novel_home_page.dart';
 import '../pages/novel_reader_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/progress_sync_page.dart';
 import '../pages/ranking_page.dart';
 import '../pages/reader_page.dart';
 import '../pages/recent_updates_page.dart';
@@ -80,6 +81,7 @@ final class AppRoutes {
   static const accountCenter = 'account_center';
   static const general = 'general';
   static const backup = 'backup';
+  static const progressSync = 'progress_sync';
   static const appearance = 'appearance';
   static const network = 'network';
   static const aiConfig = 'ai_config';
@@ -473,6 +475,11 @@ GoRouter createAppRouter() {
         path: '/general/backup',
         name: AppRoutes.backup,
         builder: (_, _) => const BackupPage(),
+      ),
+      GoRoute(
+        path: '/general/progress-sync',
+        name: AppRoutes.progressSync,
+        builder: (_, _) => const ProgressSyncPage(),
       ),
       GoRoute(
         path: '/appearance',

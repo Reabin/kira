@@ -7360,6 +7360,138 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点'**
   String get networkIOSLatencySuggestion;
+
+  /// No description provided for @progressSyncTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'阅读进度同步'**
+  String get progressSyncTitle;
+
+  /// No description provided for @progressSyncAutomatic.
+  ///
+  /// In zh, this message translates to:
+  /// **'自动同步'**
+  String get progressSyncAutomatic;
+
+  /// No description provided for @progressSyncAutomaticHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'打开应用、返回前台和阅读后自动交换进度；离线时保留待同步记录。'**
+  String get progressSyncAutomaticHint;
+
+  /// No description provided for @progressSyncICloud.
+  ///
+  /// In zh, this message translates to:
+  /// **'iCloud Drive'**
+  String get progressSyncICloud;
+
+  /// No description provided for @progressSyncChooseFolder.
+  ///
+  /// In zh, this message translates to:
+  /// **'选择同步文件夹'**
+  String get progressSyncChooseFolder;
+
+  /// No description provided for @progressSyncFolderReady.
+  ///
+  /// In zh, this message translates to:
+  /// **'已选择。两台设备需要选择 iCloud Drive 中的同一个文件夹。'**
+  String get progressSyncFolderReady;
+
+  /// No description provided for @progressSyncFolderRequired.
+  ///
+  /// In zh, this message translates to:
+  /// **'请先在 iCloud Drive 中新建或选择一个专用文件夹。'**
+  String get progressSyncFolderRequired;
+
+  /// No description provided for @progressSyncWebDavSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'配置 WebDAV'**
+  String get progressSyncWebDavSettings;
+
+  /// No description provided for @progressSyncWebDavHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用备份页面保存的服务器与账号，进度同步独立运行。'**
+  String get progressSyncWebDavHint;
+
+  /// No description provided for @progressSyncICloudHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'首次在每台设备选择同一个专用文件夹。文件由 iCloud Drive 传送，可能延迟；“最近交换”不代表其他设备已经收到。阅读中不会强制跳转到其他设备的位置。'**
+  String get progressSyncICloudHint;
+
+  /// No description provided for @progressSyncBackupHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'仅同步漫画和轻小说的阅读位置与已读标记，不传送账号、漫画图片或正文。完整备份和手动恢复保持独立。'**
+  String get progressSyncBackupHint;
+
+  /// No description provided for @progressSyncLastExchange.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近交换：{time}'**
+  String progressSyncLastExchange(String time);
+
+  /// No description provided for @progressSyncNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即同步'**
+  String get progressSyncNow;
+
+  /// No description provided for @progressSyncConflicts.
+  ///
+  /// In zh, this message translates to:
+  /// **'需要选择的阅读进度'**
+  String get progressSyncConflicts;
+
+  /// No description provided for @progressSyncConflictHint.
+  ///
+  /// In zh, this message translates to:
+  /// **'多台设备分别修改了同一本书。请选择要继续的位置，选择前不会互相覆盖。'**
+  String get progressSyncConflictHint;
+
+  /// No description provided for @progressSyncComicPosition.
+  ///
+  /// In zh, this message translates to:
+  /// **'{chapter} · 第 {page} 页'**
+  String progressSyncComicPosition(String chapter, String page);
+
+  /// No description provided for @progressSyncNovelPosition.
+  ///
+  /// In zh, this message translates to:
+  /// **'{chapter} · 第 {paragraph} 段'**
+  String progressSyncNovelPosition(String chapter, String paragraph);
+
+  /// No description provided for @progressSyncUsePosition.
+  ///
+  /// In zh, this message translates to:
+  /// **'使用此进度'**
+  String get progressSyncUsePosition;
+
+  /// No description provided for @progressSyncThisDevice.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前设备的位置'**
+  String get progressSyncThisDevice;
+
+  /// No description provided for @progressSyncOtherDevice.
+  ///
+  /// In zh, this message translates to:
+  /// **'另一设备的位置'**
+  String get progressSyncOtherDevice;
+
+  /// No description provided for @progressSyncReview.
+  ///
+  /// In zh, this message translates to:
+  /// **'查看'**
+  String get progressSyncReview;
+
+  /// No description provided for @progressSyncConflictNotice.
+  ///
+  /// In zh, this message translates to:
+  /// **'有阅读进度冲突，请选择要保留的位置。'**
+  String get progressSyncConflictNotice;
 }
 
 class _AppLocalizationsDelegate

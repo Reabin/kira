@@ -241,6 +241,12 @@ Future<void> deleteAll();
 
 **新增一次性加载的单例时必须同步登记进去**,否则该设置又会变成「要重启才生效」。此类单例应提供 `reloadFromPrefs()` 之类的重载入口,而不是仅暴露 `@visibleForTesting` 的 reset 方法。
 
+## 自动阅读进度同步
+
+`progress_sync_enabled`、`progress_sync_backend` 和 `progress_sync_state_v1_<目标摘要>` 为本机配置、版本基线、已观察远端文件及持久化待上传队列，不属于缓存，也不在普通备份白名单内。iCloud 文件夹授权书签由 iOS 原生 UserDefaults 保存，不导出。不同同步位置分别维护状态。详见 [阅读进度同步](reading-progress-sync.md)。
+
+远端只允许写入漫画／小说的阅读记录白名单；经原存储串行队列比较当前原值后再写入，不整库恢复偏好。默认漫画组的旧键与新键镜像为同一同步身份。完整备份恢复期间暂停交换。
+
 ## 8. 新增存储的决策流程
 
 1. **进程级临时数据** → 用页面 State Map 或 `Services` 单例；无需持久化。

@@ -4013,6 +4013,80 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkIOSLatencySuggestion => '连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点';
+
+  @override
+  String get progressSyncTitle => '阅读进度同步';
+
+  @override
+  String get progressSyncAutomatic => '自动同步';
+
+  @override
+  String get progressSyncAutomaticHint => '打开应用、返回前台和阅读后自动交换进度；离线时保留待同步记录。';
+
+  @override
+  String get progressSyncICloud => 'iCloud Drive';
+
+  @override
+  String get progressSyncChooseFolder => '选择同步文件夹';
+
+  @override
+  String get progressSyncFolderReady => '已选择。两台设备需要选择 iCloud Drive 中的同一个文件夹。';
+
+  @override
+  String get progressSyncFolderRequired => '请先在 iCloud Drive 中新建或选择一个专用文件夹。';
+
+  @override
+  String get progressSyncWebDavSettings => '配置 WebDAV';
+
+  @override
+  String get progressSyncWebDavHint => '使用备份页面保存的服务器与账号，进度同步独立运行。';
+
+  @override
+  String get progressSyncICloudHint =>
+      '首次在每台设备选择同一个专用文件夹。文件由 iCloud Drive 传送，可能延迟；“最近交换”不代表其他设备已经收到。阅读中不会强制跳转到其他设备的位置。';
+
+  @override
+  String get progressSyncBackupHint =>
+      '仅同步漫画和轻小说的阅读位置与已读标记，不传送账号、漫画图片或正文。完整备份和手动恢复保持独立。';
+
+  @override
+  String progressSyncLastExchange(String time) {
+    return '最近交换：$time';
+  }
+
+  @override
+  String get progressSyncNow => '立即同步';
+
+  @override
+  String get progressSyncConflicts => '需要选择的阅读进度';
+
+  @override
+  String get progressSyncConflictHint => '多台设备分别修改了同一本书。请选择要继续的位置，选择前不会互相覆盖。';
+
+  @override
+  String progressSyncComicPosition(String chapter, String page) {
+    return '$chapter · 第 $page 页';
+  }
+
+  @override
+  String progressSyncNovelPosition(String chapter, String paragraph) {
+    return '$chapter · 第 $paragraph 段';
+  }
+
+  @override
+  String get progressSyncUsePosition => '使用此进度';
+
+  @override
+  String get progressSyncThisDevice => '当前设备的位置';
+
+  @override
+  String get progressSyncOtherDevice => '另一设备的位置';
+
+  @override
+  String get progressSyncReview => '查看';
+
+  @override
+  String get progressSyncConflictNotice => '有阅读进度冲突，请选择要保留的位置。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -8024,4 +8098,78 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkIOSLatencySuggestion => '連線耗時較高或無法連線，請檢查網路、VPN 分流規則及所選節點';
+
+  @override
+  String get progressSyncTitle => '閱讀進度同步';
+
+  @override
+  String get progressSyncAutomatic => '自動同步';
+
+  @override
+  String get progressSyncAutomaticHint => '開啟應用程式、返回前景和閱讀後自動交換進度；離線時保留待同步記錄。';
+
+  @override
+  String get progressSyncICloud => 'iCloud Drive';
+
+  @override
+  String get progressSyncChooseFolder => '選擇同步資料夾';
+
+  @override
+  String get progressSyncFolderReady => '已選擇。兩台裝置需要選擇 iCloud Drive 中的同一個資料夾。';
+
+  @override
+  String get progressSyncFolderRequired => '請先在 iCloud Drive 中新增或選擇一個專用資料夾。';
+
+  @override
+  String get progressSyncWebDavSettings => '設定 WebDAV';
+
+  @override
+  String get progressSyncWebDavHint => '使用備份頁面儲存的伺服器與帳號，進度同步獨立運作。';
+
+  @override
+  String get progressSyncICloudHint =>
+      '首次在每台裝置選擇同一個專用資料夾。檔案由 iCloud Drive 傳送，可能延遲；「最近交換」不代表其他裝置已經收到。閱讀中不會強制跳轉到其他裝置的位置。';
+
+  @override
+  String get progressSyncBackupHint =>
+      '僅同步漫畫和輕小說的閱讀位置與已讀標記，不傳送帳號、漫畫圖片或正文。完整備份和手動還原保持獨立。';
+
+  @override
+  String progressSyncLastExchange(String time) {
+    return '最近交換：$time';
+  }
+
+  @override
+  String get progressSyncNow => '立即同步';
+
+  @override
+  String get progressSyncConflicts => '需要選擇的閱讀進度';
+
+  @override
+  String get progressSyncConflictHint => '多台裝置分別修改了同一本書。請選擇要繼續的位置，選擇前不會互相覆蓋。';
+
+  @override
+  String progressSyncComicPosition(String chapter, String page) {
+    return '$chapter · 第 $page 頁';
+  }
+
+  @override
+  String progressSyncNovelPosition(String chapter, String paragraph) {
+    return '$chapter · 第 $paragraph 段';
+  }
+
+  @override
+  String get progressSyncUsePosition => '使用此進度';
+
+  @override
+  String get progressSyncThisDevice => '目前裝置的位置';
+
+  @override
+  String get progressSyncOtherDevice => '另一裝置的位置';
+
+  @override
+  String get progressSyncReview => '檢視';
+
+  @override
+  String get progressSyncConflictNotice => '有閱讀進度衝突，請選擇要保留的位置。';
 }
