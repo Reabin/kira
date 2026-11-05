@@ -6,7 +6,7 @@
 
 基于 [caolib/kira](https://github.com/caolib/kira) 的 Flutter 漫画与轻小说客户端。本 Fork 在安卓代码基础上适配 iPhone / iPad，并增加最近更新地区筛选、iOS 返回手势。
 
-**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前源码版本为 **1.7.4+597**，最低支持 **iOS 14**。
+**iOS 改动位于 [`ios-port` 分支](https://github.com/Reabin/kira/tree/ios-port)**，相关变更见 [PR #1](https://github.com/Reabin/kira/pull/1)。当前源码版本为 **1.7.5+616**，最低支持 **iOS 14**。
 
 ## 安装到自己的 iPhone / iPad
 
@@ -57,7 +57,7 @@ iOS 已移除音量键翻页插件和设置入口，音量键正常调节系统�
 
 ## 开发与构建
 
-已同步上游截至 2026 年 10 月 26 日的提交 `dde2cde0896a1a7f07ad66b75f887de48d7bd227`（1.7.4），包含轻小说专注模式、阅读性能优化、全局文字缩放和历史记录切换；保留本分支的 iPad 双页阅读、章节大页倒序与 iOS 网络适配。
+已同步上游 1.7.5，包含轻小说字体及对白样式、网络定时测速和剪贴板分享识别开关。
 
 ```sh
 git clone --branch ios-port https://github.com/Reabin/kira.git

@@ -14,6 +14,7 @@ import 'api_ordering.dart';
 import 'app_theme_option.dart';
 import 'comment_settings.dart';
 import 'copy_account_store.dart';
+import 'general_settings.dart';
 import 'network_proxy_types.dart';
 import 'network_settings.dart';
 import 'novel_reader_status_settings.dart';
@@ -43,6 +44,7 @@ class UserManager extends ChangeNotifier {
   // need reader / comment / theme / network settings should
   // import the specific store directly and skip the facade entirely.
 
+  final general = GeneralSettings();
   final reader = ReaderSettings();
   final novelStatus = NovelReaderStatusSettings();
   final comment = CommentSettings();
@@ -253,7 +255,7 @@ class UserManager extends ChangeNotifier {
   /// _onSubStoreChanged 转发到本 facade 的监听者。
   double get commentFontScale => comment.fontScale;
   bool get commentPreload => comment.preload;
-  bool get commentAutoLoadAll => comment.autoLoadAll;
+  int get commentInitialPages => comment.initialPages;
   bool get autoCheckUpdate => _autoCheckUpdate;
   String? get skippedUpdateVersion => _skippedUpdateVersion;
   String get updateMirrorPrefix => _updateMirrorPrefix;

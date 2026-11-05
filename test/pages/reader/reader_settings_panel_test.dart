@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,10 +16,23 @@ import 'package:kira/utils/reading_history.dart';
 import 'package:kira/widgets/app_sheet.dart';
 import 'package:kira/widgets/collapsible_content.dart';
 import 'package:kira/widgets/reader_settings_fold.dart';
+import 'package:kira/widgets/settings_section.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../test_helpers.dart';
+
+// Decode the plugin's Pigeon ToggleMessage without adding a test dependency.
+class _WakelockTestCodec extends StandardMessageCodec {
+  const _WakelockTestCodec();
+
+  @override
+  Object? readValueOfType(int type, ReadBuffer buffer) {
+    return type == 129
+        ? readValue(buffer)
+        : super.readValueOfType(type, buffer);
+  }
+}
 
 class _ReaderApi extends Fake implements ApiClient {
   _ReaderApi(this.manga);
@@ -171,6 +186,11 @@ void main() {
 
   late ApiClient originalApi;
   late Directory tempDirectory;
+  late List<bool> wakeRequests;
+  Completer<void>? wakeBlocker;
+  const wakeChannel =
+      'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
+  const wakeCodec = _WakelockTestCodec();
   const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
 
   setUpAll(() async {
@@ -203,9 +223,31 @@ void main() {
     await UserManager().reader.initFromPrefs(
       await SharedPreferences.getInstance(),
     );
+    wakeRequests = [];
+    wakeBlocker = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMessageHandler(wakeChannel, (message) async {
+          final decoded = wakeCodec.decodeMessage(message);
+          if (decoded case [[final bool enabled]]) {
+            wakeRequests.add(enabled);
+          } else {
+            throw StateError('Unexpected wakelock message: $decoded');
+          }
+          await wakeBlocker?.future;
+          return wakeCodec.encodeMessage([null]);
+        });
+    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.resumed,
+    );
   });
 
   tearDown(() async {
+    if (wakeBlocker case final blocker? when !blocker.isCompleted) {
+      blocker.complete();
+    }
+    wakeBlocker = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMessageHandler(wakeChannel, null);
     await ReadingHistory.flush();
     BookmarkStore().debugReset();
     ApiClient.setTestInstance(originalApi);
@@ -266,6 +308,151 @@ void main() {
     expect(find.text('翻页'), findsOneWidget);
     expect(find.text('图片加载'), findsOneWidget);
     expect(find.text('长按缩放'), findsOneWidget);
+    for (final label in ['自动滚动', '长按缩放', '状态显示', '图片加载']) {
+      expect(
+        find.ancestor(
+          of: find.text(label),
+          matching: find.byType(SettingsSection),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('reader-auto-scroll-card')),
+        matching: find.text('滚动幅度'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('reader-auto-scroll-card')),
+        matching: find.text('长按缩放'),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final mode in [0, 1]) {
+    testWidgets('阅读时屏幕常亮默认开启，模式 $mode 的开关立即生效并持久化', (tester) async {
+      await _pumpReader(tester);
+      expect(wakeRequests.last, isTrue);
+      await _openSettings(tester);
+      if (mode == 1) {
+        await tester.tap(find.text('翻页'));
+        await tester.pumpAndSettle();
+        expect(UserManager().readerMode, 1);
+      }
+      final tile = find.byKey(const ValueKey('reader-keep-screen-on'));
+      await _ensureVisible(tester, tile);
+      expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+      expect(find.text('阅读时屏幕常亮'), findsOneWidget);
+
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(tile).value, isFalse);
+      expect(UserManager().reader.keepScreenOn, isFalse);
+      expect(wakeRequests.last, isFalse);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('reader_keep_screen_on'), isFalse);
+
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      expect(tester.widget<SwitchListTile>(tile).value, isTrue);
+      expect(wakeRequests.last, isTrue);
+      expect(prefs.getBool('reader_keep_screen_on'), isTrue);
+      await tester.pumpWidget(wrapWithApp(const SizedBox()));
+      await tester.pump();
+      expect(wakeRequests.last, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('切到后台取消常亮，恢复前台遵循当前开关，退出释放常亮', (tester) async {
+    await _pumpReader(tester);
+    expect(wakeRequests.last, isTrue);
+
+    for (final state in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+      await tester.pump();
+      expect(wakeRequests.last, isFalse);
+    }
+    await UserManager().reader.setKeepScreenOn(false);
+    await UserManager().reader.setKeepScreenOn(true);
+    await tester.pump();
+    expect(wakeRequests.last, isFalse);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(wakeRequests.last, isTrue);
+
+    await UserManager().reader.setKeepScreenOn(false);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(wakeRequests.last, isFalse);
+
+    await UserManager().reader.setKeepScreenOn(true);
+    await tester.pump();
+    expect(wakeRequests.last, isTrue);
+    await tester.pumpWidget(wrapWithApp(const SizedBox()));
+    await tester.pump();
+    expect(wakeRequests.last, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('常亮请求串行执行，快速开关后退出不会留下未释放的锁', (tester) async {
+    wakeBlocker = Completer<void>();
+    await _pumpReader(tester);
+    expect(wakeRequests, [true]);
+    await UserManager().reader.setKeepScreenOn(false);
+    await UserManager().reader.setKeepScreenOn(true);
+    await tester.pumpWidget(wrapWithApp(const SizedBox()));
+    expect(wakeRequests, [true]);
+
+    wakeBlocker!.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(wakeRequests, [true, false, true, false]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('自动滚动开关不覆盖屏幕常亮偏好', (tester) async {
+    final chapter = _chapter('last');
+    chapter.contents.addAll(List.filled(7, chapter.contents.single));
+    ApiClient.setTestInstance(_ReaderApi(_ReaderMangaApi({'last': chapter})));
+    await UserManager().setReaderAutoScrollEnabled(true);
+    await _pumpReader(tester);
+    await _showToolbar(tester);
+
+    for (final keepScreenOn in [true, false]) {
+      await UserManager().reader.setKeepScreenOn(keepScreenOn);
+      await tester.pumpAndSettle();
+      wakeRequests.clear();
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.play_circle_outline),
+          )
+          .onPressed!();
+      await tester.pump();
+      expect(find.byTooltip('暂停自动滚动'), findsOneWidget);
+      tester
+          .widget<IconButton>(
+            find.widgetWithIcon(IconButton, Icons.pause_circle_filled),
+          )
+          .onPressed!();
+      await tester.pumpAndSettle();
+      expect(wakeRequests, isEmpty);
+      expect(UserManager().reader.keepScreenOn, keepScreenOn);
+    }
+    await tester.pumpWidget(wrapWithApp(const SizedBox()));
+    await tester.pump();
+    expect(wakeRequests.last, isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -321,24 +508,27 @@ void main() {
     await _pumpReader(tester);
     await _openSettings(tester);
 
-    final switchTile = find.widgetWithText(SwitchListTile, '自动滚动');
+    final switchTile = find.byKey(const ValueKey('reader-auto-scroll-switch'));
+    final expand = find.byKey(
+      const ValueKey('reader-auto-scroll-details-toggle'),
+    );
     await _ensureVisible(tester, switchTile);
-    expect(tester.widget<SwitchListTile>(switchTile).value, isFalse);
-    expect(find.byTooltip('自动滚动'), findsNothing);
-
-    await tester.tap(switchTile);
-    await tester.pumpAndSettle();
-
-    expect(UserManager().reader.autoScrollEnabled, isTrue);
-    expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
-    expect(find.byTooltip('自动滚动'), findsOneWidget);
+    expect(tester.widget<Switch>(switchTile).value, isFalse);
+    expect(expand, findsOneWidget);
 
     final autoDetails = _detailsOf('滚动幅度');
     expect(_isExpanded(tester, autoDetails), isFalse);
     expect(find.text('滚动幅度').hitTestable(), findsNothing);
-
-    await tester.tap(find.byTooltip('自动滚动'));
+    await tester.tap(find.text('自动滚动'));
     await tester.pumpAndSettle();
+    expect(_isExpanded(tester, autoDetails), isTrue);
+    expect(UserManager().reader.autoScrollEnabled, isFalse);
+
+    await _ensureVisible(tester, switchTile);
+    await tester.tap(switchTile);
+    await tester.pumpAndSettle();
+    expect(UserManager().reader.autoScrollEnabled, isTrue);
+    expect(tester.widget<Switch>(switchTile).value, isTrue);
     expect(_isExpanded(tester, autoDetails), isTrue);
     expect(_isExpanded(tester, _detailsOf('拖动灵敏度')), isFalse);
 
@@ -357,8 +547,13 @@ void main() {
     expect(find.text('恢复延迟').hitTestable(), findsOneWidget);
     expect(find.text('2.0 秒'), findsOneWidget);
 
-    await _ensureVisible(tester, find.byTooltip('自动滚动'));
-    await tester.tap(find.byTooltip('自动滚动'));
+    await _ensureVisible(
+      tester,
+      find.byKey(const ValueKey('reader-auto-scroll-details-toggle')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('reader-auto-scroll-details-toggle')),
+    );
     await tester.pumpAndSettle();
     expect(_isExpanded(tester, autoDetails), isFalse);
 
@@ -372,19 +567,24 @@ void main() {
     await _pumpReader(tester);
     await _openSettings(tester);
 
-    final switchTile = find.widgetWithText(SwitchListTile, '长按缩放');
+    final switchTile = find.byKey(
+      const ValueKey('reader-long-press-zoom-switch'),
+    );
     await _ensureVisible(tester, switchTile);
-    expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
-    expect(find.byTooltip('拖动灵敏度'), findsOneWidget);
+    expect(tester.widget<Switch>(switchTile).value, isTrue);
+    expect(
+      find.byKey(const ValueKey('reader-long-press-zoom-details-toggle')),
+      findsOneWidget,
+    );
 
     final zoomDetails = _detailsOf('拖动灵敏度');
     expect(_isExpanded(tester, zoomDetails), isFalse);
     expect(find.text('拖动灵敏度').hitTestable(), findsNothing);
 
-    await tester.tap(find.byTooltip('拖动灵敏度'));
+    await tester.tap(find.text('长按缩放'));
     await tester.pumpAndSettle();
     expect(_isExpanded(tester, zoomDetails), isTrue);
-    expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
+    expect(tester.widget<Switch>(switchTile).value, isTrue);
     expect(_isExpanded(tester, _detailsOf('滚动幅度')), isFalse);
 
     final sensitivitySlider = find.descendant(
@@ -404,8 +604,13 @@ void main() {
 
     // Collapse the details before toggling the master switch so re-enabling
     // cannot be mistaken for "the switch forced the details open".
-    await _ensureVisible(tester, find.byTooltip('拖动灵敏度'));
-    await tester.tap(find.byTooltip('拖动灵敏度'));
+    await _ensureVisible(
+      tester,
+      find.byKey(const ValueKey('reader-long-press-zoom-details-toggle')),
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('reader-long-press-zoom-details-toggle')),
+    );
     await tester.pumpAndSettle();
     expect(_isExpanded(tester, zoomDetails), isFalse);
 
@@ -413,14 +618,20 @@ void main() {
     await tester.tap(switchTile);
     await tester.pumpAndSettle();
     expect(UserManager().reader.longPressZoomEnabled, isFalse);
-    expect(find.byTooltip('拖动灵敏度'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('reader-long-press-zoom-details-toggle')),
+      findsOneWidget,
+    );
     expect(_isExpanded(tester, zoomDetails), isFalse);
 
     await _ensureVisible(tester, switchTile);
     await tester.tap(switchTile);
     await tester.pumpAndSettle();
     expect(UserManager().reader.longPressZoomEnabled, isTrue);
-    expect(find.byTooltip('拖动灵敏度'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('reader-long-press-zoom-details-toggle')),
+      findsOneWidget,
+    );
     expect(_isExpanded(tester, zoomDetails), isFalse);
 
     final prefs = await SharedPreferences.getInstance();
@@ -463,5 +674,19 @@ void main() {
     await _ensureVisible(tester, sliders.first);
     expect(sliders.first.hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
+    for (final label in ['自动滚动', '长按缩放', '状态显示']) {
+      final header = find.text(label);
+      await _ensureVisible(tester, header);
+      await tester.tap(header);
+      await tester.pumpAndSettle();
+      final card = find.ancestor(
+        of: header,
+        matching: find.byType(SettingsSection),
+      );
+      final controls = find.descendant(of: card, matching: find.byType(Slider));
+      await _ensureVisible(tester, controls.first);
+      expect(controls.first.hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
   });
 }

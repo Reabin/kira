@@ -1,21 +1,32 @@
+import 'dart:async';
+
 import 'package:flex_color_picker/flex_color_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../api/hitokoto_api.dart';
 import '../../l10n/app_localizations.dart';
+import '../../models/novel_dialogue_style.dart';
 import '../../models/novel_reader_settings.dart';
 import '../../models/novel_reader_status_settings.dart';
 import '../../theme/app_icon_sizes.dart';
 import '../../theme/app_radius.dart';
 import '../../theme/app_spacing.dart';
+import '../../theme/app_status_colors.dart';
 import '../../theme/novel_reader_theme.dart';
-import '../../utils/adaptive_motion.dart';
+import '../../utils/app_logger.dart';
+import '../../utils/font_manager.dart';
+import '../../widgets/app_sheet.dart';
 import '../../widgets/collapsible_content.dart';
+import '../../widgets/collapsible_switch_tile.dart';
 import '../../widgets/reader_settings_fold.dart';
 import '../../widgets/reader_status_settings.dart';
-import '../../widgets/section_header.dart';
 import '../../widgets/select_tile.dart';
+import '../../widgets/settings_section.dart';
+import 'novel_reader_dialogue.dart';
+import 'novel_reader_font.dart';
+
+part 'novel_reader_theme_settings_sheet.dart';
 
 /// 小说阅读设置：排版、命名配色方案（内置 + 多个自定义）与常亮。
 /// 阅读背景固定跟随系统亮暗，浅色/深色分别绑定方案；
@@ -26,11 +37,15 @@ class NovelReaderSettingsSheet extends StatefulWidget {
     required this.settings,
     required this.onChanged,
     required this.systemBrightness,
+    this.fontFamily,
     this.dragPreview,
   });
 
   final NovelReaderSettings settings;
   final ValueChanged<NovelReaderSettings> onChanged;
+
+  /// 宿主已加载的正文有效字体族；null 跟随应用字体。
+  final String? fontFamily;
 
   /// 当前系统亮暗，用于实时预览当前生效配色。
   final Brightness systemBrightness;
@@ -47,6 +62,37 @@ class NovelReaderSettingsSheet extends StatefulWidget {
 class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
   late NovelReaderSettings _settings = widget.settings;
   bool _focusExpanded = false;
+  List<String> _fonts = const [];
+  bool _loadingFonts = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadFonts());
+  }
+
+  /// 只列出本地已有字体；不在这里下载或导入。
+  Future<void> _loadFonts() async {
+    try {
+      final fonts = await FontManager().listDownloadedFonts();
+      if (!mounted) return;
+      setState(
+        () => _fonts =
+            fonts
+                .where(
+                  (name) =>
+                      name.isNotEmpty && name != FontManager.defaultFontId,
+                )
+                .toSet()
+                .toList()
+              ..sort(),
+      );
+    } catch (error, stack) {
+      unawaited(AppLogger.instance.recordWarning(error, stackTrace: stack));
+    } finally {
+      if (mounted) setState(() => _loadingFonts = false);
+    }
+  }
 
   @override
   void didUpdateWidget(covariant NovelReaderSettingsSheet oldWidget) {
@@ -55,130 +101,37 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
   }
 
   void _change(NovelReaderSettings settings) {
-    setState(() {
-      _settings = settings;
-      if (!settings.focusModeEnabled) _focusExpanded = false;
-    });
+    setState(() => _settings = settings);
     widget.onChanged(settings);
   }
 
   void _setDragPreview(bool dragging) => widget.dragPreview?.value = dragging;
 
-  String _themeName(String id) {
-    final l10n = AppLocalizations.of(context)!;
-    for (final theme in _settings.customThemes) {
-      if (theme.id == id) return theme.name;
-    }
-    return switch (id) {
-      'paper' => l10n.novelReaderThemePaper,
-      'dark' => l10n.novelReaderThemeDark,
-      'white' => l10n.novelReaderThemeWhite,
-      'green' => l10n.novelReaderThemeGreen,
-      'gray' => l10n.novelReaderThemeGray,
-      _ => l10n.novelReaderThemeWhite,
-    };
-  }
-
-  List<(String, NovelReaderPalette)> get _allThemes => [
-    for (final name in ['paper', 'dark', 'white', 'green', 'gray'])
-      (name, NovelReaderPalette.forThemeId(_settings, name)),
-    for (final theme in _settings.customThemes)
-      (
-        theme.id,
-        NovelReaderPalette(
-          Color(theme.backgroundColor),
-          Color(theme.textColor),
-        ),
-      ),
-  ];
-
-  void _selectTheme(bool dark, String id) {
-    _change(
-      dark
-          ? _settings.copyWith(darkThemeId: id)
-          : _settings.copyWith(lightThemeId: id),
-    );
-  }
-
-  Future<void> _editCustomTheme(NovelReaderCustomTheme theme) async {
-    final l10n = AppLocalizations.of(context)!;
-    final result = await showDialog<_ThemeEditResult>(
-      context: context,
-      builder: (context) => _ThemeEditDialog(
-        title: l10n.novelReaderThemeEditTitle(theme.name),
-        initialName: theme.name,
-        initialBackground: Color(theme.backgroundColor),
-        initialText: Color(theme.textColor),
+  Future<void> _openThemeSettings() async {
+    var draft = _settings;
+    final initial = draft;
+    await showAppSheet<void>(
+      context,
+      heightFactor: 1,
+      maxHeightFactor: 1,
+      child: _NovelThemeSettingsSheet(
+        settings: initial,
+        fontFamily: widget.fontFamily,
+        systemBrightness: widget.systemBrightness,
+        topInset:
+            View.of(context).viewPadding.top /
+            View.of(context).devicePixelRatio,
+        onDraftChanged: (settings) => draft = settings,
       ),
     );
-    if (!mounted || result == null) return;
-    _change(
-      _settings.upsertCustomTheme(
-        theme.copyWith(
-          name: result.name,
-          backgroundColor: result.background.toARGB32(),
-          textColor: result.text.toARGB32(),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _addCustomTheme() async {
-    final l10n = AppLocalizations.of(context)!;
-    final result = await showDialog<_ThemeEditResult>(
-      context: context,
-      builder: (context) => _ThemeEditDialog(
-        title: l10n.novelReaderThemeAdd,
-        initialName: '',
-        initialBackground: const Color(
-          NovelReaderSettings.defaultCustomBackgroundColor,
-        ),
-        initialText: const Color(NovelReaderSettings.defaultCustomTextColor),
-      ),
-    );
-    if (!mounted || result == null) return;
-    _change(
-      _settings.upsertCustomTheme(
-        NovelReaderCustomTheme(
-          id: _settings.newCustomThemeId(),
-          name: result.name,
-          backgroundColor: result.background.toARGB32(),
-          textColor: result.text.toARGB32(),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _removeCustomTheme(NovelReaderCustomTheme theme) async {
-    final l10n = AppLocalizations.of(context)!;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.novelReaderThemeDeleteTitle),
-        content: Text(l10n.novelReaderThemeDeleteContent(theme.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancelButton),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.deleteButton),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || confirmed != true) return;
-    _change(_settings.removeCustomTheme(theme.id));
+    // 返回、点屏障和拖拽收起共享同一提交点，正文仅重排一次。
+    if (mounted && draft != initial) _change(draft);
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final tt = Theme.of(context).textTheme;
-    final dark = widget.systemBrightness == Brightness.dark;
-    final activeId = _settings.themeIdFor(dark: dark);
-    final palette = NovelReaderPalette.forThemeId(_settings, activeId);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Column(
@@ -209,222 +162,213 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
             onSelectionChanged: (selection) =>
                 _change(_settings.copyWith(mode: selection.first)),
           ),
-          const SizedBox(height: AppSpacing.xl),
-          _slider(
-            key: const ValueKey('novel-font-size'),
-            label: l10n.novelReaderFontSize,
-            value: _settings.fontSize,
-            min: NovelReaderSettings.minFontSize,
-            max: NovelReaderSettings.maxFontSize,
-            divisions:
-                (NovelReaderSettings.maxFontSize -
-                        NovelReaderSettings.minFontSize)
-                    .round(),
-            onChanged: (value) => _change(_settings.copyWith(fontSize: value)),
-          ),
-          _slider(
-            key: const ValueKey('novel-line-height'),
-            label: l10n.novelReaderLineHeight,
-            value: _settings.lineHeight,
-            min: NovelReaderSettings.minLineHeight,
-            max: NovelReaderSettings.maxLineHeight,
-            divisions: 20,
-            onChanged: (value) =>
-                _change(_settings.copyWith(lineHeight: value)),
-          ),
-          _slider(
-            key: const ValueKey('novel-paragraph-spacing'),
-            label: l10n.novelReaderParagraphSpacing,
-            value: _settings.paragraphSpacing,
-            min: NovelReaderSettings.minParagraphSpacing,
-            max: NovelReaderSettings.maxParagraphSpacing,
-            divisions: 32,
-            onChanged: (value) =>
-                _change(_settings.copyWith(paragraphSpacing: value)),
-          ),
-          _slider(
-            key: const ValueKey('novel-content-width'),
-            label: l10n.novelReaderContentWidth,
-            value: _settings.contentWidth,
-            min: NovelReaderSettings.minContentWidth,
-            max: NovelReaderSettings.maxContentWidth,
-            divisions: 22,
-            format: (value) => '${value.round()} dp',
-            onChanged: (value) =>
-                _change(_settings.copyWith(contentWidth: value)),
-          ),
-          SwitchListTile.adaptive(
-            key: const ValueKey('novel-ignore-blank-paragraphs'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.novelReaderIgnoreBlankParagraphs),
-            subtitle:
-                _settings.ignoreBlankParagraphs &&
-                    _settings.paragraphSpacing < 20
-                ? Text(l10n.novelReaderIgnoreBlankParagraphsDenseHint)
-                : null,
-            value: _settings.ignoreBlankParagraphs,
-            onChanged: (value) =>
-                _change(_settings.copyWith(ignoreBlankParagraphs: value)),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: SwitchListTile.adaptive(
-                  key: const ValueKey('novel-focus-mode'),
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(l10n.novelReaderFocusMode),
-                  value: _settings.focusModeEnabled,
-                  onChanged: (value) =>
-                      _change(_settings.copyWith(focusModeEnabled: value)),
-                ),
-              ),
-              if (_settings.focusModeEnabled)
-                Semantics(
-                  expanded: _focusExpanded,
-                  child: IconButton(
-                    key: const ValueKey('novel-focus-details-toggle'),
-                    tooltip: _focusExpanded
-                        ? l10n.chapterCommentsCollapse
-                        : l10n.chapterCommentsExpand,
-                    onPressed: () =>
-                        setState(() => _focusExpanded = !_focusExpanded),
-                    icon: AnimatedRotation(
-                      key: ValueKey(prefersReducedMotion(context)),
-                      turns: _focusExpanded ? 0.5 : 0,
-                      duration: adaptiveDuration(
-                        context,
-                        const Duration(milliseconds: 180),
-                      ),
-                      child: const Icon(
-                        Icons.expand_more,
-                        size: AppIconSize.xl,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (_settings.focusModeEnabled)
-            CollapsibleContent(
-              key: const ValueKey('novel-focus-details'),
-              expanded: _focusExpanded,
-              child: Column(
-                children: [
-                  _slider(
-                    key: const ValueKey('novel-focus-top'),
-                    label: l10n.novelReaderFocusTopBound,
-                    value: _settings.focusTopRatio,
-                    min: NovelReaderSettings.minFocusTopRatio,
-                    max: NovelReaderSettings.maxFocusTopRatio,
-                    divisions: 90,
-                    format: _focusPercent,
-                    onChangeStart: (_) => _setDragPreview(true),
-                    onChangeEnd: (_) => _setDragPreview(false),
-                    onChanged: (value) =>
-                        _change(_settings.copyWith(focusTopRatio: value)),
-                  ),
-                  _slider(
-                    key: const ValueKey('novel-focus-bottom'),
-                    label: l10n.novelReaderFocusBottomBound,
-                    value: _settings.focusBottomRatio,
-                    min: NovelReaderSettings.minFocusBottomRatio,
-                    max: NovelReaderSettings.maxFocusBottomRatio,
-                    divisions: 90,
-                    format: _focusPercent,
-                    onChangeStart: (_) => _setDragPreview(true),
-                    onChangeEnd: (_) => _setDragPreview(false),
-                    onChanged: (value) =>
-                        _change(_settings.copyWith(focusBottomRatio: value)),
-                  ),
-                  _slider(
-                    key: const ValueKey('novel-focus-opacity'),
-                    label: l10n.novelReaderFocusOpacity,
-                    value: _settings.focusOpacity,
-                    min: NovelReaderSettings.minFocusOpacity,
-                    max: NovelReaderSettings.maxFocusOpacity,
-                    divisions: 80,
-                    format: _focusPercent,
-                    onChangeStart: (_) => _setDragPreview(true),
-                    onChangeEnd: (_) => _setDragPreview(false),
-                    onChanged: (value) =>
-                        _change(_settings.copyWith(focusOpacity: value)),
-                  ),
-                ],
-              ),
-            ),
-          const Divider(height: AppSpacing.xxl),
-          SectionHeader(
-            title: l10n.novelReaderTheme,
-            icon: Icons.palette_outlined,
-          ),
           const SizedBox(height: AppSpacing.sm),
-          _modeTile(
-            key: const ValueKey('novel-light-theme'),
-            label: l10n.novelReaderThemeLightMode,
-            value: _settings.lightThemeId,
-            dark: false,
-            onChanged: (id) => _selectTheme(false, id),
-          ),
-          _modeTile(
-            key: const ValueKey('novel-dark-theme'),
-            label: l10n.novelReaderThemeDarkMode,
-            value: _settings.darkThemeId,
-            dark: true,
-            onChanged: (id) => _selectTheme(true, id),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Container(
-            key: const ValueKey('novel-settings-preview'),
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: palette.background,
-              borderRadius: AppRadius.lgR,
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-            child: Text(
-              l10n.novelReaderPreviewText,
-              key: const ValueKey('novel-settings-preview-text'),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: tt.bodyLarge?.copyWith(
-                color: palette.foreground,
-                fontSize: _settings.fontSize,
-                height: _settings.lineHeight,
-              ),
+          SettingsSection(
+            child: ListTile(
+              key: const ValueKey('novel-theme-settings-entry'),
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.palette_outlined),
+              title: Text(l10n.novelReaderTheme),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _openThemeSettings,
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          ReaderSettingsFold(
-            key: const ValueKey('novel-custom-theme-settings'),
-            title: l10n.novelReaderThemeCustom,
-            icon: Icons.tune_outlined,
+          SettingsSection(
+            key: const ValueKey('novel-typography-card'),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.xs,
-                  children: [
-                    ActionChip(
-                      key: const ValueKey('novel-theme-add'),
-                      avatar: const Icon(Icons.add, size: AppIconSize.sm),
-                      label: Text(l10n.novelReaderThemeAdd),
-                      onPressed: _addCustomTheme,
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  child: Row(
+                    key: const ValueKey('novel-font-family'),
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.novelReaderFontFamily,
+                          style: tt.bodyMedium,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Flexible(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: SelectTile<String>(
+                            value: _settings.fontFamily,
+                            items: [
+                              SelectItem('', l10n.novelReaderFontFollowApp),
+                              SelectItem(
+                                FontManager.defaultFontId,
+                                l10n.appearanceSystemDefault,
+                              ),
+                              for (final font in _fonts) SelectItem(font, font),
+                              if (_settings.fontFamily.isNotEmpty &&
+                                  _settings.fontFamily !=
+                                      FontManager.defaultFontId &&
+                                  !_fonts.contains(_settings.fontFamily))
+                                SelectItem(
+                                  _settings.fontFamily,
+                                  _loadingFonts
+                                      ? _settings.fontFamily
+                                      : l10n.novelReaderFontUnavailable(
+                                          _settings.fontFamily,
+                                        ),
+                                ),
+                            ],
+                            onChanged: (value) =>
+                                _change(_settings.copyWith(fontFamily: value)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                if (_settings.customThemes.isNotEmpty) ...[
-                  const SizedBox(height: AppSpacing.sm),
-                  for (final theme in _settings.customThemes)
-                    _customThemeTile(theme),
-                ],
+                _slider(
+                  key: const ValueKey('novel-font-size'),
+                  label: l10n.novelReaderFontSize,
+                  value: _settings.fontSize,
+                  min: NovelReaderSettings.minFontSize,
+                  max: NovelReaderSettings.maxFontSize,
+                  divisions:
+                      (NovelReaderSettings.maxFontSize -
+                              NovelReaderSettings.minFontSize)
+                          .round(),
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(fontSize: value)),
+                ),
+                _slider(
+                  key: const ValueKey('novel-line-height'),
+                  label: l10n.novelReaderLineHeight,
+                  value: _settings.lineHeight,
+                  min: NovelReaderSettings.minLineHeight,
+                  max: NovelReaderSettings.maxLineHeight,
+                  divisions: 20,
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(lineHeight: value)),
+                ),
+                _slider(
+                  key: const ValueKey('novel-paragraph-spacing'),
+                  label: l10n.novelReaderParagraphSpacing,
+                  value: _settings.paragraphSpacing,
+                  min: NovelReaderSettings.minParagraphSpacing,
+                  max: NovelReaderSettings.maxParagraphSpacing,
+                  divisions: 32,
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(paragraphSpacing: value)),
+                ),
+                _slider(
+                  key: const ValueKey('novel-content-width'),
+                  label: l10n.novelReaderContentWidth,
+                  value: _settings.contentWidth,
+                  min: NovelReaderSettings.minContentWidth,
+                  max: NovelReaderSettings.maxContentWidth,
+                  divisions: 22,
+                  format: (value) => '${value.round()} dp',
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(contentWidth: value)),
+                ),
+                SwitchListTile.adaptive(
+                  key: const ValueKey('novel-ignore-blank-paragraphs'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l10n.novelReaderIgnoreBlankParagraphs),
+                  subtitle:
+                      _settings.ignoreBlankParagraphs &&
+                          _settings.paragraphSpacing < 20
+                      ? Text(l10n.novelReaderIgnoreBlankParagraphsDenseHint)
+                      : null,
+                  value: _settings.ignoreBlankParagraphs,
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(ignoreBlankParagraphs: value)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          SettingsSection(
+            key: const ValueKey('novel-focus-card'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                CollapsibleSwitchTile(
+                  title: l10n.novelReaderFocusMode,
+                  switchKey: const ValueKey('novel-focus-mode'),
+                  expandKey: const ValueKey('novel-focus-details-toggle'),
+                  adaptive: true,
+                  value: _settings.focusModeEnabled,
+                  expanded: _focusExpanded,
+                  onChanged: (value) =>
+                      _change(_settings.copyWith(focusModeEnabled: value)),
+                  onToggleExpanded: () =>
+                      setState(() => _focusExpanded = !_focusExpanded),
+                ),
+                CollapsibleContent(
+                  key: const ValueKey('novel-focus-details'),
+                  expanded: _focusExpanded,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.sm),
+                    child: Column(
+                      children: [
+                        SwitchListTile.adaptive(
+                          key: const ValueKey(
+                            'novel-focus-keep-status-visible',
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(l10n.novelReaderFocusKeepStatusVisible),
+                          value: _settings.focusKeepStatusVisible,
+                          onChanged: (value) => _change(
+                            _settings.copyWith(focusKeepStatusVisible: value),
+                          ),
+                        ),
+                        _slider(
+                          key: const ValueKey('novel-focus-top'),
+                          label: l10n.novelReaderFocusTopBound,
+                          value: _settings.focusTopRatio,
+                          min: NovelReaderSettings.minFocusTopRatio,
+                          max: NovelReaderSettings.maxFocusTopRatio,
+                          divisions: 90,
+                          format: _focusPercent,
+                          onChangeStart: (_) => _setDragPreview(true),
+                          onChangeEnd: (_) => _setDragPreview(false),
+                          onChanged: (value) =>
+                              _change(_settings.copyWith(focusTopRatio: value)),
+                        ),
+                        _slider(
+                          key: const ValueKey('novel-focus-bottom'),
+                          label: l10n.novelReaderFocusBottomBound,
+                          value: _settings.focusBottomRatio,
+                          min: NovelReaderSettings.minFocusBottomRatio,
+                          max: NovelReaderSettings.maxFocusBottomRatio,
+                          divisions: 90,
+                          format: _focusPercent,
+                          onChangeStart: (_) => _setDragPreview(true),
+                          onChangeEnd: (_) => _setDragPreview(false),
+                          onChanged: (value) => _change(
+                            _settings.copyWith(focusBottomRatio: value),
+                          ),
+                        ),
+                        _slider(
+                          key: const ValueKey('novel-focus-opacity'),
+                          label: l10n.novelReaderFocusOpacity,
+                          value: _settings.focusOpacity,
+                          min: NovelReaderSettings.minFocusOpacity,
+                          max: NovelReaderSettings.maxFocusOpacity,
+                          divisions: 80,
+                          format: _focusPercent,
+                          onChangeStart: (_) => _setDragPreview(true),
+                          onChangeEnd: (_) => _setDragPreview(false),
+                          onChanged: (value) =>
+                              _change(_settings.copyWith(focusOpacity: value)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           if (_settings.mode == NovelReaderMode.paged) ...[
-            const Divider(height: AppSpacing.xxl),
+            const SizedBox(height: AppSpacing.sm),
             ReaderSettingsFold(
               key: const ValueKey('novel-page-turn-settings'),
               title: l10n.readerPageSection,
@@ -461,115 +405,21 @@ class _NovelReaderSettingsSheetState extends State<NovelReaderSettingsSheet> {
               ),
             ),
           ],
-          const Divider(height: AppSpacing.xxl),
-          SwitchListTile.adaptive(
-            key: const ValueKey('novel-keep-screen-on'),
-            contentPadding: EdgeInsets.zero,
-            title: Text(l10n.novelReaderKeepScreenOn),
-            value: _settings.keepScreenOn,
-            onChanged: (value) =>
-                _change(_settings.copyWith(keepScreenOn: value)),
+          const SizedBox(height: AppSpacing.sm),
+          SettingsSection(
+            child: SwitchListTile.adaptive(
+              key: const ValueKey('novel-keep-screen-on'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(l10n.novelReaderKeepScreenOn),
+              value: _settings.keepScreenOn,
+              onChanged: (value) =>
+                  _change(_settings.copyWith(keepScreenOn: value)),
+            ),
           ),
+          const SizedBox(height: AppSpacing.sm),
           ReaderStatusSettingsSection(
             prefs: NovelReaderStatusSettings(),
             onChanged: () => widget.onChanged(_settings),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _modeTile({
-    required Key key,
-    required String label,
-    required String value,
-    required bool dark,
-    required ValueChanged<String> onChanged,
-  }) => Builder(
-    builder: (context) {
-      final tt = Theme.of(context).textTheme;
-      return Padding(
-        key: key,
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-        child: Row(
-          children: [
-            Expanded(child: Text(label, style: tt.bodyMedium)),
-            const SizedBox(width: AppSpacing.sm),
-            Flexible(
-              child: SelectTile<String>(
-                // 绑定被删的自定义主题时回退到该模式的默认内置主题，
-                // 与渲染层 themeIdFor 的兜底一致，避免「显示白底、
-                // 实际夜间」的错位。
-                value: _settings.hasTheme(value)
-                    ? value
-                    : (dark
-                          ? NovelReaderSettings.defaultDarkThemeId
-                          : NovelReaderSettings.defaultLightThemeId),
-                items: [
-                  for (final (id, _) in _allThemes)
-                    SelectItem(id, _themeName(id)),
-                ],
-                onChanged: onChanged,
-              ),
-            ),
-          ],
-        ),
-      );
-    },
-  );
-
-  Widget _customThemeTile(NovelReaderCustomTheme theme) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final boundTo = [
-      if (_settings.lightThemeId == theme.id) l10n.novelReaderThemeLightMode,
-      if (_settings.darkThemeId == theme.id) l10n.novelReaderThemeDarkMode,
-    ].join(' / ');
-    return Padding(
-      key: ValueKey('novel-custom-theme-${theme.id}'),
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Color(theme.backgroundColor),
-              borderRadius: AppRadius.smR,
-              border: Border.all(color: cs.outlineVariant),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              '文',
-              style: tt.labelSmall?.copyWith(color: Color(theme.textColor)),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(theme.name, style: tt.bodyMedium),
-                if (boundTo.isNotEmpty)
-                  Text(
-                    boundTo,
-                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-              ],
-            ),
-          ),
-          IconButton(
-            key: ValueKey('novel-custom-theme-edit-${theme.id}'),
-            tooltip: l10n.novelReaderThemeEdit,
-            onPressed: () => _editCustomTheme(theme),
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          IconButton(
-            key: ValueKey('novel-custom-theme-delete-${theme.id}'),
-            tooltip: l10n.deleteButton,
-            onPressed: () => _removeCustomTheme(theme),
-            icon: const Icon(Icons.delete_outline),
           ),
         ],
       ),

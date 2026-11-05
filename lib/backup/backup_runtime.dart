@@ -2,6 +2,7 @@ import '../api/api_client.dart';
 import '../models/user_manager.dart';
 import '../sync/progress_sync_service.dart';
 import '../utils/bookmark_store.dart';
+import '../utils/network_auto_test_scheduler.dart';
 import '../utils/novel_bookmark_store.dart';
 import '../utils/reading_history.dart';
 import '../utils/reading_stats.dart';
@@ -29,6 +30,7 @@ class SettingsBackupRuntime implements BackupRuntime {
   @override
   Future<void> pause() async {
     await ProgressSyncService.pauseForRestore();
+    await NetworkAutoTestScheduler.pauseForRestore();
     await UserManager().pauseAccountMutationsForRestore();
     await Future.wait([
       ReadingHistory.pauseForRestore(),
@@ -52,6 +54,7 @@ class SettingsBackupRuntime implements BackupRuntime {
   @override
   void resume() {
     ProgressSyncService.resumeAfterRestore();
+    NetworkAutoTestScheduler.resumeAfterRestore();
     UserManager().resumeAccountMutationsAfterRestore();
     ReadingHistory.resumeAfterRestore();
     ReadingStats.resumeAfterRestore();

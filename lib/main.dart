@@ -16,9 +16,11 @@ import 'api/copy_settings_auto_updater.dart';
 import 'l10n/app_localizations.dart';
 import 'models/theme_settings.dart';
 import 'models/user_manager.dart';
+import 'providers/app_providers.dart';
 import 'providers/backup_providers.dart';
 import 'repositories/novel_bookshelf_repository.dart';
 import 'routing/app_router.dart';
+import 'sync/progress_sync_service.dart';
 import 'theme/app_radius.dart';
 import 'theme/app_typography.dart';
 import 'theme/reader_chrome.dart';
@@ -318,6 +320,7 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
   // 导致导航栈被重置到 initialLocation '/'（跳回首页）。
   late final GoRouter _router = createAppRouter();
   bool _wasProgressReader = false;
+  late final ProgressSyncService _progressSync;
   int _progressConflictCount = 0;
 
   void _onProgressSyncChanged() {
@@ -365,17 +368,18 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
     // 定时备份只在应用运行期间生效：启动后复查一次是否已到期。
     ref.read(backupSchedulerProvider).start();
     final progressSync = ref.read(progressSyncServiceProvider);
+    _progressSync = progressSync;
     progressSync.canApplyRemote = () => mounted && !_isProgressReader;
     progressSync.start();
     progressSync.addListener(_onProgressSyncChanged);
     _wasProgressReader = _isProgressReader;
     _router.routeInformationProvider.addListener(_onProgressRouteChanged);
+    ref.read(networkAutoTestSchedulerProvider).start();
     unawaited(
       DisplayModePreference.applyRefreshRate(_user.displayModeRefreshRate),
     );
     unawaited(_loadDynamicPalettes());
-    // 冷启动后检测一次剪贴板中的分享链接（浏览器/聊天 App 里点不开
-    // kira:// 时，接收方可复制文本后打开 kira 跳转）。
+    // 开启自动识别后，冷启动检测剪贴板分享链接；默认不读取剪贴板。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_checkSharedLinkClipboard());
     });
@@ -443,9 +447,7 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    ref
-        .read(progressSyncServiceProvider)
-        .removeListener(_onProgressSyncChanged);
+    _progressSync.removeListener(_onProgressSyncChanged);
     _router.routeInformationProvider.removeListener(_onProgressRouteChanged);
     _user.removeListener(_onChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -461,14 +463,17 @@ class _KiraAppState extends ConsumerState<KiraApp> with WidgetsBindingObserver {
           .setForeground(state == AppLifecycleState.resumed);
     }
     if (state == AppLifecycleState.resumed) {
+      ref.read(networkAutoTestSchedulerProvider).poke();
       unawaited(_checkSharedLinkClipboard());
     }
   }
 
   /// 剪贴板里有漫画分享链接时弹 SnackBar，点击「打开」跳转对应详情页。
   Future<void> _checkSharedLinkClipboard() async {
+    if (!mounted || !_user.general.autoCheckClipboardSharedLinks) return;
     try {
       if (!await Clipboard.hasStrings()) return;
+      if (!mounted || !_user.general.autoCheckClipboardSharedLinks) return;
       final text = (await Clipboard.getData(Clipboard.kTextPlain))?.text;
       if (text == null || text.isEmpty) return;
       final pathWord = KiraLinks.extractComicPathWord(text);

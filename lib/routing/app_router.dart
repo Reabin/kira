@@ -153,7 +153,9 @@ class NovelReaderExtra {
   final int initialParagraphIndex;
   final double initialParagraphAlignment;
   final bool resume;
-  final bool localOnly;
+
+  /// 本地入口先初始化下载目录，不限制后续卷的在线加载。
+  final bool preferDownloads;
 
   /// 从书签进入：目标段落短暂高亮，提示书签指向的具体位置。
   final bool highlightParagraph;
@@ -169,7 +171,7 @@ class NovelReaderExtra {
     this.initialParagraphIndex = 0,
     this.initialParagraphAlignment = 0,
     this.resume = false,
-    this.localOnly = false,
+    this.preferDownloads = false,
     this.highlightParagraph = false,
     this.noDetailBelow = false,
   });
@@ -371,7 +373,7 @@ GoRouter createAppRouter() {
             initialParagraphIndex: options.initialParagraphIndex,
             initialParagraphAlignment: options.initialParagraphAlignment,
             resume: options.resume,
-            localOnly: options.localOnly,
+            preferDownloads: options.preferDownloads,
             noDetailBelow: options.noDetailBelow,
             highlightOnEntry: options.highlightParagraph,
           );
