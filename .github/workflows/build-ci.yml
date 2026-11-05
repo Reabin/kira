@@ -15,9 +15,6 @@ on:
     tags:
       - "v*-beta*"
 
-env:
-  FLUTTER_VERSION: "3.44.0"
-
 jobs:
   build-android:
     name: Build Android CI APK (arm64-v8a)
@@ -79,18 +76,23 @@ jobs:
             -keypass "$ANDROID_KEY_PASSWORD" \
             > /dev/null
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: "stable"
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          cache: true
-
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
 
       - name: Build APK (arm64-v8a)
-        run: flutter build apk --release --target-platform android-arm64
+        shell: bash
+        run: |
+          set -eo pipefail
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }} 2>&1 | tee /tmp/flutter_build.log
+
+          # 重复类 = 插件 Dart/native 版本不一致,这种包装机即白屏
+          if grep -E "is defined multiple times|Duplicate class" /tmp/flutter_build.log; then
+            echo "::error::构建日志出现重复类,APK 自洽性检查失败"
+            exit 1
+          fi
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
 
       - name: Rename APK
         shell: bash
@@ -141,15 +143,32 @@ jobs:
           test -n "$APP_VERSION"
           test -n "$APK"
 
+          # tag 触发：取上一个 beta tag 到本次 tag 之间的提交；
+          # 首个 beta（没有上一个 beta）与手动 dispatch 回退为最近 10 条。
+          PREV=""
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            PREV=$(git tag --sort=-v:refname \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-beta' \
+              | grep -v "^${APP_VERSION}$" \
+              | head -1 || true)
+          fi
+
           {
             echo "${APP_VERSION}"
             echo
-            # 最近 10 条 feat/fix 提交（按标题行筛选，排除 Merge commit 等，
-            git log --pretty=format:"%s" -100 \
-              | grep -E '(^|[[:space:]])(feat|fix)[(:]' \
-              | head -10 \
-              | sed 's/^/- /' \
-              || true
+            if [ -n "$PREV" ]; then
+              # 本次发布区间内的 feat/fix/style 标题，排除 Merge/CI/chore 等。
+              git log --pretty=format:"%s" "${PREV}..${APP_VERSION}" \
+                | grep -E '(^|[[:space:]])(feat|fix|style)[(:]' \
+                | sed 's/^/- /' \
+                || true
+            else
+              git log --pretty=format:"%s" -100 \
+                | grep -E '(^|[[:space:]])(feat|fix)[(:]' \
+                | head -10 \
+                | sed 's/^/- /' \
+                || true
+            fi
             if [ -n "$NOTE" ]; then
               echo
               echo

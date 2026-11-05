@@ -1,9 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../l10n/app_localizations.dart';
 import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+
+part 'filter_chip_row_parts/justified_tag_wrap.dart';
 
 /// 筛选 chip 行里的一个选项。
 class FilterChipOption {
@@ -44,8 +49,18 @@ class FilterChipRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
+    final labelPainter = TextPainter(
+      text: TextSpan(text: '字', style: tt.labelLarge),
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: Directionality.of(context),
+      maxLines: 1,
+    )..layout();
+    // 38 为 shrinkWrap 下 labelLarge 文字的默认 chip 高；大字号时按文字高跟踪。
+    final rowHeight = math.max(38.0, labelPainter.height + AppSpacing.lg);
+    labelPainter.dispose();
+
     final chips = SizedBox(
-      height: 34,
+      height: rowHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.zero,
@@ -66,7 +81,6 @@ class FilterChipRow extends StatelessWidget {
             labelStyle: tt.labelLarge?.copyWith(color: fg),
             onSelected: (_) => onTap(option),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
           );
         },
       ),
@@ -84,13 +98,7 @@ class FilterChipRow extends StatelessWidget {
   }
 }
 
-/// 筛选行行尾的紧凑文字按钮（展开全部 / 收起 / 重置）。
-///
-/// 必须显式压掉平台默认的触控尺寸：Android 默认
-/// `MaterialTapTargetSize.padded` + `VisualDensity.standard`，按钮最小高 48，
-/// 比 34pt 的 chip 高 14pt；同级 Row 取两者最大高度，chip 垂直居中后上下各
-/// 多出 7pt 空白，多层筛选的间隔因此比 Windows 大。
-/// 桌面默认本就是 compact + shrinkWrap，所以这里只影响移动端。
+/// 筛选行行尾的文字按钮，与标签同样保持紧凑外观。
 TextButton filterRowButton({
   required VoidCallback onPressed,
   required IconData icon,
@@ -99,11 +107,39 @@ TextButton filterRowButton({
   onPressed: onPressed,
   icon: Icon(icon, size: AppIconSize.lg),
   label: Text(label),
-  style: TextButton.styleFrom(
-    visualDensity: VisualDensity.compact,
-    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-  ),
+  style: TextButton.styleFrom(tapTargetSize: MaterialTapTargetSize.shrinkWrap),
 );
+
+/// 标签区的展开/收起按钮，沿用筛选 chip 的边框、圆角与紧凑高度。
+class FilterTagsToggleButton extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  const FilterTagsToggleButton({
+    super.key,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    return ActionChip(
+      avatar: Icon(
+        expanded ? Icons.expand_less : Icons.expand_more,
+        size: AppIconSize.lg,
+        color: theme.colorScheme.primary,
+      ),
+      label: Text(expanded ? l10n.tagsCollapseAll : l10n.tagsExpandAll),
+      labelStyle: theme.textTheme.labelLarge?.copyWith(
+        color: theme.colorScheme.primary,
+      ),
+      onPressed: onPressed,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+}
 
 /// 行尾「重置」按钮：与未选中筛选 chip 同款（边框 + 透明底 + onSurfaceVariant），
 /// 视觉上融入 chip 行，而非无边框的文字按钮。
@@ -123,7 +159,6 @@ class FilterRowResetButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
-    // 与 FilterChipRow 行内 chips 相同的尺寸压制，保证与同行 chip 等高。
     return FilterChip(
       avatar: Icon(icon, size: AppIconSize.sm, color: cs.onSurfaceVariant),
       label: Text(
@@ -133,7 +168,6 @@ class FilterRowResetButton extends StatelessWidget {
       showCheckmark: false,
       onSelected: (_) => onPressed(),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -177,34 +211,26 @@ class AllTagsGrid extends StatelessWidget {
     return n.toString();
   }
 
-  /// 与筛选行 chip 同样的尺寸压制，否则 Android 上这里的 chip 会比
-  /// 上面那行高 4pt，展开前后的标签看起来是两种规格。
-  static const _chipDensity = VisualDensity.compact;
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
 
-    // 显式压掉平台默认尺寸：Android 的 padded + standard 会把 chip 撑到 38，
-    // 桌面本就是 compact，只会让两端一致。
     FilterChip chip({
       required Widget label,
       required bool selected,
       required VoidCallback onSelected,
     }) => FilterChip(
-      label: label,
+      // label 撑开后，chip 的可见边框与点击区域才会一起填满分配的宽度。
+      label: Center(heightFactor: 1, child: label),
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onSelected(),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: _chipDensity,
     );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return _JustifiedTagWrap(
       children: [
         chip(
           label: Text(l10n.searchFilterAll),
@@ -240,24 +266,52 @@ class AllTagsGrid extends StatelessWidget {
 /// 非阻断错误：保留已有筛选/内容，且只有显式点击才会重试。
 class InlineRetryNotice extends StatelessWidget {
   final String message;
+
+  /// 失败的具体原因（`NetworkError.describe` 的结果），单独一行显示，
+  /// 与固定文案分开，避免把可排查的信息压成一句「失败，请重试」。
+  final String? detail;
+
   final VoidCallback onRetry;
 
   const InlineRetryNotice({
     super.key,
     required this.message,
+    this.detail,
     required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final detail = this.detail?.trim() ?? '';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       child: Semantics(
         liveRegion: true,
         child: Row(
           children: [
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(message),
+                  if (detail.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        detail,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             const SizedBox(width: AppSpacing.sm),
             TextButton.icon(
               onPressed: onRetry,
@@ -298,7 +352,6 @@ class FilterRowAction extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
         minimumSize: const Size(0, 34),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.smR),
-        visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );

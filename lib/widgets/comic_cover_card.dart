@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../l10n/app_localizations.dart';
@@ -9,7 +8,8 @@ import '../utils/cover_brightness_filter.dart';
 import '../utils/time_format.dart';
 import '../widgets/comic_card_surface.dart';
 import '../widgets/comic_hero_tags.dart';
-import 'cover_placeholder.dart';
+import 'app_hero.dart';
+import 'cover_image.dart';
 
 /// Reusable comic card with cover image, title, popular count, and optional
 /// update time. Used across home, search, bookshelf, category, etc.
@@ -67,15 +67,10 @@ class ComicCoverCard extends StatelessWidget {
                     ComicHeroTags.cover,
                     ComicCardSurface(
                       child: CoverBrightnessFilter(
-                        child: CachedNetworkImage(
-                          imageUrl: comic.cover,
-                          fit: BoxFit.cover,
+                        child: CoverImage(
+                          url: comic.cover,
                           width: width ?? double.infinity,
                           height: double.infinity,
-                          fadeInDuration: Duration.zero,
-                          fadeOutDuration: Duration.zero,
-                          placeholder: (_, _) => _imagePlaceholder(cs),
-                          errorWidget: (_, _, _) => _imageError(cs),
                         ),
                       ),
                     ),
@@ -127,7 +122,7 @@ class ComicCoverCard extends StatelessWidget {
   Widget _buildHero(String Function(String base) tagOf, Widget child) {
     final base = heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: (_, heroSize, _) =>
@@ -135,10 +130,6 @@ class ComicCoverCard extends StatelessWidget {
       child: child,
     );
   }
-
-  static Widget _imagePlaceholder(ColorScheme cs) => const CoverPlaceholder();
-
-  static Widget _imageError(ColorScheme cs) => const CoverPlaceholder.error();
 
   static String formatPopular(int n, AppLocalizations l10n) {
     if (n >= 100000000) {

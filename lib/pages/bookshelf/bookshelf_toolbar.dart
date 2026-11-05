@@ -74,7 +74,7 @@ extension _BookshelfToolbar on _BookshelfPageState {
               onTap: () => _setOrdering(context, ApiOrdering.datetimeUpdated),
             ),
             OrderingTile(
-              icon: Icons.bookmark_added,
+              icon: Icons.favorite_border,
               title: l10n.sortByFavoriteTime,
               subtitle: l10n.sortByFavoriteTimeDesc,
               selected: _ordering == ApiOrdering.datetimeModifier,

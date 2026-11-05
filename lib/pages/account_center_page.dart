@@ -13,6 +13,7 @@ import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/toast.dart';
 import '../widgets/account_avatar.dart';
@@ -58,14 +59,18 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       await action();
     } on CopyAccountStorageException {
       _toast(l10n.copyAccountStorageFailed, isError: true);
-    } catch (_) {
+    } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
-          StateError('Account action failed'),
+          error,
+          stackTrace: stack,
           source: 'account_center.action',
         ),
       );
-      _toast(l10n.userInfoRefreshFailedToast, isError: true);
+      _toast(
+        l10n.userInfoRefreshFailedDetail(NetworkError.message(error)),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -80,7 +85,9 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       if (credential.token?.isNotEmpty != true) continue;
       if (result.any((item) => item.sameAccount(credential))) continue;
       if (credential.source == 'copy' &&
-          _copyAccounts.any((item) => item.token == credential.token)) {
+          _copyAccounts.any(
+            (item) => credential.identity.matches(item.identity),
+          )) {
         continue;
       }
       result.add(credential);
@@ -92,9 +99,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       _current?.sameAccount(credential) == true;
 
   bool _copyIsCurrent(CopyAccountSession account) =>
-      _user.isLoggedIn &&
-      _user.loginSource == 'copy' &&
-      _user.token == account.token;
+      _current?.identity.matches(account.identity) == true;
 
   String _name(
     String username,
@@ -143,6 +148,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       child: SelectTile<String>(
         key: const ValueKey('comic-account-select'),
         value: selected,
+        // 账号名可能很长，下拉最多显示 15 个字符，超出省略。
+        menuMaxCharacters: 15,
         items: [
           if (current == null)
             SelectItem('none', l10n.accountCenterNotLoggedIn),
@@ -182,6 +189,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       child: SelectTile<String>(
         key: const ValueKey('novel-account-select'),
         value: selected == null ? 'none' : _copyKey(selected),
+        // 账号名可能很长，下拉最多显示 15 个字符，超出省略。
+        menuMaxCharacters: 15,
         items: [
           if (selected == null)
             SelectItem('none', l10n.accountCenterNotLoggedIn),
@@ -206,6 +215,45 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   }
 
+  Widget _accountSelectTile(IconData icon, String title, Widget select) {
+    return ListTile(
+      leading: Icon(icon),
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final painter = TextPainter(
+            text: TextSpan(
+              text: title,
+              style: DefaultTextStyle.of(context).style,
+            ),
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+            maxLines: 1,
+          )..layout();
+          // 先留足标题宽度；大字号下改为上下排列，不让胶囊挤碎标题。
+          if (constraints.maxWidth < painter.width + AppSpacing.lg + 96) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(title),
+                const SizedBox(height: AppSpacing.sm),
+                Align(alignment: Alignment.centerRight, child: select),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Text(title),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Align(alignment: Alignment.centerRight, child: select),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -218,15 +266,15 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
           _SectionLabel(l10n.accountCenterActiveLabel),
           SettingTileGroup(
             children: [
-              ListTile(
-                leading: const Icon(Icons.menu_book_rounded),
-                title: Text(l10n.accountCenterComicAccount),
-                trailing: _comicSelect(l10n),
+              _accountSelectTile(
+                Icons.menu_book_rounded,
+                l10n.accountCenterComicAccount,
+                _comicSelect(l10n),
               ),
-              ListTile(
-                leading: const Icon(Icons.auto_stories_rounded),
-                title: Text(l10n.accountCenterNovelAccount),
-                trailing: _novelSelect(l10n),
+              _accountSelectTile(
+                Icons.auto_stories_rounded,
+                l10n.accountCenterNovelAccount,
+                _novelSelect(l10n),
               ),
             ],
           ),
@@ -333,9 +381,8 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     token: account.token,
   );
 
-  /// 拷贝账号的密码存在凭据列表里（官网登录时脚本抓取），账号库本身只有
-  /// 令牌。按令牌或账号 id 精确匹配，不做用户名兜底，避免显示成同名的另一
-  /// 个账号的密码。
+  /// 密码只来自同源的同一身份；只读备份重载后两库的令牌/绑定可暂时不同，
+  /// 但已确认的登录名仍能准确关联。昵称和头像不参与判断。
   String _savedCopyPassword(CopyAccountSession account) {
     if (account.token.isEmpty) return '';
     for (final credential in [
@@ -343,9 +390,7 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       ..._user.savedCredentials,
     ]) {
       if (credential.source != 'copy' || credential.password.isEmpty) continue;
-      if (credential.token == account.token) return credential.password;
-      final id = account.id;
-      if (id != null && credential.accountId == id) {
+      if (credential.identity.matches(account.identity)) {
         return credential.password;
       }
     }
@@ -417,13 +462,30 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
     );
   }
 
+  /// 登录页返回后按实际结果提示：新账号只在原来未登录时才接管当前选择，
+  /// 已有选择时只是入库，说「账号已切换」会误导用户。
   Future<void> _login({bool copyOnly = false}) async {
-    final switched = AppLocalizations.of(context)!.accountSwitchedToast;
+    final l10n = AppLocalizations.of(context)!;
     final result = await context.pushNamed<bool>(
       AppRoutes.login,
       queryParameters: copyOnly ? {'copyOnly': 'true'} : const {},
     );
-    if (result == true) _toast(switched);
+    if (result != true) return;
+    final String? name;
+    if (copyOnly) {
+      final session = _user.copyAccount.session;
+      name = session == null ? null : _copyName(session);
+    } else {
+      final credential = _user.currentCredential;
+      name = credential == null ? null : _credentialName(credential);
+    }
+    _toast(
+      name == null
+          ? l10n.accountAddedToast
+          : (copyOnly
+                ? l10n.accountCenterNovelBoundToast(name)
+                : l10n.accountSwitchedToast),
+    );
   }
 
   Future<void> _copyToken(String? token) => _guard(() async {
@@ -517,14 +579,22 @@ class _AccountCenterPageState extends State<AccountCenterPage> {
       return;
     }
     await _guard(() async {
-      await _user.copyAccount.removeAccount(account.id!);
-      if (_copyIsCurrent(account)) await _user.logout();
+      // 资料刷新可能在确认框打开期间把旧句柄合并；删除时重新定位同一身份。
+      final current = _user.copyAccount.byId(
+        _user.copyAccount.resolveAccountId(account.id),
+      );
+      if (current == null ||
+          (account.hasIdentity && !account.sameAccount(current))) {
+        return;
+      }
+      await _user.copyAccount.removeAccount(current.id!);
+      if (_copyIsCurrent(current)) await _user.logout();
       await _user.removeSavedCredential(
-        account.username,
+        current.username,
         loginSource: 'copy',
-        userId: account.userId,
-        accountId: account.id,
-        token: account.token,
+        userId: current.userId,
+        accountId: current.id,
+        token: current.token,
       );
     });
   }

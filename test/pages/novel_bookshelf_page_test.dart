@@ -387,10 +387,16 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, 350));
     await _settle(tester);
     expect(h.api.calls.length, 3);
-    await _complete(tester, h.repo.setCollected(bookUuid: '已收藏', collected: true));
+    await _complete(
+      tester,
+      h.repo.setCollected(bookUuid: '已收藏', collected: true),
+    );
     await _settle(tester);
     expect(find.text('已收藏'), findsOneWidget);
-    await _complete(tester, h.repo.setCollected(bookUuid: '已收藏', collected: false));
+    await _complete(
+      tester,
+      h.repo.setCollected(bookUuid: '已收藏', collected: false),
+    );
     await _settle(tester);
     expect(find.byType(NovelBookCard), findsNothing);
     expect((await _complete(tester, h.repo.load())).items, isEmpty);

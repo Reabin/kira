@@ -13,6 +13,14 @@ mixin CommentScrollBehavior<T extends StatefulWidget> on State<T> {
   /// 距底部多远开始预加载下一页。
   static const loadMoreThreshold = 240.0;
 
+  /// 挂在评论列表的 `ListView.physics` 上。
+  ///
+  /// 内容不满一屏时 [ScrollPhysics.shouldAcceptUserOffset] 默认返回 false，
+  /// 列表干脆不接受拖拽，`ScrollStartNotification` 也就不会发出，近底自动
+  /// 加载永远等不到触发。挂上它以后拖拽照常产生通知（此时 `extentAfter`
+  /// 恒为 0，一次滑动即命中判定），窄内容也能靠下滑手势翻页。
+  static const alwaysDraggablePhysics = AlwaysScrollableScrollPhysics();
+
   /// 方向判定死区，避免细微抖动让按钮反复显隐。
   static const _directionDeadZone = 2.0;
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,9 +11,10 @@ import '../repositories/copy_topic_repository.dart';
 import '../routing/app_router.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../widgets/back_to_top_button.dart';
-import '../widgets/cover_placeholder.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 
@@ -36,6 +36,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
   int _offset = 0;
   int _total = 0;
   String? _error;
+  String? _loadMoreError;
   bool _showBackToTop = false;
 
   @override
@@ -67,6 +68,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
       _offset = 0;
       _total = 0;
       _error = null;
+      _loadMoreError = null;
       _topics.clear();
     });
     try {
@@ -89,7 +91,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
       );
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = NetworkError.message(e);
         _loading = false;
         _hasMore = false;
       });
@@ -98,7 +100,10 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
 
   Future<void> _loadMore() async {
     if (_loading || _loadingMore || !_hasMore) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _repository.loadTopics(offset: _offset);
       if (!mounted) return;
@@ -116,6 +121,9 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
           source: 'copy_topic_list_page.load_more',
         ),
       );
+      if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
+      }
     }
     if (mounted) {
       setState(() => _loadingMore = false);
@@ -185,7 +193,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
         if (_error != null && _topics.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: ErrorRetryView(onRetry: _load),
+            child: ErrorRetryView(message: _error, onRetry: _load),
           )
         else if (_topics.isEmpty)
           SliverFillRemaining(
@@ -215,6 +223,7 @@ class _CopyTopicListPageState extends ConsumerState<CopyTopicListPage> {
               loading: _loadingMore,
               onPressed: _loadMore,
               label: l10n.loadMoreProgress(_offset, _total),
+              detail: _loadMoreError,
               horizontalPadding: hp,
             ),
           ),
@@ -243,17 +252,7 @@ class _CopyTopicCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AspectRatio(
-              aspectRatio: 3.72,
-              child: CachedNetworkImage(
-                imageUrl: topic.cover,
-                fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (_, _) => const CoverPlaceholder(),
-                errorWidget: (_, _, _) => const CoverPlaceholder.error(),
-              ),
-            ),
+            AspectRatio(aspectRatio: 3.72, child: CoverImage(url: topic.cover)),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
               child: Row(

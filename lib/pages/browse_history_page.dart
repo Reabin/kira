@@ -1,1212 +1,191 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api_client.dart';
+import '../api/novel/novel_api.dart' show NovelApiException, novelErrorMessage;
 import '../l10n/app_localizations.dart';
 import '../models/comic.dart' hide Theme;
+import '../models/novel.dart';
 import '../models/novel_reading_progress.dart';
+import '../models/theme_settings.dart';
 import '../models/user_manager.dart';
+import '../providers/app_providers.dart';
 import '../providers/novel_providers.dart';
+import '../providers/settings_providers.dart';
+import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
+import '../theme/app_icon_sizes.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
+import '../theme/app_typography.dart';
 import '../utils/app_logger.dart';
 import '../utils/cover_brightness_filter.dart';
 import '../utils/network_error.dart';
 import '../utils/novel_reading_store.dart';
+import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
-import '../widgets/back_to_top_button.dart';
+import '../widgets/app_hero.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/cover_image.dart';
 import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
+import '../widgets/nav_bar_inset.dart';
 import '../widgets/novel_widgets.dart';
 import '../widgets/shimmer_skeleton.dart';
 
-class BrowseHistoryPage extends StatelessWidget {
+part 'browse_history_page_parts/comic_history_tab.dart';
+part 'browse_history_page_parts/history_cards.dart';
+part 'browse_history_page_parts/novel_history_body.dart';
+part 'browse_history_page_parts/online_novel_history_tab.dart';
+part 'browse_history_page_parts/local_history_tab.dart';
+
+class BrowseHistoryPage extends ConsumerStatefulWidget {
   final WidgetBuilder loginPageBuilder;
 
   const BrowseHistoryPage({super.key, required this.loginPageBuilder});
 
   @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    // 通用页「轻小说」开关关闭时隐藏 tab 组件，只展示漫画历史。
-    final showNovel = UserManager().showNovel;
-    return DefaultTabController(
-      length: showNovel ? 2 : 1,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.browseHistoryTitle),
-          bottom: showNovel
-              ? TabBar(
-                  tabs: [
-                    Tab(text: l10n.historyTabComic),
-                    Tab(text: l10n.historyTabNovel),
-                  ],
-                )
-              : null,
-        ),
-        // 两个列表各自保活：切回来不丢已加载分页与滚动位置。
-        body: TabBarView(
-          children: [
-            _ComicBrowseHistoryPage(loginPageBuilder: loginPageBuilder),
-            if (showNovel) const NovelHistoryBody(),
-          ],
-        ),
-      ),
-    );
-  }
+  ConsumerState<BrowseHistoryPage> createState() =>
+      _BrowseHistoryPageStateHost();
 }
 
-class _ComicBrowseHistoryPage extends StatefulWidget {
-  final WidgetBuilder loginPageBuilder;
+class _BrowseHistoryPageStateHost extends ConsumerState<BrowseHistoryPage> {
+  late final ThemeSettings _settings = ref.read(themeSettingsProvider);
+  bool _savingMode = false;
 
-  const _ComicBrowseHistoryPage({required this.loginPageBuilder});
-
-  @override
-  State<_ComicBrowseHistoryPage> createState() => _BrowseHistoryPageState();
-}
-
-class _BrowseHistoryPageState extends State<_ComicBrowseHistoryPage>
-    with AutomaticKeepAliveClientMixin {
-  final _api = ApiClient();
-  final _user = UserManager();
-
-  List<BrowseHistoryItem> _comicItems = [];
-  bool _loading = true;
-  bool _refreshing = false;
-  bool _loadingMore = false;
-  bool _showingLoginPrompt = false;
-  int _offset = 0;
-  int _total = 0;
-
-  String _modeLabel(AppLocalizations l10n) => l10n.comicLabel;
-  bool get _currentItemsEmpty => _comicItems.isEmpty;
-  int get _currentLength => _comicItems.length;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _user.addListener(_onUserChanged);
-    if (_user.isLoggedIn) {
-      _load(silent: true);
-    } else {
-      _loading = false;
-    }
-  }
-
-  @override
-  void dispose() {
-    _user.removeListener(_onUserChanged);
-    super.dispose();
-  }
-
-  void _onUserChanged() {
-    if (!mounted) return;
-    if (_user.isLoggedIn) {
-      _load(silent: true, force: true);
-    } else {
-      setState(() {
-        _clearItems();
-        _loading = false;
-      });
-    }
-  }
-
-  void _clearItems() {
-    _comicItems = [];
-    _offset = 0;
-    _total = 0;
-  }
-
-  Future<void> _clearHistory() async {
-    final l10n = AppLocalizations.of(context)!;
-    final modeLabel = _modeLabel(l10n);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.browseHistoryClearTitle),
-        content: Text(l10n.browseHistoryClearContent(modeLabel)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.cancelButton),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.cacheClearButton),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
+  Future<void> _toggleMode() async {
+    if (_savingMode) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _savingMode = true);
     try {
-      await _api.user.clearBrowseHistory();
-      if (!mounted) return;
-      showToast(context, l10n.browseHistoryCleared(modeLabel));
-      setState(_clearItems);
-    } catch (e) {
-      if (!mounted) return;
-      showToast(
-        context,
-        l10n.browseHistoryClearFailed(NetworkError.message(e, l10n: l10n)),
-        isError: true,
-      );
-    }
-  }
-
-  Future<void> _load({bool silent = false, bool force = false}) async {
-    if (_refreshing && !force) return;
-    _refreshing = true;
-    final isInitial = _currentItemsEmpty;
-    if (isInitial) {
-      setState(() => _loading = true);
-    } else {
-      setState(() {});
-    }
-    _offset = 0;
-
-    try {
-      final data = await _api.user.getBrowseHistory();
-      if (!mounted) return;
-      setState(() {
-        _comicItems = data.list;
-        _total = data.total;
-        _offset = data.list.length;
-        _loading = false;
-      });
-      if (!silent && mounted) {
-        showToast(context, AppLocalizations.of(context)!.refreshSuccess);
-      }
-    } catch (e, stack) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          e,
-          stackTrace: stack,
-          source: 'browse_history_page.load',
-        ),
-      );
-      if (isInitial && mounted) setState(() => _loading = false);
-      if (_isUnauthorized(e)) {
-        await _handleUnauthorized();
-      } else if (!silent && mounted) {
-        showToast(
-          context,
-          AppLocalizations.of(context)!.refreshFailed,
-          isError: true,
-        );
-      }
-    } finally {
-      _refreshing = false;
-      if (mounted) setState(() {});
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_loadingMore || _refreshing || _offset >= _total) return;
-    setState(() => _loadingMore = true);
-    try {
-      final data = await _api.user.getBrowseHistory(offset: _offset);
-      if (!mounted) return;
-      setState(() {
-        _comicItems.addAll(data.list);
-        _offset = _comicItems.length;
-      });
-    } catch (e, stack) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          e,
-          stackTrace: stack,
-          source: 'browse_history_page.load_more',
-        ),
-      );
-      if (_isUnauthorized(e)) {
-        await _handleUnauthorized();
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _loadingMore = false);
-      } else {
-        _loadingMore = false;
-      }
-    }
-  }
-
-  bool _isUnauthorized(Object error) =>
-      error is DioException && error.response?.statusCode == 401;
-
-  Future<void> _handleUnauthorized() async {
-    if (_showingLoginPrompt || !mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(context, l10n.autoLoginFailed, isError: true);
-      }
-      return;
-    }
-
-    _showingLoginPrompt = true;
-
-    await _user.logout();
-    if (!mounted) {
-      _showingLoginPrompt = false;
-      return;
-    }
-
-    final shouldLogin = await showLoginExpiredDialog(
-      context,
-      content: l10n.browseHistoryLoginExpiredContent,
-    );
-
-    if (shouldLogin == true && mounted) {
-      await _goLogin();
-    } else if (mounted) {
-      showToast(context, l10n.browseHistoryLoginToView, isError: true);
-    }
-
-    _showingLoginPrompt = false;
-  }
-
-  Future<void> _goLogin() async {
-    final loggedIn = await context.pushNamed<bool>(AppRoutes.login);
-    if (loggedIn == true && mounted) {
-      unawaited(_load(silent: true));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-    final l10n = AppLocalizations.of(context)!;
-    final modeLabel = _modeLabel(l10n);
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final hp = ScreenLayout.horizontalPadding(screenWidth);
-
-    // 清空按钮从顶部 AppBar 移到了列表首行:列表头本身就在滚动区里,
-    // 用户滚动列表时不会觉得按钮"丢了"。
-    return !_user.isLoggedIn
-        ? Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.lock_outline,
-                    size: 64,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text(
-                    l10n.browseHistoryLoginToView,
-                    style: tt.titleMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    l10n.browseHistoryLoginHintComicOnly,
-                    textAlign: TextAlign.center,
-                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  FilledButton.icon(
-                    onPressed: _goLogin,
-                    icon: const Icon(Icons.login),
-                    label: Text(l10n.goLoginButton),
-                  ),
-                ],
-              ),
-            ),
-          )
-        : _loading
-        ? CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(hp, 0, hp, 24),
-                sliver: SliverToBoxAdapter(
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (var i = 0; i < 20; i++)
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 440),
-                          child: const _HistoryCardSkeleton(),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          )
-        : RefreshIndicator(
-            onRefresh: _load,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (n) {
-                // pixels > 0：只在用户确实滚动过后才自动翻页，
-                // 否则宽屏首屏不满一页时会立刻连发第二页。
-                if (!_currentItemsEmpty &&
-                    n.metrics.pixels > 0 &&
-                    n.metrics.pixels > n.metrics.maxScrollExtent - 300) {
-                  _loadMore();
-                }
-                return false;
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  if (_refreshing)
-                    const SliverToBoxAdapter(
-                      child: LinearProgressIndicator(minHeight: 2),
-                    ),
-                  if (_currentItemsEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.history,
-                                size: 64,
-                                color: cs.onSurfaceVariant,
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                              Text(
-                                l10n.browseHistoryEmptyTitle(modeLabel),
-                                style: tt.titleMedium?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.sm),
-                              Text(
-                                l10n.browseHistoryEmptySubtitle(modeLabel),
-                                textAlign: TextAlign.center,
-                                style: tt.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.lg),
-                              FilledButton.tonalIcon(
-                                onPressed: _user.isLoggedIn ? _load : null,
-                                icon: const Icon(Icons.refresh),
-                                label: Text(l10n.refreshButton),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  else ...[
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(hp, 4, hp, 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                l10n.browseHistoryTotal(_total, modeLabel),
-                                style: tt.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              tooltip: l10n.browseHistoryClearTitle,
-                              onPressed: _clearHistory,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: EdgeInsets.fromLTRB(hp, 0, hp, 24),
-                      sliver: SliverToBoxAdapter(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            // 宽屏：卡片宽度贴合文本内容，一行能容纳几张
-                            // 就排几张，列数随窗口宽度自适应；
-                            // 窄屏：卡片 Expanded 铺满单列。
-                            // 卡片为横向行卡、高度由内容撑起，
-                            // 不能用固定宽高比的 SliverGrid。
-                            final wide =
-                                constraints.maxWidth >=
-                                ScreenLayout.wideBreakpoint;
-                            return Wrap(
-                              spacing: 12,
-                              runSpacing: 12,
-                              children: [
-                                for (var i = 0; i < _currentLength; i++)
-                                  _ComicBrowseHistoryCard(
-                                    item: _comicItems[i],
-                                    hugText: wide,
-                                  ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    if (_offset < _total)
-                      SliverToBoxAdapter(
-                        child: LoadMoreFooter(
-                          loading: _loadingMore,
-                          onPressed: _loadMore,
-                          label: l10n.loadMoreProgress(_offset, _total),
-                          horizontalPadding: hp,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-          );
-  }
-
-  static String formatPopular(BuildContext context, int n) {
-    final l10n = AppLocalizations.of(context)!;
-    if (n >= 100000000) {
-      return l10n.hundredMillionUnit((n / 100000000).toStringAsFixed(1));
-    }
-    if (n >= 10000) {
-      return l10n.tenThousandUnit((n / 10000).toStringAsFixed(1));
-    }
-    return n.toString();
-  }
-}
-
-class _ComicBrowseHistoryCard extends StatelessWidget {
-  final BrowseHistoryItem item;
-  final bool hugText;
-  const _ComicBrowseHistoryCard({required this.item, this.hugText = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final comic = item.comic;
-    final authors = comic.authors.map((e) => e.name).where((e) => e.isNotEmpty);
-    final heroTagBase = ComicHeroTags.base(
-      scope: 'browse-history',
-      pathWord: comic.pathWord,
-      index: item.id,
-    );
-
-    return _HistoryCardShell(
-      onTap: () => context.pushNamed(
-        AppRoutes.comicDetail,
-        pathParameters: {'pathWord': comic.pathWord},
-        extra: ComicDetailExtra(
-          initialComic: comic,
-          heroTagBase: heroTagBase,
-          lastBrowseId: item.lastBrowseId,
-          lastBrowseName: item.lastBrowseName,
-        ),
-      ),
-      hugText: hugText,
-      cover: _hero(
-        heroTagBase,
-        ComicHeroTags.cover,
-        _HistoryCover(imageUrl: comic.cover, icon: Icons.image),
-      ),
-      title: comic.name,
-      subtitle: authors.isEmpty ? null : authors.join(' / '),
-      lastBrowseName: item.lastBrowseName,
-      latestText:
-          comic.lastChapterName == null || comic.lastChapterName!.isEmpty
-          ? null
-          : AppLocalizations.of(
-              context,
-            )!.browseHistoryLatestChapter(comic.lastChapterName!),
-      chips: [
-        _HistoryMetaChip(
-          icon: Icons.local_fire_department,
-          label: _BrowseHistoryPageState.formatPopular(context, comic.popular),
-        ),
-        if (comic.datetimeUpdated != null)
-          _HistoryMetaChip(
-            icon: Icons.schedule,
-            label: TimeFormat.relativeOf(
-              comic.datetimeUpdated!,
-              AppLocalizations.of(context)!,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _hero(
-    String heroTagBase,
-    String Function(String base) tagOf,
-    Widget child,
-  ) {
-    return Hero(
-      tag: tagOf(heroTagBase),
-      createRectTween: ComicHeroTags.createRectTween,
-      placeholderBuilder: _buildHeroPlaceholder,
-      child: child,
-    );
-  }
-
-  Widget _buildHeroPlaceholder(
-    BuildContext context,
-    Size heroSize,
-    Widget child,
-  ) {
-    return SizedBox(width: heroSize.width, height: heroSize.height);
-  }
-}
-
-class _HistoryCardShell extends StatelessWidget {
-  final VoidCallback onTap;
-  final Widget cover;
-  final String title;
-  final String? subtitle;
-  final String? lastBrowseName;
-  final String? latestText;
-  final List<Widget> chips;
-  final Widget? trailing;
-
-  /// 宽屏流式布局：文本列用宽松约束，卡片宽度随文本内容收缩，
-  /// 由外层 Wrap 决定一行排几张；窄屏保持 Expanded 铺满。
-  final bool hugText;
-
-  const _HistoryCardShell({
-    required this.onTap,
-    required this.cover,
-    required this.title,
-    this.subtitle,
-    this.lastBrowseName,
-    this.latestText,
-    required this.chips,
-    this.trailing,
-    this.hugText = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
-    final textColumn = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: tt.titleSmall?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        if (subtitle != null && subtitle!.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Text(
-            subtitle!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
-        if ((lastBrowseName != null && lastBrowseName!.isNotEmpty) ||
-            (latestText != null && latestText!.isNotEmpty)) ...[
-          const SizedBox(height: 10),
-          // 「上次看到」与「最新一话」分两行显示，字号都用 bodySmall，
-          // 各自单行截断省略。
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (lastBrowseName != null && lastBrowseName!.isNotEmpty)
-                Text(
-                  l10n.browseHistoryLastSeen(lastBrowseName!),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.bodySmall,
-                ),
-              if (lastBrowseName != null &&
-                  lastBrowseName!.isNotEmpty &&
-                  latestText != null &&
-                  latestText!.isNotEmpty)
-                const SizedBox(height: 4),
-              if (latestText != null && latestText!.isNotEmpty)
-                Text(
-                  latestText!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 8, children: chips),
-      ],
-    );
-
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            // hugText 时 min 让卡片收缩到内容宽度；
-            // 窄屏 Expanded(tight) 依然撑满，结果一致。
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 84,
-                child: AspectRatio(aspectRatio: 0.72, child: cover),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              hugText
-                  ? Flexible(child: textColumn)
-                  : Expanded(child: textColumn),
-              const SizedBox(width: AppSpacing.sm),
-              trailing ?? Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryCover extends StatelessWidget {
-  final String imageUrl;
-  final IconData icon;
-
-  const _HistoryCover({required this.imageUrl, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return ClipRRect(
-      borderRadius: AppRadius.mdR,
-      child: CoverBrightnessFilter(
-        child: CachedNetworkImage(
-          imageUrl: imageUrl,
-          fit: BoxFit.cover,
-          fadeInDuration: Duration.zero,
-          fadeOutDuration: Duration.zero,
-          placeholder: (_, _) => Container(
-            color: cs.surfaceContainerHighest,
-            child: Center(
-              child: Icon(icon, color: cs.onSurfaceVariant, size: 28),
-            ),
-          ),
-          errorWidget: (_, _, _) => Container(
-            color: cs.surfaceContainerHighest,
-            child: Center(
-              child: Icon(
-                Icons.broken_image,
-                color: cs.onSurfaceVariant,
-                size: 28,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryMetaChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _HistoryMetaChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest,
-        borderRadius: AppRadius.fullR,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: cs.primary),
-          const SizedBox(width: AppSpacing.xs),
-          Text(
-            label,
-            style: tt.labelSmall?.copyWith(color: cs.onSurfaceVariant),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryCardSkeleton extends StatelessWidget {
-  const _HistoryCardSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: ShimmerShell(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 84,
-                child: AspectRatio(
-                  aspectRatio: 0.72,
-                  child: ShimmerBox(radius: AppRadius.md),
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ShimmerBox(height: 16),
-                    SizedBox(height: AppSpacing.sm),
-                    ShimmerBox(width: 120, height: 12),
-                    SizedBox(height: AppSpacing.md),
-                    ShimmerBox(width: 160),
-                    SizedBox(height: 10),
-                    Row(
-                      children: [
-                        ShimmerBox(width: 60, height: 24, radius: 999),
-                        SizedBox(width: AppSpacing.sm),
-                        ShimmerBox(width: 60, height: 24, radius: 999),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 两个历史入口共享的小说列表：仅使用本机进度，与漫画登录状态无关。
-class NovelHistoryBody extends ConsumerStatefulWidget {
-  const NovelHistoryBody({super.key});
-
-  @override
-  ConsumerState<NovelHistoryBody> createState() => _NovelHistoryBodyState();
-}
-
-class _NovelHistoryBodyState extends ConsumerState<NovelHistoryBody>
-    with AutomaticKeepAliveClientMixin {
-  static const _pageSize = 30;
-  final _scrollController = ScrollController();
-  late final NovelReadingStore _store;
-
-  List<NovelReadingProgress> _items = [];
-  bool _loading = true;
-  bool _failed = false;
-  bool _deleting = false;
-  bool _opening = false;
-  bool _hasMore = false;
-  bool _canScrollUp = false;
-  int _limit = _pageSize;
-  int _generation = 0;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    _store = ref.read(novelReadingStoreProvider);
-    NovelReadingStore.changes.addListener(_onProgressChanged);
-    unawaited(_load());
-  }
-
-  @override
-  void dispose() {
-    NovelReadingStore.changes.removeListener(_onProgressChanged);
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _onProgressChanged() {
-    if (mounted) unawaited(_load());
-  }
-
-  Future<void> _load({bool more = false}) async {
-    if (more && (_loading || !_hasMore)) return;
-    final generation = ++_generation;
-    final limit = _limit + (more ? _pageSize : 0);
-    setState(() => _loading = true);
-    try {
-      final items = await _store.readRecent(limit: limit + 1);
-      if (!mounted || generation != _generation) return;
-      setState(() {
-        _items = items.take(limit).toList();
-        _limit = limit;
-        _hasMore = items.length > limit;
-        _failed = false;
-      });
-    } catch (e, stack) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          e,
-          stackTrace: stack,
-          source: 'browse_history_page.load_novel',
-        ),
-      );
-      if (mounted && generation == _generation) {
-        setState(() => _failed = true);
-      }
-    } finally {
-      if (mounted && generation == _generation) {
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  Future<void> _open(
-    NovelReadingProgress progress, {
-    bool details = false,
-  }) async {
-    if (_opening || _deleting) return;
-    _opening = true;
-    try {
-      if (details) {
-        await context.pushNamed(
-          AppRoutes.novelDetail,
-          pathParameters: {'pathWord': progress.pathWord},
-        );
-      } else {
-        // 卡片可能尚未收到进度通知；导航前排队读取最新卷，绝不回退旧快照。
-        final latest = await _store.readProgress(progress.pathWord);
-        if (!mounted) return;
-        if (latest != null) {
-          await context.pushNamed(
-            AppRoutes.novelReader,
-            pathParameters: {
-              'pathWord': latest.pathWord,
-              'volumeId': latest.volumeId,
-            },
-            extra: NovelReaderExtra(
-              name: latest.name,
-              cover: latest.cover,
-              entryIndex: latest.entryIndex,
-              resume: true,
-              noDetailBelow: true,
-            ),
-          );
-        }
-      }
+      await _settings.setBrowseHistoryLocal(!_settings.browseHistoryLocal);
     } catch (error, stack) {
       unawaited(
         AppLogger.instance.recordWarning(
           error,
           stackTrace: stack,
-          source: 'browse_history_page.open_novel',
+          source: 'browse_history_page.save_mode',
         ),
       );
       if (mounted) {
         showToast(
           context,
-          AppLocalizations.of(context)!.novelHistoryFailed,
+          NetworkError.message(error, l10n: AppLocalizations.of(context)!),
           isError: true,
         );
       }
     } finally {
-      _opening = false;
-      if (mounted) await _load();
+      if (mounted) setState(() => _savingMode = false);
     }
   }
 
-  Future<void> _removeHistory({String? pathWord}) async {
-    if (_deleting) return;
-    final l10n = AppLocalizations.of(context)!;
-    if (pathWord == null) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(l10n.novelClearHistory),
-          content: Text(l10n.novelClearHistoryConfirm),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l10n.cancelButton),
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _settings,
+    builder: (context, _) {
+      final l10n = AppLocalizations.of(context)!;
+      final local = _settings.browseHistoryLocal;
+      final showNovel = _settings.showNovel;
+      return DefaultTabController(
+        length: showNovel ? 2 : 1,
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(
+              local ? l10n.localReadingHistoryTitle : l10n.browseHistoryTitle,
             ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l10n.cacheClearButton),
-            ),
-          ],
+            actions: [
+              TextButton.icon(
+                key: const ValueKey('history_mode_toggle'),
+                onPressed: _savingMode ? null : _toggleMode,
+                icon: Icon(
+                  local ? Icons.cloud_outlined : Icons.phone_android_outlined,
+                  size: AppIconSize.lg,
+                ),
+                label: Text(
+                  local ? l10n.historyModeOnline : l10n.historyModeLocal,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+            ],
+            bottom: showNovel
+                ? TabBar(
+                    tabs: [
+                      Tab(text: l10n.historyTabComic),
+                      Tab(text: l10n.historyTabNovel),
+                    ],
+                  )
+                : null,
+          ),
+          body: TabBarView(
+            children: [
+              _HistoryModePane(
+                local: local,
+                online: _ComicBrowseHistoryPage(
+                  loginPageBuilder: widget.loginPageBuilder,
+                ),
+                localBody: const _LocalReadingHistoryTab(novel: false),
+              ),
+              if (showNovel)
+                _HistoryModePane(
+                  local: local,
+                  online: const NovelHistoryBody(),
+                  localBody: const _LocalReadingHistoryTab(novel: true),
+                ),
+            ],
+          ),
         ),
       );
-      if (confirmed != true || !mounted || _deleting) return;
-    }
-    setState(() => _deleting = true);
-    try {
-      if (pathWord == null) {
-        await _store.clear();
-      } else {
-        await _store.removeProgress(pathWord);
-      }
-    } catch (e, stack) {
-      unawaited(
-        AppLogger.instance.recordWarning(
-          e,
-          stackTrace: stack,
-          source: 'browse_history_page.remove_novel',
-        ),
-      );
-      if (mounted) {
-        showToast(context, l10n.novelHistoryDeleteFailed, isError: true);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _deleting = false);
-        await _load();
-      }
-    }
-  }
+    },
+  );
+}
 
-  Future<void> _scrollToTop() async {
-    if (!_scrollController.hasClients) return;
-    await _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
+/// 按需创建两种模式，切换后保留已加载列表、搜索词和滚动位置。
+class _HistoryModePane extends StatefulWidget {
+  const _HistoryModePane({
+    required this.local,
+    required this.online,
+    required this.localBody,
+  });
+
+  final bool local;
+  final Widget online;
+  final Widget localBody;
+
+  @override
+  State<_HistoryModePane> createState() => _HistoryModePaneState();
+}
+
+class _HistoryModePaneState extends State<_HistoryModePane>
+    with AutomaticKeepAliveClientMixin {
+  late bool _onlineVisited = !widget.local;
+  late bool _localVisited = widget.local;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void didUpdateWidget(covariant _HistoryModePane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _onlineVisited |= !widget.local;
+    _localVisited |= widget.local;
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final l10n = AppLocalizations.of(context)!;
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final hp = ScreenLayout.horizontalPadding(screenWidth);
-
-    return Stack(
+    return IndexedStack(
+      index: widget.local ? 1 : 0,
       children: [
-        RefreshIndicator(
-          onRefresh: _load,
-          child: NotificationListener<ScrollNotification>(
-            onNotification: (n) {
-              if (n.metrics.axis == Axis.vertical) {
-                final shouldShow = n.metrics.pixels > 400;
-                if (shouldShow != _canScrollUp) {
-                  setState(() => _canScrollUp = shouldShow);
-                }
-              }
-              return false;
-            },
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                if (_loading && _items.isEmpty)
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(hp, 0, hp, 24),
-                    sliver: SliverToBoxAdapter(
-                      child: Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (var i = 0; i < 6; i++)
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 440),
-                              child: const _HistoryCardSkeleton(),
-                            ),
-                        ],
-                      ),
-                    ),
-                  )
-                else if (_failed && _items.isEmpty)
-                  SliverErrorRetryView(
-                    message: l10n.novelHistoryFailed,
-                    onRetry: _load,
-                  )
-                else if (_items.isEmpty)
-                  SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: NovelEmptyView(
-                      message: l10n.novelEmptyHistory,
-                      icon: Icons.history_rounded,
-                    ),
-                  )
-                else ...[
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(hp, 4, hp, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              l10n.browseHistoryTotal(
-                                _items.length,
-                                l10n.historyTabNovel,
-                              ),
-                              style: tt.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: l10n.novelClearHistory,
-                            onPressed: _deleting ? null : _removeHistory,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(hp, 0, hp, 24),
-                    sliver: SliverToBoxAdapter(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          // 与漫画标签页同一套宽屏/窄屏规则。
-                          final wide =
-                              constraints.maxWidth >=
-                              ScreenLayout.wideBreakpoint;
-                          return Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              for (final progress in _items)
-                                _NovelBrowseHistoryCard(
-                                  key: ValueKey(
-                                    'novel_history_${progress.pathWord}',
-                                  ),
-                                  progress: progress,
-                                  hugText: wide,
-                                  onRead: () => _open(progress),
-                                  onDetails: () =>
-                                      _open(progress, details: true),
-                                  onRemove: _deleting
-                                      ? null
-                                      : () => _removeHistory(
-                                          pathWord: progress.pathWord,
-                                        ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-                if (_items.isNotEmpty && (_hasMore || _failed))
-                  SliverToBoxAdapter(
-                    child: LoadMoreFooter(
-                      loading: _loading,
-                      onPressed: () => _load(more: _hasMore),
-                      label: _failed
-                          ? l10n.novelLoadMoreFailed
-                          : l10n.novelLoadMore,
-                      horizontalPadding: hp,
-                    ),
-                  ),
-                const SliverToBoxAdapter(child: SizedBox(height: 72)),
-              ],
-            ),
-          ),
-        ),
-        if (_canScrollUp)
-          Positioned(
-            right: AppSpacing.md,
-            bottom: AppSpacing.md,
-            child: SafeArea(
-              top: false,
-              child: BackToTopButton(onPressed: _scrollToTop),
-            ),
-          ),
+        if (_onlineVisited) widget.online else const SizedBox.shrink(),
+        if (_localVisited) widget.localBody else const SizedBox.shrink(),
       ],
-    );
-  }
-}
-
-class _NovelBrowseHistoryCard extends StatelessWidget {
-  final NovelReadingProgress progress;
-  final bool hugText;
-  final VoidCallback onRead;
-  final VoidCallback onDetails;
-  final VoidCallback? onRemove;
-
-  const _NovelBrowseHistoryCard({
-    super.key,
-    required this.progress,
-    required this.onRead,
-    required this.onDetails,
-    required this.onRemove,
-    this.hugText = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final location = [
-      progress.volumeName,
-      progress.chapterName,
-    ].where((part) => part.trim().isNotEmpty).join(' · ');
-
-    return _HistoryCardShell(
-      onTap: onRead,
-      trailing: PopupMenuButton<String>(
-        key: ValueKey('novel_history_actions_${progress.pathWord}'),
-        onSelected: (value) {
-          if (value == 'details') onDetails();
-          if (value == 'remove') onRemove?.call();
-        },
-        itemBuilder: (_) => [
-          PopupMenuItem(value: 'details', child: Text(l10n.novelBookDetails)),
-          PopupMenuItem(
-            value: 'remove',
-            enabled: onRemove != null,
-            child: Text(l10n.novelRemoveHistory),
-          ),
-        ],
-      ),
-      cover: NovelCover(url: progress.cover),
-      title: progress.name.isEmpty ? progress.pathWord : progress.name,
-      lastBrowseName: location.isEmpty ? null : location,
-      chips: [
-        if (progress.progress > 0)
-          _HistoryMetaChip(
-            icon: Icons.timelapse,
-            label: '${(progress.progress * 100).round()}%',
-          ),
-        _HistoryMetaChip(
-          icon: Icons.schedule,
-          label: TimeFormat.relative(progress.updatedAt, l10n),
-        ),
-      ],
-      hugText: hugText,
     );
   }
 }

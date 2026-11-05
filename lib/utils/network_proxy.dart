@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:native_flutter_proxy/native_flutter_proxy.dart';
 
@@ -31,6 +32,7 @@ class NetworkProxyEndpoint {
 }
 
 class NetworkProxy {
+  static bool get isIOS => defaultTargetPlatform == TargetPlatform.iOS;
   static final _user = UserManager();
   static bool _initialized = false;
   static NetworkProxyEndpoint? _systemProxy;
@@ -38,17 +40,25 @@ class NetworkProxy {
   static NetworkProxyEndpoint? get systemProxy => _systemProxy;
 
   static String systemProxyDescription(AppLocalizations l10n) {
-    return _systemProxy?.label ?? l10n.networkNoSystemProxyDetected;
+    return _systemProxy?.label ??
+        (isIOS
+            ? l10n.networkIOSProxyStatusUnknown
+            : l10n.networkNoSystemProxyDetected);
   }
 
   static String activeProxyDescription(AppLocalizations l10n) {
     switch (_user.networkProxyMode) {
       case NetworkProxyMode.system:
-        return _systemProxy?.label ?? l10n.networkSystemProxyNotDetected;
+        return _systemProxy?.label ??
+            (isIOS
+                ? l10n.networkIOSManagedNetwork
+                : l10n.networkSystemProxyNotDetected);
       case NetworkProxyMode.manual:
         return _manualProxy?.label ?? l10n.networkManualProxyNotConfigured;
       case NetworkProxyMode.direct:
-        return l10n.networkProxyDirectActive;
+        return isIOS
+            ? l10n.networkIOSDirectActive
+            : l10n.networkProxyDirectActive;
     }
   }
 
@@ -347,15 +357,26 @@ class NetworkProxy {
         RegExp(r'^172\.(1[6-9]|2\d|3[0-1])\.').hasMatch(host);
   }
 
+  /// 镜像下载直连：候选镜像（当前选中 + 其余内置/自定义）都按直连处理，
+  /// 否则兜底切换到备用镜像时会被代理再绕一层。
   static bool _isUpdateMirrorUri(Uri uri) {
-    final mirrorUri = Uri.tryParse(_user.updateMirrorPrefix);
-    if (mirrorUri == null || !mirrorUri.hasScheme || !mirrorUri.hasAuthority) {
-      return false;
+    for (final prefix in UserManager.updateMirrorFallbackChain(
+      _user.updateMirrorPrefix,
+      _user.customUpdateMirrorPrefixes,
+    )) {
+      final mirrorUri = Uri.tryParse(prefix);
+      if (mirrorUri == null ||
+          !mirrorUri.hasScheme ||
+          !mirrorUri.hasAuthority) {
+        continue;
+      }
+      if (uri.scheme == mirrorUri.scheme &&
+          uri.host.toLowerCase() == mirrorUri.host.toLowerCase() &&
+          _effectivePort(uri) == _effectivePort(mirrorUri)) {
+        return true;
+      }
     }
-
-    return uri.scheme == mirrorUri.scheme &&
-        uri.host.toLowerCase() == mirrorUri.host.toLowerCase() &&
-        _effectivePort(uri) == _effectivePort(mirrorUri);
+    return false;
   }
 
   static int _effectivePort(Uri uri) {

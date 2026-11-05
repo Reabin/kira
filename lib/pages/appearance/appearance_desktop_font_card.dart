@@ -88,7 +88,7 @@ class _DesktopFontCardState extends State<_DesktopFontCard> {
               children: [
                 Icon(Icons.font_download_outlined, color: cs.onSurfaceVariant),
                 const SizedBox(width: AppSpacing.lg),
-                Text(l10n.appearanceAppFont),
+                Text(l10n.appearanceDesktopFont),
               ],
             ),
             const SizedBox(height: AppSpacing.md),

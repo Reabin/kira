@@ -143,6 +143,39 @@ void main() {
     expect(() => NovelText.decode(bytes, 'unknown'), throwsFormatException);
   });
 
+  test('GB18030 decodes two-byte text and the four-byte plane', () {
+    const bytes = [0xd6, 0xd0, 0xce, 0xc4, 13, 10];
+    expect(NovelText.decode(bytes, 'GB18030'), '中文\r\n');
+    // Same two-byte mapping applies to the declared GB18030 alias variants.
+    expect(NovelText.decode(bytes, 'gb18030'), '中文\r\n');
+    // 0x81 0x30 0x81 0x30 is the first four-byte pointer (U+0080).
+    expect(NovelText.decode([0x81, 0x30, 0x81, 0x30], 'GB18030'), '\u{80}');
+    // 0x81 0x35 0xF4 0x37 maps to U+1E3F.
+    expect(NovelText.decode([0x81, 0x35, 0xF4, 0x37], 'GB18030'), '\u{1E3F}');
+    // 0x90 0x30 0x81 0x30 is the first astral mapping (U+10000).
+    expect(NovelText.decode([0x90, 0x30, 0x81, 0x30], 'GB18030'), '\u{10000}');
+    // Mixed runs must not let a four-byte lead swallow a two-byte character.
+    expect(
+      NovelText.decode([
+        0xd6, 0xd0, // 中
+        0x81, 0x35, 0xF4, 0x37, // U+1E3F
+        0xce, 0xc4, // 文
+      ], 'GB18030'),
+      '中\u{1E3F}文',
+    );
+    // Pointer 39419 is the last BMP mapping (U+FFFF).
+    expect(NovelText.decode([0x84, 0x31, 0xA4, 0x39], 'GB18030'), '\u{FFFF}');
+    // Pointers 39420..188999 are unmapped by the WHATWG table.
+    expect(
+      () => NovelText.decode([0x84, 0x32, 0x81, 0x30], 'GB18030'),
+      throwsFormatException,
+    );
+    expect(
+      () => NovelText.decode([0x81, 0x30, 0x81], 'GB18030'),
+      throwsFormatException,
+    );
+  });
+
   test(
     'zero-based half-open ranges retain blank lines and independent images',
     () {

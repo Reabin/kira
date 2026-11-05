@@ -8,7 +8,6 @@ import '../models/novel_reading_progress.dart';
 import '../models/user_manager.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
-import '../routing/branch_activation.dart';
 
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -20,6 +19,7 @@ import '../utils/remote_notice_service.dart';
 import '../utils/screen_layout.dart';
 
 import '../widgets/account_avatar.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/setting_tile_group.dart';
 part 'profile/profile_cards.dart';
 
@@ -32,7 +32,7 @@ class ProfilePage extends StatefulWidget {
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> with BranchDeferredInit {
+class _ProfilePageState extends State<ProfilePage> {
   final _user = UserManager();
 
   /// 最近一次阅读记录,供「继续阅读」入口展示。null 表示无本地阅读记录。
@@ -49,11 +49,7 @@ class _ProfilePageState extends State<ProfilePage> with BranchDeferredInit {
     // 阅读别处产生的新记录后回到本页，需要靠变更通知刷新「继续阅读」。
     ReadingHistory.changes.addListener(_onReadingHistoryChanged);
     NovelReadingStore.changes.addListener(_onReadingHistoryChanged);
-    deferInitialLoadToBranchActivation();
-  }
-
-  @override
-  void onBranchFirstActivated() {
+    // 只读本地存储:首帧就带上两个「继续阅读」入口,避免加载完成后列表跳动。
     unawaited(_loadContinueRecord());
     unawaited(_loadContinueNovel());
   }
@@ -152,23 +148,23 @@ class _ProfilePageState extends State<ProfilePage> with BranchDeferredInit {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(hp, 0, hp, 16),
-              // 宽屏双栏：左列为通用设置卡片，右列为下载/记录卡片 + 关于卡片；
-              // 窄屏维持原来的单列纵向排布。
+              // 宽屏双栏：左列为账号/通用设置卡片 + 关于卡片，
+              // 右列为下载/记录卡片，独占一列（入口最多）；窄屏维持单列纵向排布。
               child: isWide
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(child: _buildGeneralSettingsCard()),
-                        const SizedBox(width: AppSpacing.md),
                         Expanded(
                           child: Column(
                             children: [
-                              _buildDataSettingsCard(),
+                              _buildGeneralSettingsCard(),
                               const SizedBox(height: AppSpacing.md),
                               _buildAboutCard(),
                             ],
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.md),
+                        Expanded(child: _buildDataSettingsCard()),
                       ],
                     )
                   : Column(
@@ -181,6 +177,11 @@ class _ProfilePageState extends State<ProfilePage> with BranchDeferredInit {
                       ],
                     ),
             ),
+          ),
+          // 悬浮底栏浮在内容之上，末尾补一段底栏高度的留白，否则最底下的
+          // 「关于」卡片会被盖住。
+          const SliverToBoxAdapter(
+            child: BranchBottomSlack(extra: AppSpacing.md),
           ),
         ],
       ),

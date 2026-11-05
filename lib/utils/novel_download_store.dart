@@ -107,7 +107,7 @@ class NovelDownloadStore {
           }
         }
         for (final volume in book.downloaded.values) {
-          await _loadVolume(book, volume);
+          await _probeVolume(book, volume);
         }
       }
     } catch (error, stack) {
@@ -373,7 +373,16 @@ class NovelDownloadStore {
     }
   }
 
-  Future<void> _loadVolume(_LocalBook book, _LocalVolume record) async {
+  /// Startup probe: confirms each indexed file still exists at its recorded
+  /// length, without reading a single byte of content.
+  ///
+  /// Validation used to read, hash and text-parse every volume at launch, so
+  /// startup time scaled with the size of the offline library — one user with
+  /// many downloaded novels stared at a blank screen for tens of seconds. The
+  /// digest and snapshot parse now happen lazily in [readVolumeSnapshot] and
+  /// [readImageBytes], which repair the record when bytes no longer match;
+  /// startup only proves the files are still on disk.
+  Future<void> _probeVolume(_LocalBook book, _LocalVolume record) async {
     try {
       final pathWord = book.book.pathWord;
       final json = await _readJson(
@@ -384,15 +393,63 @@ class NovelDownloadStore {
           jsonString(json, 'volume_id') != record.volume.id) {
         throw const FormatException('小说卷清单身份无效');
       }
-      record.snapshot = _Asset.fromJson(jsonMap(json, 'snapshot') ?? {});
-      for (final entry in (jsonMap(json, 'images') ?? {}).entries) {
-        final asset = jsonMap({'v': entry.value}, 'v');
-        if (asset == null) throw const FormatException('小说插图清单无效');
-        record.images[entry.key] = _Asset.fromJson(asset);
+      final base = _volumePath(pathWord, record.volume.id);
+      final snapshot = _Asset.fromJson(jsonMap(json, 'snapshot') ?? {});
+      if (snapshot.path != '$base/snapshot_${snapshot.digest}.json') {
+        throw const FormatException('小说正文快照路径无效');
       }
-      await _validateVolume(book, record);
+      if (!await _assetIntact(snapshot)) {
+        throw const FormatException('小说正文快照文件缺失或长度不符');
+      }
+      record.snapshot = snapshot;
+
+      // The book manifest carries the full volume, so the expected illustration
+      // set is known without opening the text snapshot.
+      final manifestImages = jsonMap(json, 'images') ?? const {};
+      final validImages = <String, _Asset>{};
+      for (final entry in manifestImages.entries) {
+        try {
+          final image = _Asset.fromJson(jsonMap({'v': entry.value}, 'v') ?? {});
+          if (image.path != '$base/images/${_hash(entry.key)}.bin') {
+            throw const FormatException('小说插图路径无效');
+          }
+          if (!await _assetIntact(image)) {
+            throw const FormatException('小说插图文件缺失或长度不符');
+          }
+          validImages[entry.key] = image;
+        } catch (error, stack) {
+          _log(error, stack);
+        }
+      }
+      var expected = 0;
+      for (final entry in record.volume.contents) {
+        if (entry.isImage && entry.content?.isNotEmpty == true) expected++;
+      }
+      record.images
+        ..clear()
+        ..addAll(validImages);
+      record.total = expected + 1;
+      record.completed = record.total < validImages.length + 1
+          ? record.total
+          : validImages.length + 1;
+      record.status = record.completed == record.total
+          ? NovelDownloadStatus.completed
+          : NovelDownloadStatus.partial;
+      record.error = null;
     } catch (error, stack) {
       _repair(record, error, stack);
+    }
+  }
+
+  /// Existence and recorded length only; contents and digest are checked when
+  /// the asset is actually read.
+  Future<bool> _assetIntact(_Asset asset) async {
+    try {
+      final stat = await (await _file(asset.path)).stat();
+      return stat.type == FileSystemEntityType.file &&
+          stat.size == asset.length;
+    } catch (_) {
+      return false;
     }
   }
 

@@ -67,9 +67,5 @@ class ApiClient {
     novel = NovelApi(_transport);
     network = NetworkApi(_transport);
     user = UserApi(_transport);
-
-    // Wire up login handlers for the 401 auto-login interceptor.
-    _transport.loginHandler = user.login;
-    _transport.copyLoginHandler = user.copyLogin;
   }
 }

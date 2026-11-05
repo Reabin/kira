@@ -141,6 +141,9 @@ void main() {
           await user.copyAccount.saveSession(
             const CopyAccountSession(token: 'novel-token', userId: 'novel-id'),
           );
+          // 漫画账号为空时登录才会接管主账号，也才会写主账号的令牌/资料，
+          // 这正是这三个失败注入点要覆盖的提交路径。
+          await user.logout();
           final before = Map.of(platform.values);
           var notifications = 0;
           void changed() => notifications++;
@@ -166,7 +169,8 @@ void main() {
             platform.failKey = 'secure_mirror_copy_account_v1';
             platform.failValue = jsonEncode({
               'migrationHandled': true,
-              'activeId': next.id,
+              // 轻小说已选中，登录只入库不接管，写回的仍是原 activeId。
+              'activeId': user.copyAccount.activeId,
               'accounts': [
                 next.toJson(),
                 ...user.copyAccount.accounts.map((item) => item.toJson()),
@@ -186,14 +190,14 @@ void main() {
             reason: 'The intended write must fail',
           );
           expect(notifications, 0);
-          expect(user.token, _accountA.token);
+          expect(user.token, isNull);
           expect(user.copyToken, 'novel-token');
           expect(platform.values, before);
           SharedPreferences.resetStatic();
           SecureCredentialStore.resetInstance();
           await user.init();
-          expect(user.token, _accountA.token);
-          expect(user.userId, _accountA.userId);
+          expect(user.token, isNull);
+          // logout 只清主账号身份，自动重登的账密槽位保持不变。
           expect(user.savedPassword, _accountA.password);
           expect(user.copyToken, 'novel-token');
         },

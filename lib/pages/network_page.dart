@@ -1,19 +1,26 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_transport.dart'
     show
         routes,
         defaultCopyApiHost,
         defaultCopyAppVersion,
+        defaultCopyVersionCode,
         defaultCopyLoginHost,
         copyLoginHostOptions;
 import '../l10n/app_localizations.dart';
+import '../models/network_settings.dart';
 import '../models/user_manager.dart';
+import '../providers/app_providers.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
+import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
+import '../utils/network_latency_tester.dart';
 import '../utils/network_proxy.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
@@ -35,26 +42,30 @@ part 'network/network_shared_widgets.dart';
 ///  - 线路与节点：模式可选「线路 / 节点」，选中项用主色描边 + 填充 +
 ///    「使用中」徽标表达，一眼可见。
 ///  - 高级设置（COPY）：默认折叠，点击标题就地展开（无动画）。
-class NetworkPage extends StatefulWidget {
+class NetworkPage extends ConsumerStatefulWidget {
   const NetworkPage({super.key});
 
   @override
-  State<NetworkPage> createState() => _NetworkPageState();
+  ConsumerState<NetworkPage> createState() => _NetworkPageState();
 }
 
-class _NetworkPageState extends State<NetworkPage>
-    with TickerProviderStateMixin {
+class _NetworkPageState extends ConsumerState<NetworkPage>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   /// extension part 文件里的成员不是 State 子类成员，不能直接调用受保护的
   /// [setState]，统一经由这个转发方法。
   void _setState(VoidCallback fn) => setState(fn);
   final _user = UserManager();
-  final _networkApi = ApiClient().network;
+  late final _networkApi = ref.read(networkApiProvider);
+  late final _latencyTester = ref.read(networkLatencyTesterProvider);
   final _proxyAddressController = TextEditingController();
   final _copyApiHostController = TextEditingController();
   final _copyAppVersionController = TextEditingController();
+  final _copyVersionCodeController = TextEditingController();
   final _customLoginHostController = TextEditingController();
 
   bool _testingLatency = false;
+  bool _retestAfterResume = false;
+  bool _manualLatencyTest = false;
   bool _refreshingSystemProxy = false;
   bool _autoFillingCopySettings = false;
   bool _advancedExpanded = false;
@@ -77,26 +88,49 @@ class _NetworkPageState extends State<NetworkPage>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _proxyAddressController.text = _manualProxyAddress;
     _copyApiHostController.text = _user.copyApiHost;
     _copyAppVersionController.text = _user.copyAppVersion;
+    _copyVersionCodeController.text = _user.copyVersionCode;
     _manualProxyType = _user.networkProxyType;
     _user.addListener(_onChanged);
+    _latencyTester.addListener(_onLatencyChanged);
+    _syncLatencyResults();
     // 进入页面即自动测速一次,让用户第一时间看到各线路/节点延迟。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_testingLatency && _latencyResults.isEmpty) {
+      if (mounted) {
         _testLatency();
       }
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_refreshAfterResume());
+  }
+
+  Future<void> _refreshAfterResume() async {
+    await NetworkProxy.refreshSystemProxy();
+    if (!mounted) return;
+    if (_manualLatencyTest) {
+      _retestAfterResume = true;
+    } else {
+      setState(() => _latencyResults = {});
+      await _testLatency();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _breathController.dispose();
     _user.removeListener(_onChanged);
+    _latencyTester.removeListener(_onLatencyChanged);
     _proxyAddressController.dispose();
     _copyApiHostController.dispose();
     _copyAppVersionController.dispose();
+    _copyVersionCodeController.dispose();
     _customLoginHostController.dispose();
     super.dispose();
   }
@@ -108,6 +142,22 @@ class _NetworkPageState extends State<NetworkPage>
         host.contains(':') && !host.startsWith('[') && !host.endsWith(']');
     final displayHost = needsBrackets ? '[$host]' : host;
     return '$displayHost:${_user.networkProxyPort}';
+  }
+
+  void _syncLatencyResults() {
+    _testingLatency = _manualLatencyTest || _latencyTester.busy;
+    for (final route in _latencyTester.latencies.entries) {
+      _latencyResults[route.key] = Map.of(route.value);
+    }
+    _pendingLatencyHosts.removeWhere((key) => !key.startsWith('-1|'));
+    _pendingLatencyHosts.addAll([
+      for (final (route, host) in _latencyTester.pendingHosts)
+        _latencyHostKey(route, host),
+    ]);
+  }
+
+  void _onLatencyChanged() {
+    if (mounted) setState(_syncLatencyResults);
   }
 
   void _onChanged() {
@@ -137,6 +187,8 @@ class _NetworkPageState extends State<NetworkPage>
 
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
+    final isWide =
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
 
     return Scaffold(
       appBar: AppBar(
@@ -166,7 +218,7 @@ class _NetworkPageState extends State<NetworkPage>
           const SizedBox(height: AppSpacing.md),
           _buildProxySection(l10n, tt, cs),
           const SizedBox(height: AppSpacing.md),
-          _buildNodesSection(l10n, tt, cs),
+          _buildNodesSection(l10n, tt, cs, isWide: isWide),
           const SizedBox(height: AppSpacing.md),
           _buildAdvancedSection(l10n, tt, cs),
         ],
@@ -197,7 +249,9 @@ class _NetworkPageState extends State<NetworkPage>
         secondary = _statusSecondaryWarn(l10n);
       case _HealthLevel.bad:
         primary = l10n.networkStatusBad;
-        secondary = l10n.networkHighLatencyProxySuggestion;
+        secondary = NetworkProxy.isIOS
+            ? l10n.networkIOSLatencySuggestion
+            : l10n.networkHighLatencyHint;
       case _HealthLevel.busy:
         primary = l10n.networkStatusBusy;
         secondary = l10n.networkTestingNodes;
@@ -273,7 +327,9 @@ class _NetworkPageState extends State<NetworkPage>
     final ms = _bestNumericLatency();
     return ms != null
         ? l10n.networkStatusWarnHint(ms)
-        : l10n.networkHighLatencyProxySuggestion;
+        : (NetworkProxy.isIOS
+              ? l10n.networkIOSLatencySuggestion
+              : l10n.networkHighLatencyHint);
   }
 
   /// 当前可用的最低数值延迟（ms），用于状态卡副文案；无数据返回 null。

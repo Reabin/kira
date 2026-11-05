@@ -28,6 +28,7 @@ class AccountPreferencesPlatform {
   String? failKey;
   Object? failValue;
   bool throwOnFailure = false;
+  Future<void> Function(String key, Object? value)? beforeWrite;
 
   void install() {
     SharedPreferences.resetStatic();
@@ -46,6 +47,7 @@ class AccountPreferencesPlatform {
           }
           if (call.method.startsWith('set')) {
             final value = arguments['value'];
+            await beforeWrite?.call(key, value);
             if (key == 'flutter.$failKey' && value == failValue) {
               failKey = null;
               if (throwOnFailure) throw PlatformException(code: 'injected');

@@ -40,7 +40,8 @@ extension _ComicReplyBuild on _ComicCommentsSheetState {
                 children: [
                   Expanded(
                     child: Text(
-                      l10n.comicCommentReplyLoadFailed,
+                      '${l10n.comicCommentReplyLoadFailed}：'
+                      '${replyState.error}',
                       style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                     ),
                   ),

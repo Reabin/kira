@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import 'browse_history_page.dart';
 
-/// 兼容旧小说历史路由，列表与统一浏览历史中的小说分页保持一致。
+/// 兼容旧小说历史路由，使用与统一浏览记录相同的在线接口。
 class NovelHistoryPage extends StatelessWidget {
   const NovelHistoryPage({super.key});
 

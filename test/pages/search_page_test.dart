@@ -129,7 +129,6 @@ void main() {
     await AppStorage.cache.remove('copy_filter_options_v1');
     await AppStorage.cache.remove('discover_popular_list_v1_hot');
     await AppStorage.cache.remove('discover_popular_list_v1_copy');
-    await AppStorage.preferences.remove('search_history_v1');
   });
 
   tearDown(teardownSecureCredentialStoreForTest);
@@ -153,9 +152,7 @@ void main() {
       await tester.tap(find.byTooltip(_l10n(tester).searchClearTooltip));
       await pumpSearchFrames(tester);
       expect(find.text('测试热搜'), findsOneWidget);
-      // 不再记录搜索历史：清空后只剩热门搜索，无历史标题与旧关键词。
-      expect(find.text(_l10n(tester).searchHistoryTitle), findsNothing);
-      expect(find.widgetWithText(InputChip, '不存在'), findsNothing);
+      expect(find.byType(InputChip), findsNothing);
       expect(find.text(_l10n(tester).searchEmptyResults), findsNothing);
     });
 
@@ -167,7 +164,8 @@ void main() {
       await pumpSearchFrames(tester);
 
       expect(find.byType(SliverErrorRetryView), findsOneWidget);
-      expect(find.text(_l10n(tester).searchRequestFailed), findsOneWidget);
+      // 失败原因直接展示（不再替换成固定文案）。
+      expect(find.textContaining('受控请求失败'), findsOneWidget);
       expect(find.text('测试热搜'), findsNothing);
       await tester.tap(find.text(_l10n(tester).retryButton));
       await pumpSearchFrames(tester);
@@ -217,43 +215,6 @@ void main() {
       await pumpSearchFrames(tester);
       expect(find.text('测试热搜'), findsOneWidget);
       expect(find.byType(SliverErrorRetryView), findsNothing);
-    });
-
-    testWidgets('历史支持点选搜索、删除和清空，且只在 idle 展示', (tester) async {
-      late SharedPreferences prefs;
-      await tester.runAsync(() async {
-        prefs = await AppStorage.sharedPreferences();
-        await prefs.setStringList('search_history_v1', ['保留历史', '删除历史']);
-      });
-      final rig = SearchTestRig();
-      await _pumpPage(tester, rig);
-      expect(find.byType(InputChip), findsNWidgets(2));
-
-      await tester.tap(
-        find.descendant(
-          of: find.widgetWithText(InputChip, '删除历史'),
-          matching: find.byTooltip(_l10n(tester).searchHistoryDelete),
-        ),
-      );
-      await pumpSearchFrames(tester);
-      expect(find.widgetWithText(InputChip, '删除历史'), findsNothing);
-      expect(prefs.getStringList('search_history_v1'), ['保留历史']);
-
-      await tester.tap(find.widgetWithText(InputChip, '保留历史'));
-      await pumpSearchFrames(tester);
-      expect(rig.manga.searches.single.query, '保留历史');
-      expect(find.byType(InputChip), findsNothing);
-      rig.manga.searches.single.succeed(['历史结果']);
-      await pumpSearchFrames(tester);
-      expect(_visibleComics(tester), ['历史结果']);
-
-      await tester.tap(find.byTooltip(_l10n(tester).searchClearTooltip));
-      await pumpSearchFrames(tester);
-      await tester.tap(find.text(_l10n(tester).searchHistoryClear));
-      await pumpSearchFrames(tester);
-      expect(find.byType(InputChip), findsNothing);
-      expect(prefs.getStringList('search_history_v1') ?? [], isEmpty);
-      expect(find.text('测试热搜'), findsOneWidget);
     });
 
     for (final sameQuery in [false, true]) {
@@ -327,7 +288,7 @@ void main() {
         await pumpSearchFrames(tester);
 
         expect(_visibleComics(tester), ['首屏漫画']);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsOneWidget);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsOneWidget);
         expect(find.text(_l10n(tester).retryButton), findsOneWidget);
         // 错误后滚动通知不能悄悄连续重试。
         await tester.drag(find.byType(CustomScrollView), const Offset(0, -90));
@@ -341,7 +302,7 @@ void main() {
         requests.last.succeed(['第二页漫画'], total: 2);
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['首屏漫画', '第二页漫画']);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         expect(find.byType(LoadMoreFooter), findsNothing);
       });
 
@@ -389,7 +350,7 @@ void main() {
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['新首屏']);
         expect(_footer(tester).loading, isTrue);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         expect(rig.manga.searches, hasLength(4));
 
         newPage.succeed(['新分页'], total: 2);
@@ -574,7 +535,7 @@ void main() {
       await _selectFilter(tester, '冒险');
       rig.manga.listings.last.fail();
       await pumpSearchFrames(tester);
-      expect(find.text(_l10n(tester).discoverRequestFailed), findsOneWidget);
+      expect(find.textContaining('受控请求失败'), findsOneWidget);
       expect(find.byType(SliverErrorRetryView), findsOneWidget);
       await tester.tap(find.text(_l10n(tester).retryButton));
       await pumpSearchFrames(tester);
@@ -647,7 +608,7 @@ void main() {
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['冒险首屏']);
         expect(_footer(tester).loading, isTrue);
-        expect(find.text(_l10n(tester).searchLoadMoreFailed), findsNothing);
+        expect(find.text(_l10n(tester).loadMoreFailed), findsNothing);
         currentPage.succeed(['冒险分页'], total: 2);
         await pumpSearchFrames(tester);
         expect(_visibleComics(tester), ['冒险首屏', '冒险分页']);
@@ -779,13 +740,7 @@ void main() {
       );
     });
 
-    testWidgets('320 宽和两倍字体：历史、源选择、筛选展开及结果无布局溢出', (tester) async {
-      await tester.runAsync(() async {
-        final prefs = await AppStorage.sharedPreferences();
-        await prefs.setStringList('search_history_v1', [
-          '这是一个较长的历史关键词用于验证窄屏显示',
-        ]);
-      });
+    testWidgets('320 宽和两倍字体：源选择、筛选展开及结果无布局溢出', (tester) async {
       final rig = SearchTestRig();
       await _pumpPage(tester, rig, size: const Size(320, 800), textScale: 2);
       expect(tester.takeException(), isNull);

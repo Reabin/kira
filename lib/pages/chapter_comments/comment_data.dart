@@ -12,9 +12,17 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
       return;
     }
     if (loadMore) {
-      if (_loading || _loadingMore || _comments.length >= _total) return;
-      _setState(() => _loadingMore = true);
+      if (_loading || _loadingMore) return;
+      if (_comments.length >= _total) return;
+      // 手动翻页优先：作废正在跑的补页循环（其 in-flight 结果会被丢弃）。
+      _cancelPrefetch();
+      _setState(() {
+        _loadingMore = true;
+        _error = null;
+      });
     } else {
+      // 重试首屏时取消未完成的补页，避免两路同时从 offset 0 之后追加。
+      _cancelPrefetch();
       _setState(() {
         _loading = true;
         _error = null;
@@ -42,21 +50,28 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
       });
       _rebuildGroupedEntries();
       _notifyCommentsUpdated();
-      if (!loadMore) {
-        _maybeAutoSummary();
+      _maybeAutoSummary();
+      if (!loadMore &&
+          data.list.length >= _ChapterCommentsSheetState._pageSize) {
+        unawaited(_prefetchInitialPages());
       }
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        tryLoadMoreWhenNearBottom();
-      });
     } catch (e) {
       if (!mounted) return;
       _setState(() {
         _loading = false;
         _loadingMore = false;
-        _error = e.toString();
+        // 保留真实原因（DNS/TLS/超时/HTTP 状态/业务错误码），不要只留
+        // 「加载失败」。
+        _error = NetworkError.describe(e);
       });
     }
+  }
+
+  /// 作废正在跑的补页循环。它可能在 await 中，只能靠代数判断让它自行退出。
+  void _cancelPrefetch() {
+    if (!_prefetchingInitialPages) return;
+    _prefetchGeneration++;
+    _prefetchingInitialPages = false;
   }
 
   /// Refreshes page 1 after posting while keeping page 2+ data.
@@ -64,6 +79,8 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
   /// New comments land on page 1, pushing the old page-1 tail onto page 2.
   /// When the fetched page is full, insert the old tail before existing page 2+.
   Future<void> _refreshFirstPage() async {
+    // 首屏即将被替换，作废仍在跑的补页循环。
+    _cancelPrefetch();
     try {
       final data = await _api.manga.getChapterComments(
         widget.chapterUuid,
@@ -116,53 +133,86 @@ extension _ChapterCommentData on _ChapterCommentsSheetState {
       _rebuildGroupedEntries();
       _notifyCommentsUpdated();
       _maybeAutoSummary();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        tryLoadMoreWhenNearBottom();
-      });
-    } catch (e) {
+      // 发表评论后首屏可能只剩一页，补齐到本次打开时的设定页数。
+      if (_comments.length < _total) {
+        unawaited(_prefetchInitialPages());
+      }
+    } catch (e, stack) {
       if (!mounted) return;
       // Keep existing data when page-1 refresh fails; only log the issue.
       unawaited(
-        AppLogger().recordWarning(
-          'Refresh first comment page failed: $e',
-          stackTrace: StackTrace.current,
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'chapter_comments.refresh',
         ),
       );
     }
   }
 
-  Future<void> _loadAllComments() async {
-    if (_loadingAll) return;
-    _setState(() => _loadingAll = true);
-
+  /// 首屏补到本次打开时设定的页数，每次翻页随机间隔 1–1.5 秒。
+  /// 首屏加载态由 `_loadComments` 负责，补页不闪烁底部加载圈。
+  Future<void> _prefetchInitialPages() async {
+    final generation = _prefetchGeneration;
+    bool stale() => !mounted || generation != _prefetchGeneration;
+    var remainingPages =
+        _initialPages -
+        (_comments.length / _ChapterCommentsSheetState._pageSize).ceil();
+    if (remainingPages <= 0 || _comments.length >= _total) return;
+    _prefetchingInitialPages = true;
     try {
-      while (mounted && _comments.length < _total) {
+      while (!stale() && remainingPages > 0 && _comments.length < _total) {
+        if (_comments.length >=
+            _ChapterCommentsSheetState._pageSize * _initialPages) {
+          break;
+        }
+        if (_comments.isNotEmpty) {
+          await Future<void>.delayed(chapterCommentPageGap);
+        }
+        if (stale()) return;
+        // 用户已手动翻页时让位，下一轮再判断是否还需要补。
+        if (_loadingMore) continue;
+
+        final offset = _comments.length;
+        remainingPages--;
         final data = await _api.manga.getChapterComments(
           widget.chapterUuid,
           limit: _ChapterCommentsSheetState._pageSize,
-          offset: _comments.length,
+          offset: offset,
         );
-        if (!mounted) return;
+        if (stale()) return;
 
-        final newComments = data.list
-            .where((item) => !_comments.any((e) => e.id == item.id))
-            .toList();
-        if (newComments.isEmpty) break;
+        // 首屏期间用户可能已手动翻页，跳过重复请求结果。
+        if (_comments.length != offset) continue;
+        final merged = appendDedupedById(_comments, data.list, (c) => c.id);
+        if (merged.length == _comments.length) break;
 
         _setState(() {
-          _comments = [..._comments, ...newComments];
+          _comments = merged;
           _total = data.total;
         });
         _rebuildGroupedEntries();
         _notifyCommentsUpdated();
-
-        if (_comments.length < _total) {
-          await Future.delayed(const Duration(milliseconds: 500));
-        }
+        // 一页只有 10 条，自动总结的最小条数可能要跨页才够。
+        _maybeAutoSummary();
+        if (data.list.length < _ChapterCommentsSheetState._pageSize) break;
       }
+    } catch (e, stack) {
+      if (stale()) return;
+      // 保留已加载内容与真实失败原因，用户仍可手动重试。
+      _setState(() => _error = NetworkError.describe(e));
+      unawaited(
+        AppLogger.instance.recordWarning(
+          e,
+          stackTrace: stack,
+          source: 'chapter_comments.prefetch',
+        ),
+      );
     } finally {
-      if (mounted) _setState(() => _loadingAll = false);
+      // 已被更新一轮补页/首屏刷新取代时，不要清掉新一轮的进行中标记。
+      if (generation == _prefetchGeneration) {
+        _prefetchingInitialPages = false;
+      }
     }
   }
 

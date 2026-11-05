@@ -1,10 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kira/models/copy_account_store.dart';
-import 'package:kira/models/user_manager.dart';
 import 'package:kira/utils/copy_web_login.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../test_helpers.dart';
 
 void main() {
   group('parseCopyWebStorage', () {
@@ -55,6 +50,19 @@ void main() {
       expect(credentials?.username, 'storage-user');
       expect(credentials?.nickname, '昵称');
       expect(credentials?.avatar, 'user/cover/avatar.png');
+      expect(credentials?.profileBoundToToken, isTrue);
+    });
+
+    test('h5 localStorage uses userid, not user_id', () {
+      // 官网 h5 站写的是 localStorage["user"] = {"token":..,"userid":..}
+      // （无下划线）。漏掉这个键名会丢掉唯一身份，同一账号每次登录（官网
+      // 每次轮换 token）都被当成新账号，账号中心就堆出重复卡片。
+      final credentials = parseCopyWebStorage({
+        'ls': {'user': '{"token":"h5-token","userid":"h5-user-id"}'},
+        'ss': {'init': 'true'},
+      });
+      expect(credentials?.token, 'h5-token');
+      expect(credentials?.userId, 'h5-user-id');
       expect(credentials?.profileBoundToToken, isTrue);
     });
 
@@ -259,161 +267,6 @@ void main() {
 
       expect(credentials, isNotNull);
       expect(credentials!.token, 'abc123');
-    });
-  });
-
-  group('matchesSavedAccount', () {
-    TestWidgetsFlutterBinding.ensureInitialized();
-    final user = UserManager();
-
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({});
-      setupSecureCredentialStoreForTest();
-      await user.init();
-      await user.copyAccount.clear();
-    });
-
-    tearDown(() async {
-      await user.copyAccount.clear();
-      teardownSecureCredentialStoreForTest();
-    });
-
-    const saved = CopyAccountSession(
-      token: 'saved-token',
-      userId: 'saved-id',
-      username: 'saved-user',
-    );
-
-    CopyWebCredentials candidate({
-      String token = 'new-token',
-      String userId = '',
-      String username = '',
-    }) => CopyWebCredentials(
-      token: token,
-      userId: userId,
-      username: username,
-      nickname: '',
-      avatar: '',
-    );
-
-    test('检测到已保存账号的 token 时命中', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(candidate(token: 'saved-token').matchesSavedAccount(user), isTrue);
-    });
-
-    test('用户名相同但 token 不同也算同一个账号', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(
-        candidate(
-          token: 'other',
-          username: 'saved-user',
-        ).matchesSavedAccount(user),
-        isTrue,
-      );
-    });
-
-    test('user_id 相同也算同一个账号', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(
-        candidate(token: 'other', userId: 'saved-id').matchesSavedAccount(user),
-        isTrue,
-      );
-    });
-
-    test('另一个账号不会被误判', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(
-        candidate(
-          token: 'other-token',
-          userId: 'other-id',
-          username: 'other',
-        ).matchesSavedAccount(user),
-        isFalse,
-      );
-    });
-
-    test('空 token 不命中', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(candidate(token: '  ').matchesSavedAccount(user), isFalse);
-    });
-
-    test('已保存主账号里的拷贝凭据也能识别', () async {
-      SharedPreferences.setMockInitialValues({
-        'login_source': 'copy',
-        'user_token': 'primary-copy-token',
-        'user_user_id': 'primary-copy-id',
-        'user_username': 'primary-copy-user',
-      });
-      setupSecureCredentialStoreForTest();
-      await user.init();
-      expect(
-        candidate(token: 'primary-copy-token').matchesSavedAccount(user),
-        isTrue,
-      );
-    });
-
-    test('已保存账号不自动完成，停在提示条上；手动提交才完成', () async {
-      await user.copyAccount.saveSession(saved);
-      final known = candidate(token: 'saved-token');
-      expect(
-        disposeWebLoginCredentials(
-          credentials: known,
-          user: user,
-          submittedLogin: false,
-        ),
-        WebLoginDisposition.knownAccount,
-      );
-      expect(
-        disposeWebLoginCredentials(
-          credentials: known,
-          user: user,
-          submittedLogin: false,
-          manual: true,
-        ),
-        WebLoginDisposition.complete,
-      );
-    });
-
-    test('未保存的残留会话（如刚被登出的账号）静默，不自动完成', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(
-        disposeWebLoginCredentials(
-          credentials: candidate(token: 'other-token', username: 'other-user'),
-          user: user,
-          submittedLogin: false,
-        ),
-        WebLoginDisposition.ignore,
-      );
-    });
-
-    test('本次捕获到登录提交的新账号自动完成', () async {
-      await user.copyAccount.saveSession(saved);
-      expect(
-        disposeWebLoginCredentials(
-          credentials: candidate(token: 'other-token', username: 'other-user'),
-          user: user,
-          submittedLogin: true,
-        ),
-        WebLoginDisposition.complete,
-      );
-    });
-
-    test('本次登录到另一个已保存账号仍需确认', () async {
-      const other = CopyAccountSession(
-        token: 'other-saved-token',
-        userId: 'other-saved-id',
-        username: 'other-saved-user',
-      );
-      await user.copyAccount.saveSession(saved);
-      await user.copyAccount.saveSession(other);
-      expect(
-        disposeWebLoginCredentials(
-          credentials: candidate(token: 'other-saved-token'),
-          user: user,
-          submittedLogin: true,
-        ),
-        WebLoginDisposition.knownAccount,
-      );
     });
   });
 

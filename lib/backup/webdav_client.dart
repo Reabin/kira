@@ -59,6 +59,28 @@ class WebDavClient {
 
   void close() => _dio.close(force: true);
 
+  /// Each progress file belongs to one installation; no shared-file overwrite.
+  Future<void> writeDeviceProgress(
+    String name,
+    Uint8List bytes, {
+    required CancelToken cancel,
+  }) async {
+    if (!RegExp(r'^kira-progress-[a-f0-9]{32}\.json$').hasMatch(name) ||
+        bytes.length > 8 * 1024 * 1024) {
+      throw const WebDavException(WebDavErrorCode.invalidResponse);
+    }
+    await _ensureDirectory(cancel);
+    final temporary = config.fileUri(
+      '.${BackupCodec.uniqueFileName('.uploading')}',
+    );
+    try {
+      await _put(temporary, bytes, cancel);
+      await _move(temporary, config.fileUri(name), cancel, overwrite: true);
+    } finally {
+      await _cleanup(temporary);
+    }
+  }
+
   Future<List<WebDavBackupEntry>> list({required CancelToken cancel}) async {
     final response = await _request(
       'PROPFIND',
@@ -240,13 +262,21 @@ class WebDavClient {
     );
   }
 
-  Future<void> _move(Uri source, Uri destination, CancelToken cancel) async {
+  Future<void> _move(
+    Uri source,
+    Uri destination,
+    CancelToken cancel, {
+    bool overwrite = false,
+  }) async {
     await _request(
       'MOVE',
       source,
       cancel: cancel,
       accepted: {201, 204},
-      headers: {'Destination': destination.toString(), 'Overwrite': 'F'},
+      headers: {
+        'Destination': destination.toString(),
+        'Overwrite': overwrite ? 'T' : 'F',
+      },
     );
   }
 

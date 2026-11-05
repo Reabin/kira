@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/utils/bookmark_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +21,20 @@ void main() {
         page: page,
         updatedAt: DateTime(2026, 7, 24, 12),
       );
+
+  test('老数据：只有书签、没有分组元数据时仍视为已加入书签页', () async {
+    // 分组元数据是后加的功能，旧版本只写了书签列表。
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'comic_bookmarks_v1',
+      jsonEncode([sample().toJson()]),
+    );
+    BookmarkStore().debugReset();
+    await BookmarkStore().ensureLoaded();
+
+    expect(BookmarkStore().hasGroup('comic-a'), isTrue);
+    expect(BookmarkStore().groups.single.comicName, '漫画A');
+  });
 
   test('toggle adds then removes a bookmark', () async {
     final store = BookmarkStore();
@@ -190,6 +206,30 @@ void main() {
 
     final removedAgain = await store.removeForComic('comic-a');
     expect(removedAgain, isEmpty);
+  });
+
+  test('空分组可删除并持久化，撤销恢复原始元数据但不覆盖新分组', () async {
+    final store = BookmarkStore();
+    await store.addGroup(pathWord: 'comic-a', comicName: '漫画A');
+    await store.addGroup(pathWord: 'comic-b', comicName: '漫画B');
+    final original = store.groups.firstWhere((g) => g.pathWord == 'comic-a');
+    expect(await store.removeGroup('comic-a'), isEmpty);
+    await store.reload();
+    expect(store.hasGroup('comic-a'), isFalse);
+    expect(store.hasGroup('comic-b'), isTrue);
+
+    await store.restoreAll(const [], groups: [original, original]);
+    await store.reload();
+    expect(store.groups, hasLength(2));
+    expect(
+      store.groups.firstWhere((g) => g.pathWord == 'comic-a').toJson(),
+      original.toJson(),
+    );
+    expect(store.bookmarks, isEmpty);
+    await store.removeGroup('comic-a');
+    await store.addGroup(pathWord: 'comic-a', comicName: '新名称');
+    await store.restoreAll(const [], groups: [original]);
+    expect(store.groups.first.comicName, '新名称');
   });
 
   test('restoreAll re-adds removed bookmarks sorted newest first', () async {

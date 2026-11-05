@@ -11,9 +11,12 @@ import '../models/user_manager.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/remote_notice_service.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
+import '../widgets/app_sheet.dart';
+import '../widgets/settings_section.dart';
 
 class NoticeCenterPage extends StatefulWidget {
   const NoticeCenterPage({super.key, RemoteNoticeService? service})
@@ -84,17 +87,19 @@ class _NoticeCenterPageState extends State<NoticeCenterPage> {
       );
       if (!mounted) return;
       RemoteNoticeService.unreadActiveCount.value = 0;
+      final l10n = AppLocalizations.of(context)!;
+      final detail = NetworkError.message(e, l10n: l10n);
       setState(() {
         _notices = const [];
         _seenKeys = const {};
         _error = refreshRemote
-            ? AppLocalizations.of(context)!.noticeRefreshFailed
-            : AppLocalizations.of(context)!.noticeReadFailed;
+            ? l10n.noticeRefreshFailedDetail(detail)
+            : l10n.noticeReadFailedDetail(detail);
       });
       if (refreshRemote) {
         showToast(
           context,
-          AppLocalizations.of(context)!.noticeRefreshFailed,
+          l10n.noticeRefreshFailedDetail(detail),
           isError: true,
         );
       }
@@ -146,17 +151,19 @@ class _NoticeCenterPageState extends State<NoticeCenterPage> {
   }
 
   Future<void> _openNoticeSettings() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => StatefulBuilder(
+    await showAppSheet<void>(
+      context,
+      maxHeightFactor: 0.9,
+      child: StatefulBuilder(
         builder: (context, setModalState) {
           final l10n = AppLocalizations.of(context)!;
           final tt = Theme.of(context).textTheme;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: SettingsSection(
+              key: const ValueKey('notice-settings-card'),
               child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.notifications_outlined),
                 title: Text(l10n.remoteNoticeTitle),
                 subtitle: Text(l10n.remoteNoticeDesc, style: tt.bodySmall),

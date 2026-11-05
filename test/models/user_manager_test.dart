@@ -57,6 +57,22 @@ void main() {
     },
   );
 
+  test(
+    'volume switch shares its store and preserves existing preference',
+    () async {
+      SharedPreferences.setMockInitialValues({'reader_volume_key': false});
+      final user = UserManager();
+      await user.init();
+      expect(user.readerVolumeKey, isFalse);
+      await user.setReaderVolumeKey(true);
+      expect(user.reader.volumeKey, isTrue);
+      await user.reader.setVolumeKey(false);
+      expect(user.readerVolumeKey, isFalse);
+      await user.init();
+      expect(user.readerVolumeKey, isFalse);
+    },
+  );
+
   test('image viewer auto-rotate settings persist', () async {
     final user = UserManager();
     await user.init();
@@ -199,13 +215,13 @@ void main() {
     );
   });
 
-  test('update mirror prefix defaults to gh.zwy.one and persists', () async {
+  test('update mirror prefix defaults to gh-proxy.org and persists', () async {
     final user = UserManager();
     await user.init();
 
-    expect(UserManager.defaultUpdateMirrorPrefix, 'https://gh.zwy.one/');
+    expect(UserManager.defaultUpdateMirrorPrefix, 'https://gh-proxy.org/');
     expect(UserManager.updateMirrorPrefixOptions, [
-      'https://gh.zwy.one/',
+      'https://gh-proxy.org/',
       'https://ghproxy.net/',
     ]);
 
@@ -215,14 +231,34 @@ void main() {
       UserManager.defaultUpdateMirrorPrefix,
     );
     expect(
-      UserManager.normalizeUpdateMirrorPrefix('https://gh.zwy.one'),
-      'https://gh.zwy.one/',
+      UserManager.normalizeUpdateMirrorPrefix('https://gh-proxy.org'),
+      'https://gh-proxy.org/',
     );
 
     await user.setUpdateMirrorPrefix('https://ghproxy.net');
     expect(user.updateMirrorPrefix, 'https://ghproxy.net/');
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('update_mirror_prefix'), 'https://ghproxy.net/');
+  });
+
+  test('update mirror fallback chain puts the selected source first', () {
+    expect(UserManager.updateMirrorFallbackChain('https://ghproxy.net/'), [
+      'https://ghproxy.net/',
+      'https://gh-proxy.org/',
+    ]);
+
+    // 自定义镜像不在预设里：它排在首位，预设镜像补在其后兜底。
+    expect(UserManager.updateMirrorFallbackChain('https://my.mirror'), [
+      'https://my.mirror/',
+      'https://gh-proxy.org/',
+      'https://ghproxy.net/',
+    ]);
+
+    // 非法/空值回落默认，不产生重复项。
+    expect(UserManager.updateMirrorFallbackChain(''), [
+      'https://gh-proxy.org/',
+      'https://ghproxy.net/',
+    ]);
   });
 
   for (final storedToken in ['current-token', '']) {

@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kira/models/reader_settings.dart';
+import 'package:kira/utils/app_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -14,6 +15,23 @@ void main() {
     await settings.initFromPrefs(await SharedPreferences.getInstance());
   });
 
+  test(
+    'realistic page turn defaults on and survives preference reload',
+    () async {
+      expect(settings.realisticPageTurn, isTrue);
+      await settings.setRealisticPageTurn(false);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.realisticPageTurn, isFalse);
+      expect(
+        (await SharedPreferences.getInstance()).getBool(
+          'reader_realistic_page_turn',
+        ),
+        isFalse,
+      );
+    },
+  );
+
   // ── Default values ────────────────────────────────────────────────────
 
   group('default values', () {
@@ -27,6 +45,10 @@ void main() {
 
     test('volumeKey defaults to true', () {
       expect(settings.volumeKey, true);
+    });
+
+    test('keepScreenOn defaults to true', () {
+      expect(settings.keepScreenOn, isTrue);
     });
 
     test('instantPageTurn defaults to false', () {
@@ -82,6 +104,32 @@ void main() {
 
   // ── Persistence ──────────────────────────────────────────────────────
 
+  test('chapter sorting defaults to forward order', () {
+    expect(settings.chapterReversed, isFalse);
+  });
+
+  test(
+    'chapter sort persists both directions across reload and cache clearing',
+    () async {
+      await settings.setChapterReversed(true);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('comic_chapter_reversed'), isTrue);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(ReaderSettings().chapterReversed, isTrue);
+      await AppStorage.cache.put('sort_test', {'test': true});
+      await AppStorage.cache.removeByPrefix('');
+      expect(await AppStorage.cache.containsKey('sort_test'), isFalse);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.chapterReversed, isTrue);
+      await settings.setChapterReversed(false);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.chapterReversed, isFalse);
+    },
+  );
+
   group('persistence', () {
     test('mode persists after re-init', () async {
       await settings.setMode(2);
@@ -112,6 +160,32 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await settings.initFromPrefs(prefs);
       expect(settings.volumeKey, false);
+    });
+
+    test('keepScreenOn persists and notifies only once per change', () async {
+      var notifications = 0;
+      void listener() => notifications++;
+      settings.addListener(listener);
+      addTearDown(() => settings.removeListener(listener));
+
+      await settings.setKeepScreenOn(false);
+      await settings.setKeepScreenOn(false);
+      expect(notifications, 1);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('reader_keep_screen_on'), isFalse);
+
+      for (var boot = 0; boot < 3; boot++) {
+        settings.resetPrefsCache();
+        await settings.initFromPrefs(await SharedPreferences.getInstance());
+        expect(settings.keepScreenOn, isFalse);
+      }
+
+      await settings.setKeepScreenOn(true);
+      settings.resetPrefsCache();
+      await settings.initFromPrefs(await SharedPreferences.getInstance());
+      expect(settings.keepScreenOn, isTrue);
+      expect(prefs.getBool('reader_keep_screen_on'), isTrue);
+      expect(notifications, 2);
     });
 
     test('instantPageTurn persists after re-init', () async {

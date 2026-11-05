@@ -70,7 +70,8 @@ extension _ReaderCommentsData on _ReaderPageState {
     final chapterName = detail.name;
 
     try {
-      final data = await _api.manga.getChapterComments(chapterUuid, limit: 100);
+      // 服务端每页固定 10 条，limit 传再大也只返回一页，需要连续取。
+      final data = await _api.manga.getChapterCommentsPages(chapterUuid);
       if (!mounted) return;
       _updateCommentCache(chapterUuid, data.list, data.total, rebuild: true);
       await _maybeAutoSummaryAfterPreload(
@@ -78,8 +79,9 @@ extension _ReaderCommentsData on _ReaderPageState {
         chapterName: chapterName,
         comments: data.list,
       );
-    } catch (_) {
-      // Preload failures do not affect reading.
+    } catch (e, stack) {
+      // 预加载失败不打断阅读，保留原始错误供排查。
+      unawaited(AppLogger.instance.recordWarning(e, stackTrace: stack));
     }
   }
 

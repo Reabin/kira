@@ -114,9 +114,15 @@ void main() {
     });
     expect(
       snapshot.preferences.keys,
-      containsAll([NovelBookmarkStore.storageKey, 'comic_bookmarks_v1']),
+      containsAll([
+        NovelBookmarkStore.storageKey,
+        NovelBookmarkStore.groupsStorageKey,
+        'comic_bookmarks_v1',
+        'comic_bookmark_groups_v1',
+      ]),
     );
-    expect(snapshot.preferences.keys, hasLength(2));
+    // 两种书签 + 两份分组元数据（书签删光后组头仍要保留）。
+    expect(snapshot.preferences.keys, hasLength(4));
   });
 
   test(

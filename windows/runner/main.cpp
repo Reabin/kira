@@ -28,18 +28,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(440, 950);
-  if (!window.Create(L"kira", origin, size)) {
+  RECT saved_bounds{};
+  const bool has_saved_bounds = window_state::Load(saved_bounds);
+  if (!window.Create(L"kira", origin, size,
+                     has_saved_bounds ? &saved_bounds : nullptr)) {
     return EXIT_FAILURE;
-  }
-
-  RECT saved_bounds;
-  if (window_state::Load(saved_bounds)) {
-    if (const HWND handle = window.GetHandle()) {
-      SetWindowPos(handle, nullptr, saved_bounds.left, saved_bounds.top,
-                   saved_bounds.right - saved_bounds.left,
-                   saved_bounds.bottom - saved_bounds.top,
-                   SWP_NOZORDER | SWP_NOACTIVATE);
-    }
   }
 
   window.SetQuitOnClose(true);

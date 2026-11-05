@@ -20,7 +20,7 @@ extension _ReaderChapterData on _ReaderPageState {
   }
 
   Future<void> _setVolumeIntercept(bool enabled) async {
-    if (!_volumeChannelAvailable) return;
+    if (!Platform.isAndroid || !_volumeChannelAvailable) return;
     try {
       await _ReaderPageState._volumeChannel.invokeMethod(
         enabled ? 'enable' : 'disable',
@@ -102,7 +102,9 @@ extension _ReaderChapterData on _ReaderPageState {
       if (_isPageMode) {
         final oldController = _pageController;
         final initialIndex = _chainChapterStart(_chainIndex) + (startPage - 1);
-        _pageController = PageController(initialPage: initialIndex);
+        _pageController = PageController(
+          initialPage: _pageIndexForImage(initialIndex),
+        );
         WidgetsBinding.instance.addPostFrameCallback((_) {
           oldController.dispose();
         });

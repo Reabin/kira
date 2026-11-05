@@ -4,6 +4,7 @@ import '../../backup/backup_error.dart';
 import '../../backup/backup_schedule.dart';
 import '../../backup/webdav_config.dart';
 import '../../l10n/app_localizations.dart';
+import '../../utils/network_error.dart';
 
 String backupCategoryLabel(BackupCategory category, AppLocalizations l10n) =>
     switch (category) {
@@ -41,7 +42,11 @@ String backupOperationLabel(BackupOperation operation, AppLocalizations l10n) =>
 
 String backupErrorMessage(Object error, AppLocalizations l10n) {
   if (error is SettingsBackupException) return error.localizedMessage(l10n);
-  if (error is! WebDavException) return l10n.backupOperationFailed;
+  if (error is! WebDavException) {
+    // Not every backup path wraps its failures (e.g. a raw DioException from
+    // a settings download). Show the cause rather than a generic label.
+    return l10n.backupOperationFailedDetail(NetworkError.message(error));
+  }
   return switch (error.code) {
     WebDavErrorCode.invalidConfiguration => l10n.backupWebDavInvalidConfig,
     WebDavErrorCode.httpNotAllowed => l10n.backupHttpWarning,

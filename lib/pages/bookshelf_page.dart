@@ -18,13 +18,16 @@ import '../routing/app_router.dart';
 import '../routing/branch_activation.dart';
 import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
 import '../widgets/back_to_top_button.dart';
+import '../widgets/branch_bottom_slack.dart';
 import '../widgets/comic_card_skeleton.dart';
 import '../widgets/comic_hero_tags.dart';
+import '../widgets/error_retry_view.dart';
 import '../widgets/load_more_footer.dart';
 import '../widgets/login_expired_dialog.dart';
 import '../widgets/ordering_tile.dart';
@@ -168,11 +171,16 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
   Timer? _cacheTimeTimer;
   List<BookshelfItem> _items = [];
   bool _loading = true;
+
+  /// 首屏加载失败的原因。失败时若只把列表留空，用户看到的是「书架是空的」，
+  /// 真实错误（DNS/超时/401/业务码）就被完全掩盖了。
+  String? _loadError;
   int _offset = 0;
   int _total = 0;
   int _comicTotal = 0;
   DateTime? _comicCacheTime;
   bool _loadingMore = false;
+  String? _loadMoreError;
   bool _refreshing = false;
   bool _showingLoginPrompt = false;
   late bool _lastIsLoggedIn = _user.isLoggedIn;
@@ -276,6 +284,8 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
           _offset = 0;
           _loading = false;
           _loadingMore = false;
+          _loadMoreError = null;
+          _loadError = null;
           _refreshing = false;
           _ordering = nextOrdering;
         });
@@ -363,7 +373,12 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
     _refreshing = true;
     final isInitial = _currentItemsEmpty;
     if (isInitial) {
-      setState(() => _loading = true);
+      setState(() {
+        _loading = true;
+        _loadError = null;
+      });
+    } else {
+      setState(() => _loadError = null);
     }
     _offset = 0;
     try {
@@ -377,6 +392,7 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
         _offset = data.list.length;
         _comicCacheTime = now;
         _loading = false;
+        _loadError = null;
       });
       unawaited(_saveComicCache(data.list, data.total, now));
       if (!silent && mounted) {
@@ -390,13 +406,19 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
           source: 'bookshelf_page.load',
         ),
       );
-      if (isInitial && mounted) setState(() => _loading = false);
+      if (isInitial && mounted) {
+        setState(() {
+          _loading = false;
+          _loadError = NetworkError.message(e);
+        });
+      }
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
       } else if (!silent && mounted) {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.refreshFailed,
+          l10n.refreshFailedDetail(NetworkError.message(e, l10n: l10n)),
           isError: true,
         );
       }
@@ -451,7 +473,10 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
 
   Future<void> _loadMore() async {
     if (_loadingMore || _refreshing || _offset >= _total) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _loadMoreError = null;
+    });
     try {
       final data = await _api.manga.getBookshelf(
         offset: _offset,
@@ -472,6 +497,8 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
       );
       if (_isUnauthorized(e)) {
         await _handleUnauthorized();
+      } else if (mounted) {
+        setState(() => _loadMoreError = NetworkError.message(e));
       }
     } finally {
       if (mounted) {
@@ -487,19 +514,6 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
 
   Future<void> _handleUnauthorized() async {
     if (_showingLoginPrompt || !mounted) return;
-
-    // 自动登录开启时，拦截器已尝试自动登录但失败了，静默提示即可
-    if (_user.autoLogin) {
-      await _user.logout();
-      if (mounted) {
-        showToast(
-          context,
-          AppLocalizations.of(context)!.autoLoginFailed,
-          isError: true,
-        );
-      }
-      return;
-    }
 
     _showingLoginPrompt = true;
 
@@ -614,6 +628,15 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
                     ),
                   ),
                 )
+              else if (_currentItemsEmpty && _loadError != null)
+                SliverFillRemaining(
+                  child: ErrorRetryView(
+                    message: AppLocalizations.of(
+                      context,
+                    )!.refreshFailedDetail(_loadError!),
+                    onRetry: () => _load(force: true),
+                  ),
+                )
               else if (_currentItemsEmpty)
                 SliverFillRemaining(child: _buildEmptyState(context))
               else if (_showUpdateOnly && _items.every((e) => !e.hasUpdate))
@@ -628,10 +651,13 @@ class _BookshelfPageState extends ConsumerState<_ComicBookshelfPage>
                     label: AppLocalizations.of(
                       context,
                     )!.loadMoreProgress(_offset, _total),
+                    detail: _loadMoreError,
                     horizontalPadding: hp,
                   ),
                 ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+              const SliverToBoxAdapter(
+                child: BranchBottomSlack(extra: AppSpacing.xxl),
+              ),
             ],
           ),
         ),

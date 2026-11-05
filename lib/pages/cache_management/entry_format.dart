@@ -18,7 +18,6 @@ extension _CacheEntryFormat on _CacheManagementPageState {
         key.startsWith(SecureCredentialStore.preferencePrefix)) {
       return _CacheCategory.account;
     }
-    if (key.startsWith('search_history_')) return _CacheCategory.searchHistory;
     if (key.startsWith('novel_reading_history_') ||
         key.startsWith('novel_bookmarks')) {
       return _CacheCategory.novelHistory;
@@ -56,6 +55,8 @@ extension _CacheEntryFormat on _CacheManagementPageState {
       'comment_',
       'auto_check_',
       'skipped_update_',
+      'update_mirror_',
+      'use_update_mirror',
       'disclaimer_',
       'api_route',
       'banner_',

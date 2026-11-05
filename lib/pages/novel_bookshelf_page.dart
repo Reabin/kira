@@ -20,6 +20,7 @@ import '../theme/app_icon_sizes.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_status_colors.dart';
 import '../utils/app_logger.dart';
+import '../utils/network_error.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
 import '../utils/toast.dart';
@@ -64,7 +65,9 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
   bool _refreshing = false;
   bool _forceLoading = false;
   bool _failed = false;
+  String? _loadError;
   bool _moreFailed = false;
+  String? _moreError;
   bool _unauthorized = false;
   bool _showingLoginPrompt = false;
   bool _showBackToTop = false;
@@ -210,6 +213,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       _forceLoading = force;
       _loading = _items.isEmpty;
       _loadingMore = _failed = _moreFailed = false;
+      _moreError = null;
     });
     return _loadFuture = _performLoad(
       generation,
@@ -239,6 +243,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         _total = data.total;
         _offset = data.nextOffset;
         _cacheTime = data.cacheTime;
+        _loadError = null;
       });
       if (!silent && mounted) {
         showToast(context, AppLocalizations.of(context)!.refreshSuccess);
@@ -251,11 +256,15 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
-        setState(() => _failed = true);
+        setState(() {
+          _failed = true;
+          _loadError = NetworkError.message(error);
+        });
         if (!silent && mounted) {
+          final l10n = AppLocalizations.of(context)!;
           showToast(
             context,
-            AppLocalizations.of(context)!.refreshFailed,
+            l10n.refreshFailedDetail(NetworkError.message(error, l10n: l10n)),
             isError: true,
           );
         }
@@ -296,6 +305,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     setState(() {
       _loadingMore = true;
       _moreFailed = false;
+      _moreError = null;
     });
     try {
       final page = await _repo.loadPage(offset: offset, ordering: _ordering);
@@ -316,7 +326,10 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
-        setState(() => _moreFailed = true);
+        setState(() {
+          _moreFailed = true;
+          _moreError = NetworkError.message(error);
+        });
       }
     } finally {
       if (_isCurrent(generation, scope)) {
@@ -390,10 +403,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
     await context.pushNamed(
       AppRoutes.novelDetail,
       pathParameters: {'pathWord': book.pathWord},
-      extra: NovelDetailExtra(
-        initialBook: book,
-        heroTagBase: heroTagBase,
-      ),
+      extra: NovelDetailExtra(initialBook: book, heroTagBase: heroTagBase),
     );
     // Also update browse ordering / update badges after returning from reading.
     // Collection notifications already started their own refresh, even empty.
@@ -422,9 +432,10 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
       if (_isUnauthorized(error)) {
         await _handleUnauthorized();
       } else {
+        final l10n = AppLocalizations.of(context)!;
         showToast(
           context,
-          AppLocalizations.of(context)!.novelCollectFailed,
+          l10n.novelCollectFailedDetail(novelErrorMessage(error)),
           isError: true,
         );
       }
@@ -446,7 +457,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         children: [
           ListTile(
             leading: Icon(
-              Icons.bookmark_remove_outlined,
+              Icons.favorite_border,
               color: AppStatusColors.danger(cs),
             ),
             title: Text(l10n.novelUncollect),
@@ -510,7 +521,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
               onTap: () => _setOrdering(ApiOrdering.datetimeUpdated),
             ),
             OrderingTile(
-              icon: Icons.bookmark_added,
+              icon: Icons.favorite_border,
               title: l10n.sortByFavoriteTime,
               subtitle: l10n.sortByFavoriteTimeDesc,
               selected: _ordering == ApiOrdering.datetimeModifier,
@@ -579,7 +590,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            noUpdates ? Icons.check_circle_outline : Icons.bookmark_border,
+            noUpdates ? Icons.check_circle_outline : Icons.favorite_border,
             size: noUpdates ? AppIconSize.empty : AppIconSize.display,
             color: cs.onSurfaceVariant,
           ),
@@ -712,7 +723,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                         padding: EdgeInsets.symmetric(horizontal: hp),
                         sliver: SliverToBoxAdapter(
                           child: InlineRetryNotice(
-                            message: l10n.refreshFailed,
+                            message: _loadError ?? l10n.refreshFailed,
                             onRetry: () => unawaited(_load(force: true)),
                           ),
                         ),
@@ -731,6 +742,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                       )
                     else if (_failed && _items.isEmpty)
                       SliverErrorRetryView(
+                        message: _loadError,
                         onRetry: () => unawaited(_load(force: true)),
                       )
                     else if (_items.isEmpty)
@@ -754,6 +766,7 @@ class _NovelBookshelfPageState extends ConsumerState<NovelBookshelfPage>
                           label: _moreFailed
                               ? l10n.retryButton
                               : l10n.loadMoreProgress(_offset, _total),
+                          detail: _moreFailed ? _moreError : null,
                           horizontalPadding: hp,
                         ),
                       ),

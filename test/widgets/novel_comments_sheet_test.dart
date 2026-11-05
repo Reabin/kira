@@ -22,6 +22,8 @@ import 'package:kira/widgets/comment_skeleton.dart';
 import 'package:kira/widgets/novel_comments_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../test_helpers.dart';
+
 const _bookUuid = 'book-uuid';
 const _parentId = 'parent-comment-uuid';
 const _comment = NovelComment(
@@ -176,6 +178,7 @@ class _Harness {
     bool allowPosting = true,
     String? replyId,
     bool dark = false,
+    bool reducedMotion = false,
     double textScale = 1,
     double keyboardInset = 0,
     String bookName = '测试小说',
@@ -226,6 +229,7 @@ class _Harness {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.linear(textScale),
+              disableAnimations: reducedMotion,
               viewInsets: EdgeInsets.only(bottom: keyboardInset),
             ),
             child: child!,
@@ -239,10 +243,12 @@ class _Harness {
 
 void main() {
   setUp(() async {
+    setupSecureCredentialStoreForTest();
     SharedPreferences.setMockInitialValues({});
     final settings = CommentSettings()..resetPrefsCache();
     await settings.initFromPrefs(await SharedPreferences.getInstance());
   });
+  tearDown(teardownSecureCredentialStoreForTest);
 
   testWidgets('沿用漫画的元信息、正文层次和间距，头像复用账号组件', (tester) async {
     final h = _Harness();
@@ -292,10 +298,20 @@ void main() {
     expect(panel.isChapterComments, isFalse);
     // 与漫画评论区一致：屏蔽词/群广告/黑名单过滤区对本评论区开放。
     expect(panel.showFilteringSettings, isTrue);
-    // 外观三项 + 群广告开关；布局/预载/自动加载/AI 摘要仍不出现。
+    // 显示三项 + 群广告开关；布局/初始页数/预加载/AI 总结仍不出现。
+    final l10n = AppLocalizations.of(
+      tester.element(find.byType(CommentSettingsPanel)),
+    )!;
     expect(find.byType(SwitchListTile), findsNWidgets(4));
     expect(find.byType(Slider), findsOneWidget);
     expect(find.byType(SegmentedButton<bool>), findsNothing);
+    expect(find.byType(SegmentedButton<int>), findsNothing);
+    expect(find.text(l10n.commentSettingsDisplaySection), findsOneWidget);
+    expect(find.text(l10n.commentSettingsFilteringSection), findsOneWidget);
+    expect(find.text(l10n.commentSettingsLoadingSection), findsNothing);
+    expect(find.text(l10n.commentSettingsInitialCountTitle(20)), findsNothing);
+    expect(find.text(l10n.commentSettingsAiSummarySection), findsNothing);
+    expect(find.text('自动加载全部评论'), findsNothing);
     // 屏蔽词编辑器出现；黑名单为空时只有说明文案。
     expect(
       find.descendant(
@@ -318,7 +334,7 @@ void main() {
     expect(prefs.getDouble('comment_font_scale'), 1.5);
     expect(prefs.getBool('comment_block_group_spam'), isFalse);
     expect(prefs.containsKey('comment_preload'), isFalse);
-    expect(prefs.containsKey('comment_auto_load_all'), isFalse);
+    expect(prefs.containsKey('comment_initial_pages'), isFalse);
     h.router.pop();
     await tester.pumpAndSettle();
     expect(find.byType(AccountAvatar), findsNothing);
@@ -454,6 +470,8 @@ void main() {
       tester.element(find.byType(NovelCommentsSheet)),
     )!;
     expect(find.text(l10n.novelLoadMoreFailed), findsOneWidget);
+    // 失败原因必须可见，否则截图只有「加载失败」无从排查。
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.text(l10n.novelLoadMoreFailed));
     await tester.pumpAndSettle();
     expect(find.text('下一页评论'), findsOneWidget);
@@ -476,7 +494,7 @@ void main() {
     };
     await h.pump(tester, replyId: _parentId);
     await tester.pumpAndSettle();
-    expect(find.text('评论加载失败'), findsOneWidget);
+    expect(find.text('offline'), findsOneWidget);
     await tester.tap(find.text('重试'));
     await tester.pumpAndSettle();
     expect(find.text('恢复的回复'), findsOneWidget);
@@ -840,6 +858,99 @@ void main() {
     });
   }
 
+  testWidgets('减少动画时工具立即显隐，隐藏后不接收点击', (tester) async {
+    final h = _Harness();
+    h.api.load = (_, _) async => _page([
+      for (var i = 0; i < 20; i++)
+        NovelComment(id: 'c$i', comment: '第 $i 条评论正文'),
+    ]);
+    await h.pump(tester, reducedMotion: true);
+    await tester.pumpAndSettle();
+    final opacity = find.byKey(
+      const ValueKey('novel-comment-floating-buttons-opacity'),
+    );
+    expect(tester.widget<AnimatedOpacity>(opacity).duration, Duration.zero);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+    await tester.pumpAndSettle();
+    expect(tester.widget<AnimatedOpacity>(opacity).opacity, 0);
+    final pointer = find.ancestor(
+      of: opacity,
+      matching: find.byType(IgnorePointer),
+    );
+    expect(tester.widget<IgnorePointer>(pointer.first).ignoring, isTrue);
+    final focus = find.ancestor(
+      of: opacity,
+      matching: find.byType(ExcludeFocus),
+    );
+    expect(tester.widget<ExcludeFocus>(focus.first).excluding, isTrue);
+  });
+
+  testWidgets('小说评论保留左侧评论与右侧上下按钮，不使用共用底板', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final h = _Harness();
+    await h.pump(tester, textScale: 2);
+    await tester.pumpAndSettle();
+
+    final post = find.byKey(const ValueKey('novel-comment-post-action'));
+    final scrollTop = find.byKey(
+      const ValueKey('novel-comment-scroll-top-action'),
+    );
+    final close = find.byKey(const ValueKey('novel-comment-close-action'));
+    final postRect = tester.getRect(post);
+    final topRect = tester.getRect(scrollTop);
+    final closeRect = tester.getRect(close);
+    expect(postRect.right, lessThan(topRect.left));
+    expect(topRect.left, closeTo(closeRect.left, 0.01));
+    expect(topRect.bottom + 8, closeTo(closeRect.top, 0.01));
+    expect(postRect.bottom, closeTo(closeRect.bottom, 0.01));
+    expect(topRect.size, const Size.square(52));
+    expect(closeRect.size, const Size.square(52));
+
+    final floating = find.byKey(
+      const ValueKey('novel-comment-floating-buttons-opacity'),
+    );
+    expect(tester.getSize(floating).width, lessThan(320 - 32));
+    final materials = find.descendant(
+      of: floating,
+      matching: find.byType(Material),
+    );
+    for (final action in [post, scrollTop, close]) {
+      expect(find.ancestor(of: action, matching: materials), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('小说评论保留辅助按钮颜色，列表末条可滚到按钮组上方', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final h = _Harness();
+    h.api.load = (_, _) async => _page([
+      for (var i = 0; i < 20; i++)
+        NovelComment(id: 'c$i', comment: '第 $i 条评论正文'),
+    ]);
+    await h.pump(tester, textScale: 2);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('回到顶部'), findsOneWidget);
+    expect(find.byTooltip('关闭'), findsOneWidget);
+    await tester.fling(
+      find.byType(CustomScrollView),
+      const Offset(0, -10000),
+      10000,
+    );
+    await tester.pumpAndSettle();
+    final last = tester.getRect(
+      find.byKey(const ValueKey('novel-comment-c19')),
+    );
+    final toolbar = tester.getRect(
+      find.byKey(const ValueKey('novel-comment-floating-buttons-opacity')),
+    );
+    expect(last.bottom, lessThanOrEqualTo(toolbar.top));
+  });
+
   testWidgets('悬浮按钮向下滚动隐藏、向上滚动或抵达底部恢复', (tester) async {
     final h = _Harness();
     h.api.load = (_, _) async => _page([
@@ -892,25 +1003,36 @@ void main() {
     var failed = false;
     h.api.load = (_, offset) async {
       if (offset == 0) {
-        return _page(
-          [const NovelComment(id: 'a', comment: '第一条', userName: '甲')],
-          total: 3,
-        );
+        return _page([
+          const NovelComment(id: 'a', comment: '第一条', userName: '甲'),
+        ], total: 3);
       }
       if (!failed) {
         failed = true;
         throw const NovelApiException('offline');
       }
-      return _page([
-        const NovelComment(id: 'b', comment: '第二条', userName: '乙'),
-        const NovelComment(id: 'c', comment: '第三条', userName: '丙'),
-      ], total: 3, offset: 1);
+      return _page(
+        [
+          const NovelComment(id: 'b', comment: '第二条', userName: '乙'),
+          const NovelComment(id: 'c', comment: '第三条', userName: '丙'),
+        ],
+        total: 3,
+        offset: 1,
+      );
     };
     await h.pump(tester, bookName: '魔法图书');
     await tester.pumpAndSettle();
     expect(find.text('魔法图书'), findsOneWidget);
     // 首页加载后自动续拉失败，计数保持「已加载/总数」。
     expect(find.text('1/3'), findsOneWidget);
+    final bookRect = tester.getRect(find.text('魔法图书'));
+    final countRect = tester.getRect(find.text('1/3'));
+    expect(countRect.left, greaterThan(bookRect.right));
+    expect(countRect.center.dy, closeTo(bookRect.center.dy, 1));
+    final rowRect = tester.getRect(
+      find.byKey(const ValueKey('novel-comments-subtitle')),
+    );
+    expect(countRect.right, closeTo(rowRect.right, 0.01));
     final l10n = AppLocalizations.of(
       tester.element(find.byType(NovelCommentsSheet)),
     )!;

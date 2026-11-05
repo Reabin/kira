@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,8 +12,10 @@ import '../theme/app_spacing.dart';
 import '../utils/app_logger.dart';
 import '../utils/bookmark_store.dart';
 import '../utils/cover_brightness_filter.dart';
+import '../utils/reading_history.dart';
 import '../utils/screen_layout.dart';
 import '../utils/time_format.dart';
+import '../widgets/cover_image.dart';
 import 'novel_bookmarks_page.dart';
 
 /// 本地书签按漫画/轻小说分开管理，清空只影响当前类型。
@@ -29,19 +30,32 @@ class _BookmarksPageState extends State<BookmarksPage>
     with SingleTickerProviderStateMixin {
   final _comicKey = GlobalKey<_ComicBookmarksPageState>();
   final _novelKey = GlobalKey<NovelBookmarksPageState>();
+  final _searchController = TextEditingController();
   late final TabController _tabs;
   int _tabIndex = 0;
+
+  /// 搜索词由宿主页持有：切换 tab 后沿用同一关键词，两个分页各自过滤。
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this)..addListener(_onTabChanged);
+    _searchController.addListener(_onQueryChanged);
   }
 
   @override
   void dispose() {
+    _searchController
+      ..removeListener(_onQueryChanged)
+      ..dispose();
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _onQueryChanged() {
+    if (_searchController.text == _query) return;
+    setState(() => _query = _searchController.text);
   }
 
   void _onTabChanged() {
@@ -62,6 +76,7 @@ class _BookmarksPageState extends State<BookmarksPage>
     final canClear = _tabIndex == 0 || !showNovel
         ? _comicKey.currentState?.hasBookmarks == true
         : _novelKey.currentState?.hasBookmarks == true;
+    final hp = ScreenLayout.horizontalPadding(MediaQuery.sizeOf(context).width);
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.bookmarksTitle),
@@ -90,23 +105,69 @@ class _BookmarksPageState extends State<BookmarksPage>
               )
             : null,
       ),
-      body: showNovel
-          ? TabBarView(
-              controller: _tabs,
-              children: [
-                _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
-                NovelBookmarksPage(key: _novelKey, onChanged: _onItemsChanged),
-              ],
-            )
-          : _ComicBookmarksPage(key: _comicKey, onChanged: _onItemsChanged),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(hp, AppSpacing.md, hp, AppSpacing.xs),
+            child: SearchBar(
+              controller: _searchController,
+              hintText: l10n.bookmarksSearchHint,
+              leading: const Padding(
+                padding: EdgeInsets.only(left: AppSpacing.sm),
+                child: Icon(Icons.search),
+              ),
+              trailing: _query.isEmpty
+                  ? null
+                  : [
+                      IconButton(
+                        key: const ValueKey('bookmarks_search_clear'),
+                        icon: const Icon(Icons.clear),
+                        tooltip: l10n.searchClearTooltip,
+                        onPressed: _searchController.clear,
+                      ),
+                    ],
+            ),
+          ),
+          Expanded(
+            child: showNovel
+                ? TabBarView(
+                    controller: _tabs,
+                    children: [
+                      _ComicBookmarksPage(
+                        key: _comicKey,
+                        query: _query,
+                        onChanged: _onItemsChanged,
+                      ),
+                      NovelBookmarksPage(
+                        key: _novelKey,
+                        query: _query,
+                        onChanged: _onItemsChanged,
+                      ),
+                    ],
+                  )
+                : _ComicBookmarksPage(
+                    key: _comicKey,
+                    query: _query,
+                    onChanged: _onItemsChanged,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _ComicBookmarksPage extends StatefulWidget {
-  const _ComicBookmarksPage({super.key, required this.onChanged});
+  const _ComicBookmarksPage({
+    super.key,
+    required this.onChanged,
+    this.query = '',
+  });
 
   final VoidCallback onChanged;
+
+  /// 宿主页搜索框的关键词，空串表示不过滤。
+  final String query;
 
   @override
   State<_ComicBookmarksPage> createState() => _ComicBookmarksPageState();
@@ -131,10 +192,15 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
   final Map<String, ComicDetailData> _details = {};
   final Set<String> _fetchingDetails = {};
 
+  /// 每部漫画的本地阅读记录（null 表示查过但没有），供组头「继续阅读」。
+  final Map<String, ReadingRecord?> _history = {};
+  final Set<String> _fetchingHistory = {};
+
   @override
   void initState() {
     super.initState();
     _store.addListener(_onStoreChanged);
+    ReadingHistory.changes.addListener(_onHistoryChanged);
     _load();
   }
 
@@ -147,6 +213,7 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
   @override
   void dispose() {
     _messenger?.clearSnackBars();
+    ReadingHistory.changes.removeListener(_onHistoryChanged);
     _store.removeListener(_onStoreChanged);
     super.dispose();
   }
@@ -155,6 +222,55 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
     if (!mounted) return;
     setState(() {});
     widget.onChanged();
+  }
+
+  /// 阅读记录变化（包括在别处阅读）时丢弃缓存，下次 build 重新查询。
+  void _onHistoryChanged() {
+    if (!mounted || _history.isEmpty) return;
+    setState(_history.clear);
+  }
+
+  /// 只读本地阅读记录，不发任何请求；查过就记住，含「确实没有记录」。
+  Future<void> _loadHistory(String pathWord) {
+    if (_history.containsKey(pathWord)) return Future.value();
+    if (!_fetchingHistory.add(pathWord)) return Future.value();
+    return ReadingHistory.latestForComic(pathWord)
+        .then((record) {
+          if (!mounted) return;
+          setState(() => _history[pathWord] = record);
+        })
+        .catchError((Object error, StackTrace stack) {
+          unawaited(
+            AppLogger.instance.recordWarning(
+              error,
+              stackTrace: stack,
+              source: 'bookmarks_page.reading_history',
+            ),
+          );
+        })
+        .whenComplete(() => _fetchingHistory.remove(pathWord));
+  }
+
+  /// 组头「继续阅读」：直接跳到该漫画的本地阅读位置。
+  Future<void> _continueReading(String pathWord) async {
+    final record = _history[pathWord];
+    if (record == null) return;
+    _messenger?.clearSnackBars();
+    await context.pushNamed(
+      AppRoutes.reader,
+      pathParameters: {'pathWord': pathWord, 'chapterUuid': record.chapterUuid},
+      extra: ReaderExtra(
+        comicName: record.comicName.isEmpty ? null : record.comicName,
+        group: record.group,
+        chapterName: record.chapterName,
+        chapterListPage: record.chapterListPage,
+        initialPage: record.page,
+        noCatalogBelow: true,
+      ),
+    );
+    if (!mounted) return;
+    // 返回时记录已更新：丢缓存重查，下次仍从最新位置继续。
+    setState(() => _history.remove(pathWord));
   }
 
   Future<void> _load() async {
@@ -192,25 +308,87 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
         .whenComplete(() => _fetchingDetails.remove(pathWord));
   }
 
+  /// 组元数据（书签删光后仍保留）；没有则返回 null。
+  ComicBookmarkGroup? _groupMetaOf(String pathWord) {
+    for (final group in _store.groups) {
+      if (group.pathWord == pathWord) return group;
+    }
+    return null;
+  }
+
   /// 书签自带封面（打书签时从详情缓存读取并持久化）；旧书签缺失时
-  /// 回退到详情本地缓存，均无则为空（显示占位图）。
-  String _groupCoverOf(List<ComicBookmark> group) {
+  /// 依次回退到组元数据、详情本地缓存，均无则为空（显示占位图）。
+  String _groupCoverOf(List<ComicBookmark> group, String pathWord) {
     for (final bookmark in group) {
       if (bookmark.cover.isNotEmpty) return bookmark.cover;
     }
-    return _details[group.first.pathWord]?.comic.cover ?? '';
+    final meta = _groupMetaOf(pathWord);
+    if (meta != null && meta.cover.isNotEmpty) return meta.cover;
+    return _details[pathWord]?.comic.cover ?? '';
+  }
+
+  /// 组头书名：优先书签自带，其次组元数据，最后回退详情缓存 / pathWord。
+  String _groupNameOf(String pathWord) {
+    for (final bookmark in _store.bookmarks) {
+      if (bookmark.pathWord == pathWord && bookmark.comicName.isNotEmpty) {
+        return bookmark.comicName;
+      }
+    }
+    final meta = _groupMetaOf(pathWord);
+    if (meta != null && meta.comicName.isNotEmpty) return meta.comicName;
+    return _details[pathWord]?.comic.name ?? pathWord;
+  }
+
+  /// 组排序时间：组内最新书签的时间；空组用组元数据的时间。
+  DateTime _groupUpdatedAt(String pathWord) {
+    // _store.bookmarks 本身按时间倒序，第一条命中即最新。
+    for (final bookmark in _store.bookmarks) {
+      if (bookmark.pathWord == pathWord) {
+        return bookmark.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      }
+    }
+    return _groupMetaOf(pathWord)?.updatedAt ??
+        DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   /// 按漫画分组；全局列表本身按时间倒序，分组后组与组内均保持倒序。
+  /// 搜索是「组级」的：组内任一条命中，该漫画的全部书签都照常展示，
+  /// 组头上的条数与整组删除因此仍与所见一致。
   List<MapEntry<String, List<ComicBookmark>>> _grouped() {
+    final query = widget.query.trim().toLowerCase();
     final groups = <String, List<ComicBookmark>>{};
     for (final bookmark in _store.bookmarks) {
       groups.putIfAbsent(bookmark.pathWord, () => []).add(bookmark);
     }
-    return groups.entries.toList();
+    // 书签被删光的组仍在：用组元数据补成空组，只显示组头与继续阅读。
+    for (final group in _store.groups) {
+      groups.putIfAbsent(group.pathWord, () => const []);
+    }
+    final entries = groups.entries.toList()
+      ..sort(
+        (a, b) => _groupUpdatedAt(b.key).compareTo(_groupUpdatedAt(a.key)),
+      );
+    if (query.isEmpty) return entries;
+    return entries
+        .where(
+          (entry) =>
+              entry.value.any((b) => _matchesQuery(b, query)) ||
+              _groupNameOf(entry.key).toLowerCase().contains(query),
+        )
+        .toList();
   }
 
-  void _showUndoSnackBar(String message, List<ComicBookmark> removed) {
+  bool _matchesQuery(ComicBookmark bookmark, String query) {
+    if (query.isEmpty) return true;
+    return bookmark.comicName.toLowerCase().contains(query) ||
+        bookmark.chapterName.toLowerCase().contains(query);
+  }
+
+  void _showUndoSnackBar(
+    String message,
+    List<ComicBookmark> removed, {
+    List<ComicBookmarkGroup> removedGroups = const [],
+  }) {
     final l10n = AppLocalizations.of(context)!;
     // 与消息正文同色,避免默认 primary 蓝色按钮在通知条上过于扎眼。
     final btnStyle = TextButton.styleFrom(
@@ -229,7 +407,7 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
               TextButton(
                 style: btnStyle,
                 onPressed: () {
-                  _store.restoreAll(removed);
+                  _store.restoreAll(removed, groups: removedGroups);
                   _messenger?.hideCurrentSnackBar();
                 },
                 child: Text(l10n.bookmarkUndo),
@@ -253,11 +431,19 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
     _showUndoSnackBar(l10n.bookmarkDeleted, [bookmark]);
   }
 
-  Future<void> _clearGroup(List<ComicBookmark> group) async {
-    final removed = await _store.removeForComic(group.first.pathWord);
-    if (!mounted || removed.isEmpty) return;
+  Future<void> _clearGroup(String pathWord) async {
+    final group = _groupMetaOf(pathWord);
+    final empty = !_store.bookmarks.any((b) => b.pathWord == pathWord);
+    final removed = await (empty
+        ? _store.removeGroup(pathWord)
+        : _store.removeForComic(pathWord));
+    if (!mounted || (removed.isEmpty && (!empty || group == null))) return;
     final l10n = AppLocalizations.of(context)!;
-    _showUndoSnackBar(l10n.bookmarksGroupDeleted(removed.length), removed);
+    _showUndoSnackBar(
+      empty ? l10n.bookmarkDeleted : l10n.bookmarksGroupDeleted(removed.length),
+      removed,
+      removedGroups: empty && group != null ? [group] : const [],
+    );
   }
 
   Future<void> _clearAll() async {
@@ -328,6 +514,63 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
     final groups = _grouped();
     final screenWidth = MediaQuery.of(context).size.width;
     final hp = ScreenLayout.horizontalPadding(screenWidth);
+    // 宽屏（横屏 / 桌面窗口）每组书签卡片两列并排，窄屏保持单列。
+    final twoColumn =
+        ScreenLayout.contentWidth(screenWidth) >= ScreenLayout.wideBreakpoint;
+    // 两列各自堆叠：组卡片高度随书签条数变化，按行配对会在矮的一侧留白。
+    final (leftColumn, rightColumn) = twoColumn
+        ? ScreenLayout.splitTwoColumns(
+            groups.length,
+            (index) => groups[index].value.length + 1,
+          )
+        : (const <int>[], const <int>[]);
+    // 「搜不到」和「一条书签都没有」要分开：否则搜索无结果会被误读成书签丢了。
+    final searching = widget.query.trim().isNotEmpty;
+
+    Widget groupCard(int index) {
+      final group = groups[index];
+      if (!_history.containsKey(group.key)) {
+        // build 期间不得同步触发 setState，延迟到帧结束后再查阅读记录。
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _loadHistory(group.key),
+        );
+      }
+      return _BookmarkGroupCard(
+        pathWord: group.key,
+        comicName: _groupNameOf(group.key),
+        bookmarks: group.value,
+        coverUrl: _groupCoverOf(group.value, group.key),
+        continueRecord: _history[group.key],
+        onFetchCover: () => _loadCachedDetail(group.key),
+        onOpenComic: () => _openComic(group.key),
+        onOpenBookmark: _openBookmark,
+        onContinue: () => _continueReading(group.key),
+        onRemove: _remove,
+        onClearGroup: () => _clearGroup(group.key),
+      );
+    }
+
+    /// 一列内的组卡片，纵向堆叠，卡片间距与单列一致。
+    Widget bookmarkColumn(List<int> indices) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final index in indices)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: groupCard(index),
+          ),
+      ],
+    );
+
+    Widget swipeHint() => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Text(
+          l10n.bookmarksSwipeHint,
+          style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+        ),
+      ),
+    );
 
     return _loading
         ? const Center(child: CircularProgressIndicator())
@@ -347,25 +590,32 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    Icons.bookmark_border,
+                                    searching
+                                        ? Icons.search_off
+                                        : Icons.bookmark_border,
                                     size: 64,
                                     color: cs.onSurfaceVariant,
                                   ),
                                   const SizedBox(height: AppSpacing.lg),
                                   Text(
-                                    l10n.bookmarksEmptyTitle,
+                                    searching
+                                        ? l10n.bookmarksSearchEmpty
+                                        : l10n.bookmarksEmptyTitle,
+                                    textAlign: TextAlign.center,
                                     style: tt.titleMedium?.copyWith(
                                       color: cs.onSurfaceVariant,
                                     ),
                                   ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Text(
-                                    l10n.bookmarksEmptySubtitle,
-                                    textAlign: TextAlign.center,
-                                    style: tt.bodySmall?.copyWith(
-                                      color: cs.onSurfaceVariant,
+                                  if (!searching) ...[
+                                    const SizedBox(height: AppSpacing.sm),
+                                    Text(
+                                      l10n.bookmarksEmptySubtitle,
+                                      textAlign: TextAlign.center,
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -374,39 +624,32 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
                       ],
                     ),
                   )
+                : twoColumn
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(hp, 8, hp, 24),
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: bookmarkColumn(leftColumn)),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: bookmarkColumn(rightColumn)),
+                        ],
+                      ),
+                      swipeHint(),
+                    ],
+                  )
                 : ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: EdgeInsets.fromLTRB(hp, 8, hp, 24),
                     itemCount: groups.length + 1,
-                    itemBuilder: (context, index) {
-                      if (index == groups.length) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Center(
-                            child: Text(
-                              l10n.bookmarksSwipeHint,
-                              style: tt.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
+                    itemBuilder: (context, index) => index == groups.length
+                        ? swipeHint()
+                        : Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: groupCard(index),
                           ),
-                        );
-                      }
-                      final group = groups[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _BookmarkGroupCard(
-                          pathWord: group.key,
-                          bookmarks: group.value,
-                          coverUrl: _groupCoverOf(group.value),
-                          onFetchCover: () => _loadCachedDetail(group.key),
-                          onOpenComic: () => _openComic(group.key),
-                          onOpenBookmark: _openBookmark,
-                          onRemove: _remove,
-                          onClearGroup: _clearGroup,
-                        ),
-                      );
-                    },
                   ),
           );
   }
@@ -416,24 +659,43 @@ class _ComicBookmarksPageState extends State<_ComicBookmarksPage>
 /// 左滑 header 删除该漫画的全部书签，左滑书签条目仅删除单条。
 class _BookmarkGroupCard extends StatelessWidget {
   final String pathWord;
+
+  /// 组头书名；书签删光后由组元数据提供，因此由父级算好传入。
+  final String comicName;
   final List<ComicBookmark> bookmarks;
   final String coverUrl;
+
+  /// 该漫画的本地阅读记录；为空表示没有可继续的进度，此时不显示按钮。
+  final ReadingRecord? continueRecord;
   final VoidCallback onFetchCover;
   final VoidCallback onOpenComic;
   final ValueChanged<ComicBookmark> onOpenBookmark;
-  final ValueChanged<ComicBookmark> onRemove;
-  final ValueChanged<List<ComicBookmark>> onClearGroup;
+  final VoidCallback onContinue;
+  final Future<void> Function(ComicBookmark) onRemove;
+  final Future<void> Function() onClearGroup;
 
   const _BookmarkGroupCard({
     required this.pathWord,
+    required this.comicName,
     required this.bookmarks,
     required this.coverUrl,
+    required this.continueRecord,
     required this.onFetchCover,
     required this.onOpenComic,
     required this.onOpenBookmark,
+    required this.onContinue,
     required this.onRemove,
     required this.onClearGroup,
   });
+
+  /// 与详情页 FAB 一致：章节名 + 当前页/总页数；只有一页时只显示章节名。
+  static String _continueLabel(ReadingRecord record) {
+    final chapter = record.chapterName.trim();
+    if (record.totalPage <= 1) return chapter;
+    return chapter.isEmpty
+        ? '${record.page}/${record.totalPage}'
+        : '$chapter · ${record.page}/${record.totalPage}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -447,9 +709,8 @@ class _BookmarkGroupCard extends StatelessWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) => onFetchCover());
     }
 
-    final comicName = bookmarks
-        .map((b) => b.comicName)
-        .firstWhere((name) => name.isNotEmpty, orElse: () => pathWord);
+    // 书签删光的组只保留组头（封面 + 书名 + 继续阅读），没有可删的条目。
+    final empty = bookmarks.isEmpty;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -466,7 +727,12 @@ class _BookmarkGroupCard extends StatelessWidget {
               color: cs.errorContainer,
               child: Icon(Icons.delete_outline, color: cs.onErrorContainer),
             ),
-            onDismissed: (_) => onClearGroup(bookmarks),
+            // 等待落盘后由 store 通知刷新；组头即使书签被删光也仍在，
+            // 因此不能用 onDismissed（会命中「已 dismiss 的 Dismissible 仍在树上」断言）。
+            confirmDismiss: (_) async {
+              await onClearGroup();
+              return false;
+            },
             child: InkWell(
               key: ValueKey('bookmark_comic_$pathWord'),
               onTap: onOpenComic,
@@ -504,29 +770,61 @@ class _BookmarkGroupCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // 组头「继续阅读」：胶囊按钮，章节 + 页码取自本地阅读记录。
+                    if (continueRecord != null) ...[
+                      const SizedBox(width: AppSpacing.sm),
+                      FilledButton.tonalIcon(
+                        key: ValueKey('bookmark_continue_$pathWord'),
+                        onPressed: onContinue,
+                        icon: const Icon(Icons.play_arrow, size: 18),
+                        label: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 160),
+                          child: Text(
+                            _continueLabel(continueRecord!),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: cs.surfaceContainerHighest,
+                          foregroundColor: cs.onSurfaceVariant,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                          ),
+                          // 高度对齐详情页 FAB（48），压扁会显得局促。
+                          minimumSize: const Size(0, 48),
+                          textStyle: tt.bodySmall,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
           ),
-          const Divider(height: 1, indent: 10, endIndent: 10),
-          ...bookmarks.map(
-            (bookmark) => Dismissible(
-              key: ValueKey('bookmark_${bookmark.id}'),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 20),
-                color: cs.errorContainer,
-                child: Icon(Icons.delete_outline, color: cs.onErrorContainer),
-              ),
-              onDismissed: (_) => onRemove(bookmark),
-              child: _BookmarkTile(
-                bookmark: bookmark,
-                onTap: () => onOpenBookmark(bookmark),
+          if (!empty) ...[
+            const Divider(height: 1, indent: 10, endIndent: 10),
+            ...bookmarks.map(
+              (bookmark) => Dismissible(
+                key: ValueKey('bookmark_${bookmark.id}'),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  color: cs.errorContainer,
+                  child: Icon(Icons.delete_outline, color: cs.onErrorContainer),
+                ),
+                confirmDismiss: (_) async {
+                  await onRemove(bookmark);
+                  return false;
+                },
+                child: _BookmarkTile(
+                  bookmark: bookmark,
+                  onTap: () => onOpenBookmark(bookmark),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -546,13 +844,10 @@ class _BookmarkCover extends StatelessWidget {
       borderRadius: AppRadius.smR,
       child: CoverBrightnessFilter(
         child: coverUrl.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: coverUrl,
-                fit: BoxFit.cover,
-                fadeInDuration: Duration.zero,
-                fadeOutDuration: Duration.zero,
-                placeholder: (_, _) => _placeholder(cs),
-                errorWidget: (_, _, _) => _placeholder(cs, error: true),
+            ? CoverImage(
+                url: coverUrl,
+                placeholder: _placeholder(cs),
+                errorWidget: _placeholder(cs, error: true),
               )
             : _placeholder(cs),
       ),
@@ -573,18 +868,27 @@ class _BookmarkCover extends StatelessWidget {
   }
 }
 
-/// 单个书签条目：章节名 + 页码/时间，点击直达阅读位置。
+/// 单个书签条目：单行显示章节名 + 页码 + 时间，点击直达阅读位置。
 class _BookmarkTile extends StatelessWidget {
   final ComicBookmark bookmark;
   final VoidCallback onTap;
 
   const _BookmarkTile({required this.bookmark, required this.onTap});
 
+  /// 页码与相对时间，跟在章节名后以小字号显示。
+  String _metaOf(AppLocalizations l10n) => [
+    l10n.bookmarkPage(bookmark.page),
+    if (bookmark.updatedAt != null)
+      TimeFormat.relative(bookmark.updatedAt!, l10n),
+  ].where((part) => part.isNotEmpty).join(' · ');
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
     final l10n = AppLocalizations.of(context)!;
+    final chapter = bookmark.chapterName.trim();
+    final meta = _metaOf(l10n);
 
     return InkWell(
       key: ValueKey('bookmark_open_${bookmark.id}'),
@@ -595,29 +899,20 @@ class _BookmarkTile extends StatelessWidget {
           children: [
             Icon(Icons.bookmark, size: 16, color: cs.primary),
             const SizedBox(width: 8),
+            // 章节名过长时先截断，页码/时间右对齐、始终完整可见。
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    bookmark.chapterName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodyMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      l10n.bookmarkPage(bookmark.page),
-                      if (bookmark.updatedAt != null)
-                        TimeFormat.relative(bookmark.updatedAt!, l10n),
-                    ].join(' · '),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                ],
+              child: Text(
+                chapter,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: tt.bodyMedium,
               ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              meta,
+              maxLines: 1,
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
             ),
             const SizedBox(width: AppSpacing.sm),
             Icon(Icons.chevron_right, color: cs.onSurfaceVariant),

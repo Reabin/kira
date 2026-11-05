@@ -159,7 +159,6 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     if (confirmed != true) return;
 
     try {
-      await SearchHistory.flush();
       await _deletePreferenceKeys(keys);
       for (final section in imageSections) {
         await _clearImageCacheSection(section);
@@ -342,7 +341,6 @@ extension _CacheSectionCleanup on _CacheManagementPageState {
     if (confirmed != true) return;
 
     try {
-      await SearchHistory.flush();
       final keys = section.entries.map((e) => e.key).toSet();
       await _deletePreferenceKeys(keys);
       if (section.entries.any((e) => e.category == _CacheCategory.account)) {

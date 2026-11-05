@@ -4,7 +4,14 @@ import '../backup/backup_codec.dart';
 import '../backup/backup_controller.dart';
 import '../backup/backup_scheduler.dart';
 import '../backup/backup_settings.dart';
+import '../sync/progress_sync_service.dart';
 import '../utils/settings_backup.dart';
+
+final progressSyncServiceProvider = Provider<ProgressSyncService>((ref) {
+  final service = ProgressSyncService();
+  ref.onDispose(service.dispose);
+  return service;
+});
 
 final settingsBackupServiceProvider = Provider<SettingsBackupService>(
   (ref) => SettingsBackupService(),

@@ -9,8 +9,7 @@ import 'app_logger.dart';
 
 /// 按书保存轻小说阅读位置，每次读取当前 prefs，不保留一次性加载的副本。
 class NovelReadingStore {
-  NovelReadingStore({Future<SharedPreferences>? prefs})
-    : _prefs = prefs ?? SharedPreferences.getInstance();
+  NovelReadingStore({Future<SharedPreferences>? prefs}) : _prefs = prefs;
 
   /// 与漫画的 reading_history_ 独立，不能被漫画继续阅读入口识别。
   static const prefix = 'novel_reading_history_';
@@ -18,6 +17,25 @@ class NovelReadingStore {
   /// 进度变更通知，供「我的」继续阅读等常驻页面刷新；与漫画的
   /// [ReadingHistory.changes] 各管各的数据。
   static final ValueNotifier<int> changes = ValueNotifier<int>(0);
+  static Future<void>? Function()? beforeRead;
+
+  Future<Map<String, String>> syncSnapshot() => _enqueue(
+    (prefs) => {
+      for (final key in prefs.getKeys())
+        if (key.startsWith(prefix) && prefs.get(key) is String)
+          key: prefs.getString(key)!,
+    },
+  );
+
+  Future<bool> applySynced(String key, String? expected, String data) =>
+      _enqueue((prefs) async {
+        if (!key.startsWith(prefix) || prefs.get(key) != expected) return false;
+        if (!await prefs.setString(key, data)) {
+          throw StateError('Novel synced progress persistence failed');
+        }
+        notifyChanged();
+        return true;
+      });
 
   /// 写入成功后自增，供调用方在完成时刷新界面。
   static void notifyChanged() => changes.value++;
@@ -25,14 +43,23 @@ class NovelReadingStore {
   // 默认 prefs 在实例间共享，因此队列也在实例间共享。读取和删除同样排队，
   // 避免慢写完成前读出旧位置，或删除后又被此前的异步写入恢复。
   static Future<void>? _queue;
-  final Future<SharedPreferences> _prefs;
+  final Future<SharedPreferences>? _prefs;
 
-  Future<NovelReadingProgress?> readProgress(String pathWord) =>
-      _enqueue((prefs) => _read(prefs, '$prefix$pathWord'));
+  Future<NovelReadingProgress?> readProgress(String pathWord) {
+    final waiting = beforeRead?.call();
+    if (waiting == null) {
+      return _enqueue((prefs) => _read(prefs, '$prefix$pathWord'));
+    }
+    return waiting.then(
+      (_) => _enqueue((prefs) => _read(prefs, '$prefix$pathWord')),
+    );
+  }
 
-  Future<List<NovelReadingProgress>> readRecent({int limit = 30}) =>
+  Future<List<NovelReadingProgress>> readRecent({int? limit = 30}) =>
       _enqueue((prefs) {
-        if (limit <= 0) return const <NovelReadingProgress>[];
+        if (limit != null && limit <= 0) {
+          return const <NovelReadingProgress>[];
+        }
         final records = <NovelReadingProgress>[];
         for (final key in prefs.getKeys()) {
           if (!key.startsWith(prefix)) continue;
@@ -43,7 +70,9 @@ class NovelReadingStore {
           final byTime = b.updatedAt.compareTo(a.updatedAt);
           return byTime != 0 ? byTime : a.pathWord.compareTo(b.pathWord);
         });
-        return List<NovelReadingProgress>.unmodifiable(records.take(limit));
+        return List<NovelReadingProgress>.unmodifiable(
+          limit == null ? records : records.take(limit),
+        );
       });
 
   /// 完成的 Future 表示已经写入；同书较旧的事件不会覆盖较新的位置。
@@ -96,7 +125,7 @@ class NovelReadingStore {
 
   Future<T> _enqueue<T>(FutureOr<T> Function(SharedPreferences prefs) action) {
     final operation = (_queue ?? Future<void>.value()).then(
-      (_) async => action(await _prefs),
+      (_) async => action(await (_prefs ?? SharedPreferences.getInstance())),
     );
     late final Future<void> tail;
     void releaseIfIdle() {

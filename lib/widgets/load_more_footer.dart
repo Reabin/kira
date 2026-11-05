@@ -12,29 +12,55 @@ class LoadMoreFooter extends StatelessWidget {
     required this.loading,
     required this.onPressed,
     required this.label,
+    this.detail,
     this.horizontalPadding = 0,
   });
 
   final bool loading;
   final VoidCallback onPressed;
   final String label;
+
+  /// 上一页失败的具体原因（`NetworkError.describe` 的结果）。只显示
+  /// 「加载失败」会让用户无法把错误反馈成可排查的信息。
+  final String? detail;
+
   final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final detail = this.detail?.trim() ?? '';
     return Padding(
       padding: EdgeInsets.fromLTRB(horizontalPadding, 4, horizontalPadding, 8),
-      child: Center(
-        child: loading
-            ? const SizedBox.square(
-                dimension: 28,
-                child: ExpressiveLoadingIndicator(),
-              )
-            : OutlinedButton.icon(
-                onPressed: onPressed,
-                icon: const Icon(Icons.expand_more_rounded),
-                label: Text(label),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: loading
+                ? const SizedBox.square(
+                    dimension: 28,
+                    child: ExpressiveLoadingIndicator(),
+                  )
+                : OutlinedButton.icon(
+                    onPressed: onPressed,
+                    icon: const Icon(Icons.expand_more_rounded),
+                    label: Text(label),
+                  ),
+          ),
+          if (!loading && detail.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                detail,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
               ),
+            ),
+        ],
       ),
     );
   }

@@ -1,0 +1,90 @@
+name: Build Test APK
+
+# 仅供本人验证的构建：只产出 Actions artifact，不创建/更新任何 Release，
+# 因此正式版与 beta 频道用户都不会看到更新提示。
+# 触发方式：仅手动 dispatch。
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "构建说明 (可选)"
+        required: false
+        default: ""
+
+jobs:
+  build-android:
+    name: Build test APK (arm64-v8a)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "zulu"
+          java-version: "17"
+          cache: "gradle"
+
+      - name: Restore Android signing files
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$ANDROID_KEY_ALIAS"
+          test -n "$ANDROID_KEY_PASSWORD"
+
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storeFile=../upload-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Set up Flutter and locked dependencies
+        uses: ./.github/actions/setup-flutter
+
+      - name: Build APK (arm64-v8a)
+        shell: bash
+        run: |
+          set -eo pipefail
+          flutter build apk --release --target-platform android-arm64 \
+            --dart-define=COPY_AUTH_KEY=${{ secrets.COPY_AUTH_KEY }} 2>&1 | tee /tmp/flutter_build.log
+
+          # 重复类 = 插件 Dart/native 版本不一致，这种包装机即白屏
+          if grep -E "is defined multiple times|Duplicate class" /tmp/flutter_build.log; then
+            echo "::error::构建日志出现重复类，APK 自洽性检查失败"
+            exit 1
+          fi
+
+          test -f build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUB_VER=$(awk '/^version:/ {print $2; exit}' pubspec.yaml)
+          test -n "$PUB_VER"
+
+          APK_NAME="kira-${PUB_VER}-arm64-v8a-test.apk"
+
+          cd build/app/outputs/flutter-apk
+          mv app-release.apk "$APK_NAME"
+          ls -lh "$APK_NAME"
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: kira-test-apk
+          path: build/app/outputs/flutter-apk/kira-*-test.apk
+          retention-days: 14
+          if-no-files-found: error

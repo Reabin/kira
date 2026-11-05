@@ -42,6 +42,7 @@ void main() {
     await SecureCredentialStore().writePassword('password-1');
     await prefs.setString('zhipu_api_key', 'api-key-1');
     await prefs.setBool('auto_login', true);
+    await prefs.setBool('reader_realistic_page_turn', false);
     await prefs.setBool('image_viewer_auto_rotate_landscape', true);
     await prefs.setInt('image_viewer_landscape_rotation', -1);
     await prefs.setString('cache_home', '{"stale":false}');
@@ -61,6 +62,7 @@ void main() {
     final backup = await createService().exportPlainText();
     final decoded = decodeBackup(backup);
     final preferences = preferencesOf(decoded);
+    expect(preferences['reader_realistic_page_turn']?['value'], isFalse);
 
     expect(decoded['categories'], ['settings']);
     expect(preferences.containsKey('user_token'), isFalse);
@@ -78,6 +80,36 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'comment page count is portable and removed auto-load key is excluded',
+    () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('comment_initial_pages', 5);
+      await prefs.setBool('comment_auto_load_all', true);
+      final service = createService();
+      final backup = await service.exportPlainText();
+      final preferences = preferencesOf(decodeBackup(backup));
+      expect(preferences['comment_initial_pages']?['value'], 5);
+      expect(preferences.containsKey('comment_auto_load_all'), isFalse);
+
+      await prefs.setInt('comment_initial_pages', 1);
+      await service.importPlainText(backup);
+      expect(prefs.getInt('comment_initial_pages'), 5);
+
+      final legacy = decodeBackup(backup);
+      final legacyPreferences = preferencesOf(legacy);
+      legacyPreferences['comment_auto_load_all'] = {
+        'type': 'bool',
+        'value': true,
+      };
+      legacy['preferences'] = legacyPreferences;
+      await prefs.remove('comment_auto_load_all');
+      await service.importPlainText(jsonEncode(legacy));
+      expect(prefs.getInt('comment_initial_pages'), 5);
+      expect(prefs.containsKey('comment_auto_load_all'), isFalse);
+    },
+  );
 
   test('exports sensitive settings only when requested', () async {
     final prefs = await SharedPreferences.getInstance();

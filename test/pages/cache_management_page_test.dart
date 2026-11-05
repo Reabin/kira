@@ -98,6 +98,10 @@ Future<void> _expandSection(WidgetTester tester, String title) async {
     200,
     scrollable: find.byType(Scrollable).first,
   );
+  // scrollUntilVisible 只保证元素进入列表，标题可能仍卡在视口边缘，
+  // 直接 tap 会命中不到，因此再对齐一次。
+  await tester.ensureVisible(tile);
+  await tester.pumpAndSettle();
   final entries = find.descendant(of: tile, matching: find.byType(ListView));
   if (entries.evaluate().isEmpty) {
     // Tapping an expanded tile's center can hit a data row and open its dialog.
@@ -453,6 +457,14 @@ void main() {
     });
 
     await _pumpPage(tester);
+
+    final warning = find.textContaining('删除会丢失');
+    await tester.scrollUntilVisible(
+      warning,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(warning, findsOneWidget);
 
     await _expandSection(tester, '轻小说阅读记录');
     expect(

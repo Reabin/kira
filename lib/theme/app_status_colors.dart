@@ -42,6 +42,10 @@ class AppStatusColors {
   /// 曾以同值同名常量在 chapter/comic 两套评论里各定义一份,收编于此。
   static const Color hotAccent = Color(0xFFFF7A2F);
 
+  /// 预览版(Beta)渠道徽标的琥珀色:不随明暗主题变化,保持稳定的预警观感。
+  static const Color betaAccent = Color(0xFFFFC107); // amber 500
+  static const Color onBetaAccent = Color(0xFFFF6F00); // amber 900
+
   /// 书架「更新」角标的实心红底与前景色。
   ///
   /// 刻意不跟随 [ColorScheme.error]：M3 的 error 在暗色下会变成浅粉底

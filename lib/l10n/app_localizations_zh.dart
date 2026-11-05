@@ -9,6 +9,49 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
+  String get historyModeOnline => '在线';
+
+  @override
+  String get historyModeLocal => '本地';
+
+  @override
+  String get localReadingHistoryTitle => '本地阅读记录';
+
+  @override
+  String get localHistorySearchHint => '搜索作品名';
+
+  @override
+  String get localHistorySearchEmpty => '没有匹配的作品';
+
+  @override
+  String localHistoryTotal(int count) {
+    return '共 $count 条阅读记录';
+  }
+
+  @override
+  String localHistoryPageProgress(int page, int total) {
+    return '第 $page / $total 页';
+  }
+
+  @override
+  String localHistoryRemoveConfirm(String name) {
+    return '确定移除《$name》的本机阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。';
+  }
+
+  @override
+  String localHistoryClearConfirm(String type) {
+    return '确定清空本机所有$type阅读进度和已读标记吗？不会删除下载内容、书签或在线记录。';
+  }
+
+  @override
+  String get browseHistorySeenLabel => '看到';
+
+  @override
+  String browseHistoryUpdatedAt(String time) {
+    return '更新于 $time';
+  }
+
+  @override
   String get comicTabLabel => '漫画';
 
   @override
@@ -58,21 +101,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get discoverFiltersFailed => '筛选项加载失败，请重试';
 
   @override
-  String get searchLoadMoreFailed => '加载更多失败，请重试';
-
-  @override
-  String get searchHistoryTitle => '搜索历史';
-
-  @override
-  String get searchHistoryClear => '清空历史';
-
-  @override
-  String get searchHistoryDelete => '删除记录';
-
-  @override
-  String get cacheCategorySearchHistory => '搜索历史';
-
-  @override
   String get bookshelfTabLabel => '书架';
 
   @override
@@ -105,6 +133,16 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get retryButton => '重试';
+
+  @override
+  String get startupFailedTitle => '启动失败';
+
+  @override
+  String get startupFailedBody =>
+      '应用初始化没有完成，通常是安装包与设备环境不匹配。可先重试；若仍失败，请卸载后重新安装，或把下面的错误信息反馈给开发者。';
+
+  @override
+  String get startupFailedDetails => '错误信息';
 
   @override
   String get noContent => '暂无内容';
@@ -328,15 +366,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get refreshFailed => '刷新失败';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登录已过期';
 
   @override
   String get loginExpiredBookshelfContent => '书架需要登录后才能继续使用，是否现在重新登录？';
-
-  @override
-  String loginExpiredFeatureContent(String featureName) {
-    return '$featureName需要登录后才能继续使用，是否现在重新登录？';
-  }
 
   @override
   String get laterButton => '稍后再说';
@@ -345,14 +383,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get goLoginButton => '去登录';
 
   @override
-  String get autoLoginFailed => '自动登录失败，请手动重新登录';
-
-  @override
   String get loginToViewBookshelf => '登录后可继续查看书架';
 
   @override
   String searchHint(String mode) {
-    return '搜索$mode...';
+    return '搜索$mode…';
   }
 
   @override
@@ -365,18 +400,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get allTagsTitle => '全部标签';
 
   @override
-  String get expandAllButton => '展开';
-
-  @override
   String get tagsExpandAll => '展开';
 
   @override
   String get tagsCollapseAll => '收起';
-
-  @override
-  String tagCount(int count) {
-    return '$count 个';
-  }
 
   @override
   String get popularOrder => '热度';
@@ -386,6 +413,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get loadMore => '加载更多';
+
+  @override
+  String get loadMoreFailed => '加载更多失败，请重试';
 
   @override
   String loadMoreProgress(int loaded, int total) {
@@ -415,15 +445,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get generalTitle => '通用';
 
   @override
-  String get autoLoginTitle => '自动登录';
-
-  @override
-  String get autoLoginEnabledDesc => '登录过期时自动重新登录';
-
-  @override
-  String get autoLoginUnavailableDesc => '登录并保存账号密码后可用';
-
-  @override
   String get remoteNoticeTitle => '通知';
 
   @override
@@ -436,13 +457,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bannerVisibleTitle => '显示Banner';
 
   @override
-  String get bannerVisibleDesc => '关闭后漫画和动漫主页顶部Banner不显示';
+  String get autoCheckClipboardSharedLinksTitle => '自动识别剪贴板分享链接';
 
   @override
   String get backExitConfirmTitle => '返回两次退出应用';
-
-  @override
-  String get backExitConfirmDesc => '在底部导航页面第一次返回只提示，再次返回才退出';
 
   @override
   String get backAgainToExitToast => '再次返回退出应用';
@@ -461,29 +479,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cacheManagementTitle => '缓存管理';
-
-  @override
-  String get cacheManagementDesc => '查看和删除本地缓存、历史和账号数据';
-
-  @override
-  String get exportSettingsTitle => '导出设置';
-
-  @override
-  String get importSettingsTitle => '导入设置';
-
-  @override
-  String get settingsExportedWithSensitive => '设置已导出，包含敏感信息';
-
-  @override
-  String get settingsExportedWithoutSensitive => '设置已导出，未包含敏感信息';
-
-  @override
-  String exportFailed(String error) {
-    return '导出失败：$error';
-  }
-
-  @override
-  String get noImportSettingsContent => '没有可导入的配置内容';
 
   @override
   String get settingsBackupEmptyFile => '文件里没有可导入的配置';
@@ -513,43 +508,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBackupUnsupportedFieldType => '配置字段类型不受支持';
 
   @override
-  String importFailed(String error) {
-    return '导入失败：$error';
-  }
-
-  @override
-  String get overwriteImportTitle => '覆盖导入';
-
-  @override
-  String overwriteImportContent(int count, String backupTime) {
-    return '将覆盖当前 $count 项持久化配置，包含账号、主题、阅读器设置和本地阅读记录。$backupTime\n\n临时缓存不会导入，当前配置会被替换。是否继续？';
-  }
-
-  @override
-  String backupTimeLine(String time) {
-    return '\n\n备份时间：$time';
-  }
-
-  @override
-  String get confirmImportButton => '确认导入';
-
-  @override
-  String get importingSettingsTitle => '正在导入设置';
-
-  @override
-  String get importingSettingsBody => '正在写入配置并重新加载,请稍候…';
-
-  @override
-  String get settingsImportedToast => '配置已导入并覆盖本地设置';
-
-  @override
   String get resetAppTitle => '重置应用';
-
-  @override
-  String get resetAppDesc => '清除本地设置、账号、阅读记录和缓存，不会删除已下载的本地漫画文件';
-
-  @override
-  String get resettingApp => '正在重置...';
 
   @override
   String appResetToast(int count) {
@@ -562,26 +521,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String exportSettingsContent(int count) {
-    return '将导出 $count 项持久化配置到 JSON 文件，内容为明文，请谨慎保管。';
-  }
-
-  @override
-  String get includeSensitiveSettingsTitle => '包含密码和 API 重要信息';
-
-  @override
-  String get noSensitiveSettingsFound => '当前没有检测到已保存的敏感项';
-
-  @override
-  String includeSensitiveSettingsDesc(int count) {
-    return '将额外包含 $count 项令牌、密码、API Key 或凭据信息';
-  }
-
-  @override
   String get copyButton => '复制';
-
-  @override
-  String get exportButton => '导出';
 
   @override
   String get confirmResetAppTitle => '确认重置应用';
@@ -613,10 +553,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileHotCredentialLabel => '热辣漫画';
 
   @override
-  String get accountSwitchedToast => '账号已切换';
+  String get accountAddedToast => '账号已添加';
 
   @override
-  String get switchAccountTitle => '切换账号';
+  String get accountSwitchedToast => '账号已切换';
 
   @override
   String get addAccountButton => '添加账号';
@@ -637,13 +577,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get userInfoRefreshFailedToast => '刷新失败，请重试';
 
   @override
-  String get copyProfileRefreshUnavailable => '暂时无法刷新拷贝账号资料，请通过登录更新头像和用户名';
+  String userInfoRefreshFailedDetail(String detail) {
+    return '刷新失败：$detail';
+  }
 
   @override
   String get tokenUnavailableToast => '暂无可复制的令牌';
 
   @override
-  String get tokenCopiedToast => '令牌已复制到剪贴板';
+  String get tokenCopiedToast => '令牌已复制';
 
   @override
   String get appearanceTitle => '外观';
@@ -669,19 +611,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceBottomNavLabelModeSelectedOnly => '选中时显示';
 
   @override
-  String get appearanceBottomNavLabelModeSelectedOnlyDesc => '胶囊导航，仅选中项显示文字';
-
-  @override
   String get appearanceBottomNavLabelModeHidden => '不显示文字';
-
-  @override
-  String get appearanceBottomNavLabelModeHiddenDesc => '胶囊导航，只显示图标';
 
   @override
   String get appearanceBottomNavLabelModeAlways => '始终显示文字';
 
   @override
-  String get appearanceBottomNavLabelModeAlwaysDesc => '经典导航，文字显示在图标下方';
+  String get appearanceFloatingNavLabelModeHint => '悬浮底栏不支持始终显示文字，已改为选中时显示';
 
   @override
   String get appearanceNavOrder => '导航栏顺序';
@@ -693,13 +629,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceNavSwipeTitle => '左右滑动切换页面';
 
   @override
-  String get appearanceNavSwipeDesc => '关闭后只能点击底部导航按钮切换页面';
+  String get appearanceFloatingNavTitle => '悬浮导航栏';
 
   @override
   String get appearanceAppIcon => '应用图标';
-
-  @override
-  String get appearanceAppIconRestartHint => '更换后重启应用生效';
 
   @override
   String get appearanceRefreshRateTitle => '屏幕刷新率';
@@ -720,49 +653,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceDarkCoverBrightness => '暗色模式封面亮度';
 
   @override
-  String get appearanceDarkCoverBrightnessDesc => '暗色模式下降低各个界面的卡片封面亮度';
-
-  @override
-  String get appearanceShadowTitle => '阴影';
-
-  @override
   String get appearanceCardShadowSize => '统一阴影大小';
 
   @override
-  String get appearanceCardShadowSizeDesc => '统一调整应用内普通卡片的阴影大小';
-
-  @override
-  String get appearanceDefaultFontSize => '默认字体大小';
-
-  @override
-  String get appearanceDefaultFontSizeDesc => '当前默认正文为 14；标题与辅助文字会按比例调整';
+  String get appearanceTextScale => '全局文字缩放';
 
   @override
   String get appearanceThemeStyle => '主题风格';
 
   @override
-  String appearanceCurrentStyle(String label, String description) {
-    return '当前风格：$label · $description';
-  }
-
-  @override
   String get appearanceThemeColor => '主题配色';
-
-  @override
-  String get appearanceThemeColorDesc => '点击颜色块切换主题色，带勾选的为当前配色。';
 
   @override
   String get appearanceDynamicColor => '动态颜色';
 
   @override
-  String get appearanceDynamicColorDesc =>
-      '基于壁纸动态生成主题配色（Android 12+，开启后忽略上方主题配色）';
-
-  @override
   String get appearanceAmoledDark => 'AMOLED 纯黑模式';
 
   @override
-  String get appearanceAmoledDarkDesc => '在暗色主题中使用纯黑背景';
+  String get appearanceReduceMotionTitle => '减少动画';
 
   @override
   String appearanceRefreshRateRequested(String rate) {
@@ -771,14 +680,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceRefreshRateSaved => '刷新率偏好已保存';
-
-  @override
-  String appearanceRefreshRateLoadFailed(String error) {
-    return '获取设备刷新率失败：$error';
-  }
-
-  @override
-  String get appearanceUnknownError => '未知错误';
 
   @override
   String get appearanceAutoSystem => '自动（跟随系统）';
@@ -794,11 +695,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String appearanceRefreshRateCurrent(int rate) {
     return '${rate}Hz（当前）';
-  }
-
-  @override
-  String appearanceApplyingRefreshRate(String rate) {
-    return '正在应用 $rate';
   }
 
   @override
@@ -819,6 +715,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceAppFont => '应用字体';
+
+  @override
+  String get appearanceDesktopFont => '系统字体';
 
   @override
   String get appearanceSystemDefault => '系统默认';
@@ -881,11 +780,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appearanceCustomFontBadge => '自定义';
 
   @override
+  String get appearanceImportLocalFont => '从本地导入字体';
+
+  @override
+  String get appearanceImportFontInvalid => '无法读取该字体文件，请选择有效的 .ttf / .otf 字体';
+
+  @override
+  String appearanceImportFontFailed(String error) {
+    return '导入字体失败：$error';
+  }
+
+  @override
   String get appearanceCustomFontRemoveTitle => '移除自定义字体';
 
   @override
   String appearanceCustomFontRemoveContent(String fontName) {
-    return '确定要移除自定义字体 $fontName 吗？本地文件也会被删除。';
+    return '确定要移除自定义字体 $fontName 吗？';
   }
 
   @override
@@ -920,13 +830,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get networkSelectionMode => '选择模式';
 
   @override
+  String get networkAutoTestEnabled => '定时测速并切换线路';
+
+  @override
+  String get networkAutoTestInterval => '测速间隔';
+
+  @override
   String get networkModeRoute => '线路';
-
-  @override
-  String get networkFixedNodeAutoSelected => '测速后已选择延迟最低的节点';
-
-  @override
-  String get networkRouteAutoSelected => '测速后已切换到平均延迟最低的线路';
 
   @override
   String networkRouteLabel(int index) {
@@ -934,10 +844,15 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get networkTestingNodes => '正在检测各节点...';
+  String get networkTestingNodes => '正在检测各节点…';
 
   @override
-  String get networkHighLatencyProxySuggestion => '当前延迟较大，建议开启代理';
+  String networkSpeedTestFailedDetail(String detail) {
+    return '测速失败：$detail';
+  }
+
+  @override
+  String get networkHighLatencyHint => '当前线路延迟较高';
 
   @override
   String get networkRateLimitMessage => '请求过于频繁，已被限速，请稍后再试';
@@ -1016,6 +931,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkCopyAppVersion => 'COPY 请求版本号';
+
+  @override
+  String get networkCopyVersionCode => 'COPY versionCode';
 
   @override
   String get networkCopyAutoUpdate => '每天自动更新';
@@ -1101,7 +1019,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String networkStatusWarnHint(int ms) {
-    return '当前延迟约 $ms ms，建议开启代理';
+    return '当前延迟约 $ms ms';
   }
 
   @override
@@ -1124,12 +1042,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get networkCurrentInUse => '使用中';
-
-  @override
-  String get networkModeRouteDesc => '请求自动在线路内的节点间切换';
-
-  @override
-  String get networkModeFixedNodeDesc => '固定使用单个节点';
 
   @override
   String get networkNodesSectionTitle => '线路与节点';
@@ -1217,7 +1129,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiConfigGetZhipuApiKey => '获取智谱 API 密钥';
 
   @override
-  String get aiConfigAgnesName => 'Agnes CN';
+  String get aiConfigAgnesName => 'Agnes';
 
   @override
   String get aiConfigGetAgnesApiKey => '获取 Agnes API 密钥';
@@ -1318,13 +1230,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarksLoadFailed => '书签加载失败，请重试';
 
   @override
-  String get bookmarksUpdateFailed => '书签保存失败，请重试';
+  String bookmarksUpdateFailedDetail(String detail) {
+    return '书签保存失败：$detail';
+  }
+
+  @override
+  String get bookmarksSearchHint => '搜索书名或章节';
+
+  @override
+  String get bookmarksSearchEmpty => '没有找到相关书签，试试其他关键词';
 
   @override
   String get statsTitle => '阅读统计';
-
-  @override
-  String get continueReadingTitle => '继续阅读';
 
   @override
   String continueReadingPageLabel(int page) {
@@ -1483,6 +1400,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarkRemoved => '已取消书签';
 
   @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '该作品有 $count 条书签，取消书签会一并删除。';
+  }
+
+  @override
   String bookmarkPage(int page) {
     return '第 $page 页';
   }
@@ -1502,13 +1424,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get bookmarksEmptyTitle => '还没有书签';
 
   @override
-  String get bookmarksEmptySubtitle => '阅读漫画时，点击右上角的书签按钮即可标记当前位置';
+  String get bookmarksEmptySubtitle => '阅读时点右上角书签即可标记';
 
   @override
   String get bookmarksClearTitle => '清空书签';
-
-  @override
-  String get bookmarksClearContent => '确定要清空所有书签吗？';
 
   @override
   String bookmarksGroupDeleted(int count) {
@@ -1528,13 +1447,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notLoggedInTitle => '未登录';
 
   @override
-  String get loginPromptSubtitle => '点击登录以使用书架等功能';
-
-  @override
   String get refreshUserButton => '刷新用户';
-
-  @override
-  String get switchAccountButton => '切换账号';
 
   @override
   String get copyTokenButton => '复制令牌';
@@ -1567,83 +1480,47 @@ class AppLocalizationsZh extends AppLocalizations {
       '本软件按\"现状\"提供，开发者不对其功能性、可用性、准确性或可靠性作出任何明示或默示的保证。在任何情况下，开发者均不对因使用或无法使用本软件而产生的任何直接、间接、附带、特殊或后果性损害承担责任。';
 
   @override
-  String get appDisclaimerFooter =>
-      '继续使用本软件，即表示您已仔细阅读、充分理解并同意接受上述全部条款的约束。如您不同意任一条款，请立即停止使用并卸载本软件。';
-
-  @override
   String get profileUsernamePasswordRequired => '请输入用户名和密码';
 
   @override
-  String get profileLoginFailedProxyHint => '登录失败，建议开启代理后重试';
+  String profileLoginFailedDetail(String detail) {
+    return '登录失败：$detail';
+  }
 
   @override
-  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或开启代理后重试';
+  String get profileLoginIpBlockedHint => '当前 IP 被封禁，请更换网络环境或代理节点后重试';
 
   @override
   String get profileTokenRequired => '请输入令牌';
 
   @override
-  String get profileTokenInvalidOrExpired => '令牌无效或已过期';
-
-  @override
   String get profileLoginTitle => '登录';
-
-  @override
-  String get profileAccountPasswordLoginMode => '账号密码';
-
-  @override
-  String get profileTokenLoginMode => '令牌';
 
   @override
   String get profileTokenLoginEntry => '令牌登录';
 
   @override
-  String get profileWebLoginButton => '官网登录';
+  String get copyAccountChannelWebApi => '网页接口';
 
   @override
-  String get profileWebLoginRecommendedTag => '推荐';
+  String get copyAccountChannelWeb => '网页';
+
+  @override
+  String get copyAccountChannelApp => 'App接口';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
+    return '登录失败：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官网登录';
 
   @override
-  String get profileWebLoginHint =>
-      '在官网中登录拷贝漫画账号，登录成功后将自动完成；若要换成其他账号，请先点右上角清除登录状态';
+  String get profileWebLoginHint => '在应用内打开拷贝官网登录页并自动填入账号密码，由网页完成登录后自动回填。';
 
   @override
   String get profileWebLoginCompleting => '已获取登录信息，正在验证…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登录';
-
-  @override
-  String get profileWebLoginNotDetected => '未检测到登录信息，请先在官网中完成登录';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官网登录状态';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官网登录状态，请登录其他账号';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '检测到本机已保存的账号「$name」，尚未自动登录';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已保存的账号';
-
-  @override
-  String get profileWebLoginUseAccount => '使用该账号';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切换其他账号';
-
-  @override
-  String get profileWebLoginRetryButton => '重新检测登录';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官网登录状态失败，请重试';
 
   @override
   String get profileWebLoginFailed => '官网登录失败';
@@ -1675,22 +1552,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get profileOpenOfficialRegisterFailed => '无法打开官网注册页';
 
   @override
-  String get profileHotMangaLabel => '热辣漫画';
-
-  @override
-  String get profileCopyMangaLabel => '拷贝漫画';
-
-  @override
-  String get loginGoOfficialRegisterHot => '前往官网注册账号';
-
-  @override
-  String get loginGoOfficialRegisterCopy => '前往官网注册账号';
+  String get loginGoOfficialRegister => '前往官网注册账号';
 
   @override
   String get aboutMirrorPrefixTitle => '设置镜像源';
-
-  @override
-  String get aboutMirrorPrefixDesc => '用于更新与播放组件下载的镜像链接，会拼接在 GitHub 下载地址前。';
 
   @override
   String get aboutMirrorPrefixLabel => '镜像源地址';
@@ -1714,28 +1579,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutStableChannelShort => '稳定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切换?';
 
   @override
-  String get aboutStableChannelTitle => '稳定版 (Stable)';
+  String get aboutBetaChannelNote => '预览版更新更快，问题也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '仅检查正式发布版本';
+  String get aboutBetaChannelArm64Only => '仅限 Android arm64 设备。';
 
   @override
-  String get aboutBetaChannelTitle => '预览版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '从最新提交构建的版本，可能不稳定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切换到预览版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '预览版一般用于测试新功能或修复问题，可能存在更多问题。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '当前设备：$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '仓库';
@@ -1753,10 +1608,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aboutLogTitle => '日志';
 
   @override
-  String get aboutLicenseTitle => '许可证';
+  String get aboutLicenseTitle => '开源许可';
 
   @override
   String get licenseMitSummary => '本项目采用 MIT 开源许可证';
+
+  @override
+  String get licenseThirdPartyTitle => '第三方依赖';
+
+  @override
+  String get licenseFontsTitle => '字体';
+
+  @override
+  String get licenseThirdPartyEmpty => '未收集到第三方许可';
+
+  @override
+  String licenseCount(int count) {
+    return '$count 份许可';
+  }
 
   @override
   String get cacheDeleteEntryTitle => '删除缓存项';
@@ -1890,10 +1759,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commentSettingsPreloadDesc => '进入章节时提前加载评论并显示数量';
 
   @override
-  String get commentSettingsAutoLoadAllTitle => '自动加载全部评论';
+  String get commentSettingsDisplaySection => '评论区布局';
 
   @override
-  String get commentSettingsAutoLoadAllDesc => '打开评论区时自动加载所有评论';
+  String get commentSettingsLoadingSection => '加载';
+
+  @override
+  String get commentSettingsFilteringSection => '屏蔽';
+
+  @override
+  String commentSettingsInitialCountTitle(int count) {
+    return '初始加载$count条评论';
+  }
 
   @override
   String get commentSettingsFontSizeTitle => '评论内容字体大小';
@@ -2011,19 +1888,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chapterCommentsTitle => '章节评论';
 
   @override
-  String get chapterCommentsLoadAllTooltip => '加载全部评论';
-
-  @override
   String get chapterCommentsAiSummaryTooltip => 'AI 总结评论';
 
   @override
   String get chapterCommentsRegenerateAiSummaryTooltip => '重新生成 AI 总结';
-
-  @override
-  String get chapterCommentsSwitchToListLayout => '切换为列表布局';
-
-  @override
-  String get chapterCommentsSwitchToCompactLayout => '切换为紧凑布局';
 
   @override
   String chapterCommentsTotalCount(int count) {
@@ -2144,11 +2012,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String comicCommentReplyHint(String userName) {
-    return '回复 $userName...';
+    return '回复 $userName…';
   }
 
   @override
-  String get comicCommentPostHint => '说点什么...';
+  String get comicCommentPostHint => '说点什么…';
 
   @override
   String get comicCommentReplyPosted => '回复已发布';
@@ -2178,9 +2046,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerTopToBottom => '上到下';
 
   @override
-  String get readerScrollSection => '滚动';
-
-  @override
   String get readerImageGap => '图片间距';
 
   @override
@@ -2191,10 +2056,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get readerHorizontalImageScale => '横向图片大小';
-
-  @override
-  String get readerHorizontalImageScaleDesc =>
-      '调整横向滚动模式下图片相对屏幕高度的比例（仅横向滚动模式可用）';
 
   @override
   String get readerAutoScroll => '自动滚动';
@@ -2235,9 +2096,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerInstantPageTurn => '无动画翻页';
 
   @override
-  String get readerDisplaySection => '显示';
-
-  @override
   String get readerLongPressZoom => '长按缩放';
 
   @override
@@ -2259,7 +2117,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerStatusBattery => '电量';
 
   @override
+  String get readerStatusChapter => '章节名';
+
+  @override
   String get readerStatusPage => '页码';
+
+  @override
+  String get readerStatusProgress => '进度';
 
   @override
   String get readerStatusFps => '帧率';
@@ -2289,6 +2153,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerStatusOverlayOpacity => '背景不透明度';
 
   @override
+  String get readerStatusOverlayForeground => '前景色';
+
+  @override
+  String get readerStatusOverlayBackground => '背景色';
+
+  @override
+  String get readerStatusOverlayFollowTheme => '跟随阅读主题';
+
+  @override
+  String get readerStatusOverlayDefaultColor => '默认';
+
+  @override
+  String get readerStatusOverlayColorPicker => '选择颜色';
+
+  @override
   String get readerDimming => '降低亮度';
 
   @override
@@ -2299,9 +2178,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get readerTimeoutDesc => '设置太小可能导致图片加载失败，太大可能导致长时间转圈';
-
-  @override
-  String get readerNoLoadStats => '暂无加载记录（阅读图片后此处显示平均耗时供参考）';
 
   @override
   String readerRecentLoadStats(int count, String seconds) {
@@ -2347,6 +2223,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get browseHistoryLoginHintComicOnly => '浏览过的漫画会同步显示在这里';
 
   @override
+  String browseHistoryLoadFailed(String detail) {
+    return '浏览记录加载失败：$detail';
+  }
+
+  @override
   String browseHistoryEmptyTitle(String mode) {
     return '还没有$mode浏览记录';
   }
@@ -2372,14 +2253,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String browseHistoryLatestChapter(String chapter) {
-    return '最新 $chapter';
-  }
-
-  @override
-  String browseHistoryLastSeen(String name) {
-    return '上次看到 $name';
-  }
+  String get browseHistoryLatestLabel => '最新';
 
   @override
   String cacheSelectedCards(int count) {
@@ -2408,6 +2282,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cacheDataCacheSection => '数据缓存';
+
+  @override
+  String get cacheDataCacheWarning => '数据缓存包含书架、设置与阅读历史，删除会丢失。';
 
   @override
   String get cacheNoLocalKeyValueData => '没有可显示的本地键值数据';
@@ -2549,7 +2426,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appLogEmpty => '暂无错误日志';
 
   @override
-  String get appLogCopied => '日志已复制到剪贴板';
+  String get appLogDisabledTitle => '日志记录已关闭';
+
+  @override
+  String get appLogCopied => '日志已复制';
 
   @override
   String appLogCopyFailed(String error) {
@@ -2595,7 +2475,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get appLogLevelError => '错误';
 
   @override
-  String get appLogSearchHint => '搜索日志（消息、来源、堆栈、上下文）';
+  String get appLogExportTooltip => '导出日志文件';
+
+  @override
+  String get appLogExported => '日志已导出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '导出失败：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日志';
@@ -2835,11 +2723,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String downloadQueueDeleteBatchContent(int count) {
-    return '已下载的 $count 页文件将一并删除。';
-  }
-
-  @override
   String get downloadQueueDeleteSelectedConfirm => '所选下载任务及已保存的相关文件都会被删除。';
 
   @override
@@ -2862,11 +2745,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get downloadQueueDeleteSelected => '删除所选';
-
-  @override
-  String downloadQueueBatchDeleted(int count) {
-    return '已删除 $count 个任务';
-  }
 
   @override
   String downloadProgressCount(String percent, int completed, int total) {
@@ -2931,7 +2809,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get commentSettingsMinCommentCount => '最少评论数';
+  String get commentSettingsMinCommentCount => '最少已加载评论数';
 
   @override
   String get commentSettingsTriggerTiming => '调用时机';
@@ -3007,6 +2885,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '加载相邻章节失败：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '当前已无上一话';
 
   @override
@@ -3034,22 +2917,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerRefresh => '刷新本话';
 
   @override
-  String get readerAlreadyFirstChapter => '已经是第一章';
+  String get readerAlreadyFirstChapter => '梦开始的地方';
 
   @override
   String get readerContinuePageNextChapter => '继续翻页进入下一话';
 
   @override
-  String get readerAlreadyLastChapter => '已经是最后一话';
+  String get readerAlreadyLastChapter => '当前已无下一话';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '继续下滑或点击按钮进入下一话';
 
   @override
-  String get readerImagePathCopied => '图片路径已复制到剪贴板';
+  String get readerImagePathCopied => '图片路径已复制';
 
   @override
-  String get readerImageUrlCopied => '图片链接已复制到剪贴板';
+  String get readerImageUrlCopied => '图片链接已复制';
 
   @override
   String get readerLocalImageMissing => '本地图片损坏或缺失';
@@ -3075,7 +2958,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get readerImageSaved => '图片已保存到相册';
 
   @override
-  String get readerSaveImageFailed => '图片保存失败';
+  String readerSaveImageFailedDetail(String detail) {
+    return '图片保存失败：$detail';
+  }
 
   @override
   String get readerSaveImagePermissionDenied => '没有相册写入权限，保存失败';
@@ -3124,7 +3009,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get updateDownloadFailed => '下载失败，请稍后重试';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下载失败：$detail';
+  }
+
+  @override
+  String updateDownloadFallback(int count) {
+    return '下载源切换中（第 $count 个备用源）';
+  }
+
+  @override
   String get updateInstallFailed => '无法启动安装，请改用浏览器下载';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '无法启动安装：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安装未知应用」权限才能安装更新';
@@ -3166,7 +3066,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noticeRefreshFailed => '刷新通知失败，请稍后重试';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '刷新通知失败：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '读取通知失败';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '读取通知失败：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已标记为已读';
@@ -3283,9 +3193,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get backupTitle => '备份与同步';
-
-  @override
-  String get backupEntryDescription => '本地文件与 WebDAV 备份';
 
   @override
   String get backupContent => '备份内容';
@@ -3572,6 +3479,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backupOperationFailed => '操作失败，请检查文件权限和可用空间后重试。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失败：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '请检查服务器地址、用户名和文件夹路径。';
 
   @override
@@ -3653,27 +3565,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelStartReading => '开始阅读';
 
   @override
-  String novelVolumeProgress(String percent) {
-    return '本卷 $percent%';
-  }
-
-  @override
-  String get novelBrowseBooks => '浏览书籍';
-
-  @override
   String get novelAllThemes => '全部';
 
   @override
   String get novelThemes => '题材';
 
   @override
-  String get novelTagsExpandAll => '展开';
-
-  @override
   String get novelEmptyBooks => '暂无书籍，试试其他题材';
-
-  @override
-  String get novelLoadMore => '加载更多';
 
   @override
   String get novelLoadMoreFailed => '加载失败，点击重试';
@@ -3738,9 +3636,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelDeleteToastSuffix => ' 部本地轻小说';
 
   @override
-  String get novelBrief => '简介';
-
-  @override
   String get novelNoBrief => '暂无简介';
 
   @override
@@ -3750,19 +3645,20 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelCollectFailed => '收藏操作失败，请重试';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失败：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下载失败：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '阅读与收藏状态加载失败';
 
   @override
-  String get novelAccountRequired => '阅读权限由拷贝账户决定，可登录后重试';
-
-  @override
-  String get novelLocked => '当前内容受限，可尝试切换拷贝账户';
-
-  @override
   String get novelEmptyShelf => '书架还是空的，去发现喜欢的小说吧';
-
-  @override
-  String get novelShelfFailed => '书架加载失败';
 
   @override
   String get novelEmptyHistory => '开始阅读后，进度会保存在这里';
@@ -3774,13 +3670,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelClearHistory => '清空阅读记录';
 
   @override
-  String get novelClearHistoryConfirm => '仅清除本机轻小说阅读进度，不会取消书架收藏。';
-
-  @override
   String get novelRemoveHistory => '移除阅读记录';
 
   @override
-  String get novelHistoryDeleteFailed => '移除失败，请重试';
+  String novelHistoryDeleteFailedDetail(String detail) {
+    return '移除失败：$detail';
+  }
 
   @override
   String get novelBookDetails => '查看详情';
@@ -3805,9 +3700,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelCommentFailed => '发表失败，内容已保留，请重试';
-
-  @override
-  String get novelReplies => '查看回复';
 
   @override
   String get novelReply => '回复';
@@ -3844,11 +3736,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String novelCommentReplyHint(Object userName) {
-    return '回复 $userName...';
+    return '回复 $userName…';
   }
-
-  @override
-  String get novelCommentReplyPosted => '回复已发布';
 
   @override
   String get novelSerializing => '连载中';
@@ -3861,9 +3750,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get novelReaderBack => '返回';
-
-  @override
-  String get novelReaderHideToolbar => '收起工具栏';
 
   @override
   String get novelReaderShowToolbar => '展开工具栏';
@@ -3881,19 +3767,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderBookmark => '书签';
 
   @override
-  String get novelReaderCopiedToast => '段落已复制到剪贴板';
-
-  @override
   String get novelReaderVolumesRetry => '卷册加载失败，重试';
 
   @override
-  String get novelReaderPrevious => '上一章节';
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷册加载失败：$detail（点击重试）';
+  }
 
   @override
-  String get novelReaderNext => '下一章节';
+  String get novelReaderPrevious => '上一卷';
+
+  @override
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '阅读设置';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻页';
 
   @override
   String get novelReaderFontSize => '字号';
@@ -3905,10 +3796,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderParagraphSpacing => '段距';
 
   @override
+  String get novelReaderContentWidth => '正文宽度';
+
+  @override
   String get novelReaderTheme => '阅读主题';
 
   @override
-  String get novelReaderThemeSystem => '跟随系统';
+  String get novelReaderFontFamily => '正文字体';
+
+  @override
+  String get novelReaderFontFollowApp => '跟随应用字体';
+
+  @override
+  String novelReaderFontUnavailable(String name) {
+    return '$name（不可用）';
+  }
 
   @override
   String get novelReaderThemePaper => '纸张';
@@ -3923,7 +3825,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderThemeGreen => '护眼绿';
 
   @override
-  String get novelReaderThemeCustom => '自定义';
+  String get novelReaderThemeGray => '灰';
+
+  @override
+  String get novelReaderThemeCustom => '自定义主题';
 
   @override
   String get novelReaderThemeLightMode => '浅色模式';
@@ -3960,10 +3865,68 @@ class AppLocalizationsZh extends AppLocalizations {
   String get novelReaderTextColor => '文字颜色';
 
   @override
-  String get novelReaderPreviewText => '选择适合你的阅读配色与字号。';
+  String get novelReaderPreviewText => '夜色温柔，街灯次第亮起，故事从这一页开始。';
+
+  @override
+  String get novelReaderColorScheme => '配色方案';
+
+  @override
+  String get novelReaderDialogueStyle => '对白样式';
+
+  @override
+  String get novelReaderDialogueAutomatic => '自动适配';
+
+  @override
+  String get novelReaderDialogueFollowBody => '跟随正文';
+
+  @override
+  String get novelReaderDialogueCustom => '自选颜色';
+
+  @override
+  String get novelReaderDialogueWeight => '字重';
+
+  @override
+  String get novelReaderDialogueMedium => '中等';
+
+  @override
+  String get novelReaderDialogueBold => '加粗';
+
+  @override
+  String get novelReaderDialogueBackground => '对白底色';
+
+  @override
+  String get novelReaderDialogueBackgroundStrength => '底色强度';
+
+  @override
+  String get novelReaderDialogueLowContrast => '对白与背景对比度较低';
+
+  @override
+  String get novelReaderDialoguePreviewText =>
+      '夜色温柔，她翻开书页，窗外的风轻轻吹动帘角。\n「故事里还有『未说完的话』，我们继续吧。」\n街灯亮起，远处传来列车经过的声音，像一段熟悉的旋律。\n『等到天亮，我们就一起出发。』\n「如果路上迷失方向，\n就记住窗边这盏灯，我会在这里等你回来。」\n她合上书，笑着望向窗外。她说：「这一句尚未结束……';
 
   @override
   String get novelReaderKeepScreenOn => '阅读时屏幕常亮';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphs => '隐藏空白段落';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphsDenseHint => '可以适当增大段距以免文字过于密集';
+
+  @override
+  String get novelReaderFocusMode => '专注模式';
+
+  @override
+  String get novelReaderFocusKeepStatusVisible => '不遮挡状态组件';
+
+  @override
+  String get novelReaderFocusTopBound => '上边界';
+
+  @override
+  String get novelReaderFocusBottomBound => '下边界';
+
+  @override
+  String get novelReaderFocusOpacity => '遮罩浓度';
 
   @override
   String get novelReaderIllustration => '插图';
@@ -4001,33 +3964,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String novelReaderParagraphProgress(int current, int total) {
-    return '$current / $total 段';
-  }
-
-  @override
-  String get copyAccountTitle => '轻小说 · 独立拷贝账号';
-
-  @override
   String get copyAccountLoginTitle => '登录拷贝账号';
 
   @override
   String get copyAccountIndependentHint => '仅用于拷贝轻小说。登录、切换或退出此账号都不会改变当前主账号。';
-
-  @override
-  String get copyAccountConnected => '拷贝账号已登录';
-
-  @override
-  String get copyAccountNotConnected => '尚未登录拷贝账号';
-
-  @override
-  String get copyAccountSwitch => '切换拷贝账号';
-
-  @override
-  String get copyAccountLogout => '退出拷贝账号';
-
-  @override
-  String get copyAccountLogoutConfirm => '仅退出轻小说使用的独立拷贝账号，当前主账号保持不变。';
 
   @override
   String get copyAccountStorageFailed => '无法保存拷贝账号，请稍后重试；原账号保持不变。';
@@ -4058,33 +3998,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountProfileMissing => '已登录（未获取资料）';
-
-  @override
-  String get accountCenterAddPrimary => '登录漫画账号';
-
-  @override
-  String get accountCenterAddCopy => '添加拷贝账号';
-
-  @override
-  String get accountCenterPickComic => '选择漫画使用的账号';
-
-  @override
-  String get accountCenterPickNovel => '选择轻小说使用的账号';
-
-  @override
-  String get accountCenterNovelOnlyCopy => '轻小说只能使用拷贝账号';
-
-  @override
-  String get accountCenterRenameTitle => '账号备注';
-
-  @override
-  String get accountCenterRenameLabel => '备注名';
-
-  @override
-  String get accountCenterRenameHint => '例如：主号 / 小号';
-
-  @override
-  String get accountCenterRemoveTitle => '移除账号';
 
   @override
   String accountCenterRemoveConfirm(String name) {
@@ -4119,11 +4032,174 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get accountCenterNameNewTitle => '给新账号起个备注名';
+
+  @override
+  String get homeRecentAll => '全部';
+
+  @override
+  String get homeRecentJapaneseOnly => '仅日漫';
+
+  @override
+  String get homeRecentUpdates => '最近更新';
+
+  @override
+  String get homeRecentEmpty => '当前最近更新中没有符合筛选的漫画';
+
+  @override
+  String get homeRecentJapaneseHint => '仅展示地区已确认为日本的漫画，按更新时间排序';
+
+  @override
+  String get homeRecentJapan => '日漫';
+
+  @override
+  String get homeRecentKorea => '韩漫';
+
+  @override
+  String get homeRecentWestern => '美漫';
+
+  @override
+  String get homeRecentRegions => '关注地区';
+
+  @override
+  String get networkIOSProxyStatusUnknown => '未取得系统 HTTP 代理地址，VPN 状态无法确认';
+
+  @override
+  String get networkIOSManagedNetwork => '由 iOS 管理网络（VPN 状态无法确认）';
+
+  @override
+  String get networkIOSSystemHint =>
+      'VPN 隧道可能不提供 HTTP 代理地址。未检测到地址不代表 VPN 未生效；测速使用当前网络路径，是否经过 VPN 取决于系统及代理软件的分流规则。';
+
+  @override
+  String get networkIOSDirectActive => '不使用应用层代理';
+
+  @override
+  String get networkIOSDirectHint => '此模式绕过应用层 HTTP/SOCKS 代理；系统 VPN 仍可能接管连接。';
+
+  @override
+  String get networkIOSLatencySuggestion => '连接耗时较高或无法连接，请检查网络、VPN 分流规则及所选节点';
+
+  @override
+  String get progressSyncTitle => '阅读进度同步';
+
+  @override
+  String get progressSyncAutomatic => '自动同步';
+
+  @override
+  String get progressSyncAutomaticHint => '打开应用、返回前台和阅读后自动交换进度；离线时保留待同步记录。';
+
+  @override
+  String get progressSyncICloud => 'iCloud Drive';
+
+  @override
+  String get progressSyncChooseFolder => '选择同步文件夹';
+
+  @override
+  String get progressSyncFolderReady => '已选择。两台设备需要选择 iCloud Drive 中的同一个文件夹。';
+
+  @override
+  String get progressSyncFolderRequired => '请先在 iCloud Drive 中新建或选择一个专用文件夹。';
+
+  @override
+  String get progressSyncWebDavSettings => '配置 WebDAV';
+
+  @override
+  String get progressSyncWebDavHint => '使用备份页面保存的服务器与账号，进度同步独立运行。';
+
+  @override
+  String get progressSyncICloudHint =>
+      '首次在每台设备选择同一个专用文件夹。文件由 iCloud Drive 传送，可能延迟；“最近交换”不代表其他设备已经收到。阅读中不会强制跳转到其他设备的位置。';
+
+  @override
+  String get progressSyncBackupHint =>
+      '仅同步漫画和轻小说的阅读位置与已读标记，不传送账号、漫画图片或正文。完整备份和手动恢复保持独立。';
+
+  @override
+  String progressSyncLastExchange(String time) {
+    return '最近交换：$time';
+  }
+
+  @override
+  String get progressSyncNow => '立即同步';
+
+  @override
+  String get progressSyncConflicts => '需要选择的阅读进度';
+
+  @override
+  String get progressSyncConflictHint => '多台设备分别修改了同一本书。请选择要继续的位置，选择前不会互相覆盖。';
+
+  @override
+  String progressSyncComicPosition(String chapter, String page) {
+    return '$chapter · 第 $page 页';
+  }
+
+  @override
+  String progressSyncNovelPosition(String chapter, String paragraph) {
+    return '$chapter · 第 $paragraph 段';
+  }
+
+  @override
+  String get progressSyncUsePosition => '使用此进度';
+
+  @override
+  String get progressSyncThisDevice => '当前设备的位置';
+
+  @override
+  String get progressSyncOtherDevice => '另一设备的位置';
+
+  @override
+  String get progressSyncReview => '查看';
+
+  @override
+  String get progressSyncConflictNotice => '有阅读进度冲突，请选择要保留的位置。';
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
 class AppLocalizationsZhHant extends AppLocalizationsZh {
   AppLocalizationsZhHant() : super('zh_Hant');
+
+  @override
+  String get historyModeOnline => '線上';
+
+  @override
+  String get historyModeLocal => '本機';
+
+  @override
+  String get localReadingHistoryTitle => '本機閱讀記錄';
+
+  @override
+  String get localHistorySearchHint => '搜尋作品名';
+
+  @override
+  String get localHistorySearchEmpty => '沒有符合的作品';
+
+  @override
+  String localHistoryTotal(int count) {
+    return '共 $count 條閱讀記錄';
+  }
+
+  @override
+  String localHistoryPageProgress(int page, int total) {
+    return '第 $page / $total 頁';
+  }
+
+  @override
+  String localHistoryRemoveConfirm(String name) {
+    return '確定移除《$name》的本機閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。';
+  }
+
+  @override
+  String localHistoryClearConfirm(String type) {
+    return '確定清空本機所有$type閱讀進度和已讀標記嗎？不會刪除下載內容、書籤或線上記錄。';
+  }
+
+  @override
+  String get browseHistorySeenLabel => '看到';
+
+  @override
+  String browseHistoryUpdatedAt(String time) {
+    return '更新於 $time';
+  }
 
   @override
   String get comicTabLabel => '漫畫';
@@ -4175,21 +4251,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get discoverFiltersFailed => '篩選項載入失敗，請重試';
 
   @override
-  String get searchLoadMoreFailed => '載入更多失敗，請重試';
-
-  @override
-  String get searchHistoryTitle => '搜尋歷史';
-
-  @override
-  String get searchHistoryClear => '清空歷史';
-
-  @override
-  String get searchHistoryDelete => '刪除記錄';
-
-  @override
-  String get cacheCategorySearchHistory => '搜尋歷史';
-
-  @override
   String get bookshelfTabLabel => '書架';
 
   @override
@@ -4222,6 +4283,16 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get retryButton => '重試';
+
+  @override
+  String get startupFailedTitle => '啟動失敗';
+
+  @override
+  String get startupFailedBody =>
+      '應用程式初始化沒有完成，通常是安裝包與裝置環境不匹配。可先重試；若仍失敗，請解除安裝後重新安裝，或把下面的錯誤資訊回饋給開發者。';
+
+  @override
+  String get startupFailedDetails => '錯誤資訊';
 
   @override
   String get noContent => '暫無內容';
@@ -4445,15 +4516,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get refreshFailed => '重新整理失敗';
 
   @override
+  String refreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
+
+  @override
   String get loginExpiredTitle => '登入已過期';
 
   @override
   String get loginExpiredBookshelfContent => '書架需要登入後才能繼續使用，是否現在重新登入？';
-
-  @override
-  String loginExpiredFeatureContent(String featureName) {
-    return '$featureName需要登入後才能繼續使用，是否現在重新登入？';
-  }
 
   @override
   String get laterButton => '稍後再說';
@@ -4462,14 +4533,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get goLoginButton => '去登入';
 
   @override
-  String get autoLoginFailed => '自動登入失敗，請手動重新登入';
-
-  @override
   String get loginToViewBookshelf => '登入後可繼續檢視書架';
 
   @override
   String searchHint(String mode) {
-    return '搜尋$mode...';
+    return '搜尋$mode…';
   }
 
   @override
@@ -4482,18 +4550,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get allTagsTitle => '全部標籤';
 
   @override
-  String get expandAllButton => '展開';
-
-  @override
   String get tagsExpandAll => '展開';
 
   @override
   String get tagsCollapseAll => '收起';
-
-  @override
-  String tagCount(int count) {
-    return '$count 個';
-  }
 
   @override
   String get popularOrder => '熱度';
@@ -4503,6 +4563,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get loadMore => '載入更多';
+
+  @override
+  String get loadMoreFailed => '載入更多失敗，請重試';
 
   @override
   String loadMoreProgress(int loaded, int total) {
@@ -4532,15 +4595,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get generalTitle => '通用';
 
   @override
-  String get autoLoginTitle => '自動登入';
-
-  @override
-  String get autoLoginEnabledDesc => '登入過期時自動重新登入';
-
-  @override
-  String get autoLoginUnavailableDesc => '登入並儲存帳號密碼後可用';
-
-  @override
   String get remoteNoticeTitle => '通知';
 
   @override
@@ -4553,13 +4607,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bannerVisibleTitle => '顯示 Banner';
 
   @override
-  String get bannerVisibleDesc => '關閉後漫畫和動漫首頁頂部 Banner 不顯示';
+  String get autoCheckClipboardSharedLinksTitle => '自動識別剪貼簿分享連結';
 
   @override
   String get backExitConfirmTitle => '返回兩次退出應用';
-
-  @override
-  String get backExitConfirmDesc => '在底部導覽頁面第一次返回只提示，再次返回才退出';
 
   @override
   String get backAgainToExitToast => '再次返回退出應用';
@@ -4578,29 +4629,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get cacheManagementTitle => '快取管理';
-
-  @override
-  String get cacheManagementDesc => '檢視和刪除本地快取、歷史和帳號資料';
-
-  @override
-  String get exportSettingsTitle => '匯出設定';
-
-  @override
-  String get importSettingsTitle => '匯入設定';
-
-  @override
-  String get settingsExportedWithSensitive => '設定已匯出，包含敏感資訊';
-
-  @override
-  String get settingsExportedWithoutSensitive => '設定已匯出，未包含敏感資訊';
-
-  @override
-  String exportFailed(String error) {
-    return '匯出失敗：$error';
-  }
-
-  @override
-  String get noImportSettingsContent => '沒有可匯入的設定內容';
 
   @override
   String get settingsBackupEmptyFile => '檔案裡沒有可匯入的設定';
@@ -4630,43 +4658,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get settingsBackupUnsupportedFieldType => '設定欄位類型不受支援';
 
   @override
-  String importFailed(String error) {
-    return '匯入失敗：$error';
-  }
-
-  @override
-  String get overwriteImportTitle => '覆蓋匯入';
-
-  @override
-  String overwriteImportContent(int count, String backupTime) {
-    return '將覆蓋目前 $count 項持久化設定，包含帳號、主題、閱讀器設定和本地閱讀記錄。$backupTime\n\n臨時快取不會匯入，目前設定會被取代。是否繼續？';
-  }
-
-  @override
-  String backupTimeLine(String time) {
-    return '\n\n備份時間：$time';
-  }
-
-  @override
-  String get confirmImportButton => '確認匯入';
-
-  @override
-  String get importingSettingsTitle => '正在匯入設定';
-
-  @override
-  String get importingSettingsBody => '正在寫入設定並重新載入,請稍候…';
-
-  @override
-  String get settingsImportedToast => '設定已匯入並覆蓋本地設定';
-
-  @override
   String get resetAppTitle => '重設應用';
-
-  @override
-  String get resetAppDesc => '清除本地設定、帳號、閱讀記錄和快取，不會刪除已下載的本地漫畫檔案';
-
-  @override
-  String get resettingApp => '正在重設...';
 
   @override
   String appResetToast(int count) {
@@ -4679,26 +4671,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String exportSettingsContent(int count) {
-    return '將匯出 $count 項持久化設定到 JSON 檔案，內容為明文，請謹慎保管。';
-  }
-
-  @override
-  String get includeSensitiveSettingsTitle => '包含密碼和 API 重要資訊';
-
-  @override
-  String get noSensitiveSettingsFound => '目前沒有偵測到已儲存的敏感項';
-
-  @override
-  String includeSensitiveSettingsDesc(int count) {
-    return '將額外包含 $count 項權杖、密碼、API Key 或憑證資訊';
-  }
-
-  @override
   String get copyButton => '複製';
-
-  @override
-  String get exportButton => '匯出';
 
   @override
   String get confirmResetAppTitle => '確認重設應用';
@@ -4730,10 +4703,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileHotCredentialLabel => '熱辣漫畫';
 
   @override
-  String get accountSwitchedToast => '帳號已切換';
+  String get accountAddedToast => '帳號已新增';
 
   @override
-  String get switchAccountTitle => '切換帳號';
+  String get accountSwitchedToast => '帳號已切換';
 
   @override
   String get addAccountButton => '新增帳號';
@@ -4754,13 +4727,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get userInfoRefreshFailedToast => '重新整理失敗，請重試';
 
   @override
-  String get copyProfileRefreshUnavailable => '暫時無法重新整理拷貝帳號資料，請透過登入更新頭像和使用者名稱';
+  String userInfoRefreshFailedDetail(String detail) {
+    return '重新整理失敗：$detail';
+  }
 
   @override
   String get tokenUnavailableToast => '暫無可複製的權杖';
 
   @override
-  String get tokenCopiedToast => '權杖已複製到剪貼簿';
+  String get tokenCopiedToast => '權杖已複製';
 
   @override
   String get appearanceTitle => '外觀';
@@ -4786,19 +4761,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceBottomNavLabelModeSelectedOnly => '選中時顯示';
 
   @override
-  String get appearanceBottomNavLabelModeSelectedOnlyDesc => '膠囊導覽，僅選中項顯示文字';
-
-  @override
   String get appearanceBottomNavLabelModeHidden => '不顯示文字';
-
-  @override
-  String get appearanceBottomNavLabelModeHiddenDesc => '膠囊導覽，只顯示圖示';
 
   @override
   String get appearanceBottomNavLabelModeAlways => '始終顯示文字';
 
   @override
-  String get appearanceBottomNavLabelModeAlwaysDesc => '經典導覽，文字顯示在圖示下方';
+  String get appearanceFloatingNavLabelModeHint => '懸浮底欄不支援始終顯示文字，已改為選中時顯示';
 
   @override
   String get appearanceNavOrder => '導覽列順序';
@@ -4810,13 +4779,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceNavSwipeTitle => '左右滑動切換頁面';
 
   @override
-  String get appearanceNavSwipeDesc => '關閉後只能點擊底部導覽按鈕切換頁面';
+  String get appearanceFloatingNavTitle => '懸浮導覽列';
 
   @override
   String get appearanceAppIcon => '應用圖示';
-
-  @override
-  String get appearanceAppIconRestartHint => '更換後重啟應用生效';
 
   @override
   String get appearanceRefreshRateTitle => '螢幕重新整理率';
@@ -4837,49 +4803,25 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceDarkCoverBrightness => '暗色模式封面亮度';
 
   @override
-  String get appearanceDarkCoverBrightnessDesc => '暗色模式下降低各個介面的卡片封面亮度';
-
-  @override
-  String get appearanceShadowTitle => '陰影';
-
-  @override
   String get appearanceCardShadowSize => '統一陰影大小';
 
   @override
-  String get appearanceCardShadowSizeDesc => '統一調整應用內一般卡片的陰影大小';
-
-  @override
-  String get appearanceDefaultFontSize => '預設字型大小';
-
-  @override
-  String get appearanceDefaultFontSizeDesc => '目前預設正文為 14；標題與輔助文字會按比例調整';
+  String get appearanceTextScale => '全域文字縮放';
 
   @override
   String get appearanceThemeStyle => '主題風格';
 
   @override
-  String appearanceCurrentStyle(String label, String description) {
-    return '目前風格：$label · $description';
-  }
-
-  @override
   String get appearanceThemeColor => '主題配色';
-
-  @override
-  String get appearanceThemeColorDesc => '點擊色塊切換主題色，帶勾選的為目前配色。';
 
   @override
   String get appearanceDynamicColor => '動態顏色';
 
   @override
-  String get appearanceDynamicColorDesc =>
-      '基於桌布動態生成主題配色（Android 12+，開啟後忽略上方主題配色）';
-
-  @override
   String get appearanceAmoledDark => 'AMOLED 純黑模式';
 
   @override
-  String get appearanceAmoledDarkDesc => '在暗色主題中使用純黑背景';
+  String get appearanceReduceMotionTitle => '減少動畫';
 
   @override
   String appearanceRefreshRateRequested(String rate) {
@@ -4888,14 +4830,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceRefreshRateSaved => '重新整理率偏好已儲存';
-
-  @override
-  String appearanceRefreshRateLoadFailed(String error) {
-    return '獲取裝置重新整理率失敗：$error';
-  }
-
-  @override
-  String get appearanceUnknownError => '未知錯誤';
 
   @override
   String get appearanceAutoSystem => '自動（跟隨系統）';
@@ -4911,11 +4845,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   @override
   String appearanceRefreshRateCurrent(int rate) {
     return '${rate}Hz（目前）';
-  }
-
-  @override
-  String appearanceApplyingRefreshRate(String rate) {
-    return '正在套用 $rate';
   }
 
   @override
@@ -4936,6 +4865,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get appearanceAppFont => '應用字型';
+
+  @override
+  String get appearanceDesktopFont => '系統字型';
 
   @override
   String get appearanceSystemDefault => '系統預設';
@@ -4998,11 +4930,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appearanceCustomFontBadge => '自訂';
 
   @override
+  String get appearanceImportLocalFont => '從本機匯入字型';
+
+  @override
+  String get appearanceImportFontInvalid => '無法讀取該字型檔案，請選擇有效的 .ttf / .otf 字型';
+
+  @override
+  String appearanceImportFontFailed(String error) {
+    return '匯入字型失敗：$error';
+  }
+
+  @override
   String get appearanceCustomFontRemoveTitle => '移除自訂字型';
 
   @override
   String appearanceCustomFontRemoveContent(String fontName) {
-    return '確定要移除自訂字型 $fontName 嗎？本機檔案也會一併刪除。';
+    return '確定要移除自訂字型 $fontName 嗎？';
   }
 
   @override
@@ -5037,13 +4980,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get networkSelectionMode => '選擇模式';
 
   @override
+  String get networkAutoTestEnabled => '定時測速並切換線路';
+
+  @override
+  String get networkAutoTestInterval => '測速間隔';
+
+  @override
   String get networkModeRoute => '線路';
-
-  @override
-  String get networkFixedNodeAutoSelected => '測速後已選擇延遲最低的節點';
-
-  @override
-  String get networkRouteAutoSelected => '測速後已切換到平均延遲最低的線路';
 
   @override
   String networkRouteLabel(int index) {
@@ -5051,10 +4994,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get networkTestingNodes => '正在檢測各節點...';
+  String get networkTestingNodes => '正在檢測各節點…';
 
   @override
-  String get networkHighLatencyProxySuggestion => '目前延遲較大，建議開啟代理';
+  String networkSpeedTestFailedDetail(String detail) {
+    return '測速失敗：$detail';
+  }
+
+  @override
+  String get networkHighLatencyHint => '目前線路延遲較高';
 
   @override
   String get networkRateLimitMessage => '請求過於頻繁，已被限速，請稍後再試';
@@ -5133,6 +5081,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkCopyAppVersion => 'COPY 請求版本號';
+
+  @override
+  String get networkCopyVersionCode => 'COPY versionCode';
 
   @override
   String get networkCopyAutoUpdate => '每天自動更新';
@@ -5218,7 +5169,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String networkStatusWarnHint(int ms) {
-    return '目前延遲約 $ms ms，建議開啟代理';
+    return '目前延遲約 $ms ms';
   }
 
   @override
@@ -5241,12 +5192,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get networkCurrentInUse => '使用中';
-
-  @override
-  String get networkModeRouteDesc => '請求自動在線路內的節點間切換';
-
-  @override
-  String get networkModeFixedNodeDesc => '固定使用單一節點';
 
   @override
   String get networkNodesSectionTitle => '線路與節點';
@@ -5334,7 +5279,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aiConfigGetZhipuApiKey => '獲取智譜 API 金鑰';
 
   @override
-  String get aiConfigAgnesName => 'Agnes CN';
+  String get aiConfigAgnesName => 'Agnes';
 
   @override
   String get aiConfigGetAgnesApiKey => '獲取 Agnes API 金鑰';
@@ -5435,13 +5380,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarksLoadFailed => '書籤載入失敗，請重試';
 
   @override
-  String get bookmarksUpdateFailed => '書籤儲存失敗，請重試';
+  String bookmarksUpdateFailedDetail(String detail) {
+    return '書籤儲存失敗：$detail';
+  }
+
+  @override
+  String get bookmarksSearchHint => '搜尋書名或章節';
+
+  @override
+  String get bookmarksSearchEmpty => '沒有找到相關書籤，試試其他關鍵詞';
 
   @override
   String get statsTitle => '閱讀統計';
-
-  @override
-  String get continueReadingTitle => '繼續閱讀';
 
   @override
   String continueReadingPageLabel(int page) {
@@ -5600,6 +5550,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarkRemoved => '已取消書籤';
 
   @override
+  String bookmarkRemoveGroupContent(int count) {
+    return '該作品有 $count 條書籤，取消書籤會一併刪除。';
+  }
+
+  @override
   String bookmarkPage(int page) {
     return '第 $page 頁';
   }
@@ -5619,13 +5574,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get bookmarksEmptyTitle => '還沒有書籤';
 
   @override
-  String get bookmarksEmptySubtitle => '閱讀漫畫時，點擊右上角的書籤按鈕即可標記當前位置';
+  String get bookmarksEmptySubtitle => '閱讀時點右上角書籤即可標記';
 
   @override
   String get bookmarksClearTitle => '清空書籤';
-
-  @override
-  String get bookmarksClearContent => '確定要清空所有書籤嗎？';
 
   @override
   String bookmarksGroupDeleted(int count) {
@@ -5645,13 +5597,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get notLoggedInTitle => '未登入';
 
   @override
-  String get loginPromptSubtitle => '點擊登入以使用書架等功能';
-
-  @override
   String get refreshUserButton => '重新整理使用者';
-
-  @override
-  String get switchAccountButton => '切換帳號';
 
   @override
   String get copyTokenButton => '複製權杖';
@@ -5684,83 +5630,47 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
       '本軟體按\"現狀\"提供，開發者不對其功能性、可用性、準確性或可靠性作出任何明示或默示的保證。在任何情況下，開發者均不對因使用或無法使用本軟體而產生的任何直接、間接、附帶、特殊或後果性損害承擔責任。';
 
   @override
-  String get appDisclaimerFooter =>
-      '繼續使用本軟體，即表示您已仔細閱讀、充分理解並同意接受上述全部條款的約束。如您不同意任一條款，請立即停止使用並解除安裝本軟體。';
-
-  @override
   String get profileUsernamePasswordRequired => '請輸入使用者名稱和密碼';
 
   @override
-  String get profileLoginFailedProxyHint => '登入失敗，建議開啟代理後重試';
+  String profileLoginFailedDetail(String detail) {
+    return '登入失敗：$detail';
+  }
 
   @override
-  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或開啟代理後重試';
+  String get profileLoginIpBlockedHint => '目前 IP 已被封鎖，請更換網路環境或代理節點後重試';
 
   @override
   String get profileTokenRequired => '請輸入權杖';
 
   @override
-  String get profileTokenInvalidOrExpired => '權杖無效或已過期';
-
-  @override
   String get profileLoginTitle => '登入';
-
-  @override
-  String get profileAccountPasswordLoginMode => '帳號密碼';
-
-  @override
-  String get profileTokenLoginMode => '權杖';
 
   @override
   String get profileTokenLoginEntry => '權杖登入';
 
   @override
-  String get profileWebLoginButton => '官網登入';
+  String get copyAccountChannelWebApi => '網頁介面';
 
   @override
-  String get profileWebLoginRecommendedTag => '推薦';
+  String get copyAccountChannelWeb => '網頁';
+
+  @override
+  String get copyAccountChannelApp => 'App介面';
+
+  @override
+  String copyAccountInterfaceLoginFailed(String detail) {
+    return '登入失敗：$detail';
+  }
 
   @override
   String get profileWebLoginPageTitle => '官網登入';
 
   @override
-  String get profileWebLoginHint =>
-      '在官網中登入拷貝漫畫帳號，登入成功後將自動完成；若要換成其他帳號，請先點右上角清除登入狀態';
+  String get profileWebLoginHint => '在應用內開啟拷貝官網登入頁並自動填入帳號密碼，由網頁完成登入後自動回填。';
 
   @override
   String get profileWebLoginCompleting => '已獲取登入資訊，正在驗證…';
-
-  @override
-  String get profileWebLoginManualButton => '我已完成登入';
-
-  @override
-  String get profileWebLoginNotDetected => '未偵測到登入資訊，請先在官網中完成登入';
-
-  @override
-  String get profileWebLoginResetTooltip => '清除官網登入狀態';
-
-  @override
-  String get profileWebLoginResetDone => '已清除官網登入狀態，請登入其他帳號';
-
-  @override
-  String profileWebLoginKnownAccount(String name) {
-    return '偵測到本機已儲存的帳號「$name」，尚未自動登入';
-  }
-
-  @override
-  String get profileWebLoginKnownAccountFallback => '已儲存的帳號';
-
-  @override
-  String get profileWebLoginUseAccount => '使用該帳號';
-
-  @override
-  String get profileWebLoginSwitchAccount => '切換其他帳號';
-
-  @override
-  String get profileWebLoginRetryButton => '重新偵測登入';
-
-  @override
-  String get profileWebLoginResetFailed => '清除官網登入狀態失敗，請重試';
 
   @override
   String get profileWebLoginFailed => '官網登入失敗';
@@ -5792,22 +5702,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get profileOpenOfficialRegisterFailed => '無法開啟官網註冊頁';
 
   @override
-  String get profileHotMangaLabel => '熱辣漫畫';
-
-  @override
-  String get profileCopyMangaLabel => '拷貝漫畫';
-
-  @override
-  String get loginGoOfficialRegisterHot => '前往官網註冊帳號';
-
-  @override
-  String get loginGoOfficialRegisterCopy => '前往官網註冊帳號';
+  String get loginGoOfficialRegister => '前往官網註冊帳號';
 
   @override
   String get aboutMirrorPrefixTitle => '設定鏡像源';
-
-  @override
-  String get aboutMirrorPrefixDesc => '用於更新與播放元件下載的鏡像連結，會拼接在 GitHub 下載地址前。';
 
   @override
   String get aboutMirrorPrefixLabel => '鏡像源地址';
@@ -5831,28 +5729,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutStableChannelShort => '穩定版';
 
   @override
-  String get aboutUpdateChannelTitle => '更新渠道';
+  String get aboutBetaChannelConfirmTitle => '是否切換?';
 
   @override
-  String get aboutStableChannelTitle => '穩定版 (Stable)';
+  String get aboutBetaChannelNote => '預覽版更新更快，問題也可能更多';
 
   @override
-  String get aboutStableChannelDesc => '僅檢查正式發布版本';
+  String get aboutBetaChannelArm64Only => '僅限 Android arm64 裝置。';
 
   @override
-  String get aboutBetaChannelTitle => '預覽版（Beta）';
-
-  @override
-  String get aboutBetaChannelDesc => '從最新提交建置的版本，可能不穩定';
-
-  @override
-  String get aboutBetaChannelSwitchedTitle => '已切換到預覽版';
-
-  @override
-  String get aboutBetaChannelSwitchedContent => '預覽版一般用於測試新功能或修復問題，可能存在更多問題。';
-
-  @override
-  String get aboutGotItButton => '知道了';
+  String aboutBetaChannelDevice(String os, String arch) {
+    return '目前裝置：$os $arch。';
+  }
 
   @override
   String get aboutRepositoryLabel => '倉庫';
@@ -5870,10 +5758,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get aboutLogTitle => '日誌';
 
   @override
-  String get aboutLicenseTitle => '授權條款';
+  String get aboutLicenseTitle => '開源授權';
 
   @override
   String get licenseMitSummary => '本專案採用 MIT 開源授權條款';
+
+  @override
+  String get licenseThirdPartyTitle => '第三方依賴';
+
+  @override
+  String get licenseFontsTitle => '字型';
+
+  @override
+  String get licenseThirdPartyEmpty => '未收集到第三方授權';
+
+  @override
+  String licenseCount(int count) {
+    return '$count 份授權';
+  }
 
   @override
   String get cacheDeleteEntryTitle => '刪除快取項';
@@ -6007,10 +5909,18 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get commentSettingsPreloadDesc => '進入章節時提前載入評論並顯示數量';
 
   @override
-  String get commentSettingsAutoLoadAllTitle => '自動載入全部評論';
+  String get commentSettingsDisplaySection => '評論區版面';
 
   @override
-  String get commentSettingsAutoLoadAllDesc => '開啟評論區時自動載入所有評論';
+  String get commentSettingsLoadingSection => '載入';
+
+  @override
+  String get commentSettingsFilteringSection => '封鎖';
+
+  @override
+  String commentSettingsInitialCountTitle(int count) {
+    return '初始載入$count則評論';
+  }
 
   @override
   String get commentSettingsFontSizeTitle => '評論內容字型大小';
@@ -6128,19 +6038,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get chapterCommentsTitle => '章節評論';
 
   @override
-  String get chapterCommentsLoadAllTooltip => '載入全部評論';
-
-  @override
   String get chapterCommentsAiSummaryTooltip => 'AI 總結評論';
 
   @override
   String get chapterCommentsRegenerateAiSummaryTooltip => '重新生成 AI 總結';
-
-  @override
-  String get chapterCommentsSwitchToListLayout => '切換為列表版面';
-
-  @override
-  String get chapterCommentsSwitchToCompactLayout => '切換為緊湊版面';
 
   @override
   String chapterCommentsTotalCount(int count) {
@@ -6261,11 +6162,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String comicCommentReplyHint(String userName) {
-    return '回覆 $userName...';
+    return '回覆 $userName…';
   }
 
   @override
-  String get comicCommentPostHint => '說點什麼...';
+  String get comicCommentPostHint => '說點什麼…';
 
   @override
   String get comicCommentReplyPosted => '回覆已發布';
@@ -6295,9 +6196,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerTopToBottom => '上到下';
 
   @override
-  String get readerScrollSection => '捲動';
-
-  @override
   String get readerImageGap => '圖片間距';
 
   @override
@@ -6308,10 +6206,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get readerHorizontalImageScale => '橫向圖片大小';
-
-  @override
-  String get readerHorizontalImageScaleDesc =>
-      '調整橫向捲動模式下圖片相對螢幕高度的比例（僅橫向捲動模式可用）';
 
   @override
   String get readerAutoScroll => '自動捲動';
@@ -6352,9 +6246,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerInstantPageTurn => '無動畫翻頁';
 
   @override
-  String get readerDisplaySection => '顯示';
-
-  @override
   String get readerLongPressZoom => '長按縮放';
 
   @override
@@ -6376,7 +6267,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerStatusBattery => '電量';
 
   @override
+  String get readerStatusChapter => '章節名';
+
+  @override
   String get readerStatusPage => '頁碼';
+
+  @override
+  String get readerStatusProgress => '進度';
 
   @override
   String get readerStatusFps => '幀率';
@@ -6406,6 +6303,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerStatusOverlayOpacity => '背景不透明度';
 
   @override
+  String get readerStatusOverlayForeground => '前景色';
+
+  @override
+  String get readerStatusOverlayBackground => '背景色';
+
+  @override
+  String get readerStatusOverlayFollowTheme => '跟隨閱讀主題';
+
+  @override
+  String get readerStatusOverlayDefaultColor => '預設';
+
+  @override
+  String get readerStatusOverlayColorPicker => '選擇顏色';
+
+  @override
   String get readerDimming => '降低亮度';
 
   @override
@@ -6416,9 +6328,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get readerTimeoutDesc => '設定太小可能導致圖片載入失敗，太大可能導致長時間轉圈';
-
-  @override
-  String get readerNoLoadStats => '暫無載入紀錄（閱讀圖片後此處顯示平均耗時供參考）';
 
   @override
   String readerRecentLoadStats(int count, String seconds) {
@@ -6464,6 +6373,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get browseHistoryLoginHintComicOnly => '瀏覽過的漫畫會同步顯示在這裡';
 
   @override
+  String browseHistoryLoadFailed(String detail) {
+    return '瀏覽紀錄載入失敗：$detail';
+  }
+
+  @override
   String browseHistoryEmptyTitle(String mode) {
     return '還沒有$mode瀏覽紀錄';
   }
@@ -6489,14 +6403,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String browseHistoryLatestChapter(String chapter) {
-    return '最新 $chapter';
-  }
-
-  @override
-  String browseHistoryLastSeen(String name) {
-    return '上次看到 $name';
-  }
+  String get browseHistoryLatestLabel => '最新';
 
   @override
   String cacheSelectedCards(int count) {
@@ -6525,6 +6432,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get cacheDataCacheSection => '資料快取';
+
+  @override
+  String get cacheDataCacheWarning => '資料快取包含書架、設定與閱讀歷史，刪除會遺失。';
 
   @override
   String get cacheNoLocalKeyValueData => '沒有可顯示的本地鍵值資料';
@@ -6666,7 +6576,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appLogEmpty => '暫無錯誤日誌';
 
   @override
-  String get appLogCopied => '日誌已複製到剪貼簿';
+  String get appLogDisabledTitle => '日誌記錄已關閉';
+
+  @override
+  String get appLogCopied => '日誌已複製';
 
   @override
   String appLogCopyFailed(String error) {
@@ -6712,7 +6625,15 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get appLogLevelError => '錯誤';
 
   @override
-  String get appLogSearchHint => '搜尋日誌（訊息、來源、堆疊、上下文）';
+  String get appLogExportTooltip => '匯出日誌檔案';
+
+  @override
+  String get appLogExported => '日誌已匯出';
+
+  @override
+  String appLogExportFailed(String error) {
+    return '匯出失敗：$error';
+  }
 
   @override
   String get appLogClearLogsTooltip => '清空日誌';
@@ -6952,11 +6873,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String downloadQueueDeleteBatchContent(int count) {
-    return '已下載的 $count 頁檔案將一併刪除。';
-  }
-
-  @override
   String get downloadQueueDeleteSelectedConfirm => '所選下載任務及已儲存的相關檔案都會被刪除。';
 
   @override
@@ -6979,11 +6895,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get downloadQueueDeleteSelected => '刪除所選';
-
-  @override
-  String downloadQueueBatchDeleted(int count) {
-    return '已刪除 $count 個任務';
-  }
 
   @override
   String downloadProgressCount(String percent, int completed, int total) {
@@ -7048,7 +6959,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String get commentSettingsMinCommentCount => '最少評論數';
+  String get commentSettingsMinCommentCount => '最少已載入評論數';
 
   @override
   String get commentSettingsTriggerTiming => '呼叫時機';
@@ -7124,6 +7035,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
+  String readerChainChapterFailedDetail(String detail) {
+    return '載入相鄰章節失敗：$detail';
+  }
+
+  @override
   String get readerNoPreviousChapter => '目前已無上一話';
 
   @override
@@ -7151,22 +7067,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerRefresh => '重新整理本話';
 
   @override
-  String get readerAlreadyFirstChapter => '已經是第一章';
+  String get readerAlreadyFirstChapter => '夢開始的地方';
 
   @override
   String get readerContinuePageNextChapter => '繼續翻頁進入下一話';
 
   @override
-  String get readerAlreadyLastChapter => '已經是最後一話';
+  String get readerAlreadyLastChapter => '當前已無下一話';
 
   @override
   String get readerContinueScrollOrTapNextChapter => '繼續下滑或點擊按鈕進入下一話';
 
   @override
-  String get readerImagePathCopied => '圖片路徑已複製到剪貼簿';
+  String get readerImagePathCopied => '圖片路徑已複製';
 
   @override
-  String get readerImageUrlCopied => '圖片連結已複製到剪貼簿';
+  String get readerImageUrlCopied => '圖片連結已複製';
 
   @override
   String get readerLocalImageMissing => '本地圖片損壞或缺失';
@@ -7192,7 +7108,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get readerImageSaved => '圖片已儲存到相簿';
 
   @override
-  String get readerSaveImageFailed => '圖片儲存失敗';
+  String readerSaveImageFailedDetail(String detail) {
+    return '圖片儲存失敗：$detail';
+  }
 
   @override
   String get readerSaveImagePermissionDenied => '沒有相簿寫入權限，儲存失敗';
@@ -7241,7 +7159,22 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get updateDownloadFailed => '下載失敗，請稍後重試';
 
   @override
+  String updateDownloadFailedDetail(String detail) {
+    return '下載失敗：$detail';
+  }
+
+  @override
+  String updateDownloadFallback(int count) {
+    return '下載源切換中（第 $count 個備用源）';
+  }
+
+  @override
   String get updateInstallFailed => '無法啟動安裝，請改用瀏覽器下載';
+
+  @override
+  String updateInstallFailedDetail(String detail) {
+    return '無法啟動安裝：$detail';
+  }
 
   @override
   String get updateInstallPermissionNeeded => '需要「安裝未知應用」權限才能安裝更新';
@@ -7283,7 +7216,17 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get noticeRefreshFailed => '重新整理通知失敗，請稍後重試';
 
   @override
+  String noticeRefreshFailedDetail(String detail) {
+    return '重新整理通知失敗：$detail';
+  }
+
+  @override
   String get noticeReadFailed => '讀取通知失敗';
+
+  @override
+  String noticeReadFailedDetail(String detail) {
+    return '讀取通知失敗：$detail';
+  }
 
   @override
   String get noticeAllMarkedRead => '所有通知已標記為已讀';
@@ -7400,9 +7343,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get backupTitle => '備份與同步';
-
-  @override
-  String get backupEntryDescription => '本機檔案與 WebDAV 備份';
 
   @override
   String get backupContent => '備份內容';
@@ -7689,6 +7629,11 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get backupOperationFailed => '操作失敗，請檢查檔案權限和可用空間後重試。';
 
   @override
+  String backupOperationFailedDetail(String detail) {
+    return '操作失敗：$detail';
+  }
+
+  @override
   String get backupWebDavInvalidConfig => '請檢查伺服器位址、使用者名稱和資料夾路徑。';
 
   @override
@@ -7770,27 +7715,13 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelStartReading => '開始閱讀';
 
   @override
-  String novelVolumeProgress(String percent) {
-    return '本卷 $percent%';
-  }
-
-  @override
-  String get novelBrowseBooks => '瀏覽書籍';
-
-  @override
   String get novelAllThemes => '全部';
 
   @override
   String get novelThemes => '題材';
 
   @override
-  String get novelTagsExpandAll => '展開';
-
-  @override
   String get novelEmptyBooks => '暫無書籍，試試其他題材';
-
-  @override
-  String get novelLoadMore => '載入更多';
 
   @override
   String get novelLoadMoreFailed => '載入失敗，點擊重試';
@@ -7855,9 +7786,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelDeleteToastSuffix => ' 部本機輕小說';
 
   @override
-  String get novelBrief => '簡介';
-
-  @override
   String get novelNoBrief => '暫無簡介';
 
   @override
@@ -7867,19 +7795,20 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelCollectFailed => '收藏操作失敗，請重試';
 
   @override
+  String novelCollectFailedDetail(String detail) {
+    return '收藏操作失敗：$detail';
+  }
+
+  @override
+  String novelDownloadEnqueueFailed(String detail) {
+    return '加入下載失敗：$detail';
+  }
+
+  @override
   String get novelQueryFailed => '閱讀與收藏狀態載入失敗';
 
   @override
-  String get novelAccountRequired => '閱讀權限由拷貝帳戶決定，可登入後重試';
-
-  @override
-  String get novelLocked => '目前內容受限，可嘗試切換拷貝帳戶';
-
-  @override
   String get novelEmptyShelf => '書架還是空的，去發現喜歡的小說吧';
-
-  @override
-  String get novelShelfFailed => '書架載入失敗';
 
   @override
   String get novelEmptyHistory => '開始閱讀後，進度會儲存在這裡';
@@ -7891,13 +7820,12 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelClearHistory => '清空閱讀記錄';
 
   @override
-  String get novelClearHistoryConfirm => '僅清除本機輕小說閱讀進度，不會取消書架收藏。';
-
-  @override
   String get novelRemoveHistory => '移除閱讀記錄';
 
   @override
-  String get novelHistoryDeleteFailed => '移除失敗，請重試';
+  String novelHistoryDeleteFailedDetail(String detail) {
+    return '移除失敗：$detail';
+  }
 
   @override
   String get novelBookDetails => '查看詳情';
@@ -7922,9 +7850,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelCommentFailed => '發表失敗，內容已保留，請重試';
-
-  @override
-  String get novelReplies => '查看回覆';
 
   @override
   String get novelReply => '回覆';
@@ -7961,11 +7886,8 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String novelCommentReplyHint(Object userName) {
-    return '回覆 $userName...';
+    return '回覆 $userName…';
   }
-
-  @override
-  String get novelCommentReplyPosted => '回覆已發布';
 
   @override
   String get novelSerializing => '連載中';
@@ -7978,9 +7900,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get novelReaderBack => '返回';
-
-  @override
-  String get novelReaderHideToolbar => '收起工具列';
 
   @override
   String get novelReaderShowToolbar => '展開工具列';
@@ -7998,19 +7917,24 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderBookmark => '書籤';
 
   @override
-  String get novelReaderCopiedToast => '段落已複製到剪貼簿';
-
-  @override
   String get novelReaderVolumesRetry => '卷冊載入失敗，重試';
 
   @override
-  String get novelReaderPrevious => '上一章節';
+  String novelReaderVolumesRetryDetail(String detail) {
+    return '卷冊載入失敗：$detail（點擊重試）';
+  }
 
   @override
-  String get novelReaderNext => '下一章節';
+  String get novelReaderPrevious => '上一卷';
+
+  @override
+  String get novelReaderNext => '下一卷';
 
   @override
   String get novelReaderSettings => '閱讀設定';
+
+  @override
+  String get novelReaderRealisticPageTurn => '仿真翻頁';
 
   @override
   String get novelReaderFontSize => '字級';
@@ -8022,10 +7946,21 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderParagraphSpacing => '段距';
 
   @override
+  String get novelReaderContentWidth => '正文寬度';
+
+  @override
   String get novelReaderTheme => '閱讀主題';
 
   @override
-  String get novelReaderThemeSystem => '跟隨系統';
+  String get novelReaderFontFamily => '正文字型';
+
+  @override
+  String get novelReaderFontFollowApp => '跟隨應用程式字型';
+
+  @override
+  String novelReaderFontUnavailable(String name) {
+    return '$name（不可用）';
+  }
 
   @override
   String get novelReaderThemePaper => '紙張';
@@ -8040,7 +7975,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderThemeGreen => '護眼綠';
 
   @override
-  String get novelReaderThemeCustom => '自訂';
+  String get novelReaderThemeGray => '灰';
+
+  @override
+  String get novelReaderThemeCustom => '自訂主題';
 
   @override
   String get novelReaderThemeLightMode => '淺色模式';
@@ -8077,10 +8015,68 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get novelReaderTextColor => '文字顏色';
 
   @override
-  String get novelReaderPreviewText => '選擇適合你的閱讀配色與字級。';
+  String get novelReaderPreviewText => '夜色溫柔，街燈次第亮起，故事從這一頁開始。';
+
+  @override
+  String get novelReaderColorScheme => '配色方案';
+
+  @override
+  String get novelReaderDialogueStyle => '對白樣式';
+
+  @override
+  String get novelReaderDialogueAutomatic => '自動適配';
+
+  @override
+  String get novelReaderDialogueFollowBody => '跟隨正文';
+
+  @override
+  String get novelReaderDialogueCustom => '自選顏色';
+
+  @override
+  String get novelReaderDialogueWeight => '字重';
+
+  @override
+  String get novelReaderDialogueMedium => '中等';
+
+  @override
+  String get novelReaderDialogueBold => '加粗';
+
+  @override
+  String get novelReaderDialogueBackground => '對白底色';
+
+  @override
+  String get novelReaderDialogueBackgroundStrength => '底色強度';
+
+  @override
+  String get novelReaderDialogueLowContrast => '對白與背景對比度較低';
+
+  @override
+  String get novelReaderDialoguePreviewText =>
+      '夜色溫柔，她翻開書頁，窗外的風輕輕吹動簾角。\n「故事裡還有『未說完的話』，我們繼續吧。」\n街燈亮起，遠處傳來列車經過的聲音，像一段熟悉的旋律。\n『等到天亮，我們就一起出發。』\n「如果路上迷失方向，\n就記住窗邊這盞燈，我會在這裡等你回來。」\n她合上書，笑著望向窗外。她說：「這一句尚未結束……';
 
   @override
   String get novelReaderKeepScreenOn => '閱讀時螢幕常亮';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphs => '隱藏空白段落';
+
+  @override
+  String get novelReaderIgnoreBlankParagraphsDenseHint => '可以適當增大段距以免文字過於密集';
+
+  @override
+  String get novelReaderFocusMode => '專注模式';
+
+  @override
+  String get novelReaderFocusKeepStatusVisible => '不遮擋狀態元件';
+
+  @override
+  String get novelReaderFocusTopBound => '上邊界';
+
+  @override
+  String get novelReaderFocusBottomBound => '下邊界';
+
+  @override
+  String get novelReaderFocusOpacity => '遮罩濃度';
 
   @override
   String get novelReaderIllustration => '插圖';
@@ -8118,33 +8114,10 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   }
 
   @override
-  String novelReaderParagraphProgress(int current, int total) {
-    return '$current / $total 段';
-  }
-
-  @override
-  String get copyAccountTitle => '輕小說 · 獨立拷貝帳號';
-
-  @override
   String get copyAccountLoginTitle => '登入拷貝帳號';
 
   @override
   String get copyAccountIndependentHint => '僅用於拷貝輕小說。登入、切換或登出此帳號都不會改變目前主帳號。';
-
-  @override
-  String get copyAccountConnected => '拷貝帳號已登入';
-
-  @override
-  String get copyAccountNotConnected => '尚未登入拷貝帳號';
-
-  @override
-  String get copyAccountSwitch => '切換拷貝帳號';
-
-  @override
-  String get copyAccountLogout => '登出拷貝帳號';
-
-  @override
-  String get copyAccountLogoutConfirm => '僅登出輕小說使用的獨立拷貝帳號，目前主帳號保持不變。';
 
   @override
   String get copyAccountStorageFailed => '無法儲存拷貝帳號，請稍後重試；原帳號保持不變。';
@@ -8175,33 +8148,6 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get accountProfileMissing => '已登入（未取得資料）';
-
-  @override
-  String get accountCenterAddPrimary => '登入漫畫帳號';
-
-  @override
-  String get accountCenterAddCopy => '新增拷貝帳號';
-
-  @override
-  String get accountCenterPickComic => '選擇漫畫使用的帳號';
-
-  @override
-  String get accountCenterPickNovel => '選擇輕小說使用的帳號';
-
-  @override
-  String get accountCenterNovelOnlyCopy => '輕小說只能使用拷貝帳號';
-
-  @override
-  String get accountCenterRenameTitle => '帳號備註';
-
-  @override
-  String get accountCenterRenameLabel => '備註名';
-
-  @override
-  String get accountCenterRenameHint => '例如：主號 / 小號';
-
-  @override
-  String get accountCenterRemoveTitle => '移除帳號';
 
   @override
   String accountCenterRemoveConfirm(String name) {
@@ -8236,4 +8182,124 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get accountCenterNameNewTitle => '給新帳號起個備註名';
+
+  @override
+  String get homeRecentAll => '全部';
+
+  @override
+  String get homeRecentJapaneseOnly => '僅日漫';
+
+  @override
+  String get homeRecentUpdates => '最近更新';
+
+  @override
+  String get homeRecentEmpty => '目前最近更新中沒有符合篩選的漫畫';
+
+  @override
+  String get homeRecentJapaneseHint => '僅展示地區已確認為日本的漫畫，按更新時間排序';
+
+  @override
+  String get homeRecentJapan => '日漫';
+
+  @override
+  String get homeRecentKorea => '韓漫';
+
+  @override
+  String get homeRecentWestern => '美漫';
+
+  @override
+  String get homeRecentRegions => '關注地區';
+
+  @override
+  String get networkIOSProxyStatusUnknown => '未取得系統 HTTP 代理位址，VPN 狀態無法確認';
+
+  @override
+  String get networkIOSManagedNetwork => '由 iOS 管理網路（VPN 狀態無法確認）';
+
+  @override
+  String get networkIOSSystemHint =>
+      'VPN 隧道可能不提供 HTTP 代理位址。未偵測到位址不代表 VPN 未生效；測速使用目前網路路徑，是否經過 VPN 取決於系統及代理軟體的分流規則。';
+
+  @override
+  String get networkIOSDirectActive => '不使用應用層代理';
+
+  @override
+  String get networkIOSDirectHint => '此模式繞過應用層 HTTP/SOCKS 代理；系統 VPN 仍可能接管連線。';
+
+  @override
+  String get networkIOSLatencySuggestion => '連線耗時較高或無法連線，請檢查網路、VPN 分流規則及所選節點';
+
+  @override
+  String get progressSyncTitle => '閱讀進度同步';
+
+  @override
+  String get progressSyncAutomatic => '自動同步';
+
+  @override
+  String get progressSyncAutomaticHint => '開啟應用程式、返回前景和閱讀後自動交換進度；離線時保留待同步記錄。';
+
+  @override
+  String get progressSyncICloud => 'iCloud Drive';
+
+  @override
+  String get progressSyncChooseFolder => '選擇同步資料夾';
+
+  @override
+  String get progressSyncFolderReady => '已選擇。兩台裝置需要選擇 iCloud Drive 中的同一個資料夾。';
+
+  @override
+  String get progressSyncFolderRequired => '請先在 iCloud Drive 中新增或選擇一個專用資料夾。';
+
+  @override
+  String get progressSyncWebDavSettings => '設定 WebDAV';
+
+  @override
+  String get progressSyncWebDavHint => '使用備份頁面儲存的伺服器與帳號，進度同步獨立運作。';
+
+  @override
+  String get progressSyncICloudHint =>
+      '首次在每台裝置選擇同一個專用資料夾。檔案由 iCloud Drive 傳送，可能延遲；「最近交換」不代表其他裝置已經收到。閱讀中不會強制跳轉到其他裝置的位置。';
+
+  @override
+  String get progressSyncBackupHint =>
+      '僅同步漫畫和輕小說的閱讀位置與已讀標記，不傳送帳號、漫畫圖片或正文。完整備份和手動還原保持獨立。';
+
+  @override
+  String progressSyncLastExchange(String time) {
+    return '最近交換：$time';
+  }
+
+  @override
+  String get progressSyncNow => '立即同步';
+
+  @override
+  String get progressSyncConflicts => '需要選擇的閱讀進度';
+
+  @override
+  String get progressSyncConflictHint => '多台裝置分別修改了同一本書。請選擇要繼續的位置，選擇前不會互相覆蓋。';
+
+  @override
+  String progressSyncComicPosition(String chapter, String page) {
+    return '$chapter · 第 $page 頁';
+  }
+
+  @override
+  String progressSyncNovelPosition(String chapter, String paragraph) {
+    return '$chapter · 第 $paragraph 段';
+  }
+
+  @override
+  String get progressSyncUsePosition => '使用此進度';
+
+  @override
+  String get progressSyncThisDevice => '目前裝置的位置';
+
+  @override
+  String get progressSyncOtherDevice => '另一裝置的位置';
+
+  @override
+  String get progressSyncReview => '檢視';
+
+  @override
+  String get progressSyncConflictNotice => '有閱讀進度衝突，請選擇要保留的位置。';
 }

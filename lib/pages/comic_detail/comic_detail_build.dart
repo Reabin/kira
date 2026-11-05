@@ -38,7 +38,10 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
 
   Widget _buildSortButton(ColorScheme cs) {
     return FilledButton.tonal(
-      onPressed: () => _setState(() => _reversed = !_reversed),
+      onPressed: () {
+        unawaited(_readerSettings.setChapterReversed(!_reversed));
+        _setState(() {});
+      },
       style: FilledButton.styleFrom(
         minimumSize: const Size(38, 38),
         maximumSize: const Size(38, 38),
@@ -47,7 +50,8 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
         backgroundColor: cs.surfaceContainerHigh,
         foregroundColor: cs.onSurfaceVariant,
         shape: RoundedRectangleBorder(borderRadius: AppRadius.mdR),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        tapTargetSize: MaterialTapTargetSize.padded,
+        visualDensity: VisualDensity.standard,
       ),
       child: Tooltip(
         message: _reversed
@@ -177,7 +181,7 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
   Widget _hero(String Function(String base) tagOf, Widget child) {
     final base = widget.heroTagBase;
     if (base == null) return child;
-    return Hero(
+    return AppHero(
       tag: tagOf(base),
       createRectTween: ComicHeroTags.createRectTween,
       placeholderBuilder: _buildHeroPlaceholder,
@@ -236,11 +240,16 @@ extension _ComicDetailUiBuilders on _ComicDetailPageState {
         const SizedBox(width: 10),
         Expanded(
           child: FilledButton.tonalIcon(
-            onPressed: comic.uuid == null || comic.uuid!.isEmpty
+            onPressed:
+                comic.uuid == null ||
+                    comic.uuid!.isEmpty ||
+                    _collectStateLoading ||
+                    _collecting
                 ? null
                 : _toggleCollect,
+            // 用爱心区分「收藏」（服务端）与右上角的「书签」（本地）。
             icon: Icon(
-              _isCollected ? Icons.bookmark : Icons.bookmark_border,
+              _isCollected ? Icons.favorite : Icons.favorite_border,
               size: 18,
             ),
             label: Text(

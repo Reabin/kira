@@ -1,5 +1,7 @@
 part of '../appearance_page.dart';
 
+enum _AppFontAddAction { customUrl, localFile }
+
 class _AppFontCard extends StatefulWidget {
   final UserManager user;
 
@@ -64,7 +66,9 @@ class _AppFontCardState extends State<_AppFontCard> {
     final isDownloaded = _downloadedCache[fontName] ?? false;
     if (!isDownloaded) {
       final font = _fontManager.infoForName(fontName);
-      if (font == null) return;
+      // Local-only entries (downloaded fonts dropped from the catalog) have
+      // no download URL; without a file there is nothing to select.
+      if (font == null || font.url.isEmpty) return;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) {
@@ -100,7 +104,7 @@ class _AppFontCardState extends State<_AppFontCard> {
     if (_downloadStates[fontName] == true) return;
 
     final font = _fontManager.infoForName(fontName);
-    if (font == null) return;
+    if (font == null || font.url.isEmpty) return;
 
     setState(() => _downloadStates[fontName] = true);
     try {
@@ -166,6 +170,74 @@ class _AppFontCardState extends State<_AppFontCard> {
         _fonts = List<RemoteFontInfo>.from(_fontManager.cachedList);
       });
     }
+  }
+
+  Future<void> _importLocalFont() async {
+    final l10n = AppLocalizations.of(context)!;
+    PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile(
+        dialogTitle: l10n.appearanceImportLocalFont,
+        type: FileType.custom,
+        allowedExtensions: const ['ttf', 'otf', 'ttc'],
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.recordWarning(error, stackTrace: stackTrace);
+      if (mounted) {
+        showToast(
+          context,
+          l10n.appearanceImportFontFailed('$error'),
+          isError: true,
+        );
+      }
+      return;
+    }
+    if (picked == null || !mounted) return;
+
+    Uint8List bytes;
+    try {
+      bytes = await picked.readAsBytes();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.recordWarning(error, stackTrace: stackTrace);
+      if (mounted) {
+        showToast(
+          context,
+          l10n.appearanceImportFontFailed('$error'),
+          isError: true,
+        );
+      }
+      return;
+    }
+
+    final name = _fontNameFromFile(picked.name);
+    final imported = await _fontManager.importLocalFont(
+      name: name,
+      bytes: bytes,
+    );
+    if (!mounted) return;
+    if (!imported) {
+      showToast(context, l10n.appearanceImportFontInvalid, isError: true);
+      return;
+    }
+
+    await _refreshDownloadStates();
+    if (!mounted) return;
+    setState(() {
+      _fonts = List<RemoteFontInfo>.from(_fontManager.cachedList);
+    });
+    if (widget.user.theme.appFontFamily == name) {
+      // Re-importing the active font: reload the freshly written file.
+      await _fontManager.loadFont(name);
+    } else {
+      await _selectFont(name);
+    }
+    if (mounted) showToast(context, l10n.appearanceCustomFontAdded(name));
+  }
+
+  /// Uses the picked file name (without extension) as the font name.
+  String _fontNameFromFile(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    return dot > 0 ? fileName.substring(0, dot) : fileName;
   }
 
   Future<void> _showAddCustomFontDialog() async {
@@ -247,6 +319,9 @@ class _AppFontCardState extends State<_AppFontCard> {
     showToast(context, l10n.appearanceCustomFontAdded(fontName));
   }
 
+  String _textScaleLabel(double fontSize) =>
+      '${(fontSize / ThemeSettings.defaultAppFontSize * 100).round()}%';
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -264,14 +339,14 @@ class _AppFontCardState extends State<_AppFontCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 字体大小设置常驻显示，不随字体列表折叠。
+          // 全局文字缩放常驻显示，不随字体列表折叠。
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: _AppearanceSliderControl(
               icon: Icons.format_size_rounded,
-              title: l10n.appearanceDefaultFontSize,
-              description: l10n.appearanceDefaultFontSizeDesc,
-              valueText: defaultFontSize.toStringAsFixed(0),
+              title: l10n.appearanceTextScale,
+              valueText: _textScaleLabel(defaultFontSize),
+              semanticFormatterCallback: _textScaleLabel,
               value: defaultFontSize,
               min: ThemeSettings.minDefaultFontSize,
               max: ThemeSettings.maxDefaultFontSize,
@@ -305,19 +380,32 @@ class _AppFontCardState extends State<_AppFontCard> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    tooltip: l10n.appearanceAddCustomFont,
-                    onPressed: _showAddCustomFontDialog,
-                    icon: Icon(Icons.add_rounded, color: cs.primary),
-                    iconSize: 22,
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 40,
-                      height: 40,
-                    ),
-                    style: IconButton.styleFrom(
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: PopupMenuButton<_AppFontAddAction>(
+                      tooltip: l10n.appearanceAddCustomFont,
+                      icon: Icon(Icons.add_rounded, color: cs.primary),
+                      iconSize: 22,
+                      padding: EdgeInsets.zero,
+                      onSelected: (action) {
+                        switch (action) {
+                          case _AppFontAddAction.customUrl:
+                            unawaited(_showAddCustomFontDialog());
+                          case _AppFontAddAction.localFile:
+                            unawaited(_importLocalFont());
+                        }
+                      },
+                      itemBuilder: (ctx) => [
+                        PopupMenuItem(
+                          value: _AppFontAddAction.customUrl,
+                          child: Text(l10n.appearanceAddCustomFont),
+                        ),
+                        PopupMenuItem(
+                          value: _AppFontAddAction.localFile,
+                          child: Text(l10n.appearanceImportLocalFont),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
@@ -467,7 +555,8 @@ class _AppFontCardState extends State<_AppFontCard> {
     final isDownloaded = _downloadedCache[font.name] == true;
     final actions = <Widget>[];
 
-    if (!isDownloaded) {
+    // Local-only entries have no URL to download from.
+    if (!isDownloaded && font.url.isNotEmpty) {
       actions.add(
         IconButton(
           icon: Icon(

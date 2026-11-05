@@ -483,6 +483,40 @@ class NovelShelfEntry {
   };
 }
 
+/// 在线浏览记录条目。顶层 `last_chapter_*` 是用户停留的章节，
+/// `book.last_chapter_*` 是书籍最新章节，二者必须分开保存；
+/// 该接口不返回记录自身的 id/uuid，账号级删除为整表清空。
+class NovelBrowseEntry {
+  final NovelBook book;
+  final String? lastChapterId;
+  final String? lastChapterName;
+
+  const NovelBrowseEntry({
+    required this.book,
+    this.lastChapterId,
+    this.lastChapterName,
+  });
+
+  /// 停留章节与最新章节不一致即视为有更新；任一侧缺失时不判定。
+  bool get hasUpdate =>
+      lastChapterId != null &&
+      book.lastChapterId != null &&
+      lastChapterId != book.lastChapterId;
+
+  factory NovelBrowseEntry.fromJson(Map<String, dynamic> json) =>
+      NovelBrowseEntry(
+        book: NovelBook.fromJson(jsonMap(json, 'book') ?? {}),
+        lastChapterId: _optionalString(json, 'last_chapter_id'),
+        lastChapterName: _optionalString(json, 'last_chapter_name'),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'last_chapter_id': lastChapterId,
+    'last_chapter_name': lastChapterName,
+    'book': book.toJson(),
+  };
+}
+
 class NovelComment {
   final String id;
   final String createAt;

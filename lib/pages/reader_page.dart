@@ -2,15 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind, VelocityTracker;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:gal/gal.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material3_expressive_loading_indicator/material3_expressive_loading_indicator.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -22,7 +20,6 @@ import '../models/chapter_comment.dart';
 import '../models/user_manager.dart';
 import '../repositories/comic_detail_repository.dart';
 import '../routing/app_router.dart';
-import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
 import '../theme/reader_chrome.dart';
 import '../utils/adaptive_motion.dart';
@@ -37,14 +34,21 @@ import '../utils/reading_history.dart';
 import '../utils/reading_stats.dart';
 import '../utils/toast.dart';
 import '../widgets/app_sheet.dart';
+import '../widgets/collapsible_content.dart';
+import '../widgets/collapsible_switch_tile.dart';
 import '../widgets/image_reveal_hold.dart';
 import '../widgets/pinch_zoomable.dart';
+import '../widgets/reader_settings_fold.dart';
 import '../widgets/reader_status_overlay.dart';
 import '../widgets/reader_status_settings.dart';
+import '../widgets/settings_section.dart';
 import 'chapter_comment_display.dart';
 import 'chapter_comments_sheet.dart';
 import 'reader/chain_scroll_layout.dart';
+import 'reader/reader_book_pager.dart';
+import 'reader/reader_image_viewer.dart';
 import 'reader/reader_long_press_zoom.dart';
+import 'reader/reader_spread_layout.dart';
 
 part 'reader/reader_auto_scroll.dart';
 part 'reader/reader_bottom_bar.dart';
@@ -54,7 +58,6 @@ part 'reader/reader_chapter_widgets.dart';
 part 'reader/reader_comments_data.dart';
 part 'reader/reader_image_cache.dart';
 part 'reader/reader_image_pipeline.dart';
-part 'reader/reader_image_viewer.dart';
 part 'reader/reader_page_mode.dart';
 part 'reader/reader_scroll_mode.dart';
 part 'reader/reader_settings_panel.dart';
@@ -102,7 +105,7 @@ class ReaderPage extends StatefulWidget {
   State<ReaderPage> createState() => _ReaderPageState();
 }
 
-class _ReaderPageState extends State<ReaderPage> {
+class _ReaderPageState extends State<ReaderPage> with WidgetsBindingObserver {
   static const _volumeChannel = MethodChannel('io.github.caolib.kira/volume');
   static const _hiddenToolbarSlideOffset = 1.05;
 
@@ -138,6 +141,7 @@ class _ReaderPageState extends State<ReaderPage> {
   final _itemScrollController = ItemScrollController();
   final _itemPositionsListener = ItemPositionsListener.create();
   final _scrollOffsetController = ScrollOffsetController();
+  Future<void>? _wakeQueue;
   bool _autoScrollEnabled = false;
   bool _autoScrollActive = false;
   Timer? _autoScrollResumeTimer;
@@ -227,6 +231,8 @@ class _ReaderPageState extends State<ReaderPage> {
   // 需暂时禁用翻页手势（PageView 滑动/无动画翻页拖拽），否则翻页手势会因
   // slop 更小（18px < 36px）抢先接管拖动。
   bool _pageImageZoomed = false;
+  final Set<String> _zoomedPageImages = {};
+  int _pagesPerSpread = 1;
 
   // 连续阅读：按阅读顺序拼接的章节链。首项为用户进入时打开的章节。
   // _chainIndex 指向当前"所在章节"（用于导航栏显示与历史记录）。
@@ -296,7 +302,7 @@ class _ReaderPageState extends State<ReaderPage> {
           _statusOverlayIsTop &&
           !_isHorizontalScrollMode &&
           !_isPageMode)
-      ? ReaderStatusOverlay.reservedHeight
+      ? ReaderStatusOverlay.reservedHeightFor(context)
       : 0.0;
   bool get _isDarkMode => Theme.of(context).brightness == Brightness.dark;
   bool get _isHorizontalScrollMode =>
@@ -328,6 +334,9 @@ class _ReaderPageState extends State<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _user.reader.addListener(_onScreenOnSettingsChanged);
+    _setScreenOn(_user.reader.keepScreenOn);
     _currentUuid = widget.chapterUuid;
     _bookmarks.addListener(_onBookmarksChanged);
     unawaited(_bookmarks.ensureLoaded());
@@ -344,18 +353,45 @@ class _ReaderPageState extends State<ReaderPage> {
     _user.addListener(_onUserSettingsChanged);
     _loadChapter();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('enableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(_handleVolumeMethod);
+    }
     _updateVolumeIntercept();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final columns = ReaderSpreadLayout.columnsFor(
+      MediaQuery.sizeOf(context),
+      isIOS: defaultTargetPlatform == TargetPlatform.iOS,
+    );
+    if (columns == _pagesPerSpread) return;
+    _pagesPerSpread = columns;
+    if (_isPageMode && _chain.isNotEmpty) {
+      final image = _chainChapterStart(_chainIndex) + _currentPage - 1;
+      final oldController = _pageController;
+      _pageController = PageController(initialPage: _pageIndexForImage(image));
+      _bumpScrollWidgetVersion();
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => oldController.dispose(),
+      );
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _user.reader.removeListener(_onScreenOnSettingsChanged);
+    _setScreenOn(false);
     // 进度保存是防抖的，离开阅读页必须立刻落盘，否则最后几页会丢。
     unawaited(ReadingHistory.flush());
     _setVolumeIntercept(false);
-    _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
-    _volumeChannel.setMethodCallHandler(null);
+    if (Platform.isAndroid) {
+      _volumeChannel.invokeMethod('disableImmersive').catchError((_) {});
+      _volumeChannel.setMethodCallHandler(null);
+    }
     _bookmarks.removeListener(_onBookmarksChanged);
     _user.removeListener(_onUserSettingsChanged);
     _scrollZoomController.removeListener(_onScrollZoomControllerChanged);
@@ -371,6 +407,44 @@ class _ReaderPageState extends State<ReaderPage> {
       overlays: SystemUiOverlay.values,
     );
     super.dispose();
+  }
+
+  void _onScreenOnSettingsChanged() {
+    _setScreenOn(_user.reader.keepScreenOn);
+  }
+
+  void _setScreenOn(bool enabled) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final shouldEnable =
+        enabled &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed);
+    Future<void> toggle() async {
+      try {
+        await WakelockPlus.toggle(enable: shouldEnable);
+      } catch (error, stack) {
+        unawaited(
+          AppLogger.instance.recordWarning(
+            error,
+            stackTrace: stack,
+            source: 'reader.screen_on',
+          ),
+        );
+      }
+    }
+
+    final operation = _wakeQueue?.then((_) => toggle()) ?? toggle();
+    late final Future<void> tail;
+    tail = operation.whenComplete(() {
+      if (identical(_wakeQueue, tail)) _wakeQueue = null;
+    });
+    _wakeQueue = tail;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _setScreenOn(
+      state == AppLifecycleState.resumed && _user.reader.keepScreenOn,
+    );
   }
 
   /// 「返回目录」统一出口：顶栏、章末按钮、末尾空白页、滚动回顶、
@@ -419,7 +493,9 @@ class _ReaderPageState extends State<ReaderPage> {
     if (_isPageMode) {
       final oldController = _pageController;
       final initialIndex = _chainChapterStart(_chainIndex) + (page - 1);
-      _pageController = PageController(initialPage: initialIndex);
+      _pageController = PageController(
+        initialPage: _pageIndexForImage(initialIndex),
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         oldController.dispose();
       });
@@ -451,10 +527,17 @@ class _ReaderPageState extends State<ReaderPage> {
       backgroundColor: Colors.transparent,
       barrierColor: Colors.transparent,
       isScrollControlled: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+      sheetAnimationStyle: prefersReducedMotion(context)
+          ? AnimationStyle.noAnimation
+          : null,
+      constraints: const BoxConstraints(),
+      builder: (sheetContext) => ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.sizeOf(sheetContext).width,
+          maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+        ),
+        child: _ReaderSettingsPanel(onChanged: _onSettingsChanged),
       ),
-      builder: (_) => _ReaderSettingsPanel(onChanged: _onSettingsChanged),
     ).whenComplete(() {
       if (!mounted) return;
       _resumeAutoScrollAfterOverlay();
@@ -556,6 +639,9 @@ class _ReaderPageState extends State<ReaderPage> {
               _ReaderBottomBar(
                 showToolbar: _showToolbar,
                 currentPage: _currentPage,
+                currentPageLabel: _pagesPerSpread == 2 && _isPageMode
+                    ? '$_visibleFirstPage–$_visibleLastPage'
+                    : null,
                 totalPage: _detail!.contents.length,
                 hasPrev: _detail!.prev != null,
                 hasNext: _detail!.next != null,
@@ -573,7 +659,7 @@ class _ReaderPageState extends State<ReaderPage> {
                     final globalIndex = _continuousReading
                         ? _chainChapterStart(_chainIndex) + (page - 1)
                         : page;
-                    _pageController.jumpToPage(globalIndex);
+                    _pageController.jumpToPage(_pageIndexForImage(globalIndex));
                   } else {
                     _jumpToScrollPage(
                       page,
@@ -584,6 +670,7 @@ class _ReaderPageState extends State<ReaderPage> {
                 onDragStart: () => _isDraggingSlider = true,
                 onDragEnd: () {
                   _isDraggingSlider = false;
+                  _saveReadingHistory();
                   // 拖进度条期间不允许重建列表，松手后补做被推迟的链首裁剪。
                   _flushPendingChainPrune();
                 },

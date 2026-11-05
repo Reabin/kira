@@ -78,7 +78,10 @@ class FakeWebDavAdapter implements HttpClientAdapter {
         );
       case 'PUT':
         if (!writable) return _status(403);
-        if (files.containsKey(path)) return _status(412);
+        if (files.containsKey(path) &&
+            options.headers['If-None-Match'] == '*') {
+          return _status(412);
+        }
         files[path] = bytes;
         return _status(201);
       case 'MOVE':
@@ -87,7 +90,9 @@ class FakeWebDavAdapter implements HttpClientAdapter {
         final destination = options.headers['Destination'];
         if (destination is! String) return _status(400);
         final target = Uri.parse(destination).path;
-        if (files.containsKey(target)) return _status(412);
+        if (files.containsKey(target) && options.headers['Overwrite'] != 'T') {
+          return _status(412);
+        }
         final value = files.remove(path);
         if (value == null) return _status(404);
         files[target] = value;

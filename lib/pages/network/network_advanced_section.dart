@@ -118,6 +118,18 @@ extension _NetworkAdvancedSection on _NetworkPageState {
           onSubmitted: (_) => _saveCopyAdvancedSettings(),
         ),
         const SizedBox(height: AppSpacing.lg),
+        TextField(
+          controller: _copyVersionCodeController,
+          decoration: InputDecoration(
+            labelText: l10n.networkCopyVersionCode,
+            hintText: defaultCopyVersionCode,
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: TextInputType.number,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => _saveCopyAdvancedSettings(),
+        ),
+        const SizedBox(height: AppSpacing.lg),
         _buildAdvancedActions(cs),
       ],
     );

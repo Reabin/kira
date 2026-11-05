@@ -17,7 +17,7 @@ extension _NetworkProxySection on _NetworkPageState {
           subtitle: Text(
             NetworkProxy.activeProxyDescription(l10n),
             style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-            maxLines: 1,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
           trailing: SelectTile<NetworkProxyMode>(
@@ -30,6 +30,14 @@ extension _NetworkProxySection on _NetworkPageState {
             onChanged: _setProxyMode,
           ),
         ),
+        if (NetworkProxy.isIOS && mode == NetworkProxyMode.system)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              l10n.networkIOSSystemHint,
+              style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            ),
+          ),
         if (mode == NetworkProxyMode.manual)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
@@ -92,7 +100,9 @@ extension _NetworkProxySection on _NetworkPageState {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Text(
-                    l10n.networkProxyDirectHint,
+                    NetworkProxy.isIOS
+                        ? l10n.networkIOSDirectHint
+                        : l10n.networkProxyDirectHint,
                     style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                   ),
                 ),

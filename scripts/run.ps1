@@ -10,7 +10,8 @@ param(
     [ValidateSet('win', 'mumu', 'emu')]
     [string]$Target,
     [switch]$Stop,
-    [switch]$Log
+    [switch]$Log,
+    [switch]$NoWait
 )
 
 $SessionName = 'kira'
@@ -41,17 +42,20 @@ if ($Log) {
 
 if (-not $Target) {
     Write-Host @"
-用法: .\scripts\run.ps1 <win|mumu|emu> [-Stop] [-Log]
+用法: .\scripts\run.ps1 <win|mumu|emu> [-Stop] [-Log] [-NoWait]
 
   win   Windows 桌面运行
   mumu  MuMu 模拟器 (127.0.0.1:5557)
   emu   Android emulator ($EmulatorName)
 
-  -Stop 停止并清理 psmux session
-  -Log  查看最近 40 行运行输出
+  -Stop    停止并清理 psmux session
+  -Log     查看最近 40 行运行输出
+  -NoWait  启动后立刻返回，不等应用编译就绪（编译在后台继续，
+           用 -Log 看进度；不传则等到就绪，之后才能安全热重载）
 
 示例:
   .\scripts\run.ps1 win
+  .\scripts\run.ps1 win -NoWait
   .\scripts\run.ps1 mumu
 "@
     exit 0
@@ -102,5 +106,17 @@ $DeviceArg = switch ($Target) {
 # ---- 通过 driver 启动（session 名、就绪轮询统一） ----
 $env:KIRA_DEVICE = $DeviceArg
 Write-Host "启动: flutter run -d $DeviceArg"
-node $Driver start
+
+# 拷贝接口登录的签名密钥。桌面调试时 driver 里 `flutter run` 继承本进程环境
+# 变量，应用侧直接读 Platform.environment 即可；Android 设备没有环境变量，
+# 需要时用 --dart-define 自行启动（见 docs/architecture.md）。
+. "$PSScriptRoot\common.ps1"
+if (-not (Get-CopyAuthKeyDefine)) {
+    Write-Host "未设置 COPY_AUTH_KEY，接口登录入口将不出现在应用中" -ForegroundColor DarkYellow
+}
+if ($NoWait) {
+    node $Driver start --no-wait
+} else {
+    node $Driver start
+}
 exit $LASTEXITCODE

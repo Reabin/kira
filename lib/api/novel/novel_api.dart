@@ -11,6 +11,7 @@ import '../../models/user_manager.dart';
 import '../../utils/app_dio.dart';
 import '../../utils/comment_text.dart';
 import '../../utils/json_helpers.dart';
+import '../../utils/network_error.dart';
 import '../../utils/network_proxy.dart';
 import '../api_transport.dart';
 import 'novel_text.dart';
@@ -35,6 +36,12 @@ class NovelApiException implements Exception {
 class NovelIdentityChangedException extends NovelApiException {
   const NovelIdentityChangedException() : super('拷贝账号或线路已变更，请重新加载');
 }
+
+/// User-facing text for a novel failure. Keeps the upstream detail instead of
+/// collapsing every failure into a generic label; [fallback] is only used when
+/// the error carries no text at all.
+String novelErrorMessage(Object? error, {String? fallback}) =>
+    NetworkError.describe(error, fallback: fallback ?? '');
 
 /// An in-memory request snapshot. Credentials are private and never serialized.
 class NovelRequestIdentity {
@@ -409,14 +416,20 @@ class NovelApi {
       );
       ensureIdentity(identity);
       if (response.statusCode != 200 || response.data == null) {
-        throw NovelApiException('正文或插图获取失败', statusCode: response.statusCode);
+        throw NovelApiException(
+          '正文或插图获取失败（HTTP ${response.statusCode ?? '无响应'}）',
+          statusCode: response.statusCode,
+        );
       }
       return response.data!;
     } on DioException catch (error) {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        '正文或插图网络请求失败',
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }
@@ -458,6 +471,27 @@ class NovelApi {
       }),
       NovelShelfEntry.fromJson,
     );
+  });
+
+  /// 在线浏览记录。条目不携带 id/uuid，分页由服务端 total/offset 决定。
+  Future<NovelPage<NovelBrowseEntry>> getBrowseHistory({
+    int limit = 18,
+    int offset = 0,
+  }) => withIdentity(() async {
+    _validatePage(limit, offset);
+    return NovelPage.fromJson(
+      await _get('/api/v3/member/browse/books', {
+        'limit': limit,
+        'offset': offset,
+      }),
+      NovelBrowseEntry.fromJson,
+    );
+  });
+
+  /// 抓包确认 DELETE 无实体参数，清除账号下全部在线浏览记录；
+  /// 成功响应为 `results: null`，因此只校验外层信封。
+  Future<void> clearBrowseHistory() => withIdentity(() async {
+    await _request('/api/v3/member/browse/books', method: 'DELETE');
   });
 
   Future<void> setCollected({
@@ -535,6 +569,7 @@ class NovelApi {
     String path, {
     Map<String, dynamic>? params,
     Map<String, dynamic>? data,
+    String? method,
     bool browserComment = false,
   }) async {
     final identity = requestIdentity;
@@ -545,7 +580,8 @@ class NovelApi {
         queryParameters: {...?params, 'platform': 3},
         data: data,
         options: Options(
-          method: data == null ? 'GET' : 'POST',
+          // Explicit methods (DELETE) must not be inferred from the body.
+          method: method ?? (data == null ? 'GET' : 'POST'),
           responseType: ResponseType.plain,
           contentType: Headers.formUrlEncodedContentType,
           followRedirects: false,
@@ -576,10 +612,14 @@ class NovelApi {
       final code = int.tryParse(jsonString(envelope, 'code'));
       if (response.statusCode != 200 || code != 200 || envelope == null) {
         final diagnosticResponse = response.statusCode == 210 || code == 210;
+        final upstreamMessage = _plainMessage(envelope);
         throw NovelApiException(
           diagnosticResponse
               ? rawResponseText ?? jsonEncode(envelope ?? body)
-              : '小说请求失败',
+              : _describeFailure(
+                  upstreamMessage,
+                  statusCode: response.statusCode,
+                ),
           code: code,
           statusCode: response.statusCode,
         );
@@ -589,9 +629,37 @@ class NovelApi {
       if (CancelToken.isCancel(error)) rethrow;
       ensureIdentity(identity);
       throw NovelApiException(
-        '小说网络请求失败',
+        _describeFailure(
+          NetworkError.message(error),
+          statusCode: error.response?.statusCode,
+        ),
         statusCode: error.response?.statusCode,
       );
     }
+  }
+
+  /// Pick the upstream error text only when it is a plain string. `message`
+  /// can be a JSON object (see the token/password test), and echoing that
+  /// would surface arbitrary payloads in the UI.
+  static String? _plainMessage(Map<String, dynamic>? envelope) {
+    if (envelope == null) return null;
+    final detail = jsonMap(envelope, 'results')?['detail'];
+    if (detail is String) return detail;
+    final message = envelope['message'];
+    return message is String ? message : null;
+  }
+
+  /// Compose a user-facing failure that keeps the upstream detail instead of
+  /// replacing it with a generic label.
+  static String _describeFailure(String? detail, {int? statusCode}) {
+    final text = detail?.trim() ?? '';
+    if (text.isEmpty) {
+      // HTTP 200 means the failure came from the envelope's business code, so
+      // quoting the status would only add noise.
+      return statusCode == null || statusCode == 200
+          ? '小说请求失败'
+          : '小说请求失败（HTTP $statusCode）';
+    }
+    return '小说请求失败：$text';
   }
 }

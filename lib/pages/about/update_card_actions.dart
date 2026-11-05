@@ -12,13 +12,18 @@ extension _UpdateCardActions on _UpdateCardState {
       _lastSurfacedInstallStatus = s.status;
       if (s.status == InstallStatus.error && mounted) {
         final l10n = AppLocalizations.of(context)!;
+        final detail = s.errorDetail?.trim() ?? '';
         showToast(
           context,
           s.needsPermission
               ? l10n.updateInstallPermissionNeeded
               : (s.assetName != null && s.assetName!.isNotEmpty
-                    ? l10n.updateInstallFailed
-                    : l10n.updateDownloadFailed),
+                    ? (detail.isEmpty
+                          ? l10n.updateInstallFailed
+                          : l10n.updateInstallFailedDetail(detail))
+                    : (detail.isEmpty
+                          ? l10n.updateDownloadFailed
+                          : l10n.updateDownloadFailedDetail(detail))),
           isError: true,
         );
       }
