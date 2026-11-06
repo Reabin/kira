@@ -69,6 +69,15 @@ class _Harness {
     );
     await tester.pump();
     await tester.pump();
+    // Initial pagination can yield between batches on a slower runner.
+    for (
+      var frame = 0;
+      frame < 120 && key.currentState?.currentLocation == null;
+      frame++
+    ) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(key.currentState?.currentLocation, isNotNull);
   }
 }
 
